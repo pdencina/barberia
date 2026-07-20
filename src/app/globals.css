@@ -50,3 +50,7 @@
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
 }
+
+.border-3 {
+  border-width: 3px;
+}

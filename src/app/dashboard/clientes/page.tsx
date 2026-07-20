@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Client {
   id: string;
@@ -86,7 +87,7 @@ export default function ClientesPage() {
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={4} className="p-4 text-center text-gray-500">Cargando...</td></tr>
+              <tr><td colSpan={4}><Spinner /></td></tr>
             ) : clients.length === 0 ? (
               <tr><td colSpan={4} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
             ) : clients.map((c) => (

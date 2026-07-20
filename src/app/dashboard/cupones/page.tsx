@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Coupon {
   id: string;
@@ -88,7 +89,7 @@ export default function CuponesPage() {
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={7} className="p-4 text-center text-gray-500">Cargando...</td></tr>
+              <tr><td colSpan={7}><Spinner /></td></tr>
             ) : coupons.length === 0 ? (
               <tr><td colSpan={7} className="p-4 text-center text-gray-500">No hay cupones</td></tr>
             ) : coupons.map((c) => (

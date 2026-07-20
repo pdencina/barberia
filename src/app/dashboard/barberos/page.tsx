@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Barber {
   id: string;
@@ -66,7 +67,7 @@ export default function BarberosPage() {
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={3} className="p-4 text-center text-gray-500">Cargando...</td></tr>
+              <tr><td colSpan={3}><Spinner /></td></tr>
             ) : barbers.length === 0 ? (
               <tr><td colSpan={3} className="p-4 text-center text-gray-500">No hay barberos</td></tr>
             ) : barbers.map((b) => (

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Product {
   id: string;
@@ -155,7 +156,7 @@ export default function InventarioPage() {
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={7} className="p-4 text-center text-gray-500">Cargando...</td></tr>
+              <tr><td colSpan={7}><Spinner /></td></tr>
             ) : products.map((p) => (
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="p-4 font-medium">{p.name}</td>

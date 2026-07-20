@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Appointment {
   id: string;
@@ -175,7 +176,7 @@ export default function AgendaPage() {
 
       {/* Appointments */}
       {loading ? (
-        <p className="text-gray-500 text-center py-8">Cargando...</p>
+        <Spinner />
       ) : filteredAppointments.length === 0 ? (
         <p className="text-gray-500 text-center py-8">No hay citas para este dia</p>
       ) : (

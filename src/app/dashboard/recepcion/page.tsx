@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Spinner } from "@/components/ui/spinner";
 
 interface Appointment {
   id: string;
@@ -122,7 +123,7 @@ export default function RecepcionPage() {
       </div>
 
       {loading ? (
-        <p className="text-gray-500 text-center py-8">Cargando...</p>
+        <Spinner />
       ) : (
         <>
           {/* En Atencion */}

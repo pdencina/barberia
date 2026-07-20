@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { Spinner } from "@/components/ui/spinner";
 
 interface ReportData {
   summary: {
@@ -67,7 +68,7 @@ export default function ReportesPage() {
     return (
       <div className="p-6">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">Reportes</h1>
-        <p className="text-gray-500 text-center py-8">Cargando...</p>
+        <Spinner />
       </div>
     );
   }
