@@ -64,13 +64,13 @@ export default function AgendaPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/barberos").then((r) => r.json()),
-      fetch("/api/clients").then((r) => r.json()),
-      fetch("/api/services").then((r) => r.json()),
+      fetch("/api/barberos").then((r) => r.json()).catch(() => []),
+      fetch("/api/clients").then((r) => r.json()).catch(() => ({ clients: [] })),
+      fetch("/api/services").then((r) => r.json()).catch(() => []),
     ]).then(([b, c, s]) => {
-      setBarbers(b);
-      setClients(c.clients || c || []);
-      setServices(s);
+      setBarbers(Array.isArray(b) ? b : []);
+      setClients(Array.isArray(c?.clients) ? c.clients : Array.isArray(c) ? c : []);
+      setServices(Array.isArray(s) ? s : []);
     });
   }, []);
 

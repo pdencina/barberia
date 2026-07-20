@@ -53,15 +53,15 @@ export default function POSPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/services").then((r) => r.json()),
-      fetch("/api/products").then((r) => r.json()),
-      fetch("/api/clients").then((r) => r.json()),
-      fetch("/api/barberos").then((r) => r.json()),
+      fetch("/api/services").then((r) => r.json()).catch(() => []),
+      fetch("/api/products").then((r) => r.json()).catch(() => []),
+      fetch("/api/clients").then((r) => r.json()).catch(() => ({ clients: [] })),
+      fetch("/api/barberos").then((r) => r.json()).catch(() => []),
     ]).then(([servicesData, productsData, clientsData, barbersData]) => {
-      setServices(servicesData);
-      setProducts(productsData);
-      setClients(clientsData.clients || clientsData || []);
-      setBarbers(barbersData);
+      setServices(Array.isArray(servicesData) ? servicesData : []);
+      setProducts(Array.isArray(productsData) ? productsData : []);
+      setClients(Array.isArray(clientsData?.clients) ? clientsData.clients : Array.isArray(clientsData) ? clientsData : []);
+      setBarbers(Array.isArray(barbersData) ? barbersData : []);
     });
   }, []);
 
@@ -75,7 +75,7 @@ export default function POSPage() {
     if (existing) {
       setCart(cart.map((c) => (c.id === item.id && c.type === type ? { ...c, quantity: c.quantity + 1 } : c)));
     } else {
-      setCart([...cart, { id: item.id, name: item.name, price: item.price, quantity: 1, type }]);
+      setCart([...cart, { id: item.id, name: item.name, price: Number(item.price), quantity: 1, type }]);
     }
   };
 
@@ -95,7 +95,7 @@ export default function POSPage() {
     setCart(cart.filter((c) => !(c.id === id && c.type === type)));
   };
 
-  const subtotal = cart.reduce((sum, c) => sum + c.price * c.quantity, 0);
+  const subtotal = cart.reduce((sum, c) => sum + Number(c.price) * c.quantity, 0);
   const total = subtotal - discount;
 
   const applyCoupon = async () => {
@@ -104,10 +104,10 @@ export default function POSPage() {
     try {
       const res = await fetch(`/api/cupones/validate?code=${couponCode}&amount=${subtotal}`);
       const data = await res.json();
-      if (res.ok) {
+      if (data.valid) {
         setDiscount(data.discount);
       } else {
-        setCouponError(data.error || "Cupon invalido");
+        setCouponError(data.message || "Cupon invalido");
         setDiscount(0);
       }
     } catch {
@@ -187,7 +187,7 @@ export default function POSPage() {
               className="bg-white p-4 rounded-lg shadow hover:shadow-md transition text-left"
             >
               <p className="font-medium text-gray-900">{item.name}</p>
-              <p className="text-indigo-600 font-bold">{formatCurrency(item.price)}</p>
+              <p className="text-indigo-600 font-bold">{formatCurrency(Number(item.price))}</p>
               <p className="text-xs text-gray-500">
                 {activeTab === "services"
                   ? `${(item as Service).duration} min`
