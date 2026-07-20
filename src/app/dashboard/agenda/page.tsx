@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Appointment {
   id: string;
@@ -51,6 +52,7 @@ export default function AgendaPage() {
     client_id: "", barber_id: "", time: "09:00", services: [] as string[], notes: "",
   });
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
 
   const fetchAppointments = async () => {
     setLoading(true);
@@ -90,6 +92,16 @@ export default function AgendaPage() {
   };
 
   const updateStatus = async (id: string, status: string) => {
+    if (status === "cancelled") {
+      const ok = await confirm({
+        title: "Cancelar cita",
+        message: "Estas seguro de que quieres cancelar esta cita? Esta accion no se puede deshacer.",
+        confirmText: "Si, cancelar",
+        variant: "danger",
+      });
+      if (!ok) return;
+    }
+
     await fetch(`/api/appointments/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },

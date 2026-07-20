@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Appointment {
   id: string;
@@ -35,6 +37,8 @@ export default function RecepcionPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
+  const { confirm } = useConfirm();
 
   const today = new Date().toISOString().split("T")[0];
 
@@ -76,11 +80,22 @@ export default function RecepcionPage() {
   }, []);
 
   const updateStatus = async (id: string, status: string) => {
+    if (status === "cancelled") {
+      const ok = await confirm({
+        title: "Cancelar cita",
+        message: "Estas seguro de que quieres cancelar esta cita?",
+        confirmText: "Si, cancelar",
+        variant: "danger",
+      });
+      if (!ok) return;
+    }
+
     await fetch(`/api/appointments/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    showToast("Estado actualizado", "success");
     fetchAppointments();
   };
 
