@@ -1,4 +1,5 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
+import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 
 export function createServerSupabase() {
@@ -15,44 +16,27 @@ export function createServerSupabase() {
         set(name: string, value: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value, ...options });
-          } catch (error) {
-            // Handle cookies in server components
-          }
+          } catch (error) {}
         },
         remove(name: string, options: CookieOptions) {
           try {
             cookieStore.set({ name, value: "", ...options });
-          } catch (error) {
-            // Handle cookies in server components
-          }
+          } catch (error) {}
         },
       },
     }
   );
 }
 
-// Admin client with service role (bypasses RLS)
+// Admin client with service role (bypasses RLS, no cookies needed)
 export function createAdminSupabase() {
-  const cookieStore = cookies();
-
-  return createServerClient(
+  return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
     process.env.SUPABASE_SERVICE_ROLE_KEY ?? "placeholder",
     {
-      cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value, ...options });
-          } catch (error) {}
-        },
-        remove(name: string, options: CookieOptions) {
-          try {
-            cookieStore.set({ name, value: "", ...options });
-          } catch (error) {}
-        },
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false,
       },
     }
   );
