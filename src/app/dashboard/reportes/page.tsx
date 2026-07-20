@@ -4,16 +4,18 @@ import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 
 interface ReportData {
-  income: number;
-  expenses: number;
-  profit: number;
-  transactions: number;
-  appointments: number;
-  new_clients: number;
-  income_by_barber: { name: string; total: number }[];
-  by_payment_method: { method: string; total: number }[];
-  top_services: { name: string; count: number; total: number }[];
-  top_products: { name: string; count: number; total: number }[];
+  summary: {
+    totalIncome: number;
+    totalExpenses: number;
+    netProfit: number;
+    totalTransactions: number;
+    appointmentsCompleted: number;
+    newClients: number;
+  };
+  incomeByBarber: Array<{ name: string; total: number; count: number }>;
+  incomeByMethod: Array<{ method: string; total: number; count: number }>;
+  topServices: Array<{ name: string; count: number; total: number }>;
+  topProducts: Array<{ name: string; count: number; total: number }>;
 }
 
 const monthNames = [
@@ -86,27 +88,27 @@ export default function ReportesPage() {
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="bg-white p-4 rounded-lg shadow">
           <p className="text-xs text-gray-500">Ingresos</p>
-          <p className="text-lg font-bold text-green-600">{formatCurrency(data.income)}</p>
+          <p className="text-lg font-bold text-green-600">{formatCurrency(data.summary.totalIncome)}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
           <p className="text-xs text-gray-500">Egresos</p>
-          <p className="text-lg font-bold text-red-600">{formatCurrency(data.expenses)}</p>
+          <p className="text-lg font-bold text-red-600">{formatCurrency(data.summary.totalExpenses)}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
           <p className="text-xs text-gray-500">Utilidad</p>
-          <p className="text-lg font-bold text-indigo-600">{formatCurrency(data.profit)}</p>
+          <p className="text-lg font-bold text-indigo-600">{formatCurrency(data.summary.netProfit)}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
           <p className="text-xs text-gray-500">Transacciones</p>
-          <p className="text-lg font-bold text-gray-900">{data.transactions}</p>
+          <p className="text-lg font-bold text-gray-900">{data.summary.totalTransactions}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
           <p className="text-xs text-gray-500">Citas</p>
-          <p className="text-lg font-bold text-gray-900">{data.appointments}</p>
+          <p className="text-lg font-bold text-gray-900">{data.summary.appointmentsCompleted}</p>
         </div>
         <div className="bg-white p-4 rounded-lg shadow">
           <p className="text-xs text-gray-500">Clientes Nuevos</p>
-          <p className="text-lg font-bold text-gray-900">{data.new_clients}</p>
+          <p className="text-lg font-bold text-gray-900">{data.summary.newClients}</p>
         </div>
       </div>
 
@@ -123,7 +125,7 @@ export default function ReportesPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {data.income_by_barber?.map((row, i) => (
+              {data.incomeByBarber?.map((row, i) => (
                 <tr key={i}>
                   <td className="p-3">{row.name}</td>
                   <td className="p-3 text-right font-medium">{formatCurrency(row.total)}</td>
@@ -144,7 +146,7 @@ export default function ReportesPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {data.by_payment_method?.map((row, i) => (
+              {data.incomeByMethod?.map((row, i) => (
                 <tr key={i}>
                   <td className="p-3">{paymentMethodLabels[row.method] || row.method}</td>
                   <td className="p-3 text-right font-medium">{formatCurrency(row.total)}</td>
@@ -166,7 +168,7 @@ export default function ReportesPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {data.top_services?.map((row, i) => (
+              {data.topServices?.map((row, i) => (
                 <tr key={i}>
                   <td className="p-3">{row.name}</td>
                   <td className="p-3 text-center">{row.count}</td>
@@ -189,7 +191,7 @@ export default function ReportesPage() {
               </tr>
             </thead>
             <tbody className="divide-y">
-              {data.top_products?.map((row, i) => (
+              {data.topProducts?.map((row, i) => (
                 <tr key={i}>
                   <td className="p-3">{row.name}</td>
                   <td className="p-3 text-center">{row.count}</td>

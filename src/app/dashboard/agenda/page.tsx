@@ -66,7 +66,7 @@ export default function AgendaPage() {
       fetch("/api/services").then((r) => r.json()),
     ]).then(([b, c, s]) => {
       setBarbers(b);
-      setClients(c);
+      setClients(c.clients || c || []);
       setServices(s);
     });
   }, []);
@@ -74,7 +74,7 @@ export default function AgendaPage() {
   useEffect(() => { fetchAppointments(); }, [date]);
 
   const filteredAppointments = barberFilter
-    ? appointments.filter((a) => a.barber_id === barberFilter)
+    ? appointments.filter((a: any) => a.barber_id === barberFilter)
     : appointments;
 
   const changeDate = (delta: number) => {
@@ -106,7 +106,14 @@ export default function AgendaPage() {
     await fetch("/api/appointments", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...formData, date }),
+      body: JSON.stringify({
+        clientId: formData.client_id,
+        barberId: formData.barber_id,
+        date,
+        startTime: `${date}T${formData.time}:00`,
+        serviceIds: formData.services,
+        notes: formData.notes,
+      }),
     });
     setShowModal(false);
     setFormData({ client_id: "", barber_id: "", time: "09:00", services: [], notes: "" });
@@ -153,18 +160,18 @@ export default function AgendaPage() {
         <p className="text-gray-500 text-center py-8">No hay citas para este dia</p>
       ) : (
         <div className="space-y-3">
-          {filteredAppointments.map((a) => (
+          {filteredAppointments.map((a: any) => (
             <div key={a.id} className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-indigo-600">{a.time}</span>
-                  <span className="font-medium text-gray-900">{a.client_name}</span>
+                  <span className="text-lg font-bold text-indigo-600">{new Date(a.start_time).toLocaleTimeString("es-CL", {hour: "2-digit", minute: "2-digit"})}</span>
+                  <span className="font-medium text-gray-900">{a.client?.name || "-"}</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[a.status] || "bg-gray-100 text-gray-700"}`}>
                     {statusLabels[a.status] || a.status}
                   </span>
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
-                  Barbero: {a.barber_name} | Servicios: {a.services?.join(", ") || "-"}
+                  Barbero: {a.barber?.name || "-"} | Servicios: {a.services?.map((s: any) => s.service?.name).join(", ") || "-"}
                 </p>
               </div>
               <div className="flex gap-2">

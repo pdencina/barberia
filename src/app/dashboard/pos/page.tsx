@@ -60,7 +60,7 @@ export default function POSPage() {
     ]).then(([servicesData, productsData, clientsData, barbersData]) => {
       setServices(servicesData);
       setProducts(productsData);
-      setClients(clientsData);
+      setClients(clientsData.clients || clientsData || []);
       setBarbers(barbersData);
     });
   }, []);
@@ -129,6 +129,7 @@ export default function POSPage() {
           paymentMethod,
           couponCode: couponCode || null,
           discount,
+          subtotal,
           total,
         }),
       });

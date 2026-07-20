@@ -47,11 +47,11 @@ export default function CuponesPage() {
       body: JSON.stringify({
         code: formData.code,
         description: formData.description,
-        type: formData.type,
-        value: parseFloat(formData.value),
-        min_purchase: parseFloat(formData.min_purchase) || 0,
-        max_uses: parseInt(formData.max_uses) || null,
-        valid_until: formData.valid_until || null,
+        discountType: formData.type,
+        discountValue: parseFloat(formData.value),
+        minPurchase: parseFloat(formData.min_purchase) || null,
+        maxUses: parseInt(formData.max_uses) || null,
+        validUntil: formData.valid_until || null,
       }),
     });
     setShowModal(false);
@@ -92,10 +92,10 @@ export default function CuponesPage() {
                 <td className="p-4 font-mono font-medium">{c.code}</td>
                 <td className="p-4">{c.description || "-"}</td>
                 <td className="p-4">
-                  {c.type === "percentage" ? `${c.value}%` : formatCurrency(c.value)}
+                  {c.discount_type === "percentage" ? `${c.discount_value}%` : formatCurrency(Number(c.discount_value))}
                 </td>
-                <td className="p-4 text-right">{formatCurrency(c.min_purchase)}</td>
-                <td className="p-4 text-center">{c.uses}/{c.max_uses || "∞"}</td>
+                <td className="p-4 text-right">{c.min_purchase ? formatCurrency(Number(c.min_purchase)) : "-"}</td>
+                <td className="p-4 text-center">{c.used_count}/{c.max_uses || "∞"}</td>
                 <td className="p-4">
                   {c.valid_until ? new Date(c.valid_until).toLocaleDateString("es-CL") : "Sin limite"}
                 </td>

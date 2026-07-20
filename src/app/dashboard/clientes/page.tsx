@@ -23,7 +23,8 @@ export default function ClientesPage() {
     try {
       const params = query ? `?search=${encodeURIComponent(query)}` : "";
       const res = await fetch(`/api/clients${params}`);
-      setClients(await res.json());
+      const data = await res.json();
+      setClients(data.clients || data || []);
     } catch (err) {
       console.error("Error fetching clients:", err);
     } finally {

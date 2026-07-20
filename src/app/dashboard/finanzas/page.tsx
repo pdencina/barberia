@@ -6,13 +6,13 @@ import { formatCurrency } from "@/lib/utils";
 interface Transaction {
   id: string;
   type: "income" | "expense";
-  description: string;
-  amount: number;
+  total: number;
   payment_method: string;
   notes: string;
-  client_name?: string;
-  barber_name?: string;
   created_at: string;
+  client: { name: string } | null;
+  barber: { name: string } | null;
+  items: Array<{ description: string; total: number }>;
 }
 
 const paymentMethodLabels: Record<string, string> = {
@@ -46,7 +46,7 @@ export default function FinanzasPage() {
     try {
       const res = await fetch(`/api/finanzas?${params.toString()}`);
       const data = await res.json();
-      setTransactions(data);
+      setTransactions(data.transactions || []);
     } catch (err) {
       console.error("Error fetching transactions:", err);
     } finally {
@@ -60,10 +60,10 @@ export default function FinanzasPage() {
 
   const totalIncome = transactions
     .filter((t) => t.type === "income")
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + Number(t.total), 0);
   const totalExpenses = transactions
     .filter((t) => t.type === "expense")
-    .reduce((sum, t) => sum + t.amount, 0);
+    .reduce((sum, t) => sum + Number(t.total), 0);
   const balance = totalIncome - totalExpenses;
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -195,12 +195,12 @@ export default function FinanzasPage() {
                       {t.type === "income" ? "Ingreso" : "Egreso"}
                     </span>
                   </td>
-                  <td className="p-4">{t.description}</td>
-                  <td className="p-4">{t.client_name || t.barber_name || "-"}</td>
+                  <td className="p-4">{t.items?.map((i: any) => i.description).join(", ") || t.notes || "-"}</td>
+                  <td className="p-4">{t.client?.name || t.barber?.name || "-"}</td>
                   <td className="p-4">{paymentMethodLabels[t.payment_method] || t.payment_method}</td>
                   <td className={`p-4 text-right font-medium ${t.type === "income" ? "text-green-600" : "text-red-600"}`}>
                     {t.type === "expense" ? "-" : ""}
-                    {formatCurrency(t.amount)}
+                    {formatCurrency(Number(t.total))}
                   </td>
                 </tr>
               ))

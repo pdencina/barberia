@@ -87,7 +87,7 @@ export default function InventarioPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        product_id: movementForm.product_id,
+        productId: movementForm.product_id,
         type: movementForm.type,
         quantity: parseInt(movementForm.quantity),
         notes: movementForm.notes,
@@ -188,10 +188,10 @@ export default function InventarioPage() {
             </tr>
           </thead>
           <tbody className="divide-y">
-            {movements.map((m) => (
+            {movements.map((m: any) => (
               <tr key={m.id} className="hover:bg-gray-50">
                 <td className="p-4">{new Date(m.created_at).toLocaleDateString("es-CL")}</td>
-                <td className="p-4">{m.product_name}</td>
+                <td className="p-4">{m.product?.name || "-"}</td>
                 <td className="p-4">
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     m.type === "in" ? "bg-green-100 text-green-700" :
@@ -202,7 +202,7 @@ export default function InventarioPage() {
                   </span>
                 </td>
                 <td className="p-4 text-center">{m.quantity}</td>
-                <td className="p-4">{m.barber_name || "-"}</td>
+                <td className="p-4">{m.barber?.name || "-"}</td>
                 <td className="p-4 text-gray-500">{m.notes || "-"}</td>
               </tr>
             ))}

@@ -22,7 +22,8 @@ export default function BoletasPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/finanzas?type=income");
-      setTransactions(await res.json());
+      const data = await res.json();
+      setTransactions(data.transactions || []);
     } catch (err) {
       console.error("Error fetching transactions:", err);
     } finally {
@@ -73,12 +74,12 @@ export default function BoletasPage() {
               <tr><td colSpan={6} className="p-4 text-center text-gray-500">Cargando...</td></tr>
             ) : transactions.length === 0 ? (
               <tr><td colSpan={6} className="p-4 text-center text-gray-500">No hay transacciones</td></tr>
-            ) : transactions.map((t) => (
+            ) : transactions.map((t: any) => (
               <tr key={t.id} className="hover:bg-gray-50">
                 <td className="p-4">{new Date(t.created_at).toLocaleDateString("es-CL")}</td>
-                <td className="p-4">{t.client_name || "-"}</td>
-                <td className="p-4">{t.description}</td>
-                <td className="p-4 text-right font-medium">{formatCurrency(t.amount)}</td>
+                <td className="p-4">{t.client?.name || "-"}</td>
+                <td className="p-4">{t.items?.map((i: any) => i.description).join(", ") || "-"}</td>
+                <td className="p-4 text-right font-medium">{formatCurrency(Number(t.total))}</td>
                 <td className="p-4 text-center">
                   {t.receipt_sent ? (
                     <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-700">
