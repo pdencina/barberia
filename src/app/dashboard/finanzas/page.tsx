@@ -254,7 +254,7 @@ export default function FinanzasPage() {
                 <input
                   type="number"
                   required
-                  min="0"
+                  min="1"
                   value={formData.amount}
                   onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2"
@@ -292,7 +292,8 @@ export default function FinanzasPage() {
                 </button>
                 <button
                   type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700"
+                  disabled={!formData.description || !formData.amount || parseFloat(formData.amount) <= 0}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Guardar
                 </button>

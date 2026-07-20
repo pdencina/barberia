@@ -264,7 +264,8 @@ export default function AgendaPage() {
                 <button type="button" onClick={() => setShowModal(false)}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
                 <button type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Guardar</button>
+                  disabled={!formData.client_id || !formData.barber_id || formData.services.length === 0}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Guardar</button>
               </div>
             </form>
           </div>

@@ -233,13 +233,13 @@ export default function InventarioPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Costo</label>
-                  <input type="number" required min="0" value={productForm.cost}
+                  <input type="number" required min="0" step="1" value={productForm.cost}
                     onChange={(e) => setProductForm({ ...productForm, cost: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Precio</label>
-                  <input type="number" required min="0" value={productForm.price}
+                  <input type="number" required min="0" step="1" value={productForm.price}
                     onChange={(e) => setProductForm({ ...productForm, price: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2" />
                 </div>
@@ -247,13 +247,13 @@ export default function InventarioPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>
-                  <input type="number" required min="0" value={productForm.stock}
+                  <input type="number" required min="0" step="1" value={productForm.stock}
                     onChange={(e) => setProductForm({ ...productForm, stock: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2" />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Stock Minimo</label>
-                  <input type="number" required min="0" value={productForm.min_stock}
+                  <input type="number" required min="0" step="1" value={productForm.min_stock}
                     onChange={(e) => setProductForm({ ...productForm, min_stock: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2" />
                 </div>
@@ -262,7 +262,8 @@ export default function InventarioPage() {
                 <button type="button" onClick={() => setShowProductModal(false)}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
                 <button type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Guardar</button>
+                  disabled={!productForm.name || !productForm.price || !productForm.cost || !productForm.stock || !productForm.min_stock}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Guardar</button>
               </div>
             </form>
           </div>
@@ -312,7 +313,8 @@ export default function InventarioPage() {
                 <button type="button" onClick={() => setShowMovementModal(false)}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
                 <button type="submit"
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700">Guardar</button>
+                  disabled={!movementForm.product_id || !movementForm.quantity || parseInt(movementForm.quantity) <= 0}
+                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Guardar</button>
               </div>
             </form>
           </div>
