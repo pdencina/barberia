@@ -32,16 +32,15 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-black">
-      <div className="w-full max-w-md mx-4 rounded-lg border bg-white shadow-lg p-8">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-950 via-gray-900 to-black">
+      <div className="w-full max-w-md mx-4 rounded-xl border border-gray-800 bg-gray-900 shadow-2xl p-8">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight">EstudioLevels</h1>
-          <p className="text-sm text-gray-500 mt-1">Sistema de Gestion</p>
+          <img src="/logo.png" alt="EstudioLevels" className="h-14 w-auto mx-auto mb-3" />
+          <p className="text-sm text-gray-400 uppercase tracking-widest">Sistema de Gestion</p>
         </div>
-        <h2 className="text-xl font-semibold text-center mb-6">Iniciar Sesion</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium">
+            <label htmlFor="email" className="text-sm font-medium text-gray-300">
               Email
             </label>
             <input
@@ -51,11 +50,11 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+              className="flex h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-900"
             />
           </div>
           <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium">
+            <label htmlFor="password" className="text-sm font-medium text-gray-300">
               Contrasena
             </label>
             <input
@@ -64,16 +63,16 @@ export default function LoginPage() {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
-              className="flex h-10 w-full rounded-md border border-gray-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:ring-offset-2"
+              className="flex h-10 w-full rounded-md border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 focus:ring-offset-gray-900"
             />
           </div>
           {error && (
-            <p className="text-sm text-red-500 text-center">{error}</p>
+            <p className="text-sm text-red-400 text-center">{error}</p>
           )}
           <button
             type="submit"
             disabled={loading}
-            className="w-full h-10 rounded-md bg-gray-900 text-white text-sm font-medium hover:bg-gray-800 disabled:opacity-50 transition-colors"
+            className="w-full h-10 rounded-md bg-red-600 text-white text-sm font-bold uppercase tracking-wider hover:bg-red-700 disabled:opacity-50 transition-colors"
           >
             {loading ? "Ingresando..." : "Ingresar"}
           </button>

@@ -62,7 +62,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
   return (
     <div className="flex h-full w-64 flex-col bg-gray-900 text-white">
       <div className="flex h-16 items-center justify-center border-b border-gray-800">
-        <h1 className="text-xl font-bold tracking-tight">EstudioLevels</h1>
+        <img src="/logo.png" alt="EstudioLevels" className="h-10 w-auto" />
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -76,7 +76,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
                   className={cn(
                     "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-gray-800 text-white"
+                      ? "bg-red-600/10 text-red-500 border-l-2 border-red-500"
                       : "text-gray-400 hover:bg-gray-800 hover:text-white"
                   )}
                 >

@@ -52,10 +52,10 @@ export async function sendReceipt(params: SendReceiptParams) {
     .map(
       (item) => `
     <tr>
-      <td style="padding: 8px; border-bottom: 1px solid #eee;">${item.description}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: center;">${item.quantity}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.unitPrice.toLocaleString("es-CL")}</td>
-      <td style="padding: 8px; border-bottom: 1px solid #eee; text-align: right;">$${item.total.toLocaleString("es-CL")}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #333; color: #ddd;">${item.description}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #333; text-align: center; color: #ddd;">${item.quantity}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #333; text-align: right; color: #ddd;">$${item.unitPrice.toLocaleString("es-CL")}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #333; text-align: right; color: #fff; font-weight: bold;">$${item.total.toLocaleString("es-CL")}</td>
     </tr>`
     )
     .join("");
@@ -64,23 +64,23 @@ export async function sendReceipt(params: SendReceiptParams) {
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Boleta EstudioLevels</title></head>
-<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #f5f5f5;">
-  <div style="background: white; padding: 30px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
-    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #111; padding-bottom: 20px;">
-      <h1 style="color: #111; margin: 0; font-size: 28px; letter-spacing: 2px;">ESTUDIOLEVELS</h1>
-      <p style="color: #666; margin: 5px 0 0; font-size: 13px;">Barberia & Grooming</p>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
+  <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
+    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e53e3e; padding-bottom: 20px;">
+      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic; letter-spacing: 1px;">Estudio+Levels</h1>
+      <p style="color: #e53e3e; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Barberia Premium en Puente Alto</p>
     </div>
 
-    <div style="background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-      <p style="margin: 4px 0; font-size: 14px;"><strong>Boleta N:</strong> ${transactionId.slice(-8).toUpperCase()}</p>
-      <p style="margin: 4px 0; font-size: 14px;"><strong>Fecha:</strong> ${new Date(date).toLocaleDateString("es-CL")}</p>
-      <p style="margin: 4px 0; font-size: 14px;"><strong>Cliente:</strong> ${clientName}</p>
-      <p style="margin: 4px 0; font-size: 14px;"><strong>Barbero:</strong> ${barberName}</p>
+    <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+      <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Boleta N:</strong> ${transactionId.slice(-8).toUpperCase()}</p>
+      <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Fecha:</strong> ${new Date(date).toLocaleDateString("es-CL")}</p>
+      <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Cliente:</strong> ${clientName}</p>
+      <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Barbero:</strong> ${barberName}</p>
     </div>
 
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
       <thead>
-        <tr style="background: #111; color: white;">
+        <tr style="background: #e53e3e; color: white;">
           <th style="padding: 10px; text-align: left; font-size: 13px;">Descripcion</th>
           <th style="padding: 10px; text-align: center; font-size: 13px;">Cant.</th>
           <th style="padding: 10px; text-align: right; font-size: 13px;">Precio</th>
@@ -91,15 +91,15 @@ export async function sendReceipt(params: SendReceiptParams) {
     </table>
 
     <div style="text-align: right; margin-bottom: 20px;">
-      <p style="margin: 4px 0; font-size: 14px;">Subtotal: <strong>$${subtotal.toLocaleString("es-CL")}</strong></p>
+      <p style="margin: 4px 0; font-size: 14px; color: #ccc;">Subtotal: <strong style="color: #fff;">$${subtotal.toLocaleString("es-CL")}</strong></p>
       ${discount > 0 ? `<p style="margin: 4px 0; font-size: 14px; color: #e53e3e;">Descuento: -$${discount.toLocaleString("es-CL")}</p>` : ""}
-      <p style="margin: 8px 0 0; font-size: 20px; font-weight: bold;">Total: $${total.toLocaleString("es-CL")}</p>
-      <p style="margin: 4px 0; font-size: 13px; color: #666;">Pago: ${paymentLabel[paymentMethod] || paymentMethod}</p>
+      <p style="margin: 8px 0 0; font-size: 20px; font-weight: bold; color: #fff;">Total: $${total.toLocaleString("es-CL")}</p>
+      <p style="margin: 4px 0; font-size: 13px; color: #888;">Pago: ${paymentLabel[paymentMethod] || paymentMethod}</p>
     </div>
 
-    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #eee;">
-      <p style="color: #666; font-size: 13px; margin: 4px 0;">Gracias por tu preferencia!</p>
-      <p style="color: #999; font-size: 11px; margin: 4px 0;">EstudioLevels | estudiolevels.com</p>
+    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
+      <p style="color: #888; font-size: 13px; margin: 4px 0;">Gracias por tu preferencia!</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">EstudioLevels | estudiolevels.com</p>
     </div>
   </div>
 </body>
