@@ -152,9 +152,9 @@ export default function POSPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-4rem)]">
+    <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-4rem)]">
       {/* Left: Items */}
-      <div className="flex-1 p-6 overflow-y-auto">
+      <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
         <div className="flex gap-4 mb-4">
           <button
             onClick={() => setActiveTab("services")}
@@ -202,7 +202,7 @@ export default function POSPage() {
       </div>
 
       {/* Right: Cart */}
-      <div className="w-96 bg-white border-l flex flex-col">
+      <div className="w-full lg:w-96 bg-white border-t lg:border-t-0 lg:border-l flex flex-col max-h-[60vh] lg:max-h-none">
         <div className="p-4 border-b space-y-3">
           <h2 className="font-bold text-lg">Venta</h2>
           <div>

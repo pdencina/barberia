@@ -109,7 +109,7 @@ export default function RecepcionPage() {
       {/* Header with Clock */}
       <div className="flex justify-between items-center">
         <div>
-          <p className="text-5xl font-bold text-gray-900 tabular-nums">
+          <p className="text-3xl md:text-5xl font-bold text-gray-900 tabular-nums">
             {currentTime.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
           </p>
           <p className="text-lg text-gray-500">

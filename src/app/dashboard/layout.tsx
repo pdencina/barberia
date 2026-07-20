@@ -25,7 +25,7 @@ export default async function DashboardLayout({
     <ToastWrapper>
       <div className="flex h-screen">
         <Sidebar userName={profile?.name || user.email || ""} userRole={profile?.role || "barber"} />
-        <main className="flex-1 overflow-y-auto bg-gray-50 p-6">
+        <main className="flex-1 overflow-y-auto bg-gray-50 pt-[4.5rem] lg:pt-0">
           {children}
         </main>
       </div>
