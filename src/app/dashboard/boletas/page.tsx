@@ -5,11 +5,12 @@ import { formatCurrency } from "@/lib/utils";
 
 interface Transaction {
   id: string;
-  description: string;
-  amount: number;
-  client_name: string;
+  total: number;
   created_at: string;
   receipt_sent: boolean;
+  client: { name: string; email: string | null } | null;
+  barber: { name: string } | null;
+  items: Array<{ description: string; total: number }>;
 }
 
 export default function BoletasPage() {

@@ -5,33 +5,36 @@ import { useState, useEffect } from "react";
 interface Appointment {
   id: string;
   date: string;
-  time: string;
-  client_name: string;
-  barber_name: string;
+  start_time: string;
+  end_time: string;
   barber_id: string;
-  services: string[];
   status: string;
   notes: string;
+  client: { id: string; name: string; phone: string | null } | null;
+  barber: { id: string; name: string } | null;
+  services: Array<{ id: string; price: number; service: { name: string; price: number; duration: number } }>;
 }
 
 interface Client { id: string; name: string; }
 interface Barber { id: string; name: string; }
-interface Service { id: string; name: string; price: number; }
+interface Service { id: string; name: string; price: number; duration: number; }
 
 const statusLabels: Record<string, string> = {
-  pending: "Pendiente",
+  scheduled: "Agendada",
   confirmed: "Confirmada",
   in_progress: "En Atencion",
   completed: "Completada",
   cancelled: "Cancelada",
+  no_show: "No Asistio",
 };
 
 const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-700",
+  scheduled: "bg-yellow-100 text-yellow-700",
   confirmed: "bg-blue-100 text-blue-700",
   in_progress: "bg-purple-100 text-purple-700",
   completed: "bg-green-100 text-green-700",
   cancelled: "bg-red-100 text-red-700",
+  no_show: "bg-gray-100 text-gray-700",
 };
 
 export default function AgendaPage() {
@@ -175,7 +178,7 @@ export default function AgendaPage() {
                 </p>
               </div>
               <div className="flex gap-2">
-                {a.status === "pending" && (
+                {a.status === "scheduled" && (
                   <button onClick={() => updateStatus(a.id, "confirmed")}
                     className="px-3 py-1 text-xs bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200">Confirmar</button>
                 )}
@@ -187,7 +190,7 @@ export default function AgendaPage() {
                   <button onClick={() => updateStatus(a.id, "completed")}
                     className="px-3 py-1 text-xs bg-green-100 text-green-700 rounded-lg hover:bg-green-200">Completar</button>
                 )}
-                {(a.status === "pending" || a.status === "confirmed") && (
+                {(a.status === "scheduled" || a.status === "confirmed") && (
                   <button onClick={() => updateStatus(a.id, "cancelled")}
                     className="px-3 py-1 text-xs bg-red-100 text-red-700 rounded-lg hover:bg-red-200">Cancelar</button>
                 )}

@@ -5,28 +5,30 @@ import { createClient } from "@/lib/supabase/client";
 
 interface Appointment {
   id: string;
-  time: string;
-  client_name: string;
-  client_phone: string;
-  barber_name: string;
-  services: string[];
+  start_time: string;
+  end_time: string;
   status: string;
+  client: { name: string; phone: string | null } | null;
+  barber: { name: string } | null;
+  services: Array<{ service: { name: string } }>;
 }
 
 const statusLabels: Record<string, string> = {
-  pending: "Pendiente",
+  scheduled: "Agendada",
   confirmed: "Confirmada",
   in_progress: "En Atencion",
   completed: "Completada",
   cancelled: "Cancelada",
+  no_show: "No Asistio",
 };
 
 const statusColors: Record<string, string> = {
-  pending: "bg-yellow-100 text-yellow-700",
+  scheduled: "bg-yellow-100 text-yellow-700",
   confirmed: "bg-blue-100 text-blue-700",
   in_progress: "bg-purple-100 text-purple-700",
   completed: "bg-green-100 text-green-700",
   cancelled: "bg-red-100 text-red-700",
+  no_show: "bg-gray-100 text-gray-700",
 };
 
 export default function RecepcionPage() {

@@ -75,13 +75,11 @@ export async function GET(req: NextRequest) {
     barberNames = Object.fromEntries((profiles || []).map((p) => [p.id, p.name]));
   }
 
-  // Top services (from transaction_items)
+  // Top services (from transaction_items via transactions)
   const { data: serviceItems } = await supabase
     .from("transaction_items")
-    .select("description, total, quantity, service_id")
-    .not("service_id", "is", null)
-    .gte("created_at", startDate)
-    .lte("created_at", endDate);
+    .select("description, total, quantity, service_id, transaction_id")
+    .not("service_id", "is", null);
 
   const svcMap: Record<string, { total: number; count: number }> = {};
   for (const item of serviceItems || []) {
@@ -93,10 +91,8 @@ export async function GET(req: NextRequest) {
   // Top products
   const { data: productItems } = await supabase
     .from("transaction_items")
-    .select("description, total, quantity, product_id")
-    .not("product_id", "is", null)
-    .gte("created_at", startDate)
-    .lte("created_at", endDate);
+    .select("description, total, quantity, product_id, transaction_id")
+    .not("product_id", "is", null);
 
   const prodMap: Record<string, { total: number; count: number }> = {};
   for (const item of productItems || []) {

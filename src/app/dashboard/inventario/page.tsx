@@ -15,12 +15,12 @@ interface Product {
 
 interface Movement {
   id: string;
-  product_name: string;
   type: string;
   quantity: number;
-  barber_name: string;
   notes: string;
   created_at: string;
+  product: { name: string } | null;
+  barber: { name: string } | null;
 }
 
 const movementTypeLabels: Record<string, string> = {
