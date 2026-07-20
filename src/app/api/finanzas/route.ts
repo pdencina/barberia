@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
   }
 
   const { data: transactions, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ transactions: [], stats: { totalIncome: 0, totalExpenses: 0, balance: 0, transactionCount: 0 } });
 
   // Calculate stats
   const income = (transactions || []).filter((t) => t.type === "income");

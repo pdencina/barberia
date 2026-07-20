@@ -24,8 +24,8 @@ export async function GET(req: NextRequest) {
   if (barberId) query = query.eq("barber_id", barberId);
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  if (error) return NextResponse.json([]);
+  return NextResponse.json(data || []);
 }
 
 export async function POST(req: NextRequest) {

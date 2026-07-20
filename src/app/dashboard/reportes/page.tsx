@@ -41,7 +41,10 @@ export default function ReportesPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/reportes/monthly?month=${month}&year=${year}`);
-      setData(await res.json());
+      const result = await res.json();
+      if (result.summary) {
+        setData(result);
+      }
     } catch (err) {
       console.error("Error fetching report:", err);
     } finally {

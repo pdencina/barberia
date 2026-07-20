@@ -29,7 +29,8 @@ export default function CuponesPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/cupones");
-      setCoupons(await res.json());
+      const data = await res.json();
+      setCoupons(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching coupons:", err);
     } finally {

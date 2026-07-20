@@ -49,8 +49,10 @@ export default function InventarioPage() {
         fetch("/api/products"),
         fetch("/api/inventario/movements"),
       ]);
-      setProducts(await productsRes.json());
-      setMovements(await movementsRes.json());
+      const prodData = await productsRes.json();
+      const movData = await movementsRes.json();
+      setProducts(Array.isArray(prodData) ? prodData : []);
+      setMovements(Array.isArray(movData) ? movData : []);
     } catch (err) {
       console.error("Error fetching inventory:", err);
     } finally {
@@ -154,8 +156,8 @@ export default function InventarioPage() {
               <tr key={p.id} className="hover:bg-gray-50">
                 <td className="p-4 font-medium">{p.name}</td>
                 <td className="p-4 text-gray-500">{p.sku}</td>
-                <td className="p-4 text-right">{formatCurrency(p.cost)}</td>
-                <td className="p-4 text-right">{formatCurrency(p.price)}</td>
+                <td className="p-4 text-right">{formatCurrency(Number(p.cost))}</td>
+                <td className="p-4 text-right">{formatCurrency(Number(p.price))}</td>
                 <td className="p-4 text-center">{p.stock}</td>
                 <td className="p-4 text-center">{p.min_stock}</td>
                 <td className="p-4 text-center">

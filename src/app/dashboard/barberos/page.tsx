@@ -19,7 +19,8 @@ export default function BarberosPage() {
     setLoading(true);
     try {
       const res = await fetch("/api/barberos");
-      setBarbers(await res.json());
+      const data = await res.json();
+      setBarbers(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching barbers:", err);
     } finally {

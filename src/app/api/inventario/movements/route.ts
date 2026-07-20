@@ -13,8 +13,8 @@ export async function GET() {
     .order("created_at", { ascending: false })
     .limit(50);
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
+  if (error) return NextResponse.json([]);
+  return NextResponse.json(data || []);
 }
 
 export async function POST(req: NextRequest) {

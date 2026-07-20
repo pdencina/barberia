@@ -54,7 +54,8 @@ export default function AgendaPage() {
     setLoading(true);
     try {
       const res = await fetch(`/api/appointments?date=${date}`);
-      setAppointments(await res.json());
+      const data = await res.json();
+      setAppointments(Array.isArray(data) ? data : []);
     } catch (err) {
       console.error("Error fetching appointments:", err);
     } finally {
