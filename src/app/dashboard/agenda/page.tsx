@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useToast } from "@/components/ui/toast";
 
 interface Appointment {
   id: string;
@@ -49,6 +50,7 @@ export default function AgendaPage() {
   const [formData, setFormData] = useState({
     client_id: "", barber_id: "", time: "09:00", services: [] as string[], notes: "",
   });
+  const { showToast } = useToast();
 
   const fetchAppointments = async () => {
     setLoading(true);
@@ -93,6 +95,7 @@ export default function AgendaPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    showToast("Estado actualizado", "success");
     fetchAppointments();
   };
 
@@ -119,6 +122,7 @@ export default function AgendaPage() {
         notes: formData.notes,
       }),
     });
+    showToast("Cita agendada exitosamente", "success");
     setShowModal(false);
     setFormData({ client_id: "", barber_id: "", time: "09:00", services: [], notes: "" });
     fetchAppointments();

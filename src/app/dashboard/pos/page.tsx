@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
 interface Service {
   id: string;
@@ -50,6 +51,7 @@ export default function POSPage() {
   const [couponError, setCouponError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [processing, setProcessing] = useState(false);
+  const { showToast } = useToast();
 
   useEffect(() => {
     Promise.all([
@@ -106,6 +108,7 @@ export default function POSPage() {
       const data = await res.json();
       if (data.valid) {
         setDiscount(data.discount);
+        showToast("Cupon aplicado", "success");
       } else {
         setCouponError(data.message || "Cupon invalido");
         setDiscount(0);
@@ -139,7 +142,7 @@ export default function POSPage() {
         setCouponCode("");
         setPaymentMethod("");
         setSelectedClient("");
-        alert("Venta registrada exitosamente");
+        showToast("Venta registrada exitosamente", "success");
       }
     } catch (err) {
       console.error("Error en checkout:", err);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useToast } from "@/components/ui/toast";
 
 interface Barber {
   id: string;
@@ -14,6 +15,7 @@ export default function BarberosPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "" });
+  const { showToast } = useToast();
 
   const fetchBarbers = async () => {
     setLoading(true);
@@ -37,6 +39,7 @@ export default function BarberosPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
     });
+    showToast("Barbero creado exitosamente", "success");
     setShowModal(false);
     setFormData({ name: "", email: "", phone: "", password: "" });
     fetchBarbers();

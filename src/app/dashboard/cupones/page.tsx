@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
 interface Coupon {
   id: string;
@@ -24,6 +25,7 @@ export default function CuponesPage() {
     code: "", description: "", type: "percentage", value: "",
     min_purchase: "", max_uses: "", valid_until: "",
   });
+  const { showToast } = useToast();
 
   const fetchCoupons = async () => {
     setLoading(true);
@@ -55,6 +57,7 @@ export default function CuponesPage() {
         validUntil: formData.valid_until || null,
       }),
     });
+    showToast("Cupon creado exitosamente", "success");
     setShowModal(false);
     setFormData({ code: "", description: "", type: "percentage", value: "", min_purchase: "", max_uses: "", valid_until: "" });
     fetchCoupons();

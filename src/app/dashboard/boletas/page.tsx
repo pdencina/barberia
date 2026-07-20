@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
 interface Transaction {
   id: string;
@@ -18,6 +19,7 @@ export default function BoletasPage() {
   const [loading, setLoading] = useState(true);
   const [emails, setEmails] = useState<Record<string, string>>({});
   const [sending, setSending] = useState<Record<string, boolean>>({});
+  const { showToast } = useToast();
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -45,10 +47,12 @@ export default function BoletasPage() {
         body: JSON.stringify({ transactionId, email }),
       });
       if (res.ok) {
+        showToast("Boleta enviada exitosamente", "success");
         fetchTransactions();
       }
     } catch (err) {
       console.error("Error sending receipt:", err);
+      showToast("Error al enviar boleta", "error");
     } finally {
       setSending((prev) => ({ ...prev, [transactionId]: false }));
     }

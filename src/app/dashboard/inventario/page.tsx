@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
 interface Product {
   id: string;
@@ -41,6 +42,7 @@ export default function InventarioPage() {
   const [movementForm, setMovementForm] = useState({
     product_id: "", type: "in", quantity: "", notes: "",
   });
+  const { showToast } = useToast();
 
   const fetchData = async () => {
     setLoading(true);
@@ -78,6 +80,7 @@ export default function InventarioPage() {
         min_stock: parseInt(productForm.min_stock),
       }),
     });
+    showToast("Producto creado", "success");
     setShowProductModal(false);
     setProductForm({ name: "", sku: "", cost: "", price: "", stock: "", min_stock: "" });
     fetchData();
@@ -95,6 +98,7 @@ export default function InventarioPage() {
         notes: movementForm.notes,
       }),
     });
+    showToast("Movimiento registrado", "success");
     setShowMovementModal(false);
     setMovementForm({ product_id: "", type: "in", quantity: "", notes: "" });
     fetchData();

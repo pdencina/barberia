@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
 interface Transaction {
   id: string;
@@ -36,6 +37,7 @@ export default function FinanzasPage() {
     paymentMethod: "cash",
     notes: "",
   });
+  const { showToast } = useToast();
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -80,11 +82,13 @@ export default function FinanzasPage() {
           notes: formData.notes,
         }),
       });
+      showToast("Transaccion registrada", "success");
       setShowModal(false);
       setFormData({ type: "income", description: "", amount: "", paymentMethod: "cash", notes: "" });
       fetchTransactions();
     } catch (err) {
       console.error("Error creating transaction:", err);
+      showToast("Error al registrar transaccion", "error");
     }
   };
 

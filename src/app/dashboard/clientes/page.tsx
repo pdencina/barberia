@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useToast } from "@/components/ui/toast";
 
 interface Client {
   id: string;
@@ -17,6 +18,7 @@ export default function ClientesPage() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", notes: "" });
   const debounceRef = useRef<NodeJS.Timeout>();
+  const { showToast } = useToast();
 
   const fetchClients = async (query: string) => {
     setLoading(true);
@@ -42,14 +44,20 @@ export default function ClientesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/clients", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
-    });
-    setShowModal(false);
-    setFormData({ name: "", email: "", phone: "", notes: "" });
-    fetchClients(search);
+    try {
+      await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(formData),
+      });
+      showToast("Cliente creado exitosamente", "success");
+      setShowModal(false);
+      setFormData({ name: "", email: "", phone: "", notes: "" });
+      fetchClients(search);
+    } catch (err) {
+      console.error("Error creating client:", err);
+      showToast("Error al crear cliente", "error");
+    }
   };
 
   return (
