@@ -7,12 +7,12 @@ interface Coupon {
   id: string;
   code: string;
   description: string;
-  type: "percentage" | "fixed_amount";
-  value: number;
-  min_purchase: number;
-  max_uses: number;
-  uses: number;
-  valid_until: string;
+  discount_type: "percentage" | "fixed_amount";
+  discount_value: number;
+  min_purchase: number | null;
+  max_uses: number | null;
+  used_count: number;
+  valid_until: string | null;
   active: boolean;
 }
 
