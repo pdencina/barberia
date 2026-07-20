@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
 
 export async function GET() {
-  const supabase = createServerSupabase();
+  // Use admin client to bypass RLS - barbers list is internal data
+  const supabase = createAdminSupabase();
   const { data, error } = await supabase
     .from("profiles")
     .select("id, name, email, phone")
@@ -10,7 +11,10 @@ export async function GET() {
     .eq("active", true)
     .order("name");
 
-  if (error) return NextResponse.json([], { status: 200 });
+  if (error) {
+    console.error("Error fetching barbers:", error.message);
+    return NextResponse.json([]);
+  }
   return NextResponse.json(data || []);
 }
 
@@ -19,7 +23,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { name, email, phone, password } = body;
 
-  // Create user in Supabase Auth using admin client
+  // Create user in Supabase Auth
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
     email,
     password: password || "123456",
@@ -27,10 +31,12 @@ export async function POST(req: NextRequest) {
     user_metadata: { name, role: "barber" },
   });
 
-  if (authError) return NextResponse.json({ error: authError.message }, { status: 500 });
+  if (authError) {
+    return NextResponse.json({ error: authError.message }, { status: 500 });
+  }
 
   // Update phone in profile
-  if (phone) {
+  if (phone && authData.user) {
     await adminSupabase
       .from("profiles")
       .update({ phone })

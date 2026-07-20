@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
-  const supabase = createServerSupabase();
+  const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
   const amount = parseFloat(searchParams.get("amount") || "0");

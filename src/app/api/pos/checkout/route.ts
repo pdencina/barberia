@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
-  const supabase = createServerSupabase();
+  const supabase = createAdminSupabase();
   const body = await req.json();
   const { items, clientId, barberId, paymentMethod, couponCode, discount, subtotal, total } = body;
 

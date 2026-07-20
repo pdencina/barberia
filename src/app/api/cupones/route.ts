@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/server";
 
 export async function GET() {
-  const supabase = createServerSupabase();
+  const supabase = createAdminSupabase();
   const { data, error } = await supabase
     .from("coupons")
     .select("*")
@@ -13,7 +13,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createServerSupabase();
+  const supabase = createAdminSupabase();
   const body = await req.json();
   const { code, description, discountType, discountValue, minPurchase, maxUses, validUntil } = body;
 

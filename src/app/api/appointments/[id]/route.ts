@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/server";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
-  const supabase = createServerSupabase();
+  const supabase = createAdminSupabase();
   const body = await req.json();
   const { status } = body;
 
