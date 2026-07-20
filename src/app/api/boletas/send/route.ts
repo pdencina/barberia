@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { sendReceipt } from "@/lib/resend";
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   const supabase = createServerSupabase();
   const body = await req.json();

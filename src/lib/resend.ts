@@ -1,6 +1,12 @@
 import { Resend } from "resend";
 
-export const resend = new Resend(process.env.RESEND_API_KEY);
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    throw new Error("RESEND_API_KEY no configurada");
+  }
+  return new Resend(apiKey);
+}
 
 interface SendReceiptParams {
   to: string;
@@ -99,6 +105,7 @@ export async function sendReceipt(params: SendReceiptParams) {
 </body>
 </html>`;
 
+  const resend = getResendClient();
   const { data, error } = await resend.emails.send({
     from: process.env.EMAIL_FROM || "EstudioLevels <boletas@estudiolevels.com>",
     to,
