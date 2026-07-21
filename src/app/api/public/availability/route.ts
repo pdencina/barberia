@@ -24,6 +24,18 @@ export async function GET(req: NextRequest) {
     .eq("date", date)
     .in("status", ["scheduled", "confirmed", "in_progress"]);
 
+  // Check if barber has blocked this day
+  const { data: blocks } = await supabase
+    .from("barber_blocks")
+    .select("all_day, start_time, end_time")
+    .eq("barber_id", barberId)
+    .eq("date", date);
+
+  // If any block is all_day, no slots available
+  if (blocks?.some((b) => b.all_day)) {
+    return NextResponse.json({ slots: [], date, barberId, blocked: true });
+  }
+
   // Generate all possible slots
   const slots: string[] = [];
   const slotInterval = 15; // every 15 minutes
@@ -48,7 +60,16 @@ export async function GET(req: NextRequest) {
         return slotStart < apptEnd && slotEnd > apptStart;
       });
 
-      if (!hasConflict) {
+      // Check no conflict with partial blocks
+      const isBlocked = (blocks || []).some((block) => {
+        if (block.all_day) return true;
+        if (!block.start_time || !block.end_time) return false;
+        const blockStart = new Date(`${date}T${block.start_time}`);
+        const blockEnd = new Date(`${date}T${block.end_time}`);
+        return slotStart < blockEnd && slotEnd > blockStart;
+      });
+
+      if (!hasConflict && !isBlocked) {
         slots.push(slotStart.toISOString());
       }
     }

@@ -12,6 +12,7 @@ import {
   Package,
   Users,
   Calendar,
+  CalendarCheck,
   Receipt,
   BarChart3,
   Tablet,
@@ -22,6 +23,7 @@ import {
   Scissors,
   Menu,
   X,
+  Heart,
 } from "lucide-react";
 
 const navigation = [
@@ -30,6 +32,8 @@ const navigation = [
   { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart },
   { name: "Inventario", href: "/dashboard/inventario", icon: Package },
   { name: "Clientes", href: "/dashboard/clientes", icon: Users },
+  { name: "Retencion", href: "/dashboard/retencion", icon: Heart },
+  { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck },
   { name: "Agenda", href: "/dashboard/agenda", icon: Calendar },
   { name: "Boletas", href: "/dashboard/boletas", icon: Receipt },
   { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3 },

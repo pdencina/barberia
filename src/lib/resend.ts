@@ -192,3 +192,70 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
     html,
   });
 }
+
+
+interface SendRetentionEmailParams {
+  to: string;
+  clientName: string;
+  message: string;
+  couponCode: string | null;
+  couponDescription: string | null;
+  discountType: string | null;
+  discountValue: number | null;
+}
+
+export async function sendRetentionEmail(params: SendRetentionEmailParams) {
+  const { to, clientName, message, couponCode, couponDescription, discountType, discountValue } = params;
+
+  const couponHtml = couponCode ? `
+    <div style="background: #e53e3e22; border: 2px dashed #e53e3e; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
+      <p style="color: #e53e3e; font-size: 11px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 8px;">Cupon de descuento</p>
+      <p style="color: #fff; font-size: 28px; font-weight: bold; font-family: monospace; margin: 0 0 8px;">${couponCode}</p>
+      <p style="color: #ccc; font-size: 14px; margin: 0;">
+        ${discountType === "percentage" ? `${discountValue}% de descuento` : `$${discountValue?.toLocaleString("es-CL")} de descuento`}
+      </p>
+      ${couponDescription ? `<p style="color: #888; font-size: 12px; margin: 8px 0 0;">${couponDescription}</p>` : ""}
+    </div>
+  ` : "";
+
+  const bookingUrl = process.env.NEXT_PUBLIC_APP_URL
+    ? `${process.env.NEXT_PUBLIC_APP_URL}/booking`
+    : "https://barberia-kappa-weld.vercel.app/booking";
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
+  <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
+    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e53e3e; padding-bottom: 20px;">
+      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic;">Estudio+Levels</h1>
+    </div>
+
+    <p style="color: #fff; font-size: 18px; margin-bottom: 8px;">Hola ${clientName}!</p>
+    <p style="color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 20px;">${message}</p>
+
+    ${couponHtml}
+
+    <div style="text-align: center; margin: 30px 0;">
+      <a href="${bookingUrl}" style="display: inline-block; background: #e53e3e; color: #fff; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: bold; font-size: 16px; text-transform: uppercase; letter-spacing: 1px;">
+        Agendar Ahora
+      </a>
+    </div>
+
+    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">EstudioLevels | 1889 Juan de Dios Malebran, Puente Alto</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">estudiolevels.com</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const resend = getResendClient();
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || "EstudioLevels <boletas@estudiolevels.com>",
+    to,
+    subject: `Te extrañamos ${clientName}! | EstudioLevels`,
+    html,
+  });
+}
