@@ -259,3 +259,74 @@ export async function sendRetentionEmail(params: SendRetentionEmailParams) {
     html,
   });
 }
+
+
+interface SendAppointmentReminderParams {
+  to: string;
+  clientName: string;
+  barberName: string;
+  serviceName: string;
+  date: Date;
+}
+
+export async function sendAppointmentReminder(params: SendAppointmentReminderParams) {
+  const { to, clientName, barberName, serviceName, date } = params;
+
+  const dateStr = new Date(date).toLocaleDateString("es-CL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+  });
+  const timeStr = new Date(date).toLocaleTimeString("es-CL", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  const html = `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
+  <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
+    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e53e3e; padding-bottom: 20px;">
+      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic;">Estudio+Levels</h1>
+      <p style="color: #e53e3e; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Recordatorio de Cita</p>
+    </div>
+
+    <p style="color: #fff; font-size: 18px; margin-bottom: 8px;">Hola ${clientName}!</p>
+    <p style="color: #ccc; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+      Te recordamos que tienes una cita agendada para manana:
+    </p>
+
+    <div style="background: #1a1a1a; border: 1px solid #333; border-radius: 12px; padding: 24px; margin-bottom: 24px; text-align: center;">
+      <p style="color: #888; font-size: 12px; text-transform: uppercase; letter-spacing: 2px; margin: 0 0 8px;">Tu cita</p>
+      <p style="color: #fff; font-size: 32px; font-weight: bold; margin: 0 0 4px;">${timeStr}</p>
+      <p style="color: #ccc; font-size: 14px; margin: 0 0 16px;">${dateStr}</p>
+      <div style="border-top: 1px solid #333; padding-top: 16px;">
+        <p style="color: #888; font-size: 13px; margin: 4px 0;">Servicio: <strong style="color: #fff;">${serviceName}</strong></p>
+        <p style="color: #888; font-size: 13px; margin: 4px 0;">Barbero: <strong style="color: #fff;">${barberName}</strong></p>
+      </div>
+    </div>
+
+    <div style="background: #e53e3e11; border: 1px solid #e53e3e33; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
+      <p style="color: #e53e3e; font-size: 13px; margin: 0; text-align: center;">
+        Si necesitas cancelar o reprogramar, contactanos al <strong>9 4266 6172</strong>
+      </p>
+    </div>
+
+    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
+      <p style="color: #888; font-size: 13px; margin: 4px 0;">Te esperamos!</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">EstudioLevels | 1889 Juan de Dios Malebran, Puente Alto</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  const resend = getResendClient();
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || "EstudioLevels <boletas@estudiolevels.com>",
+    to,
+    subject: `Recordatorio: ${serviceName} manana a las ${timeStr} | EstudioLevels`,
+    html,
+  });
+}
