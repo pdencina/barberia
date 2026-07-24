@@ -13,6 +13,7 @@ import {
   Users,
   Calendar,
   CalendarCheck,
+  CalendarDays,
   Receipt,
   BarChart3,
   Tablet,
@@ -25,6 +26,7 @@ import {
   X,
   Heart,
   Bell,
+  Zap,
 } from "lucide-react";
 
 const navigation = [
@@ -36,9 +38,11 @@ const navigation = [
   { name: "Retencion", href: "/dashboard/retencion", icon: Heart },
   { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck },
   { name: "Agenda", href: "/dashboard/agenda", icon: Calendar },
+  { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays },
   { name: "Recordatorios", href: "/dashboard/recordatorios", icon: Bell },
   { name: "Boletas", href: "/dashboard/boletas", icon: Receipt },
   { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3 },
+  { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap },
   { name: "Recepcion", href: "/dashboard/recepcion", icon: Tablet },
   { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard },
   { name: "Cupones", href: "/dashboard/cupones", icon: Tag },

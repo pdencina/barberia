@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -13,6 +14,7 @@ interface Client {
 }
 
 export default function ClientesPage() {
+  const router = useRouter();
   const [clients, setClients] = useState<Client[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -91,8 +93,8 @@ export default function ClientesPage() {
             ) : clients.length === 0 ? (
               <tr><td colSpan={4} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
             ) : clients.map((c) => (
-              <tr key={c.id} className="hover:bg-gray-50">
-                <td className="p-4 font-medium">{c.name}</td>
+              <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${c.id}`)}>
+                <td className="p-4 font-medium text-blue-600 hover:underline">{c.name}</td>
                 <td className="p-4">{c.email || "-"}</td>
                 <td className="p-4">{c.phone || "-"}</td>
                 <td className="p-4 text-gray-500">{c.notes || "-"}</td>
