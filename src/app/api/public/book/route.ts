@@ -25,9 +25,28 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Servicios no encontrados" }, { status: 404 });
   }
 
-  const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
-  const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
-  const serviceNames = services.map((s) => s.name).join(" + ");
+  // Check for custom barber prices
+  const { data: customPrices } = await supabase
+    .from("barber_services")
+    .select("service_id, custom_price, custom_duration")
+    .eq("barber_id", barberId)
+    .in("service_id", ids);
+
+  const customMap = new Map((customPrices || []).map((c) => [c.service_id, c]));
+
+  // Apply custom prices/durations
+  const resolvedServices = services.map((s) => {
+    const custom = customMap.get(s.id);
+    return {
+      ...s,
+      price: custom?.custom_price ? Number(custom.custom_price) : Number(s.price),
+      duration: custom?.custom_duration || s.duration,
+    };
+  });
+
+  const totalDuration = resolvedServices.reduce((sum, s) => sum + s.duration, 0);
+  const totalPrice = resolvedServices.reduce((sum, s) => sum + s.price, 0);
+  const serviceNames = resolvedServices.map((s) => s.name).join(" + ");
 
   // Calculate end time
   const start = new Date(startTime);
@@ -99,7 +118,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Add services to appointment
-  const serviceInserts = services.map((s) => ({
+  const serviceInserts = resolvedServices.map((s) => ({
     appointment_id: appointment!.id,
     service_id: s.id,
     price: s.price,

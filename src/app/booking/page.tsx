@@ -17,10 +17,10 @@ interface Barber {
   avatar_url: string | null;
 }
 
-type Step = "service" | "barber" | "datetime" | "details" | "confirmed";
+type Step = "barber" | "service" | "datetime" | "details" | "confirmed";
 
 export default function BookingPage() {
-  const [step, setStep] = useState<Step>("service");
+  const [step, setStep] = useState<Step>("barber");
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [slots, setSlots] = useState<string[]>([]);
@@ -47,9 +47,17 @@ export default function BookingPage() {
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
 
   useEffect(() => {
-    fetch("/api/public/services").then((r) => r.json()).then(setServices);
     fetch("/api/public/barbers").then((r) => r.json()).then(setBarbers);
   }, []);
+
+  // Load services when barber is selected (with custom prices)
+  useEffect(() => {
+    if (selectedBarber) {
+      fetch(`/api/public/barber-services?barberId=${selectedBarber.id}`)
+        .then((r) => r.json())
+        .then((data) => setServices(Array.isArray(data) ? data : []));
+    }
+  }, [selectedBarber]);
 
   // Set default date to tomorrow
   useEffect(() => {
@@ -123,11 +131,11 @@ export default function BookingPage() {
         {/* Progress indicator */}
         {step !== "confirmed" && (
           <div className="flex items-center justify-center gap-2 mb-8">
-            {["service", "barber", "datetime", "details"].map((s, i) => (
+            {["barber", "service", "datetime", "details"].map((s, i) => (
               <div key={s} className="flex items-center gap-2">
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
                   step === s ? "bg-red-600 text-white" :
-                  ["service", "barber", "datetime", "details"].indexOf(step) > i
+                  ["barber", "service", "datetime", "details"].indexOf(step) > i
                     ? "bg-green-600 text-white"
                     : "bg-gray-800 text-gray-500"
                 }`}>
@@ -139,10 +147,13 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* Step 1: Service */}
+        {/* Step 2: Service (después de elegir barbero) */}
         {step === "service" && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">Elige tus servicios</h2>
+            <button onClick={() => setStep("barber")} className="text-gray-400 hover:text-white text-sm mb-4 flex items-center gap-1">
+              ← Volver
+            </button>
+            <h2 className="text-2xl font-bold mb-2">Servicios de {selectedBarber?.name}</h2>
             <p className="text-gray-400 mb-6">Selecciona uno o mas servicios</p>
             <div className="space-y-3">
               {services.map((s) => {
@@ -204,19 +215,16 @@ export default function BookingPage() {
           </div>
         )}
 
-        {/* Step 2: Barber */}
+        {/* Step 1: Barber (PRIMERO) */}
         {step === "barber" && (
           <div>
-            <button onClick={() => setStep("service")} className="text-gray-400 hover:text-white text-sm mb-4 flex items-center gap-1">
-              ← Volver
-            </button>
             <h2 className="text-2xl font-bold mb-2">Elige tu barbero</h2>
             <p className="text-gray-400 mb-6">Selecciona un miembro del equipo</p>
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {barbers.map((b) => (
                 <button
                   key={b.id}
-                  onClick={() => { setSelectedBarber(b); setStep("datetime"); }}
+                  onClick={() => { setSelectedBarber(b); setSelectedServices([]); setStep("service"); }}
                   className="flex flex-col items-center p-6 rounded-lg border border-gray-800 hover:border-red-500 hover:bg-gray-900 transition-colors"
                 >
                   <div className="w-16 h-16 rounded-full bg-gray-800 flex items-center justify-center text-xl font-bold text-gray-400 mb-3">
@@ -233,7 +241,7 @@ export default function BookingPage() {
         {/* Step 3: Date & Time */}
         {step === "datetime" && (
           <div>
-            <button onClick={() => setStep("barber")} className="text-gray-400 hover:text-white text-sm mb-4 flex items-center gap-1">
+            <button onClick={() => setStep("service")} className="text-gray-400 hover:text-white text-sm mb-4 flex items-center gap-1">
               ← Volver
             </button>
             <h2 className="text-2xl font-bold mb-2">Selecciona fecha y hora</h2>
@@ -540,7 +548,7 @@ export default function BookingPage() {
 
             <button
               onClick={() => {
-                setStep("service");
+                setStep("barber");
                 setSelectedServices([]);
                 setSelectedBarber(null);
                 setSelectedSlot("");
@@ -549,6 +557,8 @@ export default function BookingPage() {
                 setClientPhone("");
                 setNotes("");
                 setClientFound(false);
+                setShowWaitlist(false);
+                setWaitlistSubmitted(false);
               }}
               className="px-6 py-3 rounded-lg border border-gray-700 text-gray-300 hover:border-red-500 hover:text-white transition-colors"
             >

@@ -7,6 +7,7 @@ export async function GET(req: NextRequest) {
   const type = searchParams.get("type");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
+  const barberId = searchParams.get("barberId");
 
   let query = supabase
     .from("transactions")
@@ -27,6 +28,7 @@ export async function GET(req: NextRequest) {
     toDate.setDate(toDate.getDate() + 1);
     query = query.lte("created_at", toDate.toISOString());
   }
+  if (barberId) query = query.eq("barber_id", barberId);
 
   const { data: transactions, error } = await query;
   if (error) return NextResponse.json({ transactions: [], stats: { totalIncome: 0, totalExpenses: 0, balance: 0, transactionCount: 0 } });

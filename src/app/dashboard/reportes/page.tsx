@@ -37,6 +37,7 @@ export default function ReportesPage() {
   const [year, setYear] = useState(now.getFullYear());
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [comparison, setComparison] = useState<Array<{ label: string; income: number; expenses: number }>>([]);
 
   const fetchReport = async () => {
     setLoading(true);
@@ -54,6 +55,12 @@ export default function ReportesPage() {
   };
 
   useEffect(() => { fetchReport(); }, [month, year]);
+
+  useEffect(() => {
+    fetch("/api/reportes/comparison")
+      .then((r) => r.json())
+      .then((d) => setComparison(Array.isArray(d) ? d : []));
+  }, []);
 
   const changeMonth = (delta: number) => {
     let m = month + delta;
@@ -125,6 +132,33 @@ export default function ReportesPage() {
           <p className="text-lg font-bold text-gray-900">{data.summary.newClients}</p>
         </div>
       </div>
+
+      {/* Monthly Comparison Chart */}
+      {comparison.length > 0 && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-bold text-gray-800 mb-4">Comparativa Mensual (ultimos 6 meses)</h3>
+          <div className="flex items-end justify-between gap-2 h-48">
+            {comparison.map((m) => {
+              const maxVal = Math.max(...comparison.map((c) => Math.max(c.income, c.expenses)), 1);
+              const incomeHeight = (m.income / maxVal) * 100;
+              const expenseHeight = (m.expenses / maxVal) * 100;
+              return (
+                <div key={m.label} className="flex-1 flex flex-col items-center gap-1">
+                  <div className="flex gap-0.5 items-end h-36 w-full justify-center">
+                    <div className="w-3 md:w-5 bg-green-400 rounded-t" style={{ height: `${Math.max(incomeHeight, 2)}%` }} title={`Ingresos: ${formatCurrency(m.income)}`} />
+                    <div className="w-3 md:w-5 bg-red-300 rounded-t" style={{ height: `${Math.max(expenseHeight, 2)}%` }} title={`Egresos: ${formatCurrency(m.expenses)}`} />
+                  </div>
+                  <span className="text-[10px] text-gray-500">{m.label}</span>
+                </div>
+              );
+            })}
+          </div>
+          <div className="flex gap-4 justify-center mt-3 text-xs text-gray-500">
+            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-green-400 rounded" /> Ingresos</span>
+            <span className="flex items-center gap-1"><span className="w-3 h-3 bg-red-300 rounded" /> Egresos</span>
+          </div>
+        </div>
+      )}
 
       {/* Tables Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

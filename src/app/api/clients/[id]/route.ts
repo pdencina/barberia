@@ -48,6 +48,10 @@ export async function GET(
   // Calculate stats
   const totalSpent = (transactions || []).reduce((sum, t) => sum + Number(t.total), 0);
   const totalVisits = (appointments || []).filter((a) => a.status === "completed").length;
+  const totalNoShows = (appointments || []).filter((a) => a.status === "no_show").length;
+  const totalCancelled = (appointments || []).filter((a) => a.status === "cancelled").length;
+  const totalBooked = (appointments || []).length;
+  const attendanceRate = totalBooked > 0 ? Math.round(((totalBooked - totalNoShows - totalCancelled) / totalBooked) * 100) : 100;
   const lastVisit = appointments?.find((a) => a.status === "completed")?.date || null;
 
   // Most used services
@@ -77,6 +81,9 @@ export async function GET(
     stats: {
       totalSpent,
       totalVisits,
+      totalNoShows,
+      totalCancelled,
+      attendanceRate,
       lastVisit,
       averageSpend: totalVisits > 0 ? Math.round(totalSpent / totalVisits) : 0,
       favoriteServices,

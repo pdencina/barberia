@@ -67,10 +67,16 @@ export default function ClientesPage() {
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
-        <button onClick={() => setShowModal(true)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-          Nuevo Cliente
-        </button>
+        <div className="flex gap-2">
+          <a href="/api/clients/export" download
+            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+            Exportar CSV
+          </a>
+          <button onClick={() => setShowModal(true)}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+            Nuevo Cliente
+          </button>
+        </div>
       </div>
 
       <input type="text" placeholder="Buscar por nombre, email o telefono..."
