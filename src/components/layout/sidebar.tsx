@@ -29,6 +29,7 @@ import {
   Bell,
   Zap,
   Image,
+  Star,
 } from "lucide-react";
 
 const navigation = [
@@ -38,6 +39,7 @@ const navigation = [
   { name: "Inventario", href: "/dashboard/inventario", icon: Package },
   { name: "Clientes", href: "/dashboard/clientes", icon: Users },
   { name: "Retencion", href: "/dashboard/retencion", icon: Heart },
+  { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star },
   { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck },
   { name: "Agenda", href: "/dashboard/agenda", icon: Calendar },
   { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays },

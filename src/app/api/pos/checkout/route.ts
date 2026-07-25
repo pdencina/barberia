@@ -81,5 +81,42 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Award loyalty points if client is attached
+  if (clientId && total > 0) {
+    try {
+      const { data: config } = await supabase
+        .from("loyalty_config")
+        .select("points_per_clp")
+        .eq("active", true)
+        .single();
+
+      const pointsPerClp = config?.points_per_clp || 1000;
+      const pointsEarned = Math.floor(total / pointsPerClp);
+
+      if (pointsEarned > 0) {
+        await supabase.from("loyalty_points").insert({
+          client_id: clientId,
+          points: pointsEarned,
+          reason: "purchase",
+          transaction_id: tx.id,
+        });
+
+        // Update cached balance
+        const { data: client } = await supabase
+          .from("clients")
+          .select("loyalty_points")
+          .eq("id", clientId)
+          .single();
+
+        await supabase
+          .from("clients")
+          .update({ loyalty_points: (client?.loyalty_points || 0) + pointsEarned })
+          .eq("id", clientId);
+      }
+    } catch (e) {
+      console.error("Error awarding loyalty points:", e);
+    }
+  }
+
   return NextResponse.json({ success: true, transactionId: tx.id });
 }
