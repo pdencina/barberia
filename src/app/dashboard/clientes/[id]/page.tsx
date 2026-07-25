@@ -69,6 +69,9 @@ export default function ClienteDetailPage() {
   const router = useRouter();
   const [data, setData] = useState<ClientData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [notes, setNotes] = useState<Array<{ id: string; note: string; pinned: boolean; created_at: string; created_by_profile: { name: string } | null }>>([]);
+  const [newNote, setNewNote] = useState("");
+  const [pinNote, setPinNote] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -76,8 +79,29 @@ export default function ClienteDetailPage() {
         .then((r) => r.json())
         .then((d) => { if (d.client) setData(d); })
         .finally(() => setLoading(false));
+      fetch(`/api/clients/${params.id}/notes`)
+        .then((r) => r.json())
+        .then((n) => setNotes(Array.isArray(n) ? n : []));
     }
   }, [params.id]);
+
+  const addNote = async () => {
+    if (!newNote.trim()) return;
+    await fetch(`/api/clients/${params.id}/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ note: newNote, pinned: pinNote }),
+    });
+    setNewNote("");
+    setPinNote(false);
+    const res = await fetch(`/api/clients/${params.id}/notes`);
+    setNotes(await res.json());
+  };
+
+  const deleteNote = async (noteId: string) => {
+    await fetch(`/api/clients/${params.id}/notes?noteId=${noteId}`, { method: "DELETE" });
+    setNotes(notes.filter((n) => n.id !== noteId));
+  };
 
   if (loading) return <Spinner />;
   if (!data) return <div className="p-6 text-center text-gray-500">Cliente no encontrado</div>;
@@ -176,6 +200,54 @@ export default function ClienteDetailPage() {
 
       {/* Two columns: appointments & transactions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+
+        {/* Internal Notes */}
+        <div className="bg-white rounded-lg shadow lg:col-span-2">
+          <div className="p-4 border-b">
+            <h3 className="font-bold text-gray-800">Notas Internas</h3>
+            <p className="text-xs text-gray-400">Preferencias y observaciones (solo visibles para el equipo)</p>
+          </div>
+          <div className="p-4">
+            {/* Add note */}
+            <div className="flex gap-2 mb-4">
+              <input type="text" value={newNote} onChange={(e) => setNewNote(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && addNote()}
+                placeholder="Ej: Siempre pide fade bajo con linea..."
+                className="flex-1 border rounded-lg px-3 py-2 text-sm" />
+              <label className="flex items-center gap-1 text-xs text-gray-500 cursor-pointer">
+                <input type="checkbox" checked={pinNote} onChange={(e) => setPinNote(e.target.checked)} className="rounded" />
+                Fijar
+              </label>
+              <button onClick={addNote} disabled={!newNote.trim()}
+                className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50">
+                Agregar
+              </button>
+            </div>
+            {/* Notes list */}
+            {notes.length === 0 ? (
+              <p className="text-gray-400 text-sm text-center py-4">Sin notas. Agrega preferencias del cliente aqui.</p>
+            ) : (
+              <div className="space-y-2">
+                {notes.map((n) => (
+                  <div key={n.id} className={`flex items-start justify-between gap-3 p-3 rounded-lg ${n.pinned ? "bg-yellow-50 border border-yellow-200" : "bg-gray-50"}`}>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        {n.pinned && <span className="text-yellow-500 text-xs">📌</span>}
+                        <p className="text-sm text-gray-800">{n.note}</p>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(n.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+                        {n.created_by_profile && ` · ${n.created_by_profile.name}`}
+                      </p>
+                    </div>
+                    <button onClick={() => deleteNote(n.id)} className="text-gray-300 hover:text-red-500 text-xs">✕</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
         {/* Appointments history */}
         <div className="bg-white rounded-lg shadow">
           <div className="p-4 border-b">
