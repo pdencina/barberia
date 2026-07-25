@@ -6,7 +6,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const includeInactive = searchParams.get("all") === "true";
 
-  let query = supabase.from("services").select("*").order("name");
+  let query = supabase.from("services").select("*").order("sort_order", { ascending: true }).order("name");
   if (!includeInactive) {
     query = query.eq("active", true);
   }

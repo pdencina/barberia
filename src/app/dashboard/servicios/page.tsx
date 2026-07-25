@@ -13,6 +13,7 @@ interface Service {
   price: number;
   duration: number;
   active: boolean;
+  sort_order: number;
 }
 
 export default function ServiciosPage() {
@@ -28,7 +29,7 @@ export default function ServiciosPage() {
     setLoading(true);
     const res = await fetch("/api/services?all=true");
     const data = await res.json();
-    setServices(Array.isArray(data) ? data : []);
+    setServices(Array.isArray(data) ? data.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)) : []);
     setLoading(false);
   };
 
@@ -106,6 +107,24 @@ export default function ServiciosPage() {
     fetchServices();
   };
 
+  const moveService = async (index: number, direction: "up" | "down") => {
+    const active = services.filter((s) => s.active);
+    const swapIndex = direction === "up" ? index - 1 : index + 1;
+    if (swapIndex < 0 || swapIndex >= active.length) return;
+
+    const newOrder = [...active];
+    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
+
+    const order = newOrder.map((s, i) => ({ id: s.id, sort_order: i }));
+    await fetch("/api/services/reorder", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ order }),
+    });
+    showToast("Orden actualizado", "success");
+    fetchServices();
+  };
+
   const activeServices = services.filter((s) => s.active);
   const inactiveServices = services.filter((s) => !s.active);
 
@@ -131,8 +150,17 @@ export default function ServiciosPage() {
           <Spinner />
         ) : (
           <div className="divide-y">
-            {activeServices.map((s) => (
+            {activeServices.map((s, index) => (
               <div key={s.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
+                {/* Reorder buttons */}
+                <div className="flex flex-col gap-0.5 mr-3">
+                  <button onClick={() => moveService(index, "up")}
+                    disabled={index === 0}
+                    className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▲</button>
+                  <button onClick={() => moveService(index, "down")}
+                    disabled={index === activeServices.length - 1}
+                    className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▼</button>
+                </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-3">
                     <p className="font-medium text-gray-900">{s.name}</p>
