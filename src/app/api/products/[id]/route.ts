@@ -11,14 +11,14 @@ export async function PATCH(
   // If price is being changed, log it
   if (body.price !== undefined) {
     const { data: current } = await supabase
-      .from("services")
+      .from("products")
       .select("name, price")
       .eq("id", params.id)
       .single();
 
     if (current && Number(current.price) !== Number(body.price)) {
       await supabase.from("price_history").insert({
-        entity_type: "service",
+        entity_type: "product",
         entity_id: params.id,
         entity_name: current.name,
         old_price: Number(current.price),
@@ -28,7 +28,7 @@ export async function PATCH(
   }
 
   const { data, error } = await supabase
-    .from("services")
+    .from("products")
     .update(body)
     .eq("id", params.id)
     .select()
@@ -36,19 +36,4 @@ export async function PATCH(
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
-}
-
-export async function DELETE(
-  req: NextRequest,
-  { params }: { params: { id: string } }
-) {
-  const supabase = createAdminSupabase();
-
-  const { error } = await supabase
-    .from("services")
-    .update({ active: false })
-    .eq("id", params.id);
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ success: true });
 }

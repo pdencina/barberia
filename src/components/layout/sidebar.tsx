@@ -56,6 +56,7 @@ const navigation = [
   { name: "Barberos", href: "/dashboard/barberos", icon: Scissors },
   { name: "Galeria", href: "/dashboard/galeria", icon: Image },
   { name: "Servicios", href: "/dashboard/servicios", icon: Tag },
+  { name: "Precios", href: "/dashboard/precios", icon: Tag },
   { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin },
   { name: "Config", href: "/dashboard/configuracion", icon: Settings },
 ];
