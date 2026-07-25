@@ -98,6 +98,9 @@ export async function sendReceipt(params: SendReceiptParams) {
     </div>
 
     <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
+      <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app"}/review/${transactionId}" style="display: inline-block; background: #e53e3e; color: #fff; text-decoration: none; padding: 10px 24px; border-radius: 6px; font-weight: bold; font-size: 13px; margin-bottom: 12px;">
+        Califica tu atencion ★
+      </a>
       <p style="color: #888; font-size: 13px; margin: 4px 0;">Gracias por tu preferencia!</p>
       <p style="color: #555; font-size: 11px; margin: 4px 0;">EstudioLevels | estudiolevels.com</p>
     </div>
