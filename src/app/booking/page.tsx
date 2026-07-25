@@ -28,7 +28,7 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false);
 
   // Selections
-  const [selectedService, setSelectedService] = useState<Service | null>(null);
+  const [selectedServices, setSelectedServices] = useState<Service[]>([]);
   const [selectedBarber, setSelectedBarber] = useState<Barber | null>(null);
   const [selectedDate, setSelectedDate] = useState("");
   const [selectedSlot, setSelectedSlot] = useState("");
@@ -37,6 +37,11 @@ export default function BookingPage() {
   const [clientPhone, setClientPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [clientFound, setClientFound] = useState(false);
+
+  // Computed totals
+  const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
+  const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
 
   useEffect(() => {
     fetch("/api/public/services").then((r) => r.json()).then(setServices);
@@ -52,17 +57,17 @@ export default function BookingPage() {
 
   // Fetch slots when barber or date changes
   useEffect(() => {
-    if (selectedBarber && selectedDate && selectedService) {
+    if (selectedBarber && selectedDate && selectedServices.length > 0) {
       setLoadingSlots(true);
       setSelectedSlot("");
       fetch(
-        `/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${selectedService.duration}`
+        `/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${totalDuration}`
       )
         .then((r) => r.json())
         .then((data) => setSlots(data.slots || []))
         .finally(() => setLoadingSlots(false));
     }
-  }, [selectedBarber, selectedDate, selectedService]);
+  }, [selectedBarber, selectedDate, selectedServices]);
 
   const handleBook = async () => {
     setError("");
@@ -72,7 +77,7 @@ export default function BookingPage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        serviceId: selectedService!.id,
+        serviceIds: selectedServices.map((s) => s.id),
         barberId: selectedBarber!.id,
         date: selectedDate,
         startTime: selectedSlot,
@@ -133,23 +138,65 @@ export default function BookingPage() {
         {/* Step 1: Service */}
         {step === "service" && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">Elige un servicio</h2>
-            <p className="text-gray-400 mb-6">Selecciona el servicio que deseas</p>
+            <h2 className="text-2xl font-bold mb-2">Elige tus servicios</h2>
+            <p className="text-gray-400 mb-6">Selecciona uno o mas servicios</p>
             <div className="space-y-3">
-              {services.map((s) => (
-                <button
-                  key={s.id}
-                  onClick={() => { setSelectedService(s); setStep("barber"); }}
-                  className="w-full flex items-center justify-between p-4 rounded-lg border border-gray-800 hover:border-red-500 hover:bg-gray-900 transition-colors text-left"
-                >
-                  <div>
-                    <p className="font-medium text-white">{s.name}</p>
-                    <p className="text-sm text-gray-400">{s.duration} min{s.description ? ` · ${s.description}` : ""}</p>
-                  </div>
-                  <p className="text-red-500 font-bold text-lg">{formatCurrency(Number(s.price))}</p>
-                </button>
-              ))}
+              {services.map((s) => {
+                const isSelected = selectedServices.some((ss) => ss.id === s.id);
+                return (
+                  <button
+                    key={s.id}
+                    onClick={() => {
+                      if (isSelected) {
+                        setSelectedServices(selectedServices.filter((ss) => ss.id !== s.id));
+                      } else {
+                        setSelectedServices([...selectedServices, s]);
+                      }
+                    }}
+                    className={`w-full flex items-center justify-between p-4 rounded-lg border transition-colors text-left ${
+                      isSelected
+                        ? "border-red-500 bg-red-500/10"
+                        : "border-gray-800 hover:border-red-500 hover:bg-gray-900"
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                        isSelected ? "border-red-500 bg-red-500" : "border-gray-600"
+                      }`}>
+                        {isSelected && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
+                      </div>
+                      <div>
+                        <p className="font-medium text-white">{s.name}</p>
+                        <p className="text-sm text-gray-400">{s.duration} min{s.description ? ` · ${s.description}` : ""}</p>
+                      </div>
+                    </div>
+                    <p className="text-red-500 font-bold text-lg">{formatCurrency(Number(s.price))}</p>
+                  </button>
+                );
+              })}
             </div>
+
+            {/* Selection summary */}
+            {selectedServices.length > 0 && (
+              <div className="mt-6 p-4 bg-gray-900 border border-gray-800 rounded-lg">
+                <div className="flex justify-between text-sm mb-2">
+                  <span className="text-gray-400">{selectedServices.length} servicio{selectedServices.length > 1 ? "s" : ""}</span>
+                  <span className="text-gray-400">{totalDuration} min total</span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-white font-medium">Total</span>
+                  <span className="text-red-500 font-bold text-xl">{formatCurrency(totalPrice)}</span>
+                </div>
+              </div>
+            )}
+
+            <button
+              onClick={() => setStep("barber")}
+              disabled={selectedServices.length === 0}
+              className="w-full mt-4 py-3 rounded-lg bg-red-600 text-white font-bold hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+            >
+              Continuar
+            </button>
           </div>
         )}
 
@@ -186,7 +233,7 @@ export default function BookingPage() {
               ← Volver
             </button>
             <h2 className="text-2xl font-bold mb-2">Selecciona fecha y hora</h2>
-            <p className="text-gray-400 mb-6">{selectedService?.name} con {selectedBarber?.name}</p>
+            <p className="text-gray-400 mb-6">{selectedServices.map((s) => s.name).join(" + ")} con {selectedBarber?.name}</p>
 
             {/* Date selection */}
             <div className="mb-6">
@@ -270,8 +317,8 @@ export default function BookingPage() {
             {/* Summary card */}
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-4 mb-6">
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-gray-400">Servicio</span>
-                <span className="text-white font-medium">{selectedService?.name}</span>
+                <span className="text-gray-400">Servicios</span>
+                <span className="text-white font-medium">{selectedServices.map((s) => s.name).join(" + ")}</span>
               </div>
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-gray-400">Barbero</span>
@@ -285,13 +332,41 @@ export default function BookingPage() {
                 <span className="text-gray-400">Hora</span>
                 <span className="text-white font-bold">{new Date(selectedSlot).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</span>
               </div>
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-gray-400">Duracion</span>
+                <span className="text-white">{totalDuration} min</span>
+              </div>
               <div className="flex justify-between text-sm pt-2 border-t border-gray-800">
                 <span className="text-gray-400">Total</span>
-                <span className="text-red-500 font-bold">{formatCurrency(Number(selectedService?.price || 0))}</span>
+                <span className="text-red-500 font-bold">{formatCurrency(totalPrice)}</span>
               </div>
             </div>
 
             <div className="space-y-4">
+              <div>
+                <label className="text-sm text-gray-400 mb-1 block">Email</label>
+                <input
+                  type="email"
+                  value={clientEmail}
+                  onChange={(e) => { setClientEmail(e.target.value); setClientFound(false); }}
+                  onBlur={async () => {
+                    if (clientEmail && clientEmail.includes("@")) {
+                      const res = await fetch(`/api/public/client-lookup?email=${encodeURIComponent(clientEmail)}`);
+                      const data = await res.json();
+                      if (data.found) {
+                        setClientName(data.client.name);
+                        setClientPhone(data.client.phone || "");
+                        setClientFound(true);
+                      }
+                    }
+                  }}
+                  placeholder="tu@email.com (para confirmacion)"
+                  className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-3 text-white placeholder:text-gray-600 focus:border-red-500 focus:outline-none"
+                />
+                {clientFound && (
+                  <p className="text-xs text-green-400 mt-1">Bienvenido de vuelta! Datos prellenados.</p>
+                )}
+              </div>
               <div>
                 <label className="text-sm text-gray-400 mb-1 block">Nombre *</label>
                 <input
@@ -300,16 +375,6 @@ export default function BookingPage() {
                   onChange={(e) => setClientName(e.target.value)}
                   placeholder="Tu nombre completo"
                   required
-                  className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-3 text-white placeholder:text-gray-600 focus:border-red-500 focus:outline-none"
-                />
-              </div>
-              <div>
-                <label className="text-sm text-gray-400 mb-1 block">Email</label>
-                <input
-                  type="email"
-                  value={clientEmail}
-                  onChange={(e) => setClientEmail(e.target.value)}
-                  placeholder="tu@email.com (para confirmacion)"
                   className="w-full rounded-lg border border-gray-700 bg-gray-900 px-4 py-3 text-white placeholder:text-gray-600 focus:border-red-500 focus:outline-none"
                 />
               </div>
@@ -359,8 +424,8 @@ export default function BookingPage() {
             <p className="text-gray-400 mb-6">Tu cita ha sido agendada exitosamente</p>
 
             <div className="bg-gray-900 border border-gray-800 rounded-lg p-6 text-left max-w-sm mx-auto mb-8">
-              <p className="text-sm text-gray-400 mb-1">Servicio</p>
-              <p className="text-white font-medium mb-3">{selectedService?.name}</p>
+              <p className="text-sm text-gray-400 mb-1">Servicios</p>
+              <p className="text-white font-medium mb-3">{selectedServices.map((s) => s.name).join(" + ")}</p>
               <p className="text-sm text-gray-400 mb-1">Barbero</p>
               <p className="text-white mb-3">{selectedBarber?.name}</p>
               <p className="text-sm text-gray-400 mb-1">Fecha y hora</p>
@@ -380,13 +445,14 @@ export default function BookingPage() {
             <button
               onClick={() => {
                 setStep("service");
-                setSelectedService(null);
+                setSelectedServices([]);
                 setSelectedBarber(null);
                 setSelectedSlot("");
                 setClientName("");
                 setClientEmail("");
                 setClientPhone("");
                 setNotes("");
+                setClientFound(false);
               }}
               className="px-6 py-3 rounded-lg border border-gray-700 text-gray-300 hover:border-red-500 hover:text-white transition-colors"
             >

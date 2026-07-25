@@ -1,14 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { data, error } = await supabase
-    .from("services")
-    .select("*")
-    .eq("active", true)
-    .order("name");
+  const { searchParams } = new URL(req.url);
+  const includeInactive = searchParams.get("all") === "true";
 
+  let query = supabase.from("services").select("*").order("name");
+  if (!includeInactive) {
+    query = query.eq("active", true);
+  }
+
+  const { data, error } = await query;
   if (error) return NextResponse.json([]);
   return NextResponse.json(data || []);
 }

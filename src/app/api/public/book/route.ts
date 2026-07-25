@@ -5,27 +5,33 @@ import { sendBookingConfirmation } from "@/lib/resend";
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { serviceId, barberId, date, startTime, clientName, clientEmail, clientPhone, notes } = body;
+  const { serviceIds, serviceId, barberId, date, startTime, clientName, clientEmail, clientPhone, notes } = body;
+
+  // Support both single serviceId and array serviceIds
+  const ids: string[] = serviceIds || (serviceId ? [serviceId] : []);
 
   // Validate required fields
-  if (!serviceId || !barberId || !date || !startTime || !clientName) {
+  if (ids.length === 0 || !barberId || !date || !startTime || !clientName) {
     return NextResponse.json({ error: "Campos requeridos faltantes" }, { status: 400 });
   }
 
-  // Get service details
-  const { data: service } = await supabase
+  // Get services details
+  const { data: services } = await supabase
     .from("services")
     .select("id, name, price, duration")
-    .eq("id", serviceId)
-    .single();
+    .in("id", ids);
 
-  if (!service) {
-    return NextResponse.json({ error: "Servicio no encontrado" }, { status: 404 });
+  if (!services || services.length === 0) {
+    return NextResponse.json({ error: "Servicios no encontrados" }, { status: 404 });
   }
+
+  const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
+  const totalPrice = services.reduce((sum, s) => sum + Number(s.price), 0);
+  const serviceNames = services.map((s) => s.name).join(" + ");
 
   // Calculate end time
   const start = new Date(startTime);
-  const end = new Date(start.getTime() + service.duration * 60000);
+  const end = new Date(start.getTime() + totalDuration * 60000);
 
   // Check for conflicts (double booking prevention)
   const { data: conflicts } = await supabase
@@ -92,12 +98,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Error creando la cita" }, { status: 500 });
   }
 
-  // Add service to appointment
-  await supabase.from("appointment_services").insert({
+  // Add services to appointment
+  const serviceInserts = services.map((s) => ({
     appointment_id: appointment!.id,
-    service_id: service.id,
-    price: service.price,
-  });
+    service_id: s.id,
+    price: s.price,
+  }));
+  await supabase.from("appointment_services").insert(serviceInserts);
 
   // Get barber name for email
   const { data: barber } = await supabase
@@ -113,10 +120,10 @@ export async function POST(req: NextRequest) {
         to: clientEmail,
         clientName,
         barberName: barber?.name || "EstudioLevels",
-        serviceName: service.name,
+        serviceName: serviceNames,
         date: start,
-        duration: service.duration,
-        price: Number(service.price),
+        duration: totalDuration,
+        price: totalPrice,
       });
     } catch (e) {
       console.error("Error sending confirmation email:", e);
