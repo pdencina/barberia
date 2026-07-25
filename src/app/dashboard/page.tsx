@@ -58,21 +58,21 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-white rounded-lg shadow p-5">
-          <p className="text-xs text-gray-500 uppercase">Hoy</p>
-          <p className="text-2xl font-bold text-green-600">{formatCurrency(data.todayIncome)}</p>
+        <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-xl shadow-lg p-5 text-white">
+          <p className="text-xs uppercase opacity-80">Hoy</p>
+          <p className="text-2xl font-bold mt-1">{formatCurrency(data.todayIncome)}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-5">
-          <p className="text-xs text-gray-500 uppercase">Esta Semana</p>
-          <p className="text-2xl font-bold text-blue-600">{formatCurrency(data.weekTotal)}</p>
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl shadow-lg p-5 text-white">
+          <p className="text-xs uppercase opacity-80">Esta Semana</p>
+          <p className="text-2xl font-bold mt-1">{formatCurrency(data.weekTotal)}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-5">
-          <p className="text-xs text-gray-500 uppercase">Este Mes</p>
-          <p className="text-2xl font-bold text-purple-600">{formatCurrency(data.monthIncome)}</p>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl shadow-lg p-5 text-white">
+          <p className="text-xs uppercase opacity-80">Este Mes</p>
+          <p className="text-2xl font-bold mt-1">{formatCurrency(data.monthIncome)}</p>
         </div>
-        <div className="bg-white rounded-lg shadow p-5">
-          <p className="text-xs text-gray-500 uppercase">Citas Hoy</p>
-          <p className="text-2xl font-bold text-gray-900">{data.todayApptCount}</p>
+        <div className="bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl shadow-lg p-5 text-white">
+          <p className="text-xs uppercase opacity-80">Citas Hoy</p>
+          <p className="text-2xl font-bold mt-1">{data.todayApptCount}</p>
         </div>
       </div>
 
@@ -80,24 +80,24 @@ export default function DashboardPage() {
         {/* Weekly chart */}
         <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
           <h3 className="font-bold text-gray-800 mb-4">Ventas de la Semana</h3>
-          <div className="flex items-end justify-between gap-2 h-48">
+          <div className="flex items-end justify-between gap-3 h-52">
             {data.weekData.map((d, i) => {
-              const height = maxWeekValue > 0 ? (d.total / maxWeekValue) * 100 : 0;
+              const barHeight = maxWeekValue > 0 ? Math.max((d.total / maxWeekValue) * 180, 8) : 8;
               const isToday = i === data.weekData.length - 1;
               return (
-                <div key={d.day} className="flex-1 flex flex-col items-center gap-2">
-                  <span className="text-xs text-gray-500">
-                    {d.total > 0 ? formatCurrency(d.total) : ""}
+                <div key={d.day} className="flex-1 flex flex-col items-center justify-end h-full">
+                  <span className="text-[10px] text-gray-500 mb-1">
+                    {d.total > 0 ? formatCurrency(d.total) : "$0"}
                   </span>
-                  <div className="w-full flex justify-center">
-                    <div
-                      className={`w-8 md:w-12 rounded-t-md transition-all ${
-                        isToday ? "bg-blue-600" : "bg-blue-200"
-                      }`}
-                      style={{ height: `${Math.max(height, 4)}%` }}
-                    />
-                  </div>
-                  <span className={`text-xs ${isToday ? "font-bold text-blue-600" : "text-gray-400"}`}>
+                  <div
+                    className={`w-full max-w-[40px] rounded-t-lg transition-all ${
+                      isToday
+                        ? "bg-gradient-to-t from-blue-700 to-blue-400"
+                        : "bg-gradient-to-t from-blue-300 to-blue-100"
+                    }`}
+                    style={{ height: `${barHeight}px` }}
+                  />
+                  <span className={`text-xs mt-2 ${isToday ? "font-bold text-blue-600" : "text-gray-400"}`}>
                     {d.day}
                   </span>
                 </div>
