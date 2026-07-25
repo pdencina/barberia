@@ -39,6 +39,8 @@ export default function BookingPage() {
   const [error, setError] = useState("");
   const [clientFound, setClientFound] = useState(false);
   const [appointmentId, setAppointmentId] = useState("");
+  const [showWaitlist, setShowWaitlist] = useState(false);
+  const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
 
   // Computed totals
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
@@ -271,7 +273,69 @@ export default function BookingPage() {
               {loadingSlots ? (
                 <div className="text-center py-8 text-gray-500">Buscando horarios...</div>
               ) : slots.length === 0 ? (
-                <div className="text-center py-8 text-gray-500">No hay horarios disponibles para esta fecha</div>
+                <div className="text-center py-8">
+                  <p className="text-gray-500 mb-4">No hay horarios disponibles para esta fecha</p>
+                  {!showWaitlist && !waitlistSubmitted && (
+                    <button
+                      onClick={() => setShowWaitlist(true)}
+                      className="px-4 py-2 border border-red-500 text-red-400 rounded-lg hover:bg-red-500/10 text-sm"
+                    >
+                      Avisame cuando haya hora
+                    </button>
+                  )}
+                  {showWaitlist && (
+                    <div className="mt-4 p-4 bg-gray-900 border border-gray-800 rounded-lg text-left space-y-3">
+                      <p className="text-sm text-gray-300 font-medium">Te avisamos cuando se libere una hora:</p>
+                      <input
+                        type="text"
+                        value={clientName}
+                        onChange={(e) => setClientName(e.target.value)}
+                        placeholder="Tu nombre"
+                        className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500"
+                      />
+                      <input
+                        type="email"
+                        value={clientEmail}
+                        onChange={(e) => setClientEmail(e.target.value)}
+                        placeholder="Email"
+                        className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500"
+                      />
+                      <input
+                        type="tel"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        placeholder="Telefono (WhatsApp)"
+                        className="w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-white placeholder:text-gray-500"
+                      />
+                      <button
+                        onClick={async () => {
+                          if (!clientName) return;
+                          await fetch("/api/public/waitlist", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              clientName,
+                              clientEmail,
+                              clientPhone,
+                              serviceId: selectedServices[0]?.id || null,
+                              barberId: selectedBarber?.id || null,
+                              preferredDate: selectedDate,
+                            }),
+                          });
+                          setShowWaitlist(false);
+                          setWaitlistSubmitted(true);
+                        }}
+                        disabled={!clientName}
+                        className="w-full py-2 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+                      >
+                        Anotarme en lista de espera
+                      </button>
+                    </div>
+                  )}
+                  {waitlistSubmitted && (
+                    <p className="text-green-400 text-sm mt-2">Listo! Te avisaremos cuando haya hora disponible.</p>
+                  )}
+                </div>
               ) : (
                 <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
                   {slots.map((slot) => {

@@ -41,6 +41,7 @@ const navigation = [
   { name: "Agenda", href: "/dashboard/agenda", icon: Calendar },
   { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays },
   { name: "Recordatorios", href: "/dashboard/recordatorios", icon: Bell },
+  { name: "Lista Espera", href: "/dashboard/waitlist", icon: Users },
   { name: "Boletas", href: "/dashboard/boletas", icon: Receipt },
   { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3 },
   { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap },
