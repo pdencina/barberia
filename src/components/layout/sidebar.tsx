@@ -28,6 +28,7 @@ import {
   Heart,
   Bell,
   Zap,
+  Image,
 } from "lucide-react";
 
 const navigation = [
@@ -49,6 +50,7 @@ const navigation = [
   { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard },
   { name: "Cupones", href: "/dashboard/cupones", icon: Tag },
   { name: "Barberos", href: "/dashboard/barberos", icon: Scissors },
+  { name: "Galeria", href: "/dashboard/galeria", icon: Image },
   { name: "Servicios", href: "/dashboard/servicios", icon: Tag },
   { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin },
   { name: "Config", href: "/dashboard/configuracion", icon: Settings },
