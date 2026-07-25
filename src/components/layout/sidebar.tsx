@@ -14,6 +14,7 @@ import {
   Calendar,
   CalendarCheck,
   CalendarDays,
+  MapPin,
   Receipt,
   BarChart3,
   Tablet,
@@ -48,6 +49,7 @@ const navigation = [
   { name: "Cupones", href: "/dashboard/cupones", icon: Tag },
   { name: "Barberos", href: "/dashboard/barberos", icon: Scissors },
   { name: "Servicios", href: "/dashboard/servicios", icon: Tag },
+  { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin },
   { name: "Config", href: "/dashboard/configuracion", icon: Settings },
 ];
 

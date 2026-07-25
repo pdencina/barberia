@@ -38,6 +38,7 @@ export default function BookingPage() {
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
   const [clientFound, setClientFound] = useState(false);
+  const [appointmentId, setAppointmentId] = useState("");
 
   // Computed totals
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
@@ -92,6 +93,7 @@ export default function BookingPage() {
     setSubmitting(false);
 
     if (res.ok) {
+      setAppointmentId(data.appointmentId || "");
       setStep("confirmed");
     } else {
       setError(data.error || "Error al agendar. Intenta de nuevo.");
@@ -440,6 +442,36 @@ export default function BookingPage() {
               <p className="text-sm text-gray-500 mb-6">
                 Te enviamos un email de confirmacion a <strong className="text-gray-300">{clientEmail}</strong>
               </p>
+            )}
+
+            {/* Payment option */}
+            {totalPrice > 0 && appointmentId && (
+              <div className="mb-6 p-4 bg-gray-900 border border-gray-800 rounded-lg">
+                <p className="text-sm text-gray-400 mb-3">Quieres pagar ahora?</p>
+                <button
+                  onClick={async () => {
+                    const res = await fetch("/api/payments/create-preference", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        appointmentId,
+                        services: selectedServices.map((s) => ({ name: s.name, price: Number(s.price) })),
+                        clientName,
+                        clientEmail,
+                        totalPrice,
+                      }),
+                    });
+                    const data = await res.json();
+                    if (data.initPoint) {
+                      window.location.href = data.initPoint;
+                    }
+                  }}
+                  className="w-full py-3 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700 transition-colors mb-2"
+                >
+                  Pagar {formatCurrency(totalPrice)} con MercadoPago
+                </button>
+                <p className="text-xs text-gray-500 text-center">O puedes pagar directamente en el local</p>
+              </div>
             )}
 
             <button

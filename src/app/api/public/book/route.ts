@@ -130,6 +130,23 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Send push notification to admin/staff (non-blocking)
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app";
+  try {
+    await fetch(`${appUrl}/api/push/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        title: "Nueva Cita Agendada",
+        body: `${clientName} - ${serviceNames} con ${barber?.name || "EstudioLevels"} (${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })})`,
+        url: "/dashboard/agenda",
+        tag: "new-appointment",
+      }),
+    });
+  } catch (e) {
+    console.error("Error sending push:", e);
+  }
+
   return NextResponse.json({
     success: true,
     appointmentId: appointment!.id,
