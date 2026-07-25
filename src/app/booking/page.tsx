@@ -220,6 +220,26 @@ export default function BookingPage() {
           <div>
             <h2 className="text-2xl font-bold mb-2">Elige tu barbero</h2>
             <p className="text-gray-400 mb-6">Selecciona un miembro del equipo</p>
+
+            {/* First available button */}
+            <button
+              onClick={async () => {
+                const res = await fetch(`/api/public/first-available?date=${selectedDate || new Date().toISOString().split("T")[0]}`);
+                const data = await res.json();
+                if (data.barber) {
+                  setSelectedBarber(data.barber);
+                  setSelectedServices([]);
+                  setStep("service");
+                }
+              }}
+              className="w-full mb-4 p-4 rounded-lg border-2 border-red-500 bg-red-500/10 hover:bg-red-500/20 transition-colors text-center"
+            >
+              <p className="font-bold text-red-400 text-lg">Primer barbero disponible</p>
+              <p className="text-xs text-gray-400">Te asignamos al barbero con mas disponibilidad</p>
+            </button>
+
+            <p className="text-center text-xs text-gray-600 mb-4">o elige directamente:</p>
+
             <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
               {barbers.map((b) => (
                 <button

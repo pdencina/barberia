@@ -46,6 +46,7 @@ export default function POSPage() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedBarber, setSelectedBarber] = useState("");
   const [selectedClient, setSelectedClient] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [couponError, setCouponError] = useState("");
@@ -221,16 +222,31 @@ export default function POSPage() {
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
-            <select
-              value={selectedClient}
-              onChange={(e) => setSelectedClient(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-            >
-              <option value="">Sin cliente</option>
-              {clients.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Buscar cliente..."
+                value={clientSearch}
+                onChange={(e) => {
+                  setClientSearch(e.target.value);
+                  setSelectedClient("");
+                }}
+                className="w-full border rounded-lg px-3 py-2 text-sm"
+              />
+              {clientSearch && !selectedClient && (
+                <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto">
+                  {clients
+                    .filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
+                    .slice(0, 5)
+                    .map((c) => (
+                      <button key={c.id} onClick={() => { setSelectedClient(c.id); setClientSearch(c.name); }}
+                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100">
+                        {c.name}
+                      </button>
+                    ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

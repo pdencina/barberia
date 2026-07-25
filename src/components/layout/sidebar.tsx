@@ -50,6 +50,8 @@ const navigation = [
   { name: "Boletas", href: "/dashboard/boletas", icon: Receipt },
   { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3 },
   { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap },
+  { name: "Facturas", href: "/dashboard/facturas", icon: Receipt },
+  { name: "Standby", href: "/dashboard/standby", icon: Zap },
   { name: "Recepcion", href: "/dashboard/recepcion", icon: Tablet },
   { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard },
   { name: "Cupones", href: "/dashboard/cupones", icon: Tag },
