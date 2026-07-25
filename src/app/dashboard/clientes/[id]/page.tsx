@@ -17,6 +17,9 @@ interface ClientData {
   stats: {
     totalSpent: number;
     totalVisits: number;
+    totalNoShows: number;
+    totalCancelled: number;
+    attendanceRate: number;
     lastVisit: string | null;
     averageSpend: number;
     favoriteServices: Array<{ name: string; count: number }>;
@@ -159,7 +162,7 @@ export default function ClienteDetailPage() {
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
         <div className="bg-white rounded-lg shadow p-4 text-center">
           <p className="text-2xl font-bold text-blue-600">{stats.totalVisits}</p>
           <p className="text-xs text-gray-500">Visitas</p>
@@ -171,6 +174,16 @@ export default function ClienteDetailPage() {
         <div className="bg-white rounded-lg shadow p-4 text-center">
           <p className="text-2xl font-bold text-purple-600">{formatCurrency(stats.averageSpend)}</p>
           <p className="text-xs text-gray-500">Ticket Promedio</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 text-center">
+          <p className={`text-2xl font-bold ${stats.attendanceRate >= 80 ? "text-green-600" : stats.attendanceRate >= 50 ? "text-yellow-600" : "text-red-600"}`}>
+            {stats.attendanceRate}%
+          </p>
+          <p className="text-xs text-gray-500">Asistencia</p>
+        </div>
+        <div className="bg-white rounded-lg shadow p-4 text-center">
+          <p className="text-2xl font-bold text-red-500">{stats.totalNoShows}</p>
+          <p className="text-xs text-gray-500">No Shows</p>
         </div>
         <div className="bg-white rounded-lg shadow p-4 text-center">
           <p className="text-lg font-bold text-gray-800">{stats.favoriteBarber?.name || "-"}</p>
