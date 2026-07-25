@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -31,6 +31,8 @@ import {
   Zap,
   Image,
   Star,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 
 const navigation = [
@@ -69,10 +71,23 @@ interface SidebarProps {
 }
 
 export function Sidebar({ userName, userRole }: SidebarProps) {
-  const [open, setOpen] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+
+  // Persist collapsed state
+  useEffect(() => {
+    const saved = localStorage.getItem("sidebar-collapsed");
+    if (saved === "true") setCollapsed(true);
+  }, []);
+
+  const toggleCollapse = () => {
+    const next = !collapsed;
+    setCollapsed(next);
+    localStorage.setItem("sidebar-collapsed", String(next));
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -86,98 +101,109 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
     receptionist: "Recepcionista",
   };
 
-  const sidebarContent = (
-    <>
-      <div className="flex h-14 items-center justify-between px-4 border-b border-gray-800">
-        <img src="/logo.png" alt="EstudioLevels" className="h-8 w-auto" />
-        <button
-          onClick={() => setOpen(false)}
-          className="lg:hidden text-gray-400 hover:text-white"
-        >
-          <X className="h-5 w-5" />
-        </button>
-      </div>
-
-      <nav className="flex-1 overflow-y-auto px-3 py-3">
-        <ul className="space-y-0.5">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <li key={item.name}>
-                <Link
-                  href={item.href}
-                  onClick={() => setOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-red-600/10 text-red-500 border-l-2 border-red-500"
-                      : "text-gray-400 hover:bg-gray-800 hover:text-white"
-                  )}
-                >
-                  <item.icon className="h-4 w-4 flex-shrink-0" />
-                  {item.name}
-                </Link>
-              </li>
-            );
-          })}
-        </ul>
-      </nav>
-
-      <div className="border-t border-gray-800 p-3">
-        <div className="flex items-center gap-3">
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">{userName}</p>
-            <p className="text-xs text-gray-400 truncate">
-              {roleLabel[userRole] || userRole}
-            </p>
-          </div>
-          <button
-            onClick={handleLogout}
-            className="text-gray-400 hover:text-white p-2 rounded-md hover:bg-gray-800 transition-colors"
-            aria-label="Cerrar sesion"
-          >
-            <LogOut className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-    </>
+  const renderNav = (showLabels: boolean) => (
+    <nav className="flex-1 overflow-y-auto px-2 py-3">
+      <ul className="space-y-0.5">
+        {navigation.map((item) => {
+          const isActive = pathname === item.href;
+          return (
+            <li key={item.name}>
+              <Link
+                href={item.href}
+                onClick={() => setMobileOpen(false)}
+                title={!showLabels ? item.name : undefined}
+                className={cn(
+                  "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                  !showLabels && "justify-center px-2",
+                  isActive
+                    ? "bg-red-600/10 text-red-500 border-l-2 border-red-500"
+                    : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                )}
+              >
+                <item.icon className="h-4 w-4 flex-shrink-0" />
+                {showLabels && <span className="truncate">{item.name}</span>}
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+    </nav>
   );
 
   return (
     <>
       {/* Mobile header bar */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-gray-900 flex items-center px-4 gap-3">
-        <button
-          onClick={() => setOpen(true)}
-          className="text-white p-1"
-          aria-label="Abrir menu"
-        >
+        <button onClick={() => setMobileOpen(true)} className="text-white p-1" aria-label="Abrir menu">
           <Menu className="h-6 w-6" />
         </button>
         <img src="/logo.png" alt="EstudioLevels" className="h-7 w-auto" />
       </div>
 
       {/* Mobile overlay */}
-      {open && (
-        <div
-          className="lg:hidden fixed inset-0 z-50 bg-black/50"
-          onClick={() => setOpen(false)}
-        />
+      {mobileOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setMobileOpen(false)} />
       )}
 
       {/* Mobile sidebar drawer */}
-      <div
-        className={cn(
-          "lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-200",
-          open ? "translate-x-0" : "-translate-x-full"
-        )}
-      >
-        {sidebarContent}
+      <div className={cn(
+        "lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-200",
+        mobileOpen ? "translate-x-0" : "-translate-x-full"
+      )}>
+        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-800">
+          <img src="/logo.png" alt="EstudioLevels" className="h-8 w-auto" />
+          <button onClick={() => setMobileOpen(false)} className="text-gray-400 hover:text-white">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        {renderNav(true)}
+        <div className="border-t border-gray-800 p-3">
+          <div className="flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">{userName}</p>
+              <p className="text-xs text-gray-400">{roleLabel[userRole] || userRole}</p>
+            </div>
+            <button onClick={handleLogout} className="text-gray-400 hover:text-white p-2" aria-label="Cerrar sesion">
+              <LogOut className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Desktop sidebar */}
-      <div className="hidden lg:flex h-full w-64 flex-col bg-gray-900 text-white flex-shrink-0">
-        {sidebarContent}
+      <div className={cn(
+        "hidden lg:flex h-full flex-col bg-gray-900 text-white flex-shrink-0 transition-all duration-200",
+        collapsed ? "w-16" : "w-64"
+      )}>
+        {/* Header */}
+        <div className={cn("flex h-14 items-center border-b border-gray-800", collapsed ? "justify-center px-2" : "justify-between px-4")}>
+          {!collapsed && <img src="/logo.png" alt="EstudioLevels" className="h-8 w-auto" />}
+          <button onClick={toggleCollapse} className="text-gray-400 hover:text-white p-1.5 rounded-md hover:bg-gray-800" title={collapsed ? "Expandir menu" : "Minimizar menu"}>
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
+
+        {/* Nav */}
+        {renderNav(!collapsed)}
+
+        {/* User */}
+        <div className="border-t border-gray-800 p-3">
+          {collapsed ? (
+            <button onClick={handleLogout} className="w-full flex justify-center text-gray-400 hover:text-white p-2" title="Cerrar sesion">
+              <LogOut className="h-4 w-4" />
+            </button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">{userName}</p>
+                <p className="text-xs text-gray-400 truncate">{roleLabel[userRole] || userRole}</p>
+              </div>
+              <button onClick={handleLogout} className="text-gray-400 hover:text-white p-2 rounded-md hover:bg-gray-800" aria-label="Cerrar sesion">
+                <LogOut className="h-4 w-4" />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     </>
   );
