@@ -7,6 +7,7 @@ import { createClient } from "@/lib/supabase/client";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
+  Wallet,
   DollarSign,
   ShoppingCart,
   Package,
@@ -34,6 +35,7 @@ import {
 
 const navigation = [
   { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { name: "Caja", href: "/dashboard/caja", icon: Wallet },
   { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign },
   { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart },
   { name: "Inventario", href: "/dashboard/inventario", icon: Package },

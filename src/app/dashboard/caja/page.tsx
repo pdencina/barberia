@@ -1,0 +1,301 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { Spinner } from "@/components/ui/spinner";
+import { formatCurrency } from "@/lib/utils";
+
+interface CajaData {
+  register: any;
+  isOpen: boolean;
+  summary: {
+    openingAmount: number;
+    cashIncome: number;
+    cashExpense: number;
+    cardIncome: number;
+    totalIncome: number;
+    totalExpense: number;
+    expectedCash: number;
+    transactionCount: number;
+  };
+  transactions: Array<{
+    id: string;
+    type: string;
+    total: number;
+    payment_method: string;
+    notes: string | null;
+    created_at: string;
+  }>;
+}
+
+const paymentLabels: Record<string, string> = {
+  cash: "Efectivo", debit_card: "Debito", credit_card: "Credito", transfer: "Transfer",
+};
+
+export default function CajaPage() {
+  const [data, setData] = useState<CajaData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [openingAmount, setOpeningAmount] = useState("");
+  const [closingAmount, setClosingAmount] = useState("");
+  const [closingNotes, setClosingNotes] = useState("");
+  const { showToast } = useToast();
+  const { confirm } = useConfirm();
+
+  const fetchData = async () => {
+    setLoading(true);
+    const res = await fetch("/api/caja");
+    setData(await res.json());
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const openRegister = async () => {
+    const res = await fetch("/api/caja", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ openingAmount: parseInt(openingAmount) || 0 }),
+    });
+    if (res.ok) {
+      showToast("Caja abierta", "success");
+      setOpeningAmount("");
+      fetchData();
+    } else {
+      const err = await res.json();
+      showToast(err.error || "Error", "error");
+    }
+  };
+
+  const closeRegister = async () => {
+    if (!closingAmount) {
+      showToast("Ingresa el monto contado", "error");
+      return;
+    }
+
+    const ok = await confirm({
+      title: "Cerrar Caja",
+      message: `Confirmas el cierre de caja con ${formatCurrency(parseInt(closingAmount))} contados?`,
+      confirmText: "Cerrar Caja",
+      variant: "warning",
+    });
+    if (!ok) return;
+
+    const res = await fetch("/api/caja", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        closingAmount: parseInt(closingAmount),
+        notes: closingNotes || null,
+      }),
+    });
+
+    if (res.ok) {
+      showToast("Caja cerrada", "success");
+      setClosingAmount("");
+      setClosingNotes("");
+      fetchData();
+    } else {
+      const err = await res.json();
+      showToast(err.error || "Error", "error");
+    }
+  };
+
+  if (loading) return <Spinner />;
+
+  const today = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  return (
+    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+      <div>
+        <h1 className="text-2xl font-bold text-gray-900">Caja Diaria</h1>
+        <p className="text-gray-500 text-sm">{today}</p>
+      </div>
+
+      {/* Status */}
+      <div className={`rounded-lg p-4 border-2 ${
+        data?.isOpen ? "border-green-300 bg-green-50" :
+        data?.register?.status === "closed" ? "border-gray-300 bg-gray-50" :
+        "border-yellow-300 bg-yellow-50"
+      }`}>
+        <div className="flex items-center gap-3">
+          <div className={`w-3 h-3 rounded-full ${
+            data?.isOpen ? "bg-green-500 animate-pulse" :
+            data?.register?.status === "closed" ? "bg-gray-400" :
+            "bg-yellow-500"
+          }`} />
+          <span className="font-medium text-gray-800">
+            {data?.isOpen ? "Caja Abierta" :
+             data?.register?.status === "closed" ? "Caja Cerrada" :
+             "Caja No Abierta"}
+          </span>
+          {data?.register?.opened_at && (
+            <span className="text-xs text-gray-500 ml-auto">
+              Abierta: {new Date(data.register.opened_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+              {data.register.closed_at && ` · Cerrada: ${new Date(data.register.closed_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}`}
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* Open register */}
+      {!data?.register && (
+        <div className="bg-white rounded-lg shadow p-6">
+          <h3 className="font-bold text-gray-800 mb-4">Abrir Caja</h3>
+          <div className="flex gap-3 items-end">
+            <div className="flex-1">
+              <label className="block text-sm text-gray-600 mb-1">Monto inicial en caja (efectivo)</label>
+              <input type="number" min="0" step="1000" value={openingAmount}
+                onChange={(e) => setOpeningAmount(e.target.value)}
+                placeholder="Ej: 50000"
+                className="w-full border rounded-lg px-3 py-2" />
+            </div>
+            <button onClick={openRegister}
+              className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 font-medium">
+              Abrir Caja
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Summary (when open or closed) */}
+      {data?.register && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="bg-white rounded-lg shadow p-4 text-center">
+              <p className="text-xs text-gray-500 uppercase">Apertura</p>
+              <p className="text-xl font-bold">{formatCurrency(data.summary.openingAmount)}</p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4 text-center">
+              <p className="text-xs text-gray-500 uppercase">Ingresos Efectivo</p>
+              <p className="text-xl font-bold text-green-600">+{formatCurrency(data.summary.cashIncome)}</p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4 text-center">
+              <p className="text-xs text-gray-500 uppercase">Egresos Efectivo</p>
+              <p className="text-xl font-bold text-red-600">-{formatCurrency(data.summary.cashExpense)}</p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4 text-center border-2 border-blue-200">
+              <p className="text-xs text-gray-500 uppercase">Esperado en Caja</p>
+              <p className="text-xl font-bold text-blue-600">{formatCurrency(data.summary.expectedCash)}</p>
+            </div>
+          </div>
+
+          {/* Additional stats */}
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-white rounded-lg shadow p-4 text-center">
+              <p className="text-xs text-gray-500 uppercase">Ventas Tarjeta</p>
+              <p className="text-lg font-bold text-purple-600">{formatCurrency(data.summary.cardIncome)}</p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4 text-center">
+              <p className="text-xs text-gray-500 uppercase">Total Ventas</p>
+              <p className="text-lg font-bold">{formatCurrency(data.summary.totalIncome)}</p>
+            </div>
+            <div className="bg-white rounded-lg shadow p-4 text-center">
+              <p className="text-xs text-gray-500 uppercase">Operaciones</p>
+              <p className="text-lg font-bold">{data.summary.transactionCount}</p>
+            </div>
+          </div>
+
+          {/* Close register */}
+          {data.isOpen && (
+            <div className="bg-white rounded-lg shadow p-6 border-2 border-yellow-200">
+              <h3 className="font-bold text-gray-800 mb-4">Cerrar Caja</h3>
+              <p className="text-sm text-gray-500 mb-4">Cuenta el efectivo en caja y registra el monto.</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Monto contado ($)</label>
+                  <input type="number" min="0" step="100" value={closingAmount}
+                    onChange={(e) => setClosingAmount(e.target.value)}
+                    placeholder={String(data.summary.expectedCash)}
+                    className="w-full border rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Notas (opcional)</label>
+                  <input type="text" value={closingNotes}
+                    onChange={(e) => setClosingNotes(e.target.value)}
+                    placeholder="Observaciones del cierre..."
+                    className="w-full border rounded-lg px-3 py-2" />
+                </div>
+              </div>
+              <button onClick={closeRegister}
+                disabled={!closingAmount}
+                className="mt-4 px-6 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 font-medium disabled:opacity-50">
+                Cerrar Caja
+              </button>
+            </div>
+          )}
+
+          {/* Closed result */}
+          {data.register.status === "closed" && data.register.closing_amount !== null && (
+            <div className={`bg-white rounded-lg shadow p-6 border-2 ${
+              Number(data.register.difference) === 0 ? "border-green-300" :
+              Number(data.register.difference) > 0 ? "border-blue-300" : "border-red-300"
+            }`}>
+              <h3 className="font-bold text-gray-800 mb-3">Resultado del Cierre</h3>
+              <div className="grid grid-cols-3 gap-4 text-center">
+                <div>
+                  <p className="text-xs text-gray-500">Esperado</p>
+                  <p className="text-lg font-bold">{formatCurrency(Number(data.register.expected_amount))}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Contado</p>
+                  <p className="text-lg font-bold">{formatCurrency(Number(data.register.closing_amount))}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Diferencia</p>
+                  <p className={`text-lg font-bold ${
+                    Number(data.register.difference) === 0 ? "text-green-600" :
+                    Number(data.register.difference) > 0 ? "text-blue-600" : "text-red-600"
+                  }`}>
+                    {Number(data.register.difference) >= 0 ? "+" : ""}{formatCurrency(Number(data.register.difference))}
+                  </p>
+                </div>
+              </div>
+              {Number(data.register.difference) === 0 && (
+                <p className="text-center text-green-600 font-medium mt-3">Caja cuadrada!</p>
+              )}
+              {Number(data.register.difference) > 0 && (
+                <p className="text-center text-blue-600 text-sm mt-3">Sobrante de {formatCurrency(Number(data.register.difference))}</p>
+              )}
+              {Number(data.register.difference) < 0 && (
+                <p className="text-center text-red-600 text-sm mt-3">Faltante de {formatCurrency(Math.abs(Number(data.register.difference)))}</p>
+              )}
+            </div>
+          )}
+
+          {/* Transaction list */}
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b">
+              <h3 className="font-bold text-gray-800">Movimientos del Dia ({data.transactions.length})</h3>
+            </div>
+            {data.transactions.length === 0 ? (
+              <p className="p-6 text-center text-gray-400">Sin movimientos</p>
+            ) : (
+              <div className="divide-y max-h-[300px] overflow-y-auto">
+                {data.transactions.map((t) => (
+                  <div key={t.id} className="p-3 flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-3">
+                      <span className={`w-2 h-2 rounded-full ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`} />
+                      <div>
+                        <span className="text-gray-700">{t.notes || (t.type === "income" ? "Venta" : "Gasto")}</span>
+                        <span className="text-xs text-gray-400 ml-2">{paymentLabels[t.payment_method] || t.payment_method}</span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="text-xs text-gray-400">
+                        {new Date(t.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                      </span>
+                      <span className={`font-medium ${t.type === "income" ? "text-green-600" : "text-red-600"}`}>
+                        {t.type === "income" ? "+" : "-"}{formatCurrency(Number(t.total))}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
