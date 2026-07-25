@@ -43,19 +43,24 @@ export default function InventarioPage() {
   const [movementForm, setMovementForm] = useState({
     product_id: "", type: "in", quantity: "", notes: "",
   });
+  const [pendingMovements, setPendingMovements] = useState<Movement[]>([]);
+  const [adminPin, setAdminPin] = useState("");
   const { showToast } = useToast();
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [productsRes, movementsRes] = await Promise.all([
+      const [productsRes, movementsRes, pendingRes] = await Promise.all([
         fetch("/api/products"),
-        fetch("/api/inventario/movements"),
+        fetch("/api/inventario/movements?status=approved"),
+        fetch("/api/inventario/movements?status=pending"),
       ]);
       const prodData = await productsRes.json();
       const movData = await movementsRes.json();
+      const pendData = await pendingRes.json();
       setProducts(Array.isArray(prodData) ? prodData : []);
       setMovements(Array.isArray(movData) ? movData : []);
+      setPendingMovements(Array.isArray(pendData) ? pendData : []);
     } catch (err) {
       console.error("Error fetching inventory:", err);
     } finally {
@@ -89,7 +94,7 @@ export default function InventarioPage() {
 
   const handleCreateMovement = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/inventario/movements", {
+    const res = await fetch("/api/inventario/movements", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -97,9 +102,15 @@ export default function InventarioPage() {
         type: movementForm.type,
         quantity: parseInt(movementForm.quantity),
         notes: movementForm.notes,
+        requireApproval: true,
       }),
     });
-    showToast("Movimiento registrado", "success");
+    const data = await res.json();
+    if (data.needsApproval) {
+      showToast("Movimiento pendiente de aprobacion", "info");
+    } else {
+      showToast("Movimiento registrado", "success");
+    }
     setShowMovementModal(false);
     setMovementForm({ product_id: "", type: "in", quantity: "", notes: "" });
     fetchData();
@@ -179,6 +190,88 @@ export default function InventarioPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pending Approvals */}
+      {pendingMovements.length > 0 && (
+        <div className="bg-white rounded-lg shadow border-2 border-yellow-300">
+          <div className="p-4 border-b bg-yellow-50 flex items-center justify-between">
+            <h3 className="font-bold text-yellow-800">Pendientes de Aprobacion ({pendingMovements.length})</h3>
+            <div className="flex items-center gap-2">
+              <input
+                type="password"
+                placeholder="PIN Admin"
+                value={adminPin}
+                onChange={(e) => setAdminPin(e.target.value)}
+                className="w-24 border rounded px-2 py-1 text-sm text-center"
+                maxLength={6}
+              />
+            </div>
+          </div>
+          <div className="divide-y">
+            {pendingMovements.map((m: any) => (
+              <div key={m.id} className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                      m.type === "in" ? "bg-green-100 text-green-700" :
+                      m.type === "out_use" ? "bg-orange-100 text-orange-700" :
+                      "bg-blue-100 text-blue-700"
+                    }`}>
+                      {movementTypeLabels[m.type] || m.type}
+                    </span>
+                    <span className="font-medium text-gray-900">{m.product?.name}</span>
+                    <span className="text-gray-500">x{m.quantity}</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">
+                    {new Date(m.created_at).toLocaleString("es-CL")}
+                    {m.notes && ` · ${m.notes}`}
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    onClick={async () => {
+                      const res = await fetch("/api/inventario/movements", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ movementId: m.id, action: "approve", adminPin }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        showToast("Movimiento aprobado", "success");
+                        fetchData();
+                      } else {
+                        showToast(data.error || "Error", "error");
+                      }
+                    }}
+                    className="px-3 py-1.5 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700"
+                  >
+                    Aprobar
+                  </button>
+                  <button
+                    onClick={async () => {
+                      const res = await fetch("/api/inventario/movements", {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ movementId: m.id, action: "reject", adminPin }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        showToast("Movimiento rechazado", "success");
+                        fetchData();
+                      } else {
+                        showToast(data.error || "Error", "error");
+                      }
+                    }}
+                    className="px-3 py-1.5 border border-red-300 text-red-600 text-xs rounded-lg hover:bg-red-50"
+                  >
+                    Rechazar
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Movements Table */}
       <div className="bg-white rounded-lg shadow overflow-x-auto">
