@@ -214,7 +214,7 @@ export default function MiAgendaPage() {
       ) : (
         <div className="space-y-3">
           {appointments.map((a: any) => (
-            <div key={a.id} className="bg-white rounded-lg shadow p-4">
+            <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
               <div className="flex items-start justify-between">
                 <div>
                   <div className="flex items-center gap-2 mb-1">
@@ -268,8 +268,8 @@ export default function MiAgendaPage() {
 
       {/* Block Modal */}
       {showBlockModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-sm">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-sm shadow-xl animate-scale-in">
             <h2 className="text-lg font-bold mb-4">Bloquear Horario</h2>
             <form onSubmit={handleBlock} className="space-y-4">
               <div>

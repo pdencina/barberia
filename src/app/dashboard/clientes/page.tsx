@@ -64,9 +64,9 @@ export default function ClientesPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Clientes</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Clientes</h1>
         <div className="flex gap-2">
           <a href="/api/clients/export" download
             className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
@@ -83,7 +83,7 @@ export default function ClientesPage() {
         value={search} onChange={(e) => handleSearch(e.target.value)}
         className="w-full border rounded-lg px-4 py-2" />
 
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
@@ -111,8 +111,8 @@ export default function ClientesPage() {
       </div>
 
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
             <h2 className="text-lg font-bold mb-4">Nuevo Cliente</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

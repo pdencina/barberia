@@ -107,16 +107,16 @@ export default function GaleriaPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Galeria de Trabajos</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Galeria de Trabajos</h1>
           <p className="text-gray-500 text-sm">Portafolio de cortes de tu equipo</p>
         </div>
       </div>
 
       {/* Upload section */}
-      <div className="bg-white rounded-lg shadow p-5">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
         <h3 className="font-bold text-gray-800 mb-3">Subir Foto</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
           <div>

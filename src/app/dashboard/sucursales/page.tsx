@@ -48,10 +48,10 @@ export default function SucursalesPage() {
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app";
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Sucursales</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Sucursales</h1>
           <p className="text-gray-500 text-sm">Gestiona tus locales</p>
         </div>
         <button onClick={() => setShowModal(true)}
@@ -63,7 +63,7 @@ export default function SucursalesPage() {
       {loading ? <Spinner /> : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {branches.map((b) => (
-            <div key={b.id} className="bg-white rounded-lg shadow p-6">
+            <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
               <div className="flex items-start justify-between mb-3">
                 <div>
                   <h3 className="font-bold text-lg text-gray-900">{b.name}</h3>
@@ -100,8 +100,8 @@ export default function SucursalesPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
             <h2 className="text-lg font-bold mb-4">Nueva Sucursal</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

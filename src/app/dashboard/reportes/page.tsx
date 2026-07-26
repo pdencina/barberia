@@ -74,16 +74,16 @@ export default function ReportesPage() {
   if (loading || !data) {
     return (
       <div className="p-6">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">Reportes</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-4">Reportes</h1>
         <Spinner />
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Reportes</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Reportes</h1>
         <a
           href={`/api/reportes/pdf?month=${month}&year=${year}`}
           target="_blank"
@@ -107,27 +107,27 @@ export default function ReportesPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-        <div className="bg-white p-4 rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Ingresos</p>
           <p className="text-lg font-bold text-green-600">{formatCurrency(data.summary.totalIncome)}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Egresos</p>
           <p className="text-lg font-bold text-red-600">{formatCurrency(data.summary.totalExpenses)}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Utilidad</p>
           <p className="text-lg font-bold text-indigo-600">{formatCurrency(data.summary.netProfit)}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Transacciones</p>
           <p className="text-lg font-bold text-gray-900">{data.summary.totalTransactions}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Citas</p>
           <p className="text-lg font-bold text-gray-900">{data.summary.appointmentsCompleted}</p>
         </div>
-        <div className="bg-white p-4 rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Clientes Nuevos</p>
           <p className="text-lg font-bold text-gray-900">{data.summary.newClients}</p>
         </div>
@@ -135,7 +135,7 @@ export default function ReportesPage() {
 
       {/* Monthly Comparison Chart */}
       {comparison.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
           <h3 className="font-bold text-gray-800 mb-4">Comparativa Mensual (ultimos 6 meses)</h3>
           <div className="flex items-end justify-between gap-2 h-48">
             {comparison.map((m) => {
@@ -163,7 +163,7 @@ export default function ReportesPage() {
       {/* Tables Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Income by Barber */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-800 p-4 border-b">Ingresos por Barbero</h3>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -184,7 +184,7 @@ export default function ReportesPage() {
         </div>
 
         {/* By Payment Method */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-800 p-4 border-b">Por Metodo de Pago</h3>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -205,7 +205,7 @@ export default function ReportesPage() {
         </div>
 
         {/* Top Services */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-800 p-4 border-b">Top Servicios</h3>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
@@ -228,7 +228,7 @@ export default function ReportesPage() {
         </div>
 
         {/* Top Products */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
           <h3 className="font-bold text-gray-800 p-4 border-b">Top Productos</h3>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">

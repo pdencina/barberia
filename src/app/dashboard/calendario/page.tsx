@@ -137,7 +137,7 @@ export default function CalendarioPage() {
     <div className="p-4 md:p-6 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <h1 className="text-2xl font-bold text-gray-900">Calendario</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Calendario</h1>
         <div className="flex items-center gap-2">
           {/* View toggle */}
           <div className="flex bg-gray-100 rounded-lg p-1">
@@ -167,7 +167,7 @@ export default function CalendarioPage() {
 
       {loading ? <Spinner /> : view === "day" ? (
         /* ===== DAY VIEW ===== */
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
           <div className="min-w-[800px]">
             {/* Barber headers */}
             <div className="flex border-b border-gray-200 sticky top-0 bg-white z-10">
@@ -216,7 +216,7 @@ export default function CalendarioPage() {
         </div>
       ) : (
         /* ===== WEEK VIEW ===== */
-        <div className="bg-white rounded-lg shadow overflow-x-auto">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
           <div className="min-w-[700px]">
             {/* Day headers */}
             <div className="grid grid-cols-7 border-b border-gray-200 sticky top-0 bg-white z-10">

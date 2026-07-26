@@ -22,11 +22,11 @@ export default function ConfiguracionPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Configuracion</h1>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
+      <h1 className="text-xl md:text-2xl font-bold text-gray-900">Configuracion</h1>
 
       {/* Business Data */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
         <h2 className="font-bold text-gray-800">Datos del Negocio</h2>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
@@ -55,7 +55,7 @@ export default function ConfiguracionPage() {
       </div>
 
       {/* Schedule */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
         <h2 className="font-bold text-gray-800">Horario</h2>
         <div className="grid grid-cols-2 gap-4">
           <div>
@@ -85,7 +85,7 @@ export default function ConfiguracionPage() {
       </div>
 
       {/* Email Config */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
         <h2 className="font-bold text-gray-800">Configuracion de Email</h2>
         <div className="bg-gray-50 border rounded-lg p-4">
           <p className="text-sm text-gray-600">

@@ -79,14 +79,14 @@ export default function WaitlistPage() {
   const others = entries.filter((e) => e.status !== "waiting");
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Lista de Espera</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Lista de Espera</h1>
         <p className="text-gray-500 text-sm">Clientes esperando hora. Notificalos cuando se libere un slot.</p>
       </div>
 
       {/* Waiting */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="font-bold text-gray-800">En Espera ({waiting.length})</h2>
         </div>
@@ -135,7 +135,7 @@ export default function WaitlistPage() {
 
       {/* History */}
       {others.length > 0 && (
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
           <div className="p-4 border-b">
             <h2 className="font-bold text-gray-500">Historial ({others.length})</h2>
           </div>

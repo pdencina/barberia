@@ -60,10 +60,10 @@ export default function BoletasPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Boletas</h1>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
+      <h1 className="text-xl md:text-2xl font-bold text-gray-900">Boletas</h1>
 
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>

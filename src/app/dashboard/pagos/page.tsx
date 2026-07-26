@@ -27,8 +27,8 @@ export default function PagosPage() {
   const isConfigured = config.commerce_code && config.api_key;
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Terminal de Pagos</h1>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
+      <h1 className="text-xl md:text-2xl font-bold text-gray-900">Terminal de Pagos</h1>
 
       {/* Status Card */}
       <div className={`p-4 rounded-lg border ${isConfigured ? "bg-green-50 border-green-200" : "bg-yellow-50 border-yellow-200"}`}>
@@ -41,7 +41,7 @@ export default function PagosPage() {
       </div>
 
       {/* Provider Config */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
         <h2 className="font-bold text-gray-800">Configuracion del Proveedor</h2>
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1">Proveedor</label>
@@ -81,7 +81,7 @@ export default function PagosPage() {
       </div>
 
       {/* Payment Methods */}
-      <div className="bg-white rounded-lg shadow p-6 space-y-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
         <h2 className="font-bold text-gray-800">Metodos de Pago Habilitados</h2>
         <div className="space-y-3">
           {[

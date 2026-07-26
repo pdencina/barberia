@@ -106,9 +106,9 @@ export default function CajaPage() {
   const today = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-4xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Caja Diaria</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Caja Diaria</h1>
         <p className="text-gray-500 text-sm">{today}</p>
       </div>
 
@@ -140,7 +140,7 @@ export default function CajaPage() {
 
       {/* Open register */}
       {!data?.register && (
-        <div className="bg-white rounded-lg shadow p-6">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
           <h3 className="font-bold text-gray-800 mb-4">Abrir Caja</h3>
           <div className="flex gap-3 items-end">
             <div className="flex-1">
@@ -162,19 +162,19 @@ export default function CajaPage() {
       {data?.register && (
         <>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="bg-white rounded-lg shadow p-4 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
               <p className="text-xs text-gray-500 uppercase">Apertura</p>
               <p className="text-xl font-bold">{formatCurrency(data.summary.openingAmount)}</p>
             </div>
-            <div className="bg-white rounded-lg shadow p-4 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
               <p className="text-xs text-gray-500 uppercase">Ingresos Efectivo</p>
               <p className="text-xl font-bold text-green-600">+{formatCurrency(data.summary.cashIncome)}</p>
             </div>
-            <div className="bg-white rounded-lg shadow p-4 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
               <p className="text-xs text-gray-500 uppercase">Egresos Efectivo</p>
               <p className="text-xl font-bold text-red-600">-{formatCurrency(data.summary.cashExpense)}</p>
             </div>
-            <div className="bg-white rounded-lg shadow p-4 text-center border-2 border-blue-200">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center border-2 border-blue-200">
               <p className="text-xs text-gray-500 uppercase">Esperado en Caja</p>
               <p className="text-xl font-bold text-blue-600">{formatCurrency(data.summary.expectedCash)}</p>
             </div>
@@ -182,15 +182,15 @@ export default function CajaPage() {
 
           {/* Additional stats */}
           <div className="grid grid-cols-3 gap-4">
-            <div className="bg-white rounded-lg shadow p-4 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
               <p className="text-xs text-gray-500 uppercase">Ventas Tarjeta</p>
               <p className="text-lg font-bold text-purple-600">{formatCurrency(data.summary.cardIncome)}</p>
             </div>
-            <div className="bg-white rounded-lg shadow p-4 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
               <p className="text-xs text-gray-500 uppercase">Total Ventas</p>
               <p className="text-lg font-bold">{formatCurrency(data.summary.totalIncome)}</p>
             </div>
-            <div className="bg-white rounded-lg shadow p-4 text-center">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 text-center">
               <p className="text-xs text-gray-500 uppercase">Operaciones</p>
               <p className="text-lg font-bold">{data.summary.transactionCount}</p>
             </div>
@@ -198,7 +198,7 @@ export default function CajaPage() {
 
           {/* Close register */}
           {data.isOpen && (
-            <div className="bg-white rounded-lg shadow p-6 border-2 border-yellow-200">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 border-2 border-yellow-200">
               <h3 className="font-bold text-gray-800 mb-4">Cerrar Caja</h3>
               <p className="text-sm text-gray-500 mb-4">Cuenta el efectivo en caja y registra el monto.</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -227,7 +227,7 @@ export default function CajaPage() {
 
           {/* Closed result */}
           {data.register.status === "closed" && data.register.closing_amount !== null && (
-            <div className={`bg-white rounded-lg shadow p-6 border-2 ${
+            <div className={`bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 border-2 ${
               Number(data.register.difference) === 0 ? "border-green-300" :
               Number(data.register.difference) > 0 ? "border-blue-300" : "border-red-300"
             }`}>
@@ -264,7 +264,7 @@ export default function CajaPage() {
           )}
 
           {/* Transaction list */}
-          <div className="bg-white rounded-lg shadow">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
             <div className="p-4 border-b">
               <h3 className="font-bold text-gray-800">Movimientos del Dia ({data.transactions.length})</h3>
             </div>

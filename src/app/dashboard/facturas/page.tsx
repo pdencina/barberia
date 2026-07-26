@@ -63,11 +63,11 @@ export default function FacturasPage() {
   const typeLabels: Record<string, string> = { purchase: "Compra", expense: "Gasto", other: "Otro" };
 
   return (
-    <div className="p-6 space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Facturas Digitales</h1>
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
+      <h1 className="text-xl md:text-2xl font-bold text-gray-900">Facturas Digitales</h1>
 
       {/* Upload */}
-      <div className="bg-white rounded-lg shadow p-5">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
         <h3 className="font-bold text-gray-800 mb-3">Subir Factura</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
           <div>
@@ -104,7 +104,7 @@ export default function FacturasPage() {
       </div>
 
       {/* List */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-4 border-b">
           <h3 className="font-bold text-gray-800">Facturas Cargadas ({invoices.length})</h3>
         </div>

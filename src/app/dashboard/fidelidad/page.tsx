@@ -100,9 +100,9 @@ export default function FidelidadPage() {
   if (loading) return <Spinner />;
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Programa de Fidelidad</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Programa de Fidelidad</h1>
         <p className="text-gray-500 text-sm">1 punto por cada ${config.points_per_clp.toLocaleString("es-CL")} gastados</p>
       </div>
 
@@ -110,7 +110,7 @@ export default function FidelidadPage() {
         {/* Client lookup & redeem */}
         <div className="lg:col-span-2 space-y-4">
           {/* Search */}
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
             <h3 className="font-bold text-gray-800 mb-3">Consultar Puntos</h3>
             <div className="flex gap-2">
               <input type="text" value={searchClient} onChange={(e) => setSearchClient(e.target.value)}
@@ -177,7 +177,7 @@ export default function FidelidadPage() {
           </div>
 
           {/* Rewards config */}
-          <div className="bg-white rounded-lg shadow p-5">
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
             <h3 className="font-bold text-gray-800 mb-3">Recompensas Disponibles</h3>
             <div className="space-y-2">
               {rewards.map((r) => (
@@ -196,7 +196,7 @@ export default function FidelidadPage() {
         </div>
 
         {/* Top clients leaderboard */}
-        <div className="bg-white rounded-lg shadow p-5">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
           <h3 className="font-bold text-gray-800 mb-3">Top Clientes Fieles</h3>
           {topClients.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-4">Sin datos aun</p>

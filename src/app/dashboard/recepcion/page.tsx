@@ -105,7 +105,7 @@ export default function RecepcionPage() {
   const completed = appointments.filter((a: any) => a.status === "completed");
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50 min-h-screen">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 bg-gray-50 min-h-screen">
       {/* Header with Clock */}
       <div className="flex justify-between items-center">
         <div>
@@ -134,7 +134,7 @@ export default function RecepcionPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {inProgress.map((a: any) => (
-                  <div key={a.id} className="bg-white rounded-lg p-4 shadow border-l-4 border-yellow-400">
+                  <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 shadow border-l-4 border-yellow-400">
                     <p className="font-bold text-lg">{a.client?.name || "-"}</p>
                     <p className="text-sm text-gray-500">Barbero: {a.barber?.name || "-"}</p>
                     <p className="text-sm text-gray-500">Servicios: {a.services?.map((s: any) => s.service?.name).join(", ") || "-"}</p>
@@ -156,7 +156,7 @@ export default function RecepcionPage() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {upcoming.map((a: any) => (
-                  <div key={a.id} className="bg-white rounded-lg p-4 shadow">
+                  <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                     <div className="flex justify-between items-start">
                       <span className="text-lg font-bold text-indigo-600">{new Date(a.start_time).toLocaleTimeString("es-CL", {hour: "2-digit", minute: "2-digit"})}</span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[a.status] || ""}`}>

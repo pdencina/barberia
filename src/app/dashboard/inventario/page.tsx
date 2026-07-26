@@ -117,9 +117,9 @@ export default function InventarioPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Inventario</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Inventario</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setShowMovementModal(true)}
@@ -151,7 +151,7 @@ export default function InventarioPage() {
       )}
 
       {/* Products Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <h3 className="font-bold text-gray-800 p-4 border-b">Productos</h3>
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
@@ -193,7 +193,7 @@ export default function InventarioPage() {
 
       {/* Pending Approvals */}
       {pendingMovements.length > 0 && (
-        <div className="bg-white rounded-lg shadow border-2 border-yellow-300">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 border-2 border-yellow-300">
           <div className="p-4 border-b bg-yellow-50 flex items-center justify-between">
             <h3 className="font-bold text-yellow-800">Pendientes de Aprobacion ({pendingMovements.length})</h3>
             <div className="flex items-center gap-2">
@@ -274,7 +274,7 @@ export default function InventarioPage() {
       )}
 
       {/* Movements Table */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <h3 className="font-bold text-gray-800 p-4 border-b">Movimientos Recientes</h3>
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
@@ -312,8 +312,8 @@ export default function InventarioPage() {
 
       {/* New Product Modal */}
       {showProductModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
             <h2 className="text-lg font-bold mb-4">Nuevo Producto</h2>
             <form onSubmit={handleCreateProduct} className="space-y-4">
               <div>
@@ -370,8 +370,8 @@ export default function InventarioPage() {
 
       {/* Movement Modal */}
       {showMovementModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
             <h2 className="text-lg font-bold mb-4">Registrar Movimiento</h2>
             <form onSubmit={handleCreateMovement} className="space-y-4">
               <div>

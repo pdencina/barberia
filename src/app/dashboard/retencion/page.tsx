@@ -70,10 +70,10 @@ export default function RetencionPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Retencion de Clientes</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Retencion de Clientes</h1>
           <p className="text-gray-500 text-sm">Recupera clientes que no han vuelto</p>
         </div>
         {clients.length > 0 && (
@@ -151,7 +151,7 @@ export default function RetencionPage() {
       </div>
 
       {/* Filters & Config */}
-      <div className="bg-white rounded-lg shadow p-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
         <div className="flex flex-wrap gap-4 items-end">
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Dias sin visita</label>
@@ -194,7 +194,7 @@ export default function RetencionPage() {
       </div>
 
       {/* Clients list */}
-      <div className="bg-white rounded-lg shadow overflow-x-auto">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>

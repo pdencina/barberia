@@ -31,9 +31,9 @@ export default function PreciosPage() {
   useEffect(() => { fetchData(); }, [filter]);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Historial de Precios</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Historial de Precios</h1>
         <p className="text-gray-500 text-sm">Registro de todos los cambios de precios</p>
       </div>
 
@@ -54,7 +54,7 @@ export default function PreciosPage() {
       </div>
 
       {/* History */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         {loading ? <Spinner /> : history.length === 0 ? (
           <p className="p-8 text-center text-gray-400">Sin cambios de precio registrados</p>
         ) : (

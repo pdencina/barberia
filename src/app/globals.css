@@ -31,26 +31,102 @@
   * {
     @apply border-border;
   }
+  html {
+    scroll-behavior: smooth;
+    -webkit-tap-highlight-color: transparent;
+  }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground antialiased;
+  }
+  /* Better focus states */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-blue-500 ring-offset-2;
+  }
+  /* Prevent text selection on buttons */
+  button, [role="button"] {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  /* Smooth inputs on iOS */
+  input, textarea, select {
+    font-size: 16px !important; /* Prevents iOS zoom on focus */
+  }
+  @media (min-width: 1024px) {
+    input, textarea, select {
+      font-size: 14px !important;
+    }
   }
 }
 
+@layer utilities {
+  /* Custom utilities */
+  .border-3 {
+    border-width: 3px;
+  }
+  .text-balance {
+    text-wrap: balance;
+  }
+  /* Safe area for mobile notch */
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Animations */
 @keyframes slide-in {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
+  from { transform: translateX(100%); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes scale-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
 }
 
 .animate-slide-in {
   animation: slide-in 0.3s ease-out;
 }
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+.animate-scale-in {
+  animation: scale-in 0.2s ease-out;
+}
+.animate-pulse-soft {
+  animation: pulse-soft 2s infinite;
+}
 
-.border-3 {
-  border-width: 3px;
+/* Modal backdrop blur */
+.backdrop-blur-modal {
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d5db;
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #9ca3af;
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #374151;
 }

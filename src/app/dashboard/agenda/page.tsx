@@ -148,9 +148,9 @@ export default function AgendaPage() {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold text-gray-900">Agenda</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Agenda</h1>
         <button onClick={() => setShowModal(true)}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
           Nueva Cita
@@ -182,7 +182,7 @@ export default function AgendaPage() {
       ) : (
         <div className="space-y-3">
           {filteredAppointments.map((a: any) => (
-            <div key={a.id} className="bg-white rounded-lg shadow p-4 flex items-center justify-between">
+            <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3">
                   <span className="text-lg font-bold text-indigo-600">{new Date(a.start_time).toLocaleTimeString("es-CL", {hour: "2-digit", minute: "2-digit"})}</span>
@@ -220,8 +220,8 @@ export default function AgendaPage() {
 
       {/* New Appointment Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-lg shadow-xl animate-scale-in">
             <h2 className="text-lg font-bold mb-4">Nueva Cita</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>

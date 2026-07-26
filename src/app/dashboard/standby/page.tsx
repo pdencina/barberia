@@ -69,7 +69,7 @@ export default function StandbyPage() {
     <div className="p-4 max-w-lg mx-auto space-y-6">
       {/* Header */}
       <div className="text-center">
-        <h1 className="text-2xl font-bold text-gray-900">Modo Standby</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Modo Standby</h1>
         <p className="text-sm text-gray-500">Venta rapida sin recepcionista</p>
       </div>
 

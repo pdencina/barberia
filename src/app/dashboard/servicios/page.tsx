@@ -129,10 +129,10 @@ export default function ServiciosPage() {
   const inactiveServices = services.filter((s) => !s.active);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Servicios</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Servicios</h1>
           <p className="text-gray-500 text-sm">Gestiona el menu de servicios de tu barberia</p>
         </div>
         <button onClick={openNew}
@@ -142,7 +142,7 @@ export default function ServiciosPage() {
       </div>
 
       {/* Active services */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="font-bold text-gray-800">Servicios Activos ({activeServices.length})</h2>
         </div>
@@ -185,7 +185,7 @@ export default function ServiciosPage() {
 
       {/* Inactive services */}
       {inactiveServices.length > 0 && (
-        <div className="bg-white rounded-lg shadow opacity-75">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 opacity-75">
           <div className="p-4 border-b">
             <h2 className="font-bold text-gray-500">Inactivos ({inactiveServices.length})</h2>
           </div>
@@ -208,8 +208,8 @@ export default function ServiciosPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
             <h2 className="text-lg font-bold mb-4">
               {editingService ? "Editar Servicio" : "Nuevo Servicio"}
             </h2>

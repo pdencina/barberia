@@ -50,54 +50,54 @@ export default function DashboardPage() {
   const maxWeekValue = Math.max(...data.weekData.map((d) => d.total), 1);
 
   return (
-    <div className="p-4 md:p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-5 animate-fade-in">
       <div>
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-gray-500">Resumen de EstudioLevels</p>
+        <h2 className="text-xl md:text-2xl font-bold text-gray-900">Dashboard</h2>
+        <p className="text-sm text-gray-500">Resumen de EstudioLevels</p>
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-xl shadow-lg p-5 text-white">
-          <p className="text-xs uppercase opacity-80">Hoy</p>
-          <p className="text-2xl font-bold mt-1">{formatCurrency(data.todayIncome)}</p>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-2xl shadow-lg shadow-green-500/20 p-4 md:p-5 text-white">
+          <p className="text-[10px] md:text-xs uppercase opacity-80 font-medium">Hoy</p>
+          <p className="text-lg md:text-2xl font-bold mt-0.5">{formatCurrency(data.todayIncome)}</p>
         </div>
-        <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-xl shadow-lg p-5 text-white">
-          <p className="text-xs uppercase opacity-80">Esta Semana</p>
-          <p className="text-2xl font-bold mt-1">{formatCurrency(data.weekTotal)}</p>
+        <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg shadow-blue-500/20 p-4 md:p-5 text-white">
+          <p className="text-[10px] md:text-xs uppercase opacity-80 font-medium">Semana</p>
+          <p className="text-lg md:text-2xl font-bold mt-0.5">{formatCurrency(data.weekTotal)}</p>
         </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-xl shadow-lg p-5 text-white">
-          <p className="text-xs uppercase opacity-80">Este Mes</p>
-          <p className="text-2xl font-bold mt-1">{formatCurrency(data.monthIncome)}</p>
+        <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl shadow-lg shadow-purple-500/20 p-4 md:p-5 text-white">
+          <p className="text-[10px] md:text-xs uppercase opacity-80 font-medium">Mes</p>
+          <p className="text-lg md:text-2xl font-bold mt-0.5">{formatCurrency(data.monthIncome)}</p>
         </div>
-        <div className="bg-gradient-to-br from-gray-700 to-gray-900 rounded-xl shadow-lg p-5 text-white">
-          <p className="text-xs uppercase opacity-80">Citas Hoy</p>
-          <p className="text-2xl font-bold mt-1">{data.todayApptCount}</p>
+        <div className="bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl shadow-lg shadow-gray-900/20 p-4 md:p-5 text-white">
+          <p className="text-[10px] md:text-xs uppercase opacity-80 font-medium">Citas Hoy</p>
+          <p className="text-lg md:text-2xl font-bold mt-0.5">{data.todayApptCount}</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Weekly chart */}
-        <div className="lg:col-span-2 bg-white rounded-lg shadow p-6">
-          <h3 className="font-bold text-gray-800 mb-4">Ventas de la Semana</h3>
-          <div className="flex items-end justify-between gap-3 h-52">
+        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+          <h3 className="font-bold text-gray-800 mb-4 text-sm md:text-base">Ventas de la Semana</h3>
+          <div className="flex items-end justify-between gap-2 md:gap-3 h-44 md:h-52">
             {data.weekData.map((d, i) => {
-              const barHeight = maxWeekValue > 0 ? Math.max((d.total / maxWeekValue) * 180, 8) : 8;
+              const barHeight = maxWeekValue > 0 ? Math.max((d.total / maxWeekValue) * 160, 8) : 8;
               const isToday = i === data.weekData.length - 1;
               return (
                 <div key={d.day} className="flex-1 flex flex-col items-center justify-end h-full">
-                  <span className="text-[10px] text-gray-500 mb-1">
-                    {d.total > 0 ? formatCurrency(d.total) : "$0"}
+                  <span className="text-[9px] md:text-[10px] text-gray-400 mb-1 font-medium">
+                    {d.total > 0 ? formatCurrency(d.total) : ""}
                   </span>
                   <div
-                    className={`w-full max-w-[40px] rounded-t-lg transition-all ${
+                    className={`w-full max-w-[32px] md:max-w-[40px] rounded-t-xl transition-all ${
                       isToday
-                        ? "bg-gradient-to-t from-blue-700 to-blue-400"
-                        : "bg-gradient-to-t from-blue-300 to-blue-100"
+                        ? "bg-gradient-to-t from-blue-700 to-blue-400 shadow-md shadow-blue-500/30"
+                        : "bg-gradient-to-t from-blue-200 to-blue-100"
                     }`}
                     style={{ height: `${barHeight}px` }}
                   />
-                  <span className={`text-xs mt-2 ${isToday ? "font-bold text-blue-600" : "text-gray-400"}`}>
+                  <span className={`text-[10px] md:text-xs mt-2 font-medium ${isToday ? "text-blue-600" : "text-gray-400"}`}>
                     {d.day}
                   </span>
                 </div>
@@ -107,8 +107,8 @@ export default function DashboardPage() {
         </div>
 
         {/* Low stock alerts */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h3 className="font-bold text-gray-800 mb-4">Alertas Stock</h3>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
+          <h3 className="font-bold text-gray-800 mb-4 text-sm md:text-base">Alertas Stock</h3>
           {data.lowStock.length === 0 ? (
             <p className="text-gray-400 text-sm text-center py-4">Todo en orden</p>
           ) : (
@@ -127,10 +127,10 @@ export default function DashboardPage() {
       </div>
 
       {/* Today's appointments */}
-      <div className="bg-white rounded-lg shadow">
-        <div className="p-4 border-b flex items-center justify-between">
-          <h3 className="font-bold text-gray-800">Citas de Hoy</h3>
-          <a href="/dashboard/calendario" className="text-sm text-blue-600 hover:underline">Ver calendario →</a>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+        <div className="p-4 border-b border-gray-50 flex items-center justify-between">
+          <h3 className="font-bold text-gray-800 text-sm md:text-base">Citas de Hoy</h3>
+          <a href="/dashboard/calendario" className="text-xs text-blue-600 hover:underline font-medium">Ver calendario →</a>
         </div>
         {data.todayAppointments.length === 0 ? (
           <p className="p-6 text-center text-gray-400">No hay citas pendientes para hoy</p>

@@ -49,10 +49,10 @@ export default function RecordatoriosPage() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Recordatorios</h1>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Recordatorios</h1>
           <p className="text-gray-500 text-sm">Citas de manana - notifica a tus clientes</p>
         </div>
         <div className="flex gap-2">
@@ -86,7 +86,7 @@ export default function RecordatoriosPage() {
       </div>
 
       {/* Tomorrow's appointments */}
-      <div className="bg-white rounded-lg shadow">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-4 border-b">
           <h2 className="font-bold text-gray-800">Citas de Manana ({links.length})</h2>
         </div>
