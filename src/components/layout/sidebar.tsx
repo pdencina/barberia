@@ -215,6 +215,20 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
             {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
           </button>
         </div>
+
+        {/* Search hint */}
+        {!collapsed && (
+          <button
+            onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
+            className="mx-2 mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-colors text-gray-500 hover:text-gray-300"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <span className="text-xs flex-1">Buscar...</span>
+            <kbd className="text-[9px] bg-gray-700 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+          </button>
+        )}
         {renderNav(!collapsed)}
         <div className="border-t border-gray-800 p-2">
           {collapsed ? (

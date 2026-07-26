@@ -4,6 +4,8 @@ import { Sidebar } from "@/components/layout/sidebar";
 import { ToastWrapper } from "@/components/providers/toast-wrapper";
 import { PushNotificationPrompt } from "@/components/push-notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
+import { CommandPalette } from "@/components/command-palette";
+import { QuickActions } from "@/components/quick-actions";
 
 export default async function DashboardLayout({
   children,
@@ -32,6 +34,8 @@ export default async function DashboardLayout({
             {children}
           </ErrorBoundary>
           <PushNotificationPrompt />
+          <QuickActions />
+          <CommandPalette />
         </main>
       </div>
     </ToastWrapper>
