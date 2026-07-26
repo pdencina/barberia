@@ -6,7 +6,9 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata: Metadata = {
   title: "EstudioLevels - Sistema de Gestion",
-  description: "Sistema de gestion integral para EstudioLevels Barberia",
+  description: "Sistema de gestion integral para EstudioLevels Barberia. Agenda, POS, inventario, clientes y mas.",
+  icons: { icon: "/logo.png" },
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
 
 export default function RootLayout({
