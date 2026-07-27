@@ -20,6 +20,7 @@ export default function BoletasPage() {
   const [loading, setLoading] = useState(true);
   const [emails, setEmails] = useState<Record<string, string>>({});
   const [sending, setSending] = useState<Record<string, boolean>>({});
+  const [searchFilter, setSearchFilter] = useState("");
   const { showToast } = useToast();
 
   const fetchTransactions = async () => {
@@ -63,6 +64,20 @@ export default function BoletasPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <h1 className="text-xl md:text-2xl font-bold text-gray-900">Boletas</h1>
 
+      {/* Search */}
+      <div className="relative">
+        <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+        </svg>
+        <input
+          type="text"
+          placeholder="Buscar por nombre de cliente..."
+          value={searchFilter}
+          onChange={(e) => setSearchFilter(e.target.value)}
+          className="w-full border rounded-xl pl-10 pr-4 py-2.5 text-sm"
+        />
+      </div>
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
@@ -80,7 +95,7 @@ export default function BoletasPage() {
               <tr><td colSpan={6}><Spinner /></td></tr>
             ) : transactions.length === 0 ? (
               <tr><td colSpan={6} className="p-4 text-center text-gray-500">No hay transacciones</td></tr>
-            ) : transactions.map((t: any) => (
+            ) : transactions.filter((t: any) => !searchFilter || (t.client?.name || "").toLowerCase().includes(searchFilter.toLowerCase())).map((t: any) => (
               <tr key={t.id} className="hover:bg-gray-50">
                 <td className="p-4">{new Date(t.created_at).toLocaleDateString("es-CL")}</td>
                 <td className="p-4">{t.client?.name || "-"}</td>

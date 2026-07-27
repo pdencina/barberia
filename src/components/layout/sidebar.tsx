@@ -69,7 +69,7 @@ const sections: NavSection[] = [
   {
     title: "Equipo",
     items: [
-      { name: "Barberos", href: "/dashboard/barberos", icon: Scissors },
+      { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors },
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin },
       { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard },
       { name: "Config", href: "/dashboard/configuracion", icon: Settings },

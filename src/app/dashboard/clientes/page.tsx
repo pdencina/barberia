@@ -68,13 +68,39 @@ export default function ClientesPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Clientes</h1>
         <div className="flex gap-2">
+          <label className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm cursor-pointer">
+            Importar CSV
+            <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              const text = await file.text();
+              const lines = text.split("\n").filter(Boolean);
+              const headers = lines[0].toLowerCase().split(",").map((h: string) => h.trim().replace(/"/g, ""));
+              const nameIdx = headers.findIndex((h: string) => h.includes("nombre") || h === "name");
+              const emailIdx = headers.findIndex((h: string) => h.includes("email") || h.includes("correo"));
+              const phoneIdx = headers.findIndex((h: string) => h.includes("telefono") || h.includes("phone") || h.includes("fono"));
+              if (nameIdx === -1) { alert("CSV debe tener columna Nombre"); return; }
+              const clients = lines.slice(1).map((line: string) => {
+                const cols = line.split(",").map((c: string) => c.trim().replace(/"/g, ""));
+                return { name: cols[nameIdx], email: cols[emailIdx] || null, phone: cols[phoneIdx] || null };
+              }).filter((c: any) => c.name);
+              const res = await fetch("/api/clients/import", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ clients }),
+              });
+              const data = await res.json();
+              showToast(`${data.imported} importados, ${data.skipped} omitidos`, "success");
+              fetchClients("");
+              e.target.value = "";
+            }} />
+          </label>
           <a href="/api/clients/export" download
-            className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
-            Exportar CSV
+            className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm">
+            Exportar
           </a>
           <button onClick={() => setShowModal(true)}
-            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-            Nuevo Cliente
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm">
+            Nuevo
           </button>
         </div>
       </div>

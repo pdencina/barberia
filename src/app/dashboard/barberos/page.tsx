@@ -40,7 +40,7 @@ export default function BarberosPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(formData),
     });
-    showToast("Barbero creado exitosamente", "success");
+    showToast("Profesional creado exitosamente", "success");
     setShowModal(false);
     setFormData({ name: "", email: "", phone: "", password: "" });
     fetchBarbers();
@@ -49,10 +49,10 @@ export default function BarberosPage() {
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Barberos</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Profesionales</h1>
         <button onClick={() => setShowModal(true)}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-          Nuevo Barbero
+          Nuevo Profesional
         </button>
       </div>
 
@@ -69,7 +69,7 @@ export default function BarberosPage() {
             {loading ? (
               <tr><td colSpan={3}><Spinner /></td></tr>
             ) : barbers.length === 0 ? (
-              <tr><td colSpan={3} className="p-4 text-center text-gray-500">No hay barberos</td></tr>
+              <tr><td colSpan={3} className="p-4 text-center text-gray-500">No hay profesionales</td></tr>
             ) : barbers.map((b) => (
               <tr key={b.id} className="hover:bg-gray-50">
                 <td className="p-4 font-medium">{b.name}</td>
@@ -84,7 +84,7 @@ export default function BarberosPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
-            <h2 className="text-lg font-bold mb-4">Nuevo Barbero</h2>
+            <h2 className="text-lg font-bold mb-4">Nuevo Profesional</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
