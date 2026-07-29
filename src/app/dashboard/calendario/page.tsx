@@ -66,6 +66,7 @@ export default function CalendarioPage() {
   const [eventNotes, setEventNotes] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [creating, setCreating] = useState(false);
+  const [popupPosition, setPopupPosition] = useState<"left" | "right">("right");
 
   const gridRef = useRef<HTMLDivElement>(null);
 
@@ -146,6 +147,11 @@ export default function CalendarioPage() {
     const startTime = yToTime(minY);
     const endTime = yToTime(maxY);
     const barber = barbers.find((b) => b.id === dragBarberId);
+
+    // Calculate popup position: if barber is in the right half, show popup on left
+    const barberIndex = barbers.findIndex((b) => b.id === dragBarberId);
+    const isRightSide = barberIndex >= barbers.length / 2;
+    setPopupPosition(isRightSide ? "left" : "right");
 
     setPopupData({
       barberId: dragBarberId,
@@ -352,7 +358,9 @@ export default function CalendarioPage() {
       {showPopup && (
         <div className="fixed inset-0 z-50" onClick={() => setShowPopup(false)}>
           <div
-            className="fixed top-16 left-4 md:left-auto md:right-8 md:top-24 bg-white rounded-2xl shadow-2xl border border-gray-200 w-[calc(100%-2rem)] md:w-96 animate-scale-in max-h-[80vh] overflow-y-auto"
+            className={`fixed top-20 bg-white rounded-2xl shadow-2xl border border-gray-200 w-[90vw] md:w-96 animate-scale-in max-h-[80vh] overflow-y-auto ${
+              popupPosition === "left" ? "left-4 md:left-16" : "right-4 md:right-8"
+            }`}
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
