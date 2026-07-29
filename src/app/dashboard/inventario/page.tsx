@@ -40,6 +40,7 @@ export default function InventarioPage() {
   const [productForm, setProductForm] = useState({
     name: "", sku: "", cost: "", price: "", stock: "", min_stock: "",
   });
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [movementForm, setMovementForm] = useState({
     product_id: "", type: "in", quantity: "", notes: "",
   });
@@ -74,20 +75,32 @@ export default function InventarioPage() {
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/products", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: productForm.name,
-        sku: productForm.sku,
-        cost: parseFloat(productForm.cost),
-        price: parseFloat(productForm.price),
-        stock: parseInt(productForm.stock),
-        min_stock: parseInt(productForm.min_stock),
-      }),
-    });
-    showToast("Producto creado", "success");
+    const payload = {
+      name: productForm.name,
+      sku: productForm.sku || null,
+      cost: parseFloat(productForm.cost),
+      price: parseFloat(productForm.price),
+      stock: parseInt(productForm.stock),
+      min_stock: parseInt(productForm.min_stock),
+    };
+
+    if (editingProductId) {
+      await fetch(`/api/products/${editingProductId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      showToast("Producto actualizado", "success");
+    } else {
+      await fetch("/api/products", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      showToast("Producto creado", "success");
+    }
     setShowProductModal(false);
+    setEditingProductId(null);
     setProductForm({ name: "", sku: "", cost: "", price: "", stock: "", min_stock: "" });
     fetchData();
   };
@@ -128,7 +141,7 @@ export default function InventarioPage() {
             Registrar Movimiento
           </button>
           <button
-            onClick={() => setShowProductModal(true)}
+            onClick={() => { setEditingProductId(null); setProductForm({ name: "", sku: "", cost: "", price: "", stock: "", min_stock: "" }); setShowProductModal(true); }}
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
           >
             Nuevo Producto
@@ -163,6 +176,7 @@ export default function InventarioPage() {
               <th className="text-center p-4 font-medium text-gray-600">Stock</th>
               <th className="text-center p-4 font-medium text-gray-600">Min</th>
               <th className="text-center p-4 font-medium text-gray-600">Estado</th>
+              <th className="text-center p-4 font-medium text-gray-600"></th>
             </tr>
           </thead>
           <tbody className="divide-y">
@@ -184,6 +198,15 @@ export default function InventarioPage() {
                   }`}>
                     {p.stock <= p.min_stock ? "Bajo" : "OK"}
                   </span>
+                </td>
+                <td className="p-4 text-center">
+                  <button onClick={() => {
+                    setProductForm({ name: p.name, sku: p.sku || "", cost: String(p.cost), price: String(p.price), stock: String(p.stock), min_stock: String(p.min_stock) });
+                    setEditingProductId(p.id);
+                    setShowProductModal(true);
+                  }} className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-100">
+                    Editar
+                  </button>
                 </td>
               </tr>
             ))}
@@ -314,7 +337,7 @@ export default function InventarioPage() {
       {showProductModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
-            <h2 className="text-lg font-bold mb-4">Nuevo Producto</h2>
+            <h2 className="text-lg font-bold mb-4">{editingProductId ? "Editar Producto" : "Nuevo Producto"}</h2>
             <form onSubmit={handleCreateProduct} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>

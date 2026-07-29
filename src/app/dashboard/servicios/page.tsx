@@ -90,9 +90,9 @@ export default function ServiciosPage() {
   const toggleActive = async (s: Service) => {
     if (s.active) {
       const ok = await confirm({
-        title: "Desactivar servicio",
-        message: `Desactivar "${s.name}"? No aparecera en el booking ni POS.`,
-        confirmText: "Desactivar",
+        title: "Eliminar servicio",
+        message: `Eliminar "${s.name}"? No aparecera en el booking ni POS.`,
+        confirmText: "Eliminar",
         variant: "warning",
       });
       if (!ok) return;
@@ -174,7 +174,7 @@ export default function ServiciosPage() {
                     <button onClick={() => openEdit(s)}
                       className="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-100">Editar</button>
                     <button onClick={() => toggleActive(s)}
-                      className="px-3 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Desactivar</button>
+                      className="px-3 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Eliminar</button>
                   </div>
                 </div>
               </div>

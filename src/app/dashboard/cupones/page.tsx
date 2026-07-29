@@ -22,6 +22,7 @@ export default function CuponesPage() {
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     code: "", description: "", type: "percentage", value: "",
     min_purchase: "", max_uses: "", valid_until: "",
@@ -45,30 +46,67 @@ export default function CuponesPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/cupones", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        code: formData.code,
-        description: formData.description,
-        discountType: formData.type,
-        discountValue: parseFloat(formData.value),
-        minPurchase: parseFloat(formData.min_purchase) || null,
-        maxUses: parseInt(formData.max_uses) || null,
-        validUntil: formData.valid_until || null,
-      }),
-    });
-    showToast("Cupon creado exitosamente", "success");
+    if (editingId) {
+      await fetch(`/api/cupones/${editingId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          description: formData.description,
+          discount_type: formData.type,
+          discount_value: parseFloat(formData.value),
+          min_purchase: parseFloat(formData.min_purchase) || null,
+          max_uses: parseInt(formData.max_uses) || null,
+          valid_until: formData.valid_until ? new Date(formData.valid_until).toISOString() : null,
+        }),
+      });
+      showToast("Cupon actualizado", "success");
+    } else {
+      await fetch("/api/cupones", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: formData.code,
+          description: formData.description,
+          discountType: formData.type,
+          discountValue: parseFloat(formData.value),
+          minPurchase: parseFloat(formData.min_purchase) || null,
+          maxUses: parseInt(formData.max_uses) || null,
+          validUntil: formData.valid_until || null,
+        }),
+      });
+      showToast("Cupon creado exitosamente", "success");
+    }
     setShowModal(false);
+    setEditingId(null);
     setFormData({ code: "", description: "", type: "percentage", value: "", min_purchase: "", max_uses: "", valid_until: "" });
     fetchCoupons();
+  };
+
+  const openEdit = (c: Coupon) => {
+    setEditingId(c.id);
+    setFormData({
+      code: c.code,
+      description: c.description || "",
+      type: c.discount_type,
+      value: String(c.discount_value),
+      min_purchase: c.min_purchase ? String(c.min_purchase) : "",
+      max_uses: c.max_uses ? String(c.max_uses) : "",
+      valid_until: c.valid_until ? c.valid_until.split("T")[0] : "",
+    });
+    setShowModal(true);
+  };
+
+  const openNew = () => {
+    setEditingId(null);
+    setFormData({ code: "", description: "", type: "percentage", value: "", min_purchase: "", max_uses: "", valid_until: "" });
+    setShowModal(true);
   };
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Cupones</h1>
-        <button onClick={() => setShowModal(true)}
+        <button onClick={openNew}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
           Nuevo Cupon
         </button>
@@ -85,13 +123,14 @@ export default function CuponesPage() {
               <th className="text-center p-4 font-medium text-gray-600">Usos</th>
               <th className="text-left p-4 font-medium text-gray-600">Valido Hasta</th>
               <th className="text-center p-4 font-medium text-gray-600">Estado</th>
+              <th className="text-center p-4 font-medium text-gray-600">Acciones</th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
               <tr><td colSpan={7}><Spinner /></td></tr>
             ) : coupons.length === 0 ? (
-              <tr><td colSpan={7} className="p-4 text-center text-gray-500">No hay cupones</td></tr>
+              <tr><td colSpan={8} className="p-4 text-center text-gray-500">No hay cupones</td></tr>
             ) : coupons.map((c) => (
               <tr key={c.id} className="hover:bg-gray-50">
                 <td className="p-4 font-mono font-medium">{c.code}</td>
@@ -111,6 +150,12 @@ export default function CuponesPage() {
                     {c.active ? "Activo" : "Inactivo"}
                   </span>
                 </td>
+                <td className="p-4 text-center">
+                  <button onClick={() => openEdit(c)}
+                    className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-100">
+                    Editar
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>
@@ -120,7 +165,7 @@ export default function CuponesPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
-            <h2 className="text-lg font-bold mb-4">Nuevo Cupon</h2>
+            <h2 className="text-lg font-bold mb-4">{editingId ? "Editar Cupon" : "Nuevo Cupon"}</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Codigo</label>
