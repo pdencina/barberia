@@ -348,11 +348,11 @@ export default function CalendarioPage() {
         </div>
       )}
 
-      {/* Google Calendar style popup (positioned, not fullscreen overlay) */}
+      {/* Google Calendar style popup - positioned beside the selection */}
       {showPopup && (
         <div className="fixed inset-0 z-50" onClick={() => setShowPopup(false)}>
           <div
-            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md animate-scale-in"
+            className="fixed top-16 left-4 md:left-auto md:right-8 md:top-24 bg-white rounded-2xl shadow-2xl border border-gray-200 w-[calc(100%-2rem)] md:w-96 animate-scale-in max-h-[80vh] overflow-y-auto"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
