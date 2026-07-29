@@ -31,9 +31,9 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { clientId, barberId, date, startTime, serviceIds, notes } = body;
+  const { clientId, barberId, date, startTime, endTime: customEndTime, serviceIds, notes } = body;
 
-  // Get services to calculate duration
+  // Get services to calculate duration (if no custom end time)
   const { data: services } = await supabase
     .from("services")
     .select("id, price, duration")
@@ -45,7 +45,8 @@ export async function POST(req: NextRequest) {
 
   const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
   const start = new Date(startTime);
-  const end = new Date(start.getTime() + totalDuration * 60000);
+  // Use custom end time if provided, otherwise calculate from service duration
+  const end = customEndTime ? new Date(customEndTime) : new Date(start.getTime() + totalDuration * 60000);
 
   // Check conflicts
   const { data: conflicts } = await supabase

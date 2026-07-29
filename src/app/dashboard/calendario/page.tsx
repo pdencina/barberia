@@ -120,7 +120,10 @@ export default function CalendarioPage() {
 
   // Mouse handlers for drag-to-create
   const handleMouseDown = (e: React.MouseEvent, barberId: string) => {
+    // Don't start drag-to-create if clicking on an existing appointment
     if ((e.target as HTMLElement).closest("[data-appointment]")) return;
+    // Only left click
+    if (e.button !== 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
     const y = e.clientY - rect.top;
     setDragging(true);
@@ -176,7 +179,6 @@ export default function CalendarioPage() {
     if (popupTab === "service") {
       if (!selectedService) { showToast("Selecciona un servicio", "error"); setCreating(false); return; }
       
-      const service = services.find((s) => s.id === selectedService);
       const startISO = `${date}T${popupData.startTime}:00`;
       const endISO = `${date}T${popupData.endTime}:00`;
 
@@ -188,6 +190,7 @@ export default function CalendarioPage() {
           barberId: popupData.barberId,
           date,
           startTime: startISO,
+          endTime: endISO,
           serviceIds: [selectedService],
           notes: eventNotes || undefined,
         }),
@@ -302,6 +305,34 @@ export default function CalendarioPage() {
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={() => { if (dragging) handleMouseUp(); }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      const appointmentId = e.dataTransfer.getData("appointmentId");
+                      if (!appointmentId) return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const y = e.clientY - rect.top;
+                      const newTime = yToTime(y);
+                      const newStartISO = `${date}T${newTime}:00`;
+                      // Assume 45min duration for moved appointment
+                      const [h, m] = newTime.split(":").map(Number);
+                      const endMin = h * 60 + m + 45;
+                      const endH = Math.floor(endMin / 60);
+                      const endM = endMin % 60;
+                      const newEndISO = `${date}T${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}:00`;
+
+                      await fetch(`/api/appointments/${appointmentId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          barber_id: barber.id,
+                          start_time: newStartISO,
+                          end_time: newEndISO,
+                        }),
+                      });
+                      showToast("Cita movida", "success");
+                      await fetchAppointments();
+                    }}
                   >
                     {/* Hour grid lines */}
                     {hours.map((h) => (
@@ -346,9 +377,16 @@ export default function CalendarioPage() {
                         data-appointment="true"
                         draggable
                         onDragStart={(e) => {
+                          e.stopPropagation();
                           e.dataTransfer.setData("appointmentId", appt.id);
+                          e.dataTransfer.effectAllowed = "move";
                         }}
-                        className={`absolute left-1 right-1 rounded-md border-l-[3px] ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow z-10`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          // Open edit view - navigate to agenda with this appointment
+                          window.open(`/dashboard/agenda?date=${date}`, "_self");
+                        }}
+                        className={`absolute left-1 right-1 rounded-md border-l-[3px] ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10`}
                         style={getBlockStyle(appt)}
                       >
                         <p className="text-[11px] font-bold truncate">{appt.client?.name || "Cliente"}</p>
