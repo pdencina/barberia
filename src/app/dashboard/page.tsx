@@ -141,7 +141,7 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-4">
                   <div className="text-center min-w-[50px]">
                     <p className="text-lg font-bold text-blue-600">
-                      {new Date(appt.start_time).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                      {appt.start_time?.match(/(\d{2}:\d{2})/)?.[1] || ""}
                     </p>
                   </div>
                   <div>
