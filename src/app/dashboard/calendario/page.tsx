@@ -389,7 +389,15 @@ export default function CalendarioPage() {
                     )}
 
                     {/* Appointment blocks */}
-                    {barberAppts.map((appt: any) => (
+                    {barberAppts.map((appt: any) => {
+                      const sm = appt.start_time?.match(/(\d{2}):(\d{2})/);
+                      const em = appt.end_time?.match(/(\d{2}):(\d{2})/);
+                      const timeLabel = sm && em ? `${parseInt(sm[1])}:${sm[2]} – ${parseInt(em[1])}:${em[2]}` : "";
+                      const eH = em ? parseInt(em[1]) : 0;
+                      const eM = em ? parseInt(em[2]) : 0;
+                      const sH = sm ? parseInt(sm[1]) : 0;
+                      const sM = sm ? parseInt(sm[2]) : 0;
+                      return (
                       <div
                         key={appt.id}
                         data-appointment="true"
@@ -401,16 +409,41 @@ export default function CalendarioPage() {
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          // Open edit view - navigate to agenda with this appointment
                           window.open(`/dashboard/agenda?date=${date}`, "_self");
                         }}
-                        className={`absolute left-1 right-1 rounded-md border-l-[3px] ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10`}
+                        className={`absolute left-1 right-1 rounded-md border-l-[3px] ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10 group`}
                         style={getBlockStyle(appt)}
                       >
                         <p className="text-[11px] font-bold truncate">{appt.client?.name || "Cliente"}</p>
                         <p className="text-[9px] truncate opacity-70">{appt.services?.map((s: any) => s.service?.name).join(", ")}</p>
+                        <p className="text-[9px] opacity-50">{timeLabel}</p>
+                        {/* Resize handle */}
+                        <div
+                          className="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                          onMouseDown={(e) => {
+                            e.stopPropagation(); e.preventDefault();
+                            const startY = e.clientY;
+                            const blockEl = e.currentTarget.parentElement!;
+                            const origH = blockEl.offsetHeight;
+                            const onMove = (ev: MouseEvent) => { blockEl.style.height = `${Math.max(24, origH + ev.clientY - startY)}px`; };
+                            const onUp = async (ev: MouseEvent) => {
+                              document.removeEventListener("mousemove", onMove);
+                              document.removeEventListener("mouseup", onUp);
+                              const addMin = Math.round(((ev.clientY - startY) / HOUR_HEIGHT) * 60 / 15) * 15;
+                              const newEnd = eH * 60 + eM + addMin;
+                              if (newEnd <= sH * 60 + sM || newEnd > END_HOUR * 60) { await fetchAppointments(); return; }
+                              const nH = Math.floor(newEnd / 60), nM = newEnd % 60;
+                              await fetch(`/api/appointments/${appt.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ end_time: `${date}T${nH.toString().padStart(2,"0")}:${nM.toString().padStart(2,"0")}:00` }) });
+                              showToast("Duracion actualizada", "success");
+                              await fetchAppointments();
+                            };
+                            document.addEventListener("mousemove", onMove);
+                            document.addEventListener("mouseup", onUp);
+                          }}
+                        ><div className="w-8 h-1 rounded-full bg-current opacity-40" /></div>
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 );
               })}
