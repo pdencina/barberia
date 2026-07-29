@@ -58,6 +58,7 @@ export default function CalendarioPage() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupTab, setPopupTab] = useState<"service" | "event">("service");
   const [popupData, setPopupData] = useState({ barberId: "", startTime: "", endTime: "", barberName: "" });
+  const [dropIndicator, setDropIndicator] = useState<{ barberId: string; y: number } | null>(null);
   
   // Popup form
   const [selectedService, setSelectedService] = useState("");
@@ -305,9 +306,14 @@ export default function CalendarioPage() {
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={() => { if (dragging) handleMouseUp(); }}
-                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; }}
+                    onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; 
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setDropIndicator({ barberId: barber.id, y: e.clientY - rect.top });
+                    }}
+                    onDragLeave={() => setDropIndicator(null)}
                     onDrop={async (e) => {
                       e.preventDefault();
+                      setDropIndicator(null);
                       const appointmentId = e.dataTransfer.getData("appointmentId");
                       if (!appointmentId) return;
                       const rect = e.currentTarget.getBoundingClientRect();
@@ -338,6 +344,18 @@ export default function CalendarioPage() {
                     {hours.map((h) => (
                       <div key={h} className="h-16 border-b border-gray-50 hover:bg-gray-50/50" />
                     ))}
+
+                    {/* Drop indicator - shows where block will land */}
+                    {dropIndicator && dropIndicator.barberId === barber.id && (
+                      <div
+                        className="absolute left-1 right-1 h-12 bg-blue-500/20 border-2 border-blue-500 rounded-md pointer-events-none z-30 flex items-center justify-center"
+                        style={{ top: `${Math.round(dropIndicator.y / HOUR_HEIGHT * 4) * (HOUR_HEIGHT / 4)}px` }}
+                      >
+                        <span className="text-[10px] text-blue-600 font-bold">
+                          {yToTime(Math.round(dropIndicator.y / HOUR_HEIGHT * 4) * (HOUR_HEIGHT / 4))}
+                        </span>
+                      </div>
+                    )}
 
                     {/* Drag selection preview (during drag) */}
                     {isDragTarget && !showPopup && (

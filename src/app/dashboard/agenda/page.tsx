@@ -185,7 +185,7 @@ export default function AgendaPage() {
             <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-3">
-                  <span className="text-lg font-bold text-indigo-600">{new Date(a.start_time).toLocaleTimeString("es-CL", {hour: "2-digit", minute: "2-digit"})}</span>
+                  <span className="text-lg font-bold text-indigo-600">{a.start_time?.match(/(\d{2}:\d{2})/)?.[1] || ""}</span>
                   <span className="font-medium text-gray-900">{a.client?.name || "-"}</span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[a.status] || "bg-gray-100 text-gray-700"}`}>
                     {statusLabels[a.status] || a.status}
