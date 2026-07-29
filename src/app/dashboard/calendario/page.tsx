@@ -221,12 +221,15 @@ export default function CalendarioPage() {
     await fetchAppointments();
   };
 
-  // Appointment block position
+  // Appointment block position - parse UTC time directly (avoid timezone shift)
   const getBlockStyle = (appt: Appointment) => {
-    const start = new Date(appt.start_time);
-    const end = new Date(appt.end_time);
-    const startMin = start.getHours() * 60 + start.getMinutes();
-    const endMin = end.getHours() * 60 + end.getMinutes();
+    // Extract hours:minutes from the ISO string directly (stored as UTC = Chile time in this app)
+    const startMatch = appt.start_time.match(/(\d{2}):(\d{2})/);
+    const endMatch = appt.end_time.match(/(\d{2}):(\d{2})/);
+    if (!startMatch || !endMatch) return { top: "0px", height: "24px" };
+    
+    const startMin = parseInt(startMatch[1]) * 60 + parseInt(startMatch[2]);
+    const endMin = parseInt(endMatch[1]) * 60 + parseInt(endMatch[2]);
     const top = ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT;
     const height = ((endMin - startMin) / 60) * HOUR_HEIGHT;
     return { top: `${top}px`, height: `${Math.max(height, 24)}px` };
