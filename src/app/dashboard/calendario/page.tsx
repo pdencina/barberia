@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
+import { useToast } from "@/components/ui/toast";
 
 interface Barber { id: string; name: string; }
 
@@ -46,6 +47,14 @@ export default function CalendarioPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [weekAppointments, setWeekAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const { showToast } = useToast();
+
+  // Click on empty slot → redirect to agenda with pre-filled data
+  const handleSlotClick = (barberId: string, hour: number) => {
+    const time = `${hour.toString().padStart(2, "0")}:00`;
+    // Navigate to agenda page with query params to pre-fill the new appointment
+    window.location.href = `/dashboard/agenda?newAppt=true&barberId=${barberId}&date=${date}&time=${time}`;
+  };
 
   // Get Monday of the current week
   const getMonday = (d: string) => {
@@ -197,10 +206,54 @@ export default function CalendarioPage() {
                 const barberAppts = appointments.filter((a: any) => a.barber_id === barber.id);
                 const color = barberColors[bi % barberColors.length];
                 return (
-                  <div key={barber.id} className="flex-1 relative border-r border-gray-50 min-w-[120px]">
-                    {hours.map((h) => <div key={h} className="h-16 border-b border-gray-50" />)}
+                  <div
+                    key={barber.id}
+                    className="flex-1 relative border-r border-gray-50 min-w-[120px]"
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={async (e) => {
+                      e.preventDefault();
+                      const appointmentId = e.dataTransfer.getData("appointmentId");
+                      if (!appointmentId) return;
+                      // Calculate drop hour from mouse position
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const y = e.clientY - rect.top;
+                      const hourOffset = Math.floor(y / 64);
+                      const newHour = 9 + hourOffset;
+                      const newTime = `${date}T${newHour.toString().padStart(2, "0")}:00:00`;
+                      // Move appointment
+                      await fetch(`/api/appointments/${appointmentId}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          barber_id: barber.id,
+                          start_time: newTime,
+                          end_time: new Date(new Date(newTime).getTime() + 45 * 60000).toISOString(),
+                        }),
+                      });
+                      showToast("Cita movida", "success");
+                      fetchDayAppointments();
+                    }}
+                  >
+                    {hours.map((h) => (
+                      <div
+                        key={h}
+                        className="h-16 border-b border-gray-50 hover:bg-blue-50/50 cursor-pointer transition-colors group"
+                        onClick={() => handleSlotClick(barber.id, h)}
+                      >
+                        <span className="hidden group-hover:block text-[9px] text-blue-400 p-1">+ Agendar</span>
+                      </div>
+                    ))}
                     {barberAppts.map((appt: any) => (
-                      <div key={appt.id} className={`absolute left-1 right-1 rounded-md border-l-3 ${color.bg} ${color.border} ${color.text} px-2 py-1 overflow-hidden`} style={getBlockStyle(appt)}>
+                      <div
+                        key={appt.id}
+                        draggable
+                        onDragStart={(e) => {
+                          e.dataTransfer.setData("appointmentId", appt.id);
+                          e.dataTransfer.setData("originalBarberId", barber.id);
+                        }}
+                        className={`absolute left-1 right-1 rounded-md border-l-3 ${color.bg} ${color.border} ${color.text} px-2 py-1 overflow-hidden cursor-grab active:cursor-grabbing hover:shadow-md transition-shadow`}
+                        style={getBlockStyle(appt)}
+                      >
                         <div className="flex items-center gap-1">
                           <div className={`w-1.5 h-1.5 rounded-full ${statusDot[appt.status] || "bg-gray-400"}`} />
                           <p className="text-[11px] font-bold truncate">{appt.client?.name || "Cliente"}</p>
