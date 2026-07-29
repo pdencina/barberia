@@ -293,8 +293,8 @@ export default function CalendarioPage() {
                       <div key={h} className="h-16 border-b border-gray-50 hover:bg-gray-50/50" />
                     ))}
 
-                    {/* Drag selection preview */}
-                    {isDragTarget && (
+                    {/* Drag selection preview (during drag) */}
+                    {isDragTarget && !showPopup && (
                       <div
                         className="absolute left-1 right-1 bg-blue-500/20 border-2 border-blue-500 border-dashed rounded-md pointer-events-none z-20"
                         style={{
@@ -305,6 +305,22 @@ export default function CalendarioPage() {
                         <span className="text-[10px] text-blue-600 font-medium p-1">
                           {formatTime12(yToTime(Math.min(dragStartY, dragEndY)))} - {formatTime12(yToTime(Math.max(dragStartY, dragEndY)))}
                         </span>
+                      </div>
+                    )}
+
+                    {/* Solid block after selection (stays visible while popup is open) */}
+                    {showPopup && popupData.barberId === barber.id && (
+                      <div
+                        className="absolute left-1 right-1 bg-blue-500 rounded-md z-20 shadow-lg shadow-blue-500/30"
+                        style={{
+                          top: `${((parseInt(popupData.startTime.split(":")[0]) * 60 + parseInt(popupData.startTime.split(":")[1])) - START_HOUR * 60) / 60 * HOUR_HEIGHT}px`,
+                          height: `${((parseInt(popupData.endTime.split(":")[0]) * 60 + parseInt(popupData.endTime.split(":")[1])) - (parseInt(popupData.startTime.split(":")[0]) * 60 + parseInt(popupData.startTime.split(":")[1]))) / 60 * HOUR_HEIGHT}px`,
+                        }}
+                      >
+                        <div className="p-1.5 text-white">
+                          <p className="text-[10px] font-bold">(Sin titulo)</p>
+                          <p className="text-[9px] opacity-80">{formatTime12(popupData.startTime)} – {formatTime12(popupData.endTime)}</p>
+                        </div>
                       </div>
                     )}
 
@@ -332,10 +348,13 @@ export default function CalendarioPage() {
         </div>
       )}
 
-      {/* Google Calendar style popup */}
+      {/* Google Calendar style popup (positioned, not fullscreen overlay) */}
       {showPopup && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4" onClick={() => setShowPopup(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md animate-scale-in" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50" onClick={() => setShowPopup(false)}>
+          <div
+            className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md animate-scale-in"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-bold text-lg">Cita</h3>
