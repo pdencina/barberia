@@ -409,7 +409,7 @@ export default function CalendarioPage() {
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          window.open(`/dashboard/agenda?date=${date}`, "_self");
+                          showToast(`${appt.client?.name || "Cliente"} · ${timeLabel} · ${appt.services?.map((s: any) => s.service?.name).join(", ")}`, "info");
                         }}
                         className={`absolute left-1 right-1 rounded-md border-l-[3px] ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10 group`}
                         style={getBlockStyle(appt)}
