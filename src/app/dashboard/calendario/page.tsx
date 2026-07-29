@@ -180,19 +180,25 @@ export default function CalendarioPage() {
       const startISO = `${date}T${popupData.startTime}:00`;
       const endISO = `${date}T${popupData.endTime}:00`;
 
-      await fetch("/api/appointments", {
+      const res = await fetch("/api/appointments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          clientId: selectedClient || null,
+          clientId: selectedClient || undefined,
           barberId: popupData.barberId,
           date,
           startTime: startISO,
           serviceIds: [selectedService],
-          notes: eventNotes || null,
+          notes: eventNotes || undefined,
         }),
       });
-      showToast("Cita creada", "success");
+      
+      if (res.ok) {
+        showToast("Cita creada", "success");
+      } else {
+        const err = await res.json();
+        showToast(err.error || "Error al crear cita", "error");
+      }
     } else {
       // Create block/event
       await fetch("/api/barber/blocks", {
@@ -212,7 +218,7 @@ export default function CalendarioPage() {
 
     setCreating(false);
     setShowPopup(false);
-    fetchAppointments();
+    await fetchAppointments();
   };
 
   // Appointment block position
