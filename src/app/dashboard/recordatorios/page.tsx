@@ -22,7 +22,10 @@ export default function RecordatoriosPage() {
 
   const fetchLinks = async () => {
     setLoading(true);
-    const res = await fetch("/api/cron/reminders/whatsapp");
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const tomorrowStr = tomorrow.toISOString().split("T")[0];
+    const res = await fetch(`/api/cron/reminders/whatsapp?date=${tomorrowStr}`);
     setLinks(await res.json());
     setLoading(false);
   };
