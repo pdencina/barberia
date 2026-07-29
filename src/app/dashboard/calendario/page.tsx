@@ -416,7 +416,7 @@ export default function CalendarioPage() {
                       >
                         <p className="text-[11px] font-bold truncate">{appt.client?.name || "Cliente"}</p>
                         <p className="text-[9px] truncate opacity-70">{appt.services?.map((s: any) => s.service?.name).join(", ")}</p>
-                        <p className="text-[9px] opacity-50">{timeLabel}</p>
+                        <p className="text-[9px] opacity-50" data-timelabel>{timeLabel}</p>
                         {/* Resize handle */}
                         <div
                           className="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -425,7 +425,20 @@ export default function CalendarioPage() {
                             const startY = e.clientY;
                             const blockEl = e.currentTarget.parentElement!;
                             const origH = blockEl.offsetHeight;
-                            const onMove = (ev: MouseEvent) => { blockEl.style.height = `${Math.max(24, origH + ev.clientY - startY)}px`; };
+                            const timeLabelEl = blockEl.querySelector("[data-timelabel]") as HTMLElement;
+                            const onMove = (ev: MouseEvent) => {
+                              const delta = ev.clientY - startY;
+                              blockEl.style.height = `${Math.max(24, origH + delta)}px`;
+                              // Update time label in real-time
+                              if (timeLabelEl) {
+                                const addMin = Math.round((delta / HOUR_HEIGHT) * 60 / 15) * 15;
+                                const newEnd = eH * 60 + eM + addMin;
+                                const nH = Math.floor(newEnd / 60), nM = newEnd % 60;
+                                if (newEnd > sH * 60 + sM && newEnd <= END_HOUR * 60) {
+                                  timeLabelEl.textContent = `${sH}:${sM.toString().padStart(2,"0")} – ${nH}:${nM.toString().padStart(2,"0")}`;
+                                }
+                              }
+                            };
                             const onUp = async (ev: MouseEvent) => {
                               document.removeEventListener("mousemove", onMove);
                               document.removeEventListener("mouseup", onUp);
