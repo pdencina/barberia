@@ -57,6 +57,11 @@ export default function POSPage() {
     { method: "cash", amount: "" },
   ]);
   const [processing, setProcessing] = useState(false);
+  const [showPinModal, setShowPinModal] = useState(false);
+  const [pinInput, setPinInput] = useState("");
+  const [pinError, setPinError] = useState("");
+  const [manualDiscountAmount, setManualDiscountAmount] = useState("");
+  const [manualDiscountType, setManualDiscountType] = useState<"fixed" | "percent">("fixed");
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -122,6 +127,35 @@ export default function POSPage() {
     } catch {
       setCouponError("Error al validar cupon");
     }
+  };
+
+  const applyManualDiscount = async () => {
+    setPinError("");
+    const res = await fetch("/api/pos/verify-pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: pinInput }),
+    });
+    const data = await res.json();
+    if (!data.valid) {
+      setPinError(data.error || "PIN incorrecto");
+      return;
+    }
+    // Apply discount
+    const amount = parseInt(manualDiscountAmount) || 0;
+    if (amount <= 0) {
+      setPinError("Ingresa un monto valido");
+      return;
+    }
+    const discountValue = manualDiscountType === "percent"
+      ? Math.round(subtotal * (amount / 100))
+      : amount;
+    setDiscount(Math.min(discountValue, subtotal));
+    setCouponCode("");
+    setShowPinModal(false);
+    setPinInput("");
+    setManualDiscountAmount("");
+    showToast(`Descuento autorizado por ${data.adminName}`, "success");
   };
 
   const handleCheckout = async () => {
@@ -312,21 +346,34 @@ export default function POSPage() {
         </div>
 
         <div className="border-t p-4 space-y-3">
-          {/* Coupon */}
-          <div className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Codigo cupon"
-              value={couponCode}
-              onChange={(e) => setCouponCode(e.target.value)}
-              className="flex-1 border rounded-lg px-3 py-2 text-sm"
-            />
+          {/* Coupon & Manual Discount */}
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Codigo cupon"
+                value={couponCode}
+                onChange={(e) => setCouponCode(e.target.value)}
+                className="flex-1 border rounded-lg px-3 py-2 text-sm"
+              />
+              <button
+                onClick={applyCoupon}
+                className="px-3 py-2 bg-gray-800 text-white rounded-lg text-sm hover:bg-gray-900"
+              >
+                Aplicar
+              </button>
+            </div>
             <button
-              onClick={applyCoupon}
-              className="px-3 py-2 bg-gray-800 text-white rounded-lg text-sm hover:bg-gray-900"
+              onClick={() => setShowPinModal(true)}
+              className="w-full py-2 border-2 border-dashed border-orange-300 text-orange-600 rounded-lg text-sm font-medium hover:bg-orange-50"
             >
-              Aplicar
+              🔐 Descuento manual (PIN admin)
             </button>
+            {discount > 0 && (
+              <button onClick={() => setDiscount(0)} className="text-xs text-red-500 hover:underline">
+                Quitar descuento
+              </button>
+            )}
           </div>
           {couponError && <p className="text-red-500 text-xs">{couponError}</p>}
 
@@ -439,6 +486,86 @@ export default function POSPage() {
           </button>
         </div>
       </div>
+
+      {/* PIN Modal */}
+      {showPinModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setShowPinModal(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Autorizar Descuento</h3>
+            <p className="text-sm text-gray-500 mb-4">Ingresa el PIN de administrador</p>
+
+            <div className="space-y-3">
+              {/* Discount amount */}
+              <div className="flex gap-2">
+                <input
+                  type="number"
+                  placeholder={manualDiscountType === "percent" ? "%" : "$"}
+                  value={manualDiscountAmount}
+                  onChange={(e) => setManualDiscountAmount(e.target.value)}
+                  className="flex-1 border-2 rounded-xl px-3 py-2.5 text-sm focus:border-orange-400 outline-none"
+                  autoFocus
+                />
+                <div className="flex bg-gray-100 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setManualDiscountType("fixed")}
+                    className={`px-3 py-2 text-sm font-medium ${manualDiscountType === "fixed" ? "bg-orange-600 text-white" : "text-gray-600"}`}
+                  >$</button>
+                  <button
+                    onClick={() => setManualDiscountType("percent")}
+                    className={`px-3 py-2 text-sm font-medium ${manualDiscountType === "percent" ? "bg-orange-600 text-white" : "text-gray-600"}`}
+                  >%</button>
+                </div>
+              </div>
+
+              {/* Preview */}
+              {manualDiscountAmount && (
+                <p className="text-xs text-gray-500">
+                  Descuento: {formatCurrency(
+                    manualDiscountType === "percent"
+                      ? Math.round(subtotal * (parseInt(manualDiscountAmount) || 0) / 100)
+                      : parseInt(manualDiscountAmount) || 0
+                  )} → Total queda en {formatCurrency(
+                    subtotal - Math.min(
+                      manualDiscountType === "percent"
+                        ? Math.round(subtotal * (parseInt(manualDiscountAmount) || 0) / 100)
+                        : parseInt(manualDiscountAmount) || 0,
+                      subtotal
+                    )
+                  )}
+                </p>
+              )}
+
+              {/* PIN input */}
+              <div>
+                <label className="text-xs text-gray-500 mb-1 block">PIN Admin (4 digitos)</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={pinInput}
+                  onChange={(e) => { setPinInput(e.target.value.replace(/\D/g, "")); setPinError(""); }}
+                  placeholder="••••"
+                  className="w-full border-2 rounded-xl px-3 py-3 text-center text-2xl tracking-[0.5em] font-mono focus:border-orange-400 outline-none"
+                  onKeyDown={(e) => { if (e.key === "Enter" && pinInput.length === 4) applyManualDiscount(); }}
+                />
+              </div>
+
+              {pinError && <p className="text-red-500 text-xs text-center">{pinError}</p>}
+
+              <div className="flex gap-2 pt-2">
+                <button
+                  onClick={() => { setShowPinModal(false); setPinInput(""); setPinError(""); }}
+                  className="flex-1 py-2.5 border rounded-xl text-sm text-gray-600 hover:bg-gray-50"
+                >Cancelar</button>
+                <button
+                  onClick={applyManualDiscount}
+                  disabled={pinInput.length !== 4 || !manualDiscountAmount}
+                  className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-medium hover:bg-orange-700 disabled:opacity-50"
+                >Autorizar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
