@@ -19,7 +19,7 @@ export default function LandingPage() {
       { threshold: 0.1, rootMargin: "0px 0px -50px 0px" }
     );
 
-    document.querySelectorAll(".reveal").forEach((el) => {
+    document.querySelectorAll(".reveal, .feature-card").forEach((el) => {
       observerRef.current?.observe(el);
     });
 
@@ -61,6 +61,12 @@ export default function LandingPage() {
         {/* Background gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-white pointer-events-none" />
         <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-blue-400/10 rounded-full blur-3xl pointer-events-none" />
+
+        {/* Floating decorative elements */}
+        <div className="absolute top-32 left-[10%] w-16 h-16 bg-blue-100 rounded-2xl rotate-12 animate-float opacity-60" />
+        <div className="absolute top-48 right-[12%] w-12 h-12 bg-blue-200 rounded-full animate-float-slow opacity-50" />
+        <div className="absolute bottom-20 left-[15%] w-10 h-10 bg-blue-300/40 rounded-lg rotate-45 animate-bounce-subtle" />
+        <div className="absolute bottom-32 right-[20%] w-8 h-8 bg-indigo-200 rounded-full animate-float opacity-40" />
 
         <div className="relative max-w-7xl mx-auto px-6">
           <div className="max-w-4xl mx-auto text-center">
@@ -111,26 +117,36 @@ export default function LandingPage() {
       <section id="funciones" className="py-20 md:py-32">
         <div className="max-w-7xl mx-auto px-6">
           <div className="text-center mb-16 reveal">
+            <p className="text-blue-600 font-semibold text-sm uppercase tracking-wider mb-3">Funcionalidades</p>
             <h2 className="text-3xl md:text-5xl font-bold">Todo lo que necesitas,<br /><span className="text-blue-600">en un solo lugar</span></h2>
             <p className="mt-4 text-gray-600 max-w-xl mx-auto">Modulos integrados que trabajan juntos para que tu negocio funcione sin friccion.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {[
-              { icon: "📅", title: "Agenda inteligente", desc: "Calendario drag & drop con vista por profesional. Crea citas arrastrando, mueve con un click." },
-              { icon: "💳", title: "Punto de Venta", desc: "Cobra con tarjeta, efectivo, transferencia o pagos mixtos. Boleta automatica por email." },
-              { icon: "📊", title: "Reportes financieros", desc: "Ingresos separados por comision vs arriendo. Utilidad real del salon en tiempo real." },
-              { icon: "👥", title: "Ficha del cliente", desc: "Historial completo, fotos de cortes, servicios favoritos, notas internas del equipo." },
-              { icon: "🔔", title: "Recordatorios", desc: "Notificaciones automaticas por email 24h antes de cada cita. Reduce no-shows." },
-              { icon: "📱", title: "100% Movil", desc: "PWA instalable. Los barberos gestionan su agenda desde el celular como una app nativa." },
-              { icon: "🏷️", title: "Cupones y descuentos", desc: "Crea codigos de descuento, autoriza descuentos manuales con PIN de admin." },
-              { icon: "⭐", title: "Reviews y ranking", desc: "Cada cliente califica su atencion. Ranking interno de profesionales." },
-              { icon: "📦", title: "Inventario", desc: "Control de stock, alertas de bajo inventario, movimientos automaticos al vender." },
+              { icon: "📅", title: "Agenda inteligente", desc: "Calendario drag & drop con vista por profesional. Crea citas arrastrando, mueve con un click.", color: "from-blue-500 to-blue-600" },
+              { icon: "💳", title: "Punto de Venta", desc: "Cobra con tarjeta, efectivo, transferencia o pagos mixtos. Boleta automatica por email.", color: "from-violet-500 to-purple-600" },
+              { icon: "📊", title: "Reportes financieros", desc: "Ingresos separados por comision vs arriendo. Utilidad real del salon en tiempo real.", color: "from-emerald-500 to-green-600" },
+              { icon: "👥", title: "Ficha del cliente", desc: "Historial completo, fotos de cortes, servicios favoritos, notas internas del equipo.", color: "from-orange-500 to-amber-600" },
+              { icon: "🔔", title: "Recordatorios", desc: "Notificaciones automaticas por email 24h antes de cada cita. Reduce no-shows.", color: "from-rose-500 to-pink-600" },
+              { icon: "📱", title: "100% Movil", desc: "PWA instalable. Los barberos gestionan su agenda desde el celular como una app nativa.", color: "from-cyan-500 to-teal-600" },
+              { icon: "🏷️", title: "Cupones y descuentos", desc: "Crea codigos de descuento, autoriza descuentos manuales con PIN de admin.", color: "from-yellow-500 to-orange-600" },
+              { icon: "⭐", title: "Reviews y ranking", desc: "Cada cliente califica su atencion. Ranking interno de profesionales.", color: "from-indigo-500 to-blue-600" },
+              { icon: "📦", title: "Inventario", desc: "Control de stock, alertas de bajo inventario, movimientos automaticos al vender.", color: "from-slate-500 to-gray-600" },
             ].map((feat, i) => (
-              <div key={feat.title} className="reveal group p-6 bg-white rounded-2xl border border-gray-100 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-600/5 transition-all duration-300 hover:-translate-y-1" style={{ transitionDelay: `${i * 50}ms` }}>
-                <span className="text-3xl">{feat.icon}</span>
-                <h3 className="mt-4 text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors">{feat.title}</h3>
+              <div
+                key={feat.title}
+                className="feature-card shimmer-border group p-6 bg-white rounded-2xl border border-gray-100 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-600/10 cursor-default"
+                style={{ transitionDelay: `${i * 80}ms` }}
+              >
+                <div className={`icon-float w-14 h-14 rounded-2xl bg-gradient-to-br ${feat.color} flex items-center justify-center text-2xl shadow-lg`}>
+                  <span className="drop-shadow-sm">{feat.icon}</span>
+                </div>
+                <h3 className="mt-5 text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">{feat.title}</h3>
                 <p className="mt-2 text-sm text-gray-600 leading-relaxed">{feat.desc}</p>
+                <div className="mt-4 flex items-center text-blue-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300 translate-y-2 group-hover:translate-y-0">
+                  Saber mas →
+                </div>
               </div>
             ))}
           </div>
@@ -138,25 +154,37 @@ export default function LandingPage() {
       </section>
 
       {/* Showcase / How it works */}
-      <section className="py-20 md:py-32 bg-gradient-to-b from-gray-50 to-white">
-        <div className="max-w-7xl mx-auto px-6">
+      <section className="py-20 md:py-32 bg-gradient-to-b from-gray-50 to-white relative overflow-hidden">
+        {/* Floating decorative elements */}
+        <div className="absolute top-20 left-10 w-20 h-20 bg-blue-100 rounded-full opacity-50 animate-float" />
+        <div className="absolute bottom-32 right-16 w-14 h-14 bg-blue-200 rounded-full opacity-40 animate-float-slow" />
+        <div className="absolute top-1/2 left-1/4 w-8 h-8 bg-blue-300 rounded-full opacity-30 animate-bounce-subtle" />
+
+        <div className="max-w-7xl mx-auto px-6 relative">
           <div className="text-center mb-16 reveal">
+            <p className="text-blue-600 font-semibold text-sm uppercase tracking-wider mb-3">Como funciona</p>
             <h2 className="text-3xl md:text-5xl font-bold">Asi funciona <span className="text-blue-600">re-booking</span></h2>
             <p className="mt-4 text-gray-600">En 3 simples pasos tu negocio esta operando al maximo</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 relative">
+            {/* Connecting line */}
+            <div className="hidden md:block absolute top-[72px] left-[20%] right-[20%] h-[2px] bg-gradient-to-r from-blue-200 via-blue-400 to-blue-200 opacity-50" />
+
             {[
-              { step: "01", title: "Configura tu equipo", desc: "Agrega tus profesionales, define comisiones o arriendo, configura servicios y horarios." },
-              { step: "02", title: "Recibe reservas", desc: "Tus clientes agendan online 24/7. El calendario se actualiza en tiempo real para todo el equipo." },
-              { step: "03", title: "Cobra y fideliza", desc: "Punto de venta integrado, boleta por email, puntos de fidelidad y recordatorios automaticos." },
+              { step: "01", title: "Configura tu equipo", desc: "Agrega tus profesionales, define comisiones o arriendo, configura servicios y horarios.", icon: "⚡" },
+              { step: "02", title: "Recibe reservas", desc: "Tus clientes agendan online 24/7. El calendario se actualiza en tiempo real para todo el equipo.", icon: "🚀" },
+              { step: "03", title: "Cobra y fideliza", desc: "Punto de venta integrado, boleta por email, puntos de fidelidad y recordatorios automaticos.", icon: "💰" },
             ].map((item, i) => (
-              <div key={item.step} className="reveal text-center p-8" style={{ transitionDelay: `${i * 150}ms` }}>
-                <div className="w-16 h-16 mx-auto bg-blue-600 text-white rounded-2xl flex items-center justify-center text-2xl font-bold shadow-lg shadow-blue-600/25">
+              <div key={item.step} className="reveal text-center p-8 relative" style={{ transitionDelay: `${i * 200}ms` }}>
+                <div className="w-20 h-20 mx-auto bg-gradient-to-br from-blue-500 to-blue-700 text-white rounded-3xl flex items-center justify-center text-3xl font-bold shadow-xl shadow-blue-600/30 animate-glow-pulse relative z-10">
+                  {item.icon}
+                </div>
+                <div className="absolute top-6 left-1/2 -translate-x-1/2 w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white text-xs font-bold opacity-80">
                   {item.step}
                 </div>
-                <h3 className="mt-6 text-xl font-bold">{item.title}</h3>
-                <p className="mt-3 text-gray-600">{item.desc}</p>
+                <h3 className="mt-8 text-xl font-bold">{item.title}</h3>
+                <p className="mt-3 text-gray-600 leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
