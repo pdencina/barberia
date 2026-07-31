@@ -1,0 +1,54 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminSupabase } from "@/lib/supabase/server";
+
+// GET: List all rental barbers with their terminal config
+export async function GET() {
+  const supabase = createAdminSupabase();
+
+  const { data: barbers } = await supabase
+    .from("profiles")
+    .select("id, name, work_mode, mp_access_token, mp_device_id, mp_external_id")
+    .eq("role", "barber")
+    .eq("active", true)
+    .eq("work_mode", "rental")
+    .order("name");
+
+  const terminals = (barbers || []).map((b) => ({
+    id: b.id,
+    name: b.name,
+    workMode: b.work_mode,
+    hasToken: !!b.mp_access_token,
+    deviceId: b.mp_device_id,
+    externalId: b.mp_external_id,
+  }));
+
+  return NextResponse.json({ terminals });
+}
+
+// POST: Save terminal config for a barber
+export async function POST(req: NextRequest) {
+  const supabase = createAdminSupabase();
+  const { barberId, accessToken, deviceId, externalId } = await req.json();
+
+  if (!barberId) {
+    return NextResponse.json({ error: "barberId required" }, { status: 400 });
+  }
+
+  const updateData: Record<string, string | null> = {
+    mp_device_id: deviceId || null,
+    mp_external_id: externalId || null,
+  };
+
+  // Only update token if provided (don't overwrite with empty)
+  if (accessToken) {
+    updateData.mp_access_token = accessToken;
+  }
+
+  const { error } = await supabase
+    .from("profiles")
+    .update(updateData)
+    .eq("id", barberId);
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ success: true });
+}

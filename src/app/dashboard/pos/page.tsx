@@ -476,6 +476,16 @@ export default function POSPage() {
             )}
           </div>
 
+          {/* MP Terminal indicator */}
+          {!splitMode && (paymentMethod === "debit_card" || paymentMethod === "credit_card") && selectedBarber && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <span className="text-blue-600 text-sm">💳</span>
+              <span className="text-xs text-blue-700">
+                Terminal MP se activara al cobrar
+              </span>
+            </div>
+          )}
+
           <button
             onClick={handleCheckout}
             disabled={
