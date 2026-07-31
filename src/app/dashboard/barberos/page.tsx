@@ -71,8 +71,8 @@ export default function BarberosPage() {
             ) : barbers.length === 0 ? (
               <tr><td colSpan={3} className="p-4 text-center text-gray-500">No hay profesionales</td></tr>
             ) : barbers.map((b) => (
-              <tr key={b.id} className="hover:bg-gray-50">
-                <td className="p-4 font-medium">{b.name}</td>
+              <tr key={b.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => window.location.href = `/dashboard/barberos/${b.id}`}>
+                <td className="p-4 font-medium text-blue-600">{b.name}</td>
                 <td className="p-4">{b.email || "-"}</td>
                 <td className="p-4">{b.phone || "-"}</td>
               </tr>

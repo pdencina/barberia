@@ -1,0 +1,226 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { useToast } from "@/components/ui/toast";
+import { Spinner } from "@/components/ui/spinner";
+import { formatCurrency } from "@/lib/utils";
+
+interface Professional {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  work_mode: "commission" | "rental";
+  commission_rate: number;
+  rental_daily_rate: number;
+  rental_min_days: number;
+  rental_max_days: number;
+  rental_deductions: number;
+  rental_notes: string | null;
+  personal_pin: string | null;
+  active: boolean;
+}
+
+export default function EditProfessionalPage() {
+  const params = useParams();
+  const router = useRouter();
+  const [data, setData] = useState<Professional | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const { showToast } = useToast();
+
+  useEffect(() => {
+    fetch(`/api/barberos/${params.id}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.id) setData(d); })
+      .finally(() => setLoading(false));
+  }, [params.id]);
+
+  const save = async () => {
+    if (!data) return;
+    setSaving(true);
+    const res = await fetch(`/api/barberos/${params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name: data.name,
+        email: data.email,
+        phone: data.phone,
+        work_mode: data.work_mode,
+        commission_rate: data.commission_rate,
+        rental_daily_rate: data.rental_daily_rate,
+        rental_min_days: data.rental_min_days,
+        rental_max_days: data.rental_max_days,
+        rental_deductions: data.rental_deductions,
+        rental_notes: data.rental_notes,
+        personal_pin: data.personal_pin,
+      }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      showToast("Perfil actualizado", "success");
+    } else {
+      showToast("Error al guardar", "error");
+    }
+  };
+
+  if (loading) return <Spinner />;
+  if (!data) return <p className="p-6 text-center text-gray-500">Profesional no encontrado</p>;
+
+  return (
+    <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6 animate-fade-in">
+      <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-blue-600">← Volver</button>
+
+      <div className="flex items-center gap-4">
+        <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center text-xl font-bold text-indigo-600">
+          {data.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+        </div>
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">{data.name}</h1>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+            data.work_mode === "commission" ? "bg-purple-100 text-purple-700" : "bg-orange-100 text-orange-700"
+          }`}>
+            {data.work_mode === "commission" ? "Comisión" : "Arriendo"}
+          </span>
+        </div>
+      </div>
+
+      {/* Basic info */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+        <h2 className="font-bold text-gray-800">Datos Personales</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Nombre</label>
+            <input type="text" value={data.name} onChange={(e) => setData({ ...data, name: e.target.value })}
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Email</label>
+            <input type="email" value={data.email || ""} onChange={(e) => setData({ ...data, email: e.target.value })}
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Teléfono</label>
+            <input type="text" value={data.phone || ""} onChange={(e) => setData({ ...data, phone: e.target.value })}
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">PIN Personal (Standby)</label>
+            <input type="text" value={data.personal_pin || ""} maxLength={4}
+              onChange={(e) => setData({ ...data, personal_pin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
+              className="w-full border rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest" />
+          </div>
+        </div>
+      </div>
+
+      {/* Work mode selector */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+        <h2 className="font-bold text-gray-800">Modalidad de Trabajo</h2>
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => setData({ ...data, work_mode: "commission" })}
+            className={`p-4 rounded-xl border-2 text-left transition-all ${
+              data.work_mode === "commission"
+                ? "border-purple-500 bg-purple-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <p className="font-bold text-gray-900">Comisión</p>
+            <p className="text-xs text-gray-500 mt-1">Porcentaje por cada servicio realizado</p>
+          </button>
+          <button
+            onClick={() => setData({ ...data, work_mode: "rental" })}
+            className={`p-4 rounded-xl border-2 text-left transition-all ${
+              data.work_mode === "rental"
+                ? "border-orange-500 bg-orange-50"
+                : "border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            <p className="font-bold text-gray-900">Arriendo</p>
+            <p className="text-xs text-gray-500 mt-1">Monto fijo por día trabajado</p>
+          </button>
+        </div>
+      </div>
+
+      {/* Commission settings */}
+      {data.work_mode === "commission" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+          <h2 className="font-bold text-gray-800">Configuración Comisión</h2>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Porcentaje de comisión (%)</label>
+            <input type="number" min="0" max="100" value={data.commission_rate || 40}
+              onChange={(e) => setData({ ...data, commission_rate: parseInt(e.target.value) || 0 })}
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+            <p className="text-xs text-gray-400 mt-1">El profesional recibe este % de cada venta que realice</p>
+          </div>
+        </div>
+      )}
+
+      {/* Rental settings */}
+      {data.work_mode === "rental" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+          <h2 className="font-bold text-gray-800">Configuración Arriendo</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Valor día ($)</label>
+              <input type="number" min="0" step="1000" value={data.rental_daily_rate || 29000}
+                onChange={(e) => setData({ ...data, rental_daily_rate: parseInt(e.target.value) || 0 })}
+                className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Descuentos fijos (aseo, consumibles)</label>
+              <input type="number" min="0" step="1000" value={data.rental_deductions || 0}
+                onChange={(e) => setData({ ...data, rental_deductions: parseInt(e.target.value) || 0 })}
+                className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Mínimo días/semana</label>
+              <input type="number" min="1" max="7" value={data.rental_min_days || 5}
+                onChange={(e) => setData({ ...data, rental_min_days: parseInt(e.target.value) || 5 })}
+                className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Máximo días/semana</label>
+              <input type="number" min="1" max="7" value={data.rental_max_days || 6}
+                onChange={(e) => setData({ ...data, rental_max_days: parseInt(e.target.value) || 6 })}
+                className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Notas / Observaciones</label>
+            <textarea value={data.rental_notes || ""} rows={2}
+              onChange={(e) => setData({ ...data, rental_notes: e.target.value })}
+              placeholder="Ej: caso especial, acuerdo diferente..."
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+
+          {/* Preview calculation */}
+          <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+            <p className="text-xs text-orange-600 uppercase font-medium mb-2">Simulación mensual</p>
+            <div className="grid grid-cols-2 gap-2 text-sm">
+              <span className="text-gray-600">Días trabajados (mes):</span>
+              <span className="font-medium text-right">{(data.rental_min_days || 5) * 4} días</span>
+              <span className="text-gray-600">Valor día:</span>
+              <span className="font-medium text-right">{formatCurrency(data.rental_daily_rate || 0)}</span>
+              <span className="text-gray-600">Subtotal:</span>
+              <span className="font-medium text-right">{formatCurrency((data.rental_min_days || 5) * 4 * (data.rental_daily_rate || 0))}</span>
+              <span className="text-gray-600">Descuentos:</span>
+              <span className="font-medium text-right text-red-600">-{formatCurrency(data.rental_deductions || 0)}</span>
+              <span className="text-gray-900 font-bold border-t pt-1">Total a cobrar:</span>
+              <span className="font-bold text-right text-orange-700 border-t pt-1">
+                {formatCurrency((data.rental_min_days || 5) * 4 * (data.rental_daily_rate || 0) - (data.rental_deductions || 0))}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Save */}
+      <button onClick={save} disabled={saving}
+        className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-[0.98]">
+        {saving ? "Guardando..." : "Guardar Cambios"}
+      </button>
+    </div>
+  );
+}
