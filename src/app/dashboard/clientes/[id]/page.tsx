@@ -75,6 +75,9 @@ export default function ClienteDetailPage() {
   const [notes, setNotes] = useState<Array<{ id: string; note: string; pinned: boolean; created_at: string; created_by_profile: { name: string } | null }>>([]);
   const [newNote, setNewNote] = useState("");
   const [pinNote, setPinNote] = useState(false);
+  const [photos, setPhotos] = useState<Array<{ id: string; url: string; caption: string | null; created_at: string; barber: { name: string } | null }>>([]);
+  const [uploading, setUploading] = useState(false);
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   useEffect(() => {
     if (params.id) {
@@ -85,6 +88,9 @@ export default function ClienteDetailPage() {
       fetch(`/api/clients/${params.id}/notes`)
         .then((r) => r.json())
         .then((n) => setNotes(Array.isArray(n) ? n : []));
+      fetch(`/api/clients/${params.id}/photos`)
+        .then((r) => r.json())
+        .then((p) => setPhotos(Array.isArray(p) ? p : []));
     }
   }, [params.id]);
 
@@ -104,6 +110,35 @@ export default function ClienteDetailPage() {
   const deleteNote = async (noteId: string) => {
     await fetch(`/api/clients/${params.id}/notes?noteId=${noteId}`, { method: "DELETE" });
     setNotes(notes.filter((n) => n.id !== noteId));
+  };
+
+  const uploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("caption", "");
+    try {
+      const res = await fetch(`/api/clients/${params.id}/photos`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const photosRes = await fetch(`/api/clients/${params.id}/photos`);
+        setPhotos(await photosRes.json());
+      }
+    } catch (err) {
+      console.error("Error subiendo foto:", err);
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const deletePhoto = async (photoId: string) => {
+    await fetch(`/api/clients/${params.id}/photos?photoId=${photoId}`, { method: "DELETE" });
+    setPhotos(photos.filter((p) => p.id !== photoId));
   };
 
   if (loading) return <Spinner />;
@@ -211,6 +246,52 @@ export default function ClienteDetailPage() {
         </div>
       )}
 
+      {/* Photos of cuts */}
+      <div className="bg-white rounded-lg shadow">
+        <div className="p-4 border-b flex items-center justify-between">
+          <div>
+            <h3 className="font-bold text-gray-800">Fotos de Cortes</h3>
+            <p className="text-xs text-gray-400">Referencia visual del estilo del cliente</p>
+          </div>
+          <label className={`px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 cursor-pointer ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+            {uploading ? "Subiendo..." : "📷 Subir Foto"}
+            <input type="file" accept="image/*" capture="environment" onChange={uploadPhoto} className="hidden" />
+          </label>
+        </div>
+        <div className="p-4">
+          {photos.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-gray-400 text-4xl mb-2">📸</p>
+              <p className="text-gray-400 text-sm">Sin fotos de cortes</p>
+              <p className="text-gray-400 text-xs">Sube una foto despues de cada atencion para tener referencia</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {photos.map((photo) => (
+                <div key={photo.id} className="relative group">
+                  <img
+                    src={photo.url}
+                    alt={photo.caption || "Corte"}
+                    onClick={() => setLightboxUrl(photo.url)}
+                    className="w-full h-32 object-cover rounded-xl cursor-pointer hover:opacity-90 transition-opacity"
+                  />
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/60 to-transparent rounded-b-xl p-2">
+                    <p className="text-[10px] text-white">
+                      {new Date(photo.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+                      {photo.barber?.name && ` · ${photo.barber.name}`}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => deletePhoto(photo.id)}
+                    className="absolute top-1 right-1 w-6 h-6 bg-red-500 text-white rounded-full text-xs opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  >✕</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Two columns: appointments & transactions */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
 
@@ -316,6 +397,14 @@ export default function ClienteDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div className="fixed inset-0 bg-black/80 z-50 flex items-center justify-center p-4" onClick={() => setLightboxUrl(null)}>
+          <img src={lightboxUrl} alt="Corte" className="max-w-full max-h-[90vh] rounded-xl shadow-2xl" />
+          <button onClick={() => setLightboxUrl(null)} className="absolute top-4 right-4 text-white text-2xl hover:text-gray-300">✕</button>
+        </div>
+      )}
     </div>
   );
 }
