@@ -20,6 +20,7 @@ interface Professional {
   rental_notes: string | null;
   personal_pin: string | null;
   active: boolean;
+  avatar_url: string | null;
 }
 
 export default function EditProfessionalPage() {
@@ -28,6 +29,7 @@ export default function EditProfessionalPage() {
   const [data, setData] = useState<Professional | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { showToast } = useToast();
 
   useEffect(() => {
@@ -65,6 +67,39 @@ export default function EditProfessionalPage() {
     }
   };
 
+  const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !data) return;
+    setUploadingAvatar(true);
+    const formData = new FormData();
+    formData.append("file", file);
+    try {
+      const res = await fetch(`/api/barberos/${params.id}/avatar`, {
+        method: "POST",
+        body: formData,
+      });
+      if (res.ok) {
+        const result = await res.json();
+        setData({ ...data, avatar_url: result.url });
+        showToast("Foto de perfil actualizada", "success");
+      } else {
+        showToast("Error al subir foto", "error");
+      }
+    } catch {
+      showToast("Error al subir foto", "error");
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeAvatar = async () => {
+    if (!data) return;
+    await fetch(`/api/barberos/${params.id}/avatar`, { method: "DELETE" });
+    setData({ ...data, avatar_url: null });
+    showToast("Foto eliminada", "success");
+  };
+
   if (loading) return <Spinner />;
   if (!data) return <p className="p-6 text-center text-gray-500">Profesional no encontrado</p>;
 
@@ -73,8 +108,25 @@ export default function EditProfessionalPage() {
       <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-blue-600">← Volver</button>
 
       <div className="flex items-center gap-4">
-        <div className="w-14 h-14 rounded-full bg-indigo-100 flex items-center justify-center text-xl font-bold text-indigo-600">
-          {data.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+        <div className="relative group">
+          {data.avatar_url ? (
+            <img src={data.avatar_url} alt={data.name}
+              className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200" />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center text-xl font-bold text-indigo-600">
+              {data.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+            </div>
+          )}
+          <label className={`absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${uploadingAvatar ? "opacity-100" : ""}`}>
+            <span className="text-white text-xs font-medium">{uploadingAvatar ? "..." : "📷"}</span>
+            <input type="file" accept="image/*" onChange={uploadAvatar} className="hidden" disabled={uploadingAvatar} />
+          </label>
+          {data.avatar_url && (
+            <button onClick={removeAvatar}
+              className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              ✕
+            </button>
+          )}
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">{data.name}</h1>

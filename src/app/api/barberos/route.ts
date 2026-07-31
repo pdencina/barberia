@@ -6,7 +6,7 @@ export async function GET() {
   const supabase = createAdminSupabase();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, name, email, phone")
+    .select("id, name, email, phone, avatar_url")
     .eq("role", "barber")
     .eq("active", true)
     .order("name");

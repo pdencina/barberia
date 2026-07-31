@@ -9,6 +9,7 @@ interface Barber {
   name: string;
   email: string;
   phone: string;
+  avatar_url: string | null;
 }
 
 export default function BarberosPage() {
@@ -72,7 +73,18 @@ export default function BarberosPage() {
               <tr><td colSpan={3} className="p-4 text-center text-gray-500">No hay profesionales</td></tr>
             ) : barbers.map((b) => (
               <tr key={b.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => window.location.href = `/dashboard/barberos/${b.id}`}>
-                <td className="p-4 font-medium text-blue-600">{b.name}</td>
+                <td className="p-4 font-medium text-blue-600">
+                  <div className="flex items-center gap-3">
+                    {b.avatar_url ? (
+                      <img src={b.avatar_url} alt={b.name} className="w-8 h-8 rounded-full object-cover" />
+                    ) : (
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600">
+                        {b.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                      </div>
+                    )}
+                    {b.name}
+                  </div>
+                </td>
                 <td className="p-4">{b.email || "-"}</td>
                 <td className="p-4">{b.phone || "-"}</td>
               </tr>
