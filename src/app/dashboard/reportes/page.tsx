@@ -9,11 +9,14 @@ interface ReportData {
     totalIncome: number;
     totalExpenses: number;
     netProfit: number;
+    incomeCommission: number;
+    incomeRental: number;
+    salonNetIncome: number;
     totalTransactions: number;
     appointmentsCompleted: number;
     newClients: number;
   };
-  incomeByBarber: Array<{ name: string; total: number; count: number }>;
+  incomeByBarber: Array<{ name: string; total: number; count: number; workMode: string }>;
   incomeByMethod: Array<{ method: string; total: number; count: number }>;
   topServices: Array<{ name: string; count: number; total: number }>;
   topProducts: Array<{ name: string; count: number; total: number }>;
@@ -106,25 +109,40 @@ export default function ReportesPage() {
       </div>
 
       {/* Stat Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-2xl shadow-lg shadow-green-500/20 p-4 text-white">
+          <p className="text-xs opacity-80">Ingreso Total</p>
+          <p className="text-xl font-bold">{formatCurrency(data.summary.totalIncome)}</p>
+        </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs text-gray-500">Ingresos</p>
-          <p className="text-lg font-bold text-green-600">{formatCurrency(data.summary.totalIncome)}</p>
+          <p className="text-xs text-gray-500">Ingresos Comisión</p>
+          <p className="text-lg font-bold text-purple-600">{formatCurrency(data.summary.incomeCommission)}</p>
+          <p className="text-[10px] text-gray-400">Ingresa al salón</p>
+        </div>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+          <p className="text-xs text-gray-500">Ingresos Arriendo</p>
+          <p className="text-lg font-bold text-orange-600">{formatCurrency(data.summary.incomeRental)}</p>
+          <p className="text-[10px] text-gray-400">No ingresa al salón</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Egresos</p>
           <p className="text-lg font-bold text-red-600">{formatCurrency(data.summary.totalExpenses)}</p>
         </div>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs text-gray-500">Utilidad</p>
-          <p className="text-lg font-bold text-indigo-600">{formatCurrency(data.summary.netProfit)}</p>
+      </div>
+
+      {/* Second row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-2xl shadow-lg shadow-indigo-500/20 p-4 text-white">
+          <p className="text-xs opacity-80">Utilidad Salón</p>
+          <p className="text-xl font-bold">{formatCurrency(data.summary.salonNetIncome)}</p>
+          <p className="text-[10px] opacity-60">Comisión - Egresos</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Transacciones</p>
           <p className="text-lg font-bold text-gray-900">{data.summary.totalTransactions}</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
-          <p className="text-xs text-gray-500">Citas</p>
+          <p className="text-xs text-gray-500">Citas Completadas</p>
           <p className="text-lg font-bold text-gray-900">{data.summary.appointmentsCompleted}</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
@@ -164,11 +182,12 @@ export default function ReportesPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Income by Barber */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-          <h3 className="font-bold text-gray-800 p-4 border-b">Ingresos por Barbero</h3>
+          <h3 className="font-bold text-gray-800 p-4 border-b">Ingresos por Profesional</h3>
           <table className="w-full text-sm">
             <thead className="bg-gray-50 border-b">
               <tr>
-                <th className="text-left p-3 font-medium text-gray-600">Barbero</th>
+                <th className="text-left p-3 font-medium text-gray-600">Profesional</th>
+                <th className="text-center p-3 font-medium text-gray-600">Modo</th>
                 <th className="text-right p-3 font-medium text-gray-600">Total</th>
               </tr>
             </thead>
@@ -176,6 +195,13 @@ export default function ReportesPage() {
               {data.incomeByBarber?.map((row, i) => (
                 <tr key={i}>
                   <td className="p-3">{row.name}</td>
+                  <td className="p-3 text-center">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${
+                      row.workMode === "rental" ? "bg-orange-100 text-orange-700" : "bg-purple-100 text-purple-700"
+                    }`}>
+                      {row.workMode === "rental" ? "Arriendo" : "Comisión"}
+                    </span>
+                  </td>
                   <td className="p-3 text-right font-medium">{formatCurrency(row.total)}</td>
                 </tr>
               ))}

@@ -64,16 +64,31 @@ export async function GET(req: NextRequest) {
     barberMap[t.barber_id].count++;
   }
 
-  // Get barber names
+  // Get barber names and work mode
   const barberIds = Object.keys(barberMap);
-  let barberNames: Record<string, string> = {};
+  let barberProfiles: Record<string, { name: string; work_mode: string }> = {};
   if (barberIds.length > 0) {
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, name")
+      .select("id, name, work_mode")
       .in("id", barberIds);
-    barberNames = Object.fromEntries((profiles || []).map((p) => [p.id, p.name]));
+    barberProfiles = Object.fromEntries((profiles || []).map((p) => [p.id, { name: p.name, work_mode: p.work_mode || "commission" }]));
   }
+
+  // Separate income by work mode
+  let incomeCommission = 0;
+  let incomeRental = 0;
+  for (const [id, v] of Object.entries(barberMap)) {
+    const mode = barberProfiles[id]?.work_mode || "commission";
+    if (mode === "rental") {
+      incomeRental += v.total;
+    } else {
+      incomeCommission += v.total;
+    }
+  }
+  // Add transactions without barber to commission (house sales)
+  const noBarberIncome = (incomeTx || []).filter((t) => !t.barber_id).reduce((s, t) => s + Number(t.total), 0);
+  incomeCommission += noBarberIncome;
 
   // Top services (from transaction_items via transactions)
   const { data: serviceItems } = await supabase
@@ -107,6 +122,9 @@ export async function GET(req: NextRequest) {
       totalIncome,
       totalExpenses,
       netProfit: totalIncome - totalExpenses,
+      incomeCommission,
+      incomeRental,
+      salonNetIncome: incomeCommission - totalExpenses, // lo que queda para la barberia
       totalTransactions: (incomeTx?.length || 0) + (expenseTx?.length || 0),
       appointmentsCompleted: appointmentsCompleted || 0,
       newClients: newClients || 0,
@@ -123,7 +141,9 @@ export async function GET(req: NextRequest) {
       .sort((a, b) => b.total - a.total)
       .slice(0, 10),
     incomeByBarber: Object.entries(barberMap).map(([id, v]) => ({
-      name: barberNames[id] || "Desconocido", ...v,
+      name: barberProfiles[id]?.name || "Desconocido",
+      workMode: barberProfiles[id]?.work_mode || "commission",
+      ...v,
     })),
   });
 }
