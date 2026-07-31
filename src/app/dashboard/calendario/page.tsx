@@ -183,6 +183,36 @@ export default function CalendarioPage() {
     setDragging(false);
   };
 
+  // Touch handlers for mobile drag-to-create
+  const touchRef = useRef<{ barberId: string; startY: number; el: HTMLElement } | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent, barberId: string) => {
+    if ((e.target as HTMLElement).closest("[data-appointment]")) return;
+    const touch = e.touches[0];
+    const rect = e.currentTarget.getBoundingClientRect();
+    const y = touch.clientY - rect.top;
+    touchRef.current = { barberId, startY: y, el: e.currentTarget as HTMLElement };
+    setDragging(true);
+    setDragBarberId(barberId);
+    setDragStartY(y);
+    setDragEndY(y);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchRef.current) return;
+    e.preventDefault(); // Prevent scroll while dragging
+    const touch = e.touches[0];
+    const rect = touchRef.current.el.getBoundingClientRect();
+    const y = Math.max(0, touch.clientY - rect.top);
+    setDragEndY(y);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchRef.current) { setDragging(false); return; }
+    handleMouseUp(); // Reuse same logic
+    touchRef.current = null;
+  };
+
   // Create appointment from popup
   const handleCreate = async () => {
     setCreating(true);
@@ -311,11 +341,14 @@ export default function CalendarioPage() {
                 return (
                   <div
                     key={barber.id}
-                    className="flex-1 relative border-r border-gray-50 min-w-[120px] select-none"
+                    className="flex-1 relative border-r border-gray-50 min-w-[120px] select-none touch-none"
                     onMouseDown={(e) => handleMouseDown(e, barber.id)}
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
                     onMouseLeave={() => { if (dragging) handleMouseUp(); }}
+                    onTouchStart={(e) => handleTouchStart(e, barber.id)}
+                    onTouchMove={(e) => handleTouchMove(e)}
+                    onTouchEnd={handleTouchEnd}
                     onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; 
                       const rect = e.currentTarget.getBoundingClientRect();
                       setDropIndicator({ barberId: barber.id, y: e.clientY - rect.top });
@@ -516,6 +549,37 @@ export default function CalendarioPage() {
         </div>
       )}
 
+      {/* Mobile FAB: Quick add appointment */}
+      {!showPopup && (
+        <button
+          onClick={() => {
+            const now = new Date();
+            const h = now.getHours();
+            const m = Math.ceil(now.getMinutes() / 15) * 15;
+            const startTime = `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}`;
+            const endM = h * 60 + m + 45;
+            const endTime = `${Math.floor(endM / 60).toString().padStart(2, "0")}:${(endM % 60).toString().padStart(2, "0")}`;
+            setPopupData({
+              barberId: barbers[0]?.id || "",
+              startTime,
+              endTime,
+              barberName: barbers[0]?.name || "",
+            });
+            setPopupPosition("right");
+            setShowPopup(true);
+            setPopupTab("service");
+            setSelectedService("");
+            setSelectedClient("");
+            setClientSearch("");
+            setEventName("");
+            setEventNotes("");
+          }}
+          className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-600/30 flex items-center justify-center text-2xl z-40 active:scale-95"
+        >
+          +
+        </button>
+      )}
+
       {/* Google Calendar style popup - positioned beside the selection */}
       {showPopup && (
         <div className="fixed inset-0 z-50" onClick={() => setShowPopup(false)}>
@@ -545,17 +609,21 @@ export default function CalendarioPage() {
 
             {/* Content */}
             <div className="p-4 space-y-4">
-              {/* Time display */}
+              {/* Time display - editable */}
               <div className="flex items-center gap-3 text-sm text-gray-600">
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <span>
                   {new Date(date + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
-                  <span className="font-bold text-gray-900 ml-3">{formatTime12(popupData.startTime)}</span>
-                  <span className="mx-2">–</span>
-                  <span className="font-bold text-gray-900">{formatTime12(popupData.endTime)}</span>
                 </span>
+                <input type="time" value={popupData.startTime}
+                  onChange={(e) => setPopupData({ ...popupData, startTime: e.target.value })}
+                  className="border rounded-lg px-2 py-1 text-sm font-bold text-gray-900 w-24" />
+                <span>–</span>
+                <input type="time" value={popupData.endTime}
+                  onChange={(e) => setPopupData({ ...popupData, endTime: e.target.value })}
+                  className="border rounded-lg px-2 py-1 text-sm font-bold text-gray-900 w-24" />
               </div>
 
               {/* Barber */}
@@ -563,7 +631,18 @@ export default function CalendarioPage() {
                 <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
                 </svg>
-                <span className="font-medium text-gray-900">{popupData.barberName}</span>
+                <select
+                  value={popupData.barberId}
+                  onChange={(e) => {
+                    const b = barbers.find((br) => br.id === e.target.value);
+                    setPopupData({ ...popupData, barberId: e.target.value, barberName: b?.name || "" });
+                  }}
+                  className="border rounded-lg px-2 py-1 text-sm font-medium text-gray-900"
+                >
+                  {barbers.map((b) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  ))}
+                </select>
               </div>
 
               {popupTab === "service" ? (
