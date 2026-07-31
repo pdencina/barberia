@@ -242,7 +242,7 @@ export default function StandbyPage() {
           <span className="text-3xl font-bold text-gray-900">{formatCurrency(total)}</span>
         </div>
         <button onClick={handleSale}
-          disabled={selectedServices.length === 0 || processing || (paymentMethod === "cash" && cashReceived && parseInt(cashReceived) < total)}
+          disabled={selectedServices.length === 0 || processing || (paymentMethod === "cash" && !!cashReceived && parseInt(cashReceived) < total)}
           className="w-full py-4 bg-green-600 text-white font-bold text-lg rounded-xl hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 shadow-lg shadow-green-600/20">
           {processing ? "Procesando..." : "Registrar Venta"}
         </button>
