@@ -2,7 +2,7 @@
 
 import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import { TypeAnimation } from "react-type-animation";
-import { useRef } from "react";
+import { useRef, useEffect } from "react";
 import Link from "next/link";
 
 // Animated section wrapper
@@ -31,6 +31,22 @@ export default function LandingPage() {
   const { scrollYProgress } = useScroll({ target: heroRef, offset: ["start start", "end start"] });
   const heroY = useTransform(scrollYProgress, [0, 1], [0, 150]);
   const heroOpacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
+
+  // Spotlight effect: track mouse position on feature cards
+  useEffect(() => {
+    const handleMouse = (e: MouseEvent) => {
+      const cards = document.querySelectorAll<HTMLElement>(".group");
+      cards.forEach((card) => {
+        const rect = card.getBoundingClientRect();
+        const x = ((e.clientX - rect.left) / rect.width) * 100;
+        const y = ((e.clientY - rect.top) / rect.height) * 100;
+        card.style.setProperty("--mouse-x", `${x}%`);
+        card.style.setProperty("--mouse-y", `${y}%`);
+      });
+    };
+    window.addEventListener("mousemove", handleMouse);
+    return () => window.removeEventListener("mousemove", handleMouse);
+  }, []);
 
   return (
     <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
@@ -157,35 +173,44 @@ export default function LandingPage() {
             className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
           >
             {[
-              { icon: "📅", title: "Agenda inteligente", desc: "Calendario drag & drop con vista por profesional. Crea citas arrastrando, mueve con un click.", gradient: "from-blue-500 to-blue-600" },
-              { icon: "💳", title: "Punto de Venta", desc: "Cobra con tarjeta, efectivo, transferencia o pagos mixtos. Boleta automatica por email.", gradient: "from-violet-500 to-purple-600" },
-              { icon: "📊", title: "Reportes financieros", desc: "Ingresos separados por comision vs arriendo. Utilidad real del salon en tiempo real.", gradient: "from-emerald-500 to-green-600" },
-              { icon: "👥", title: "Ficha del cliente", desc: "Historial completo, fotos de cortes, servicios favoritos, notas internas del equipo.", gradient: "from-orange-500 to-amber-600" },
-              { icon: "🔔", title: "Recordatorios", desc: "Notificaciones automaticas por email 24h antes de cada cita. Reduce no-shows.", gradient: "from-rose-500 to-pink-600" },
-              { icon: "📱", title: "100% Movil", desc: "PWA instalable. Los barberos gestionan su agenda desde el celular como una app nativa.", gradient: "from-cyan-500 to-teal-600" },
-              { icon: "🏷️", title: "Cupones y descuentos", desc: "Crea codigos de descuento, autoriza descuentos manuales con PIN de admin.", gradient: "from-yellow-500 to-orange-600" },
-              { icon: "⭐", title: "Reviews y ranking", desc: "Cada cliente califica su atencion. Ranking interno de profesionales.", gradient: "from-indigo-500 to-blue-600" },
-              { icon: "📦", title: "Inventario", desc: "Control de stock, alertas de bajo inventario, movimientos automaticos al vender.", gradient: "from-slate-500 to-gray-700" },
+              { icon: "📅", title: "Agenda inteligente", desc: "Calendario drag & drop con vista por profesional. Crea citas arrastrando, mueve con un click.", gradient: "from-blue-500 to-blue-600", glow: "shadow-blue-500/40" },
+              { icon: "💳", title: "Punto de Venta", desc: "Cobra con tarjeta, efectivo, transferencia o pagos mixtos. Boleta automatica por email.", gradient: "from-violet-500 to-purple-600", glow: "shadow-purple-500/40" },
+              { icon: "📊", title: "Reportes financieros", desc: "Ingresos separados por comision vs arriendo. Utilidad real del salon en tiempo real.", gradient: "from-emerald-500 to-green-600", glow: "shadow-green-500/40" },
+              { icon: "👥", title: "Ficha del cliente", desc: "Historial completo, fotos de cortes, servicios favoritos, notas internas del equipo.", gradient: "from-orange-500 to-amber-600", glow: "shadow-orange-500/40" },
+              { icon: "🔔", title: "Recordatorios", desc: "Notificaciones automaticas por email 24h antes de cada cita. Reduce no-shows.", gradient: "from-rose-500 to-pink-600", glow: "shadow-pink-500/40" },
+              { icon: "📱", title: "100% Movil", desc: "PWA instalable. Los barberos gestionan su agenda desde el celular como una app nativa.", gradient: "from-cyan-500 to-teal-600", glow: "shadow-teal-500/40" },
+              { icon: "🏷️", title: "Cupones y descuentos", desc: "Crea codigos de descuento, autoriza descuentos manuales con PIN de admin.", gradient: "from-yellow-500 to-orange-600", glow: "shadow-yellow-500/40" },
+              { icon: "⭐", title: "Reviews y ranking", desc: "Cada cliente califica su atencion. Ranking interno de profesionales.", gradient: "from-indigo-500 to-blue-600", glow: "shadow-indigo-500/40" },
+              { icon: "📦", title: "Inventario", desc: "Control de stock, alertas de bajo inventario, movimientos automaticos al vender.", gradient: "from-slate-500 to-gray-700", glow: "shadow-gray-500/40" },
             ].map((feat) => (
               <motion.div
                 key={feat.title}
                 variants={fadeUp}
-                whileHover={{ y: -10, scale: 1.02, boxShadow: "0 25px 50px -12px rgba(37,99,235,0.15)" }}
+                whileHover={{ y: -12, scale: 1.03 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
-                className="group p-6 bg-white rounded-2xl border border-gray-100 hover:border-blue-200 cursor-default relative overflow-hidden"
+                className="group relative p-[1px] rounded-2xl bg-gradient-to-br from-gray-200 via-gray-100 to-gray-200 hover:from-blue-400 hover:via-blue-200 hover:to-purple-400 transition-all duration-500 cursor-default"
               >
-                {/* Hover gradient overlay */}
-                <div className="absolute inset-0 bg-gradient-to-br from-blue-50/0 to-blue-50/0 group-hover:from-blue-50/50 group-hover:to-white transition-all duration-500" />
-                <div className="relative">
-                  <motion.div whileHover={{ rotate: [0, -10, 10, 0], scale: 1.1 }} transition={{ duration: 0.5 }}
-                    className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feat.gradient} flex items-center justify-center text-2xl shadow-lg`}>
-                    {feat.icon}
-                  </motion.div>
-                  <h3 className="mt-5 text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">{feat.title}</h3>
-                  <p className="mt-2 text-sm text-gray-600 leading-relaxed">{feat.desc}</p>
-                  <motion.div initial={{ opacity: 0, x: -10 }} whileInView={{ opacity: 1, x: 0 }} className="mt-4 text-blue-600 text-sm font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    Explorar →
-                  </motion.div>
+                {/* Inner card */}
+                <div className="relative p-6 bg-white rounded-[15px] h-full overflow-hidden">
+                  {/* Spotlight effect */}
+                  <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 bg-[radial-gradient(600px_circle_at_var(--mouse-x,50%)_var(--mouse-y,0%),rgba(37,99,235,0.06),transparent_40%)]" />
+
+                  <div className="relative">
+                    {/* Icon with glow */}
+                    <motion.div whileHover={{ rotate: [0, -8, 8, -4, 0], scale: 1.15 }} transition={{ duration: 0.5 }}
+                      className={`w-14 h-14 rounded-2xl bg-gradient-to-br ${feat.gradient} flex items-center justify-center text-2xl shadow-xl ${feat.glow} group-hover:shadow-2xl transition-shadow duration-300`}>
+                      {feat.icon}
+                    </motion.div>
+
+                    <h3 className="mt-5 text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors duration-300">{feat.title}</h3>
+                    <p className="mt-2 text-sm text-gray-500 leading-relaxed group-hover:text-gray-600 transition-colors">{feat.desc}</p>
+
+                    {/* Animated arrow */}
+                    <div className="mt-4 flex items-center gap-1 text-blue-600 text-sm font-medium opacity-0 group-hover:opacity-100 transform translate-x-[-8px] group-hover:translate-x-0 transition-all duration-300">
+                      Explorar
+                      <motion.span animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>→</motion.span>
+                    </div>
+                  </div>
                 </div>
               </motion.div>
             ))}
