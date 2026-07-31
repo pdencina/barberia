@@ -51,6 +51,11 @@ export default function POSPage() {
   const [discount, setDiscount] = useState(0);
   const [couponError, setCouponError] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
+  const [splitMode, setSplitMode] = useState(false);
+  const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: string }>>([
+    { method: "debit_card", amount: "" },
+    { method: "cash", amount: "" },
+  ]);
   const [processing, setProcessing] = useState(false);
   const { showToast } = useToast();
 
@@ -120,9 +125,21 @@ export default function POSPage() {
   };
 
   const handleCheckout = async () => {
-    if (!selectedBarber || cart.length === 0 || !paymentMethod) return;
+    // Validate based on mode
+    if (!selectedBarber || cart.length === 0) return;
+    if (splitMode) {
+      const splitTotal = splitPayments.reduce((s, p) => s + (parseInt(p.amount) || 0), 0);
+      if (splitTotal !== total) return;
+    } else {
+      if (!paymentMethod) return;
+    }
+
     setProcessing(true);
     try {
+      const payments = splitMode
+        ? splitPayments.filter((p) => parseInt(p.amount) > 0).map((p) => ({ method: p.method, amount: parseInt(p.amount) }))
+        : undefined;
+
       const res = await fetch("/api/pos/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -130,7 +147,8 @@ export default function POSPage() {
           barberId: selectedBarber,
           clientId: selectedClient || null,
           items: cart,
-          paymentMethod,
+          paymentMethod: splitMode ? "mixed" : paymentMethod,
+          payments,
           couponCode: couponCode || null,
           discount,
           subtotal,
@@ -142,6 +160,8 @@ export default function POSPage() {
         setDiscount(0);
         setCouponCode("");
         setPaymentMethod("");
+        setSplitMode(false);
+        setSplitPayments([{ method: "debit_card", amount: "" }, { method: "cash", amount: "" }]);
         setSelectedClient("");
         showToast("Venta registrada exitosamente", "success");
       }
@@ -329,30 +349,90 @@ export default function POSPage() {
           </div>
 
           {/* Payment Methods */}
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { key: "cash", label: "Efectivo" },
-              { key: "debit_card", label: "Debito" },
-              { key: "credit_card", label: "Credito" },
-              { key: "transfer", label: "Transfer" },
-            ].map((m) => (
-              <button
-                key={m.key}
-                onClick={() => setPaymentMethod(m.key)}
-                className={`py-2 rounded-lg text-sm font-medium ${
-                  paymentMethod === m.key
-                    ? "bg-indigo-600 text-white"
-                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                }`}
-              >
-                {m.label}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-xs text-gray-500 font-medium">Metodo de pago</span>
+              <button onClick={() => setSplitMode(!splitMode)}
+                className={`text-[10px] px-2 py-0.5 rounded-full ${splitMode ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-500"}`}>
+                {splitMode ? "Pago dividido ✓" : "Dividir pago"}
               </button>
-            ))}
+            </div>
+
+            {!splitMode ? (
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { key: "cash", label: "Efectivo" },
+                  { key: "debit_card", label: "Debito" },
+                  { key: "credit_card", label: "Credito" },
+                  { key: "transfer", label: "Transfer" },
+                ].map((m) => (
+                  <button
+                    key={m.key}
+                    onClick={() => setPaymentMethod(m.key)}
+                    className={`py-2 rounded-lg text-sm font-medium ${
+                      paymentMethod === m.key
+                        ? "bg-indigo-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {splitPayments.map((sp, i) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <select value={sp.method}
+                      onChange={(e) => {
+                        const updated = [...splitPayments];
+                        updated[i].method = e.target.value;
+                        setSplitPayments(updated);
+                      }}
+                      className="border rounded-lg px-2 py-1.5 text-sm flex-1">
+                      <option value="cash">Efectivo</option>
+                      <option value="debit_card">Debito</option>
+                      <option value="credit_card">Credito</option>
+                      <option value="transfer">Transfer</option>
+                    </select>
+                    <input type="number" placeholder="$" value={sp.amount}
+                      onChange={(e) => {
+                        const updated = [...splitPayments];
+                        updated[i].amount = e.target.value;
+                        setSplitPayments(updated);
+                      }}
+                      className="border rounded-lg px-2 py-1.5 text-sm w-24 text-right" />
+                    {splitPayments.length > 2 && (
+                      <button onClick={() => setSplitPayments(splitPayments.filter((_, idx) => idx !== i))}
+                        className="text-red-400 text-xs">✕</button>
+                    )}
+                  </div>
+                ))}
+                {splitPayments.length < 4 && (
+                  <button onClick={() => setSplitPayments([...splitPayments, { method: "cash", amount: "" }])}
+                    className="text-xs text-blue-600 hover:underline">+ Agregar metodo</button>
+                )}
+                {(() => {
+                  const splitTotal = splitPayments.reduce((s, p) => s + (parseInt(p.amount) || 0), 0);
+                  const diff = total - splitTotal;
+                  return diff !== 0 ? (
+                    <p className={`text-xs ${diff > 0 ? "text-red-500" : "text-orange-500"}`}>
+                      {diff > 0 ? `Faltan ${formatCurrency(diff)}` : `Excede en ${formatCurrency(Math.abs(diff))}`}
+                    </p>
+                  ) : <p className="text-xs text-green-600 font-medium">✓ Pago cuadra</p>;
+                })()}
+              </div>
+            )}
           </div>
 
           <button
             onClick={handleCheckout}
-            disabled={!selectedBarber || cart.length === 0 || !paymentMethod || processing}
+            disabled={
+              !selectedBarber || cart.length === 0 || processing ||
+              (splitMode
+                ? splitPayments.reduce((s, p) => s + (parseInt(p.amount) || 0), 0) !== total
+                : !paymentMethod)
+            }
             className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {processing ? "Procesando..." : "Cobrar"}
