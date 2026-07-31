@@ -47,6 +47,7 @@ export default function CalendarioPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [blocks, setBlocks] = useState<Array<{ id: string; barber_id: string; date: string; all_day: boolean; start_time: string | null; end_time: string | null; reason: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
@@ -85,14 +86,23 @@ export default function CalendarioPage() {
   }, []);
 
   useEffect(() => {
-    fetchAppointments();
-  }, [date]);
+    if (barbers.length > 0) fetchAppointments();
+  }, [date, barbers]);
 
   const fetchAppointments = async () => {
     setLoading(true);
     const res = await fetch(`/api/appointments?date=${date}`);
     const data = await res.json();
     setAppointments(Array.isArray(data) ? data : []);
+
+    // Fetch blocks for all barbers on this date
+    const month = date.slice(0, 7); // YYYY-MM
+    const blocksPromises = barbers.map((b) =>
+      fetch(`/api/barber/blocks?barberId=${b.id}&month=${month}`).then((r) => r.json())
+    );
+    const allBlocks = (await Promise.all(blocksPromises)).flat();
+    // Filter to current date
+    setBlocks(allBlocks.filter((bl: any) => bl.date === date));
     setLoading(false);
   };
 
@@ -455,6 +465,47 @@ export default function CalendarioPage() {
                           }}
                         ><div className="w-8 h-1 rounded-full bg-current opacity-40" /></div>
                       </div>
+                      );
+                    })}
+
+                    {/* Schedule blocks */}
+                    {blocks.filter((bl) => bl.barber_id === barber.id).map((block) => {
+                      let top = 0, height = (END_HOUR - START_HOUR) * HOUR_HEIGHT;
+                      if (!block.all_day && block.start_time && block.end_time) {
+                        const sm = block.start_time.match(/(\d{2}):(\d{2})/);
+                        const em = block.end_time.match(/(\d{2}):(\d{2})/);
+                        if (sm && em) {
+                          const startMin = parseInt(sm[1]) * 60 + parseInt(sm[2]);
+                          const endMin = parseInt(em[1]) * 60 + parseInt(em[2]);
+                          top = ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                          height = ((endMin - startMin) / 60) * HOUR_HEIGHT;
+                        }
+                      }
+                      return (
+                        <div
+                          key={block.id}
+                          className="absolute left-1 right-1 rounded-md bg-gray-200/80 border border-gray-300 border-dashed px-1.5 py-1 overflow-hidden z-[5] group"
+                          style={{ top: `${top}px`, height: `${Math.max(height, 24)}px` }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            showToast(`Bloqueo: ${block.reason || "Sin motivo"}`, "info");
+                          }}
+                        >
+                          <p className="text-[10px] font-medium text-gray-600 truncate">🚫 {block.reason || "Bloqueo"}</p>
+                          {!block.all_day && block.start_time && block.end_time && (
+                            <p className="text-[9px] text-gray-500">{block.start_time?.slice(0,5)} – {block.end_time?.slice(0,5)}</p>
+                          )}
+                          {block.all_day && <p className="text-[9px] text-gray-500">Todo el dia</p>}
+                          <button
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              await fetch(`/api/barber/blocks?id=${block.id}`, { method: "DELETE" });
+                              showToast("Bloqueo eliminado", "success");
+                              await fetchAppointments();
+                            }}
+                            className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[8px] opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                          >✕</button>
+                        </div>
                       );
                     })}
                   </div>
