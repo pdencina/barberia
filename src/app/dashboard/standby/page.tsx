@@ -160,7 +160,7 @@ export default function StandbyPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold text-gray-900">Standby</h1>
-          <p className="text-sm text-gray-500">{barber.name}</p>
+          <p className="text-sm text-gray-500">{barber?.name}</p>
         </div>
         <div className="text-right">
           <p className="text-[10px] text-gray-400 uppercase">En caja</p>
