@@ -135,5 +135,51 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: true, transactionId: tx.id });
+  // Auto-send receipt if client has email
+  if (clientId) {
+    try {
+      const { data: client } = await supabase
+        .from("clients")
+        .select("email, name")
+        .eq("id", clientId)
+        .single();
+
+      if (client?.email) {
+        const { sendReceipt } = await import("@/lib/resend");
+        const { data: barber } = await supabase
+          .from("profiles")
+          .select("name")
+          .eq("id", barberId)
+          .single();
+
+        await sendReceipt({
+          to: client.email,
+          clientName: client.name || "Cliente",
+          transactionId: tx.id,
+          items: items.map((item: any) => ({
+            description: item.name,
+            quantity: item.quantity,
+            unitPrice: item.price,
+            total: item.price * item.quantity,
+          })),
+          subtotal,
+          discount: discount || 0,
+          total,
+          paymentMethod: primaryMethod,
+          date: new Date(),
+          barberName: barber?.name || "EstudioLevels",
+        });
+
+        await supabase
+          .from("transactions")
+          .update({ receipt_sent: true, receipt_email: client.email })
+          .eq("id", tx.id);
+      }
+    } catch (e) {
+      // Don't fail checkout if email fails
+      console.error("Error enviando boleta:", e);
+    }
+  }
+
+  return NextResponse.json({ success: true, transactionId: tx.id, receiptSent: !!clientId });
 }

@@ -190,6 +190,7 @@ export default function POSPage() {
         }),
       });
       if (res.ok) {
+        const result = await res.json();
         setCart([]);
         setDiscount(0);
         setCouponCode("");
@@ -197,7 +198,10 @@ export default function POSPage() {
         setSplitMode(false);
         setSplitPayments([{ method: "debit_card", amount: "" }, { method: "cash", amount: "" }]);
         setSelectedClient("");
-        showToast("Venta registrada exitosamente", "success");
+        showToast(
+          result.receiptSent ? "Venta registrada - Boleta enviada al email" : "Venta registrada exitosamente",
+          "success"
+        );
       }
     } catch (err) {
       console.error("Error en checkout:", err);
