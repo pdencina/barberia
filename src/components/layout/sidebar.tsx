@@ -51,6 +51,7 @@ const sections: NavSection[] = [
     items: [
       { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign },
       { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap },
+      { name: "Arriendo", href: "/dashboard/arriendo", icon: Zap },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3 },
       { name: "Boletas", href: "/dashboard/boletas", icon: Receipt },
       { name: "Facturas", href: "/dashboard/facturas", icon: Receipt },
