@@ -3,9 +3,17 @@
 import { AuthProvider } from "@/lib/auth-context";
 import { ProtectedRoute } from "@/components/layout/protected-route";
 
-export function AuthWrapper({ children }: { children: React.ReactNode }) {
+interface AuthWrapperProps {
+  children: React.ReactNode;
+  serverRole?: string;
+  serverUserId?: string;
+  serverEmail?: string;
+  serverName?: string;
+}
+
+export function AuthWrapper({ children, serverRole, serverUserId, serverEmail, serverName }: AuthWrapperProps) {
   return (
-    <AuthProvider>
+    <AuthProvider serverRole={serverRole} serverUserId={serverUserId} serverEmail={serverEmail} serverName={serverName}>
       <ProtectedRoute>
         {children}
       </ProtectedRoute>

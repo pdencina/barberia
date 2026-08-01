@@ -28,7 +28,12 @@ export default async function DashboardLayout({
 
   return (
     <ToastWrapper>
-      <AuthWrapper>
+      <AuthWrapper
+        serverRole={profile?.role || "admin"}
+        serverUserId={user.id}
+        serverEmail={user.email || ""}
+        serverName={profile?.name || user.email || ""}
+      >
         <div className="flex h-screen">
           <Sidebar userName={profile?.name || user.email || ""} userRole={profile?.role || "barber"} />
           <main className="flex-1 overflow-y-auto bg-gray-50 pt-[4.5rem] lg:pt-0">

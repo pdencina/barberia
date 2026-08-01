@@ -25,13 +25,12 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
 
     // Logged in but no access to this route → redirect based on role
     if (!canAccess(pathname)) {
-      if (user.role === "barber") {
-        router.replace("/dashboard/calendario");
-      } else if (user.role === "client") {
+      if (user.role === "client" && pathname.startsWith("/dashboard")) {
         router.replace("/booking");
-      } else {
-        router.replace("/dashboard");
+      } else if (user.role === "barber") {
+        router.replace("/dashboard/calendario");
       }
+      // admins/super_admins always have access to /dashboard, so no redirect needed
     }
   }, [user, loading, pathname]);
 

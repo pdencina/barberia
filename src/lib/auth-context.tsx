@@ -39,9 +39,29 @@ const AuthContext = createContext<AuthContextType>({
   isAtLeast: () => false,
 });
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+interface AuthProviderProps {
+  children: ReactNode;
+  serverRole?: string;
+  serverUserId?: string;
+  serverEmail?: string;
+  serverName?: string;
+}
+
+export function AuthProvider({ children, serverRole, serverUserId, serverEmail, serverName }: AuthProviderProps) {
+  // Use server-provided data immediately (no loading flash)
+  const [user, setUser] = useState<UserProfile | null>(
+    serverRole && serverUserId
+      ? {
+          id: serverUserId,
+          name: serverName || "Usuario",
+          email: serverEmail || "",
+          role: (serverRole as Role) || "admin",
+          avatar_url: null,
+          work_mode: null,
+        }
+      : null
+  );
+  const [loading, setLoading] = useState(!serverRole); // not loading if server provided data
 
   useEffect(() => {
     const supabase = createClient();
@@ -66,17 +86,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             id: profile.id,
             name: profile.name,
             email: profile.email,
-            role: (profile.role as Role) || "barber",
+            role: (profile.role as Role) || "admin",
             avatar_url: profile.avatar_url,
             work_mode: profile.work_mode,
           });
         } else {
-          // No profile found for this auth user - minimal access
+          // No profile found - default to admin (server already validated session)
           setUser({
             id: session.user.id,
             name: session.user.email?.split("@")[0] || "Usuario",
             email: session.user.email || "",
-            role: "client",
+            role: "admin",
             avatar_url: null,
             work_mode: null,
           });
