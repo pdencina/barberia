@@ -121,9 +121,22 @@ export default function BookingPage() {
   return (
     <div className="min-h-screen bg-gray-950 text-white">
       {/* Header */}
-      <div className="border-b border-gray-800 py-4 px-6 text-center">
-        <img src="/logo.png" alt="EstudioLevels" className="h-10 mx-auto" />
-        <p className="text-xs text-red-500 uppercase tracking-widest mt-2">Agendar Hora</p>
+      <div className="border-b border-gray-800 py-4 px-6 flex items-center justify-between">
+        <div className="flex-1" />
+        <div className="text-center">
+          <img src="/logo.png" alt="EstudioLevels" className="h-10 mx-auto" />
+          <p className="text-xs text-red-500 uppercase tracking-widest mt-2">Agendar Hora</p>
+        </div>
+        <div className="flex-1 flex justify-end">
+          <button onClick={async () => {
+            const { createClient } = await import("@/lib/supabase/client");
+            const supabase = createClient();
+            await supabase.auth.signOut();
+            window.location.href = "/login";
+          }} className="text-xs text-gray-500 hover:text-white transition-colors px-2 py-1 rounded">
+            Salir
+          </button>
+        </div>
       </div>
 
       <div className="max-w-2xl mx-auto px-4 py-8">
