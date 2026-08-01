@@ -186,6 +186,41 @@ export default function CalendarioPage() {
   // Touch handlers for mobile drag-to-create (long-press to activate)
   const touchRef = useRef<{ barberId: string; startY: number; startX: number; el: HTMLElement; activated: boolean } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const gridContainerRef = useRef<HTMLDivElement>(null);
+
+  // Register non-passive touchmove to allow preventDefault when dragging
+  useEffect(() => {
+    const el = gridContainerRef.current;
+    if (!el) return;
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!touchRef.current) return;
+
+      const touch = e.touches[0];
+
+      // If not activated yet, check if finger moved too much (= scrolling, cancel)
+      if (!touchRef.current.activated) {
+        const dx = Math.abs(touch.clientX - touchRef.current.startX);
+        const rect = touchRef.current.el.getBoundingClientRect();
+        const dy = Math.abs(touch.clientY - rect.top - touchRef.current.startY);
+        if (dx > 10 || dy > 15) {
+          if (longPressTimer.current) clearTimeout(longPressTimer.current);
+          touchRef.current = null;
+        }
+        return; // Not activated, allow scroll
+      }
+
+      // Activated: BLOCK scroll and update drag
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = touchRef.current.el.getBoundingClientRect();
+      const y = Math.max(0, touch.clientY - rect.top);
+      setDragEndY(y);
+    };
+
+    el.addEventListener("touchmove", onTouchMove, { passive: false });
+    return () => el.removeEventListener("touchmove", onTouchMove);
+  });
 
   const handleTouchStart = (e: React.TouchEvent, barberId: string) => {
     if ((e.target as HTMLElement).closest("[data-appointment]")) return;
@@ -202,34 +237,8 @@ export default function CalendarioPage() {
       setDragBarberId(barberId);
       setDragStartY(y);
       setDragEndY(y);
-      // Haptic feedback if available
       if (navigator.vibrate) navigator.vibrate(30);
     }, 400);
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (!touchRef.current) return;
-    const touch = e.touches[0];
-
-    // If not activated yet, check if finger moved too much (= scrolling, cancel)
-    if (!touchRef.current.activated) {
-      const dx = Math.abs(touch.clientX - touchRef.current.startX);
-      const rect = touchRef.current.el.getBoundingClientRect();
-      const dy = Math.abs(touch.clientY - rect.top - touchRef.current.startY);
-      if (dx > 10 || dy > 15) {
-        // User is scrolling, cancel long-press
-        if (longPressTimer.current) clearTimeout(longPressTimer.current);
-        touchRef.current = null;
-        return;
-      }
-      return; // Not activated, don't prevent scroll
-    }
-
-    // Activated: prevent scroll and update drag
-    e.preventDefault();
-    const rect = touchRef.current.el.getBoundingClientRect();
-    const y = Math.max(0, touch.clientY - rect.top);
-    setDragEndY(y);
   };
 
   const handleTouchEnd = () => {
@@ -239,7 +248,7 @@ export default function CalendarioPage() {
       setDragging(false);
       return;
     }
-    handleMouseUp(); // Reuse same logic
+    handleMouseUp();
     touchRef.current = null;
   };
 
@@ -352,7 +361,7 @@ export default function CalendarioPage() {
             </div>
 
             {/* Time grid */}
-            <div className="relative flex" ref={gridRef}>
+            <div className="relative flex" ref={(el) => { (gridRef as any).current = el; (gridContainerRef as any).current = el; }}>
               {/* Time labels */}
               <div className="w-14 flex-shrink-0 border-r border-gray-100">
                 {hours.map((h) => (
@@ -377,7 +386,6 @@ export default function CalendarioPage() {
                     onMouseUp={handleMouseUp}
                     onMouseLeave={() => { if (dragging) handleMouseUp(); }}
                     onTouchStart={(e) => handleTouchStart(e, barber.id)}
-                    onTouchMove={(e) => handleTouchMove(e)}
                     onTouchEnd={handleTouchEnd}
                     onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; 
                       const rect = e.currentTarget.getBoundingClientRect();
