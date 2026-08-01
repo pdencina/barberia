@@ -183,32 +183,62 @@ export default function CalendarioPage() {
     setDragging(false);
   };
 
-  // Touch handlers for mobile drag-to-create
-  const touchRef = useRef<{ barberId: string; startY: number; el: HTMLElement } | null>(null);
+  // Touch handlers for mobile drag-to-create (long-press to activate)
+  const touchRef = useRef<{ barberId: string; startY: number; startX: number; el: HTMLElement; activated: boolean } | null>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleTouchStart = (e: React.TouchEvent, barberId: string) => {
     if ((e.target as HTMLElement).closest("[data-appointment]")) return;
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
     const y = touch.clientY - rect.top;
-    touchRef.current = { barberId, startY: y, el: e.currentTarget as HTMLElement };
-    setDragging(true);
-    setDragBarberId(barberId);
-    setDragStartY(y);
-    setDragEndY(y);
+    touchRef.current = { barberId, startY: y, startX: touch.clientX, el: e.currentTarget as HTMLElement, activated: false };
+
+    // Start long-press timer (400ms hold = activate create mode)
+    longPressTimer.current = setTimeout(() => {
+      if (!touchRef.current) return;
+      touchRef.current.activated = true;
+      setDragging(true);
+      setDragBarberId(barberId);
+      setDragStartY(y);
+      setDragEndY(y);
+      // Haptic feedback if available
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 400);
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (!touchRef.current) return;
-    e.preventDefault(); // Prevent scroll while dragging
     const touch = e.touches[0];
+
+    // If not activated yet, check if finger moved too much (= scrolling, cancel)
+    if (!touchRef.current.activated) {
+      const dx = Math.abs(touch.clientX - touchRef.current.startX);
+      const rect = touchRef.current.el.getBoundingClientRect();
+      const dy = Math.abs(touch.clientY - rect.top - touchRef.current.startY);
+      if (dx > 10 || dy > 15) {
+        // User is scrolling, cancel long-press
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+        touchRef.current = null;
+        return;
+      }
+      return; // Not activated, don't prevent scroll
+    }
+
+    // Activated: prevent scroll and update drag
+    e.preventDefault();
     const rect = touchRef.current.el.getBoundingClientRect();
     const y = Math.max(0, touch.clientY - rect.top);
     setDragEndY(y);
   };
 
   const handleTouchEnd = () => {
-    if (!touchRef.current) { setDragging(false); return; }
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    if (!touchRef.current || !touchRef.current.activated) {
+      touchRef.current = null;
+      setDragging(false);
+      return;
+    }
     handleMouseUp(); // Reuse same logic
     touchRef.current = null;
   };
@@ -341,7 +371,7 @@ export default function CalendarioPage() {
                 return (
                   <div
                     key={barber.id}
-                    className="flex-1 relative border-r border-gray-50 min-w-[120px] select-none touch-none"
+                    className="flex-1 relative border-r border-gray-50 min-w-[120px] select-none"
                     onMouseDown={(e) => handleMouseDown(e, barber.id)}
                     onMouseMove={handleMouseMove}
                     onMouseUp={handleMouseUp}
