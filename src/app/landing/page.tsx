@@ -2,7 +2,7 @@
 
 import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import { TypeAnimation } from "react-type-animation";
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import Link from "next/link";
 
 // Animated section wrapper
@@ -48,6 +48,8 @@ export default function LandingPage() {
     return () => window.removeEventListener("mousemove", handleMouse);
   }, []);
 
+  const [mobileMenu, setMobileMenu] = useState(false);
+
   return (
     <div className="min-h-screen bg-white text-gray-900 overflow-x-hidden">
       {/* Nav */}
@@ -57,14 +59,14 @@ export default function LandingPage() {
         transition={{ duration: 0.6, ease: "easeOut" }}
         className="fixed top-0 left-0 right-0 z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100"
       >
-        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <motion.svg whileHover={{ rotate: 360 }} transition={{ duration: 0.6 }} className="w-8 h-8 text-blue-600" viewBox="0 0 32 32" fill="none">
+            <motion.svg whileHover={{ rotate: 360 }} transition={{ duration: 0.6 }} className="w-7 h-7 md:w-8 md:h-8 text-blue-600" viewBox="0 0 32 32" fill="none">
               <path d="M16 4a12 12 0 0 1 12 12h-4a8 8 0 0 0-8-8V4z" fill="currentColor"/>
               <path d="M28 16a12 12 0 0 1-12 12v-4a8 8 0 0 0 8-8h4z" fill="currentColor" opacity="0.7"/>
               <path d="M16 28A12 12 0 0 1 4 16h4a8 8 0 0 0 8 8v4z" fill="currentColor" opacity="0.4"/>
             </motion.svg>
-            <span className="text-xl font-bold text-gray-900">re-booking</span>
+            <span className="text-lg md:text-xl font-bold text-gray-900">re-booking</span>
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-600">
             <a href="#funciones" className="hover:text-blue-600 transition-colors">Funciones</a>
@@ -74,27 +76,62 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-sm text-gray-600 hover:text-blue-600 hidden md:block">Iniciar Sesion</Link>
             <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              href="#contacto" className="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-full hover:bg-blue-700 shadow-lg shadow-blue-600/25">
+              href="#contacto" className="hidden md:inline-flex px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-full hover:bg-blue-700 shadow-lg shadow-blue-600/25">
               Agenda una demo
             </motion.a>
+            {/* Mobile hamburger */}
+            <button onClick={() => setMobileMenu(!mobileMenu)} className="md:hidden p-2 text-gray-700">
+              {mobileMenu ? (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              )}
+            </button>
           </div>
         </div>
+
+        {/* Mobile menu dropdown */}
+        {mobileMenu && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="md:hidden bg-white border-t border-gray-100 px-4 py-4 space-y-1"
+          >
+            <a href="#funciones" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-blue-600 font-medium">Funciones</a>
+            <a href="#precios" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-blue-600 font-medium">Precios</a>
+            <a href="#testimonios" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-blue-600 font-medium">Testimonios</a>
+            <a href="#contacto" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-blue-600 font-medium">Contacto</a>
+            <div className="pt-3 border-t border-gray-100 space-y-2">
+              <Link href="/login" className="block w-full text-center py-3 border border-blue-600 text-blue-600 font-semibold rounded-full hover:bg-blue-50">
+                Iniciar Sesion
+              </Link>
+              <a href="#contacto" onClick={() => setMobileMenu(false)} className="block w-full text-center py-3 bg-blue-600 text-white font-semibold rounded-full">
+                Agenda una demo
+              </a>
+            </div>
+          </motion.div>
+        )}
       </motion.nav>
 
       {/* Hero with parallax */}
-      <section ref={heroRef} className="pt-32 pb-20 md:pt-44 md:pb-32 relative min-h-screen flex items-center">
+      <section ref={heroRef} className="pt-24 pb-16 md:pt-44 md:pb-32 relative min-h-[90vh] md:min-h-screen flex items-center">
         <div className="absolute inset-0 bg-gradient-to-b from-blue-50/50 to-white pointer-events-none" />
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[800px] bg-blue-400/10 rounded-full blur-3xl" />
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] md:w-[800px] h-[600px] md:h-[800px] bg-blue-400/10 rounded-full blur-3xl" />
 
-        {/* Animated floating shapes */}
+        {/* Animated floating shapes - hidden on mobile */}
         <motion.div animate={{ y: [0, -20, 0], rotate: [0, 5, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-32 left-[8%] w-20 h-20 bg-gradient-to-br from-blue-200 to-blue-300 rounded-2xl opacity-40" />
+          className="hidden md:block absolute top-32 left-[8%] w-20 h-20 bg-gradient-to-br from-blue-200 to-blue-300 rounded-2xl opacity-40" />
         <motion.div animate={{ y: [0, 15, 0], rotate: [0, -8, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-48 right-[10%] w-14 h-14 bg-gradient-to-br from-indigo-200 to-purple-200 rounded-full opacity-50" />
+          className="hidden md:block absolute top-48 right-[10%] w-14 h-14 bg-gradient-to-br from-indigo-200 to-purple-200 rounded-full opacity-50" />
         <motion.div animate={{ y: [0, -12, 0], x: [0, 8, 0] }} transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-32 left-[12%] w-10 h-10 bg-gradient-to-br from-cyan-200 to-blue-200 rounded-lg opacity-40 rotate-45" />
+          className="hidden md:block absolute bottom-32 left-[12%] w-10 h-10 bg-gradient-to-br from-cyan-200 to-blue-200 rounded-lg opacity-40 rotate-45" />
         <motion.div animate={{ scale: [1, 1.2, 1], opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-40 right-[18%] w-8 h-8 bg-blue-400 rounded-full" />
+          className="hidden md:block absolute bottom-40 right-[18%] w-8 h-8 bg-blue-400 rounded-full" />
 
         <motion.div style={{ y: heroY, opacity: heroOpacity }} className="relative max-w-7xl mx-auto px-6 w-full">
           <div className="max-w-4xl mx-auto text-center">
@@ -105,7 +142,7 @@ export default function LandingPage() {
             </motion.div>
 
             <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2 }}
-              className="text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1]">
+              className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1]">
               Gestiona. Reserva.
               <br />
               <span className="text-blue-600">
@@ -119,13 +156,13 @@ export default function LandingPage() {
             </motion.h1>
 
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.4 }}
-              className="mt-6 text-lg md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed">
+              className="mt-4 md:mt-6 text-base md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed px-2">
               El sistema de gestion todo en uno para agendar, atender y fidelizar clientes.
               Diseñado para barberias y salones que quieren crecer.
             </motion.p>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.6 }}
-              className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+              className="mt-8 md:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
               <motion.a whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(37,99,235,0.3)" }} whileTap={{ scale: 0.95 }}
                 href="#contacto" className="px-8 py-4 bg-blue-600 text-white font-semibold rounded-full transition-colors hover:bg-blue-700">
                 Comenzar gratis
@@ -367,7 +404,7 @@ export default function LandingPage() {
                 className="absolute -bottom-10 -left-10 w-40 h-40 border border-white/10 rounded-full" />
               <div className="relative">
                 <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-                  className="text-3xl md:text-5xl font-bold">Agenda tu demo gratuita</motion.h2>
+                  className="text-2xl md:text-3xl lg:text-5xl font-bold">Agenda tu demo gratuita</motion.h2>
                 <p className="mt-4 text-blue-200 text-lg max-w-xl mx-auto">
                   En 15 minutos te mostramos como re-booking puede transformar tu barberia.
                 </p>
