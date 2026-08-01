@@ -44,6 +44,11 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
   // If no user after loading, show nothing (redirect is happening)
   if (!user) return null;
 
+  // Client role should never see dashboard
+  if (user.role === "client" && pathname.startsWith("/dashboard")) {
+    return null; // redirect happening via useEffect
+  }
+
   // If no access, show restriction message briefly
   if (!canAccess(pathname)) {
     return (
