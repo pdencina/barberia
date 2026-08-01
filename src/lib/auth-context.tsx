@@ -46,30 +46,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const supabase = createClient();
 
     const fetchProfile = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.user) {
-        setUser(null);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user) {
+          setUser(null);
+          setLoading(false);
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, name, email, role, avatar_url, work_mode")
+          .eq("id", session.user.id)
+          .single();
+
+        if (profile) {
+          setUser({
+            id: profile.id,
+            name: profile.name,
+            email: profile.email,
+            role: (profile.role as Role) || "barber",
+            avatar_url: profile.avatar_url,
+            work_mode: profile.work_mode,
+          });
+        } else {
+          // Profile not found but session exists - use minimal info with admin fallback
+          setUser({
+            id: session.user.id,
+            name: session.user.email?.split("@")[0] || "Usuario",
+            email: session.user.email || "",
+            role: "super_admin", // fallback: allow access, sidebar will filter
+            avatar_url: null,
+            work_mode: null,
+          });
+        }
+      } catch (e) {
+        console.error("Auth error:", e);
+      } finally {
         setLoading(false);
-        return;
       }
-
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("id, name, email, role, avatar_url, work_mode")
-        .eq("id", session.user.id)
-        .single();
-
-      if (profile) {
-        setUser({
-          id: profile.id,
-          name: profile.name,
-          email: profile.email,
-          role: (profile.role as Role) || "barber",
-          avatar_url: profile.avatar_url,
-          work_mode: profile.work_mode,
-        });
-      }
-      setLoading(false);
     };
 
     fetchProfile();

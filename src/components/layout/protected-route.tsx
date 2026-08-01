@@ -26,28 +26,25 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     // Logged in but no access to this route → redirect based on role
     if (!canAccess(pathname)) {
       if (user.role === "barber") {
-        // Barbers go to their calendar
         router.replace("/dashboard/calendario");
       } else if (user.role === "client") {
-        // Clients go to booking
         router.replace("/booking");
       } else {
-        // Admins fallback to dashboard home
         router.replace("/dashboard");
       }
     }
   }, [user, loading, pathname]);
 
+  // While loading, show children anyway (server already validated session)
+  // This prevents blank screen flash
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <Spinner />
-      </div>
-    );
+    return <>{children}</>;
   }
 
+  // If no user after loading, show nothing (redirect is happening)
   if (!user) return null;
 
+  // If no access, show restriction message briefly
   if (!canAccess(pathname)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">

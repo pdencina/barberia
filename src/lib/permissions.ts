@@ -80,9 +80,9 @@ export function canAccessRoute(role: Role, pathname: string): boolean {
   const perms = ROLE_PERMISSIONS[role];
   if (!perms) return false;
 
-  // super_admin has "/dashboard" which matches everything
   return perms.routes.some((route) => {
-    if (route === "/dashboard" && role === "super_admin") return pathname.startsWith("/dashboard");
+    // "/dashboard" as a listed route means access to ALL dashboard routes for that role
+    if (route === "/dashboard") return pathname.startsWith("/dashboard");
     return pathname === route || pathname.startsWith(route + "/");
   });
 }
