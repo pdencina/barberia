@@ -71,15 +71,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             work_mode: profile.work_mode,
           });
         } else {
-          // Profile not found but session exists - use minimal info with admin fallback
-          setUser({
-            id: session.user.id,
-            name: session.user.email?.split("@")[0] || "Usuario",
-            email: session.user.email || "",
-            role: "super_admin", // fallback: allow access, sidebar will filter
-            avatar_url: null,
-            work_mode: null,
-          });
+          // Profile not found - try by email as fallback
+          const { data: profileByEmail } = await supabase
+            .from("profiles")
+            .select("id, name, email, role, avatar_url, work_mode")
+            .eq("email", session.user.email)
+            .single();
+
+          if (profileByEmail) {
+            setUser({
+              id: profileByEmail.id,
+              name: profileByEmail.name,
+              email: profileByEmail.email,
+              role: (profileByEmail.role as Role) || "barber",
+              avatar_url: profileByEmail.avatar_url,
+              work_mode: profileByEmail.work_mode,
+            });
+          } else {
+            // No profile at all - minimal access
+            setUser({
+              id: session.user.id,
+              name: session.user.email?.split("@")[0] || "Usuario",
+              email: session.user.email || "",
+              role: "barber", // fallback: minimal access
+              avatar_url: null,
+              work_mode: null,
+            });
+          }
         }
       } catch (e) {
         console.error("Auth error:", e);

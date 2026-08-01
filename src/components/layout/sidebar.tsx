@@ -100,15 +100,18 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const { isAtLeast } = useAuth();
+  const { isAtLeast, loading: authLoading, role: userAuthRole } = useAuth();
 
   // Filter sections based on role
-  const filteredSections = sections
-    .map((section) => ({
-      ...section,
-      items: section.items.filter((item) => isAtLeast(item.minRole)),
-    }))
-    .filter((section) => section.items.length > 0);
+  // While auth is loading, show minimal items to avoid flash
+  const filteredSections = authLoading
+    ? sections.map((s) => ({ ...s, items: s.items.slice(0, 1) })).slice(0, 2)
+    : sections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => isAtLeast(item.minRole)),
+        }))
+        .filter((section) => section.items.length > 0);
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
