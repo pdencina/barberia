@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useAuth } from "@/lib/auth-context";
+import { Role } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard, Wallet, DollarSign, ShoppingCart, Package, Users,
@@ -12,69 +14,76 @@ import {
   Heart, Bell, Zap, Image, Star, ChevronLeft, ChevronRight, ChevronDown,
 } from "lucide-react";
 
+interface NavItem {
+  name: string;
+  href: string;
+  icon: any;
+  minRole: Role; // minimum role required to see this item
+}
+
 interface NavSection {
   title: string;
-  items: Array<{ name: string; href: string; icon: any }>;
+  items: NavItem[];
 }
 
 const sections: NavSection[] = [
   {
     title: "Principal",
     items: [
-      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
-      { name: "Caja", href: "/dashboard/caja", icon: Wallet },
-      { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart },
-      { name: "Standby", href: "/dashboard/standby", icon: Zap },
+      { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, minRole: "admin" },
+      { name: "Caja", href: "/dashboard/caja", icon: Wallet, minRole: "admin" },
+      { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart, minRole: "admin" },
+      { name: "Standby", href: "/dashboard/standby", icon: Zap, minRole: "barber" },
     ],
   },
   {
     title: "Clientes",
     items: [
-      { name: "Clientes", href: "/dashboard/clientes", icon: Users },
-      { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star },
-      { name: "Retencion", href: "/dashboard/retencion", icon: Heart },
-      { name: "Lista Espera", href: "/dashboard/waitlist", icon: Users },
+      { name: "Clientes", href: "/dashboard/clientes", icon: Users, minRole: "barber" },
+      { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star, minRole: "admin" },
+      { name: "Retencion", href: "/dashboard/retencion", icon: Heart, minRole: "admin" },
+      { name: "Lista Espera", href: "/dashboard/waitlist", icon: Users, minRole: "admin" },
     ],
   },
   {
     title: "Agenda",
     items: [
-      { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck },
-      { name: "Agenda", href: "/dashboard/agenda", icon: Calendar },
-      { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays },
-      { name: "Recepcion", href: "/dashboard/recepcion", icon: Tablet },
-      { name: "Recordatorios", href: "/dashboard/recordatorios", icon: Bell },
+      { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck, minRole: "barber" },
+      { name: "Agenda", href: "/dashboard/agenda", icon: Calendar, minRole: "admin" },
+      { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays, minRole: "barber" },
+      { name: "Recepcion", href: "/dashboard/recepcion", icon: Tablet, minRole: "admin" },
+      { name: "Recordatorios", href: "/dashboard/recordatorios", icon: Bell, minRole: "admin" },
     ],
   },
   {
     title: "Finanzas",
     items: [
-      { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign },
-      { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap },
-      { name: "Arriendo", href: "/dashboard/arriendo", icon: Zap },
-      { name: "MercadoPago", href: "/dashboard/mercadopago", icon: CreditCard },
-      { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3 },
-      { name: "Boletas", href: "/dashboard/boletas", icon: Receipt },
-      { name: "Facturas", href: "/dashboard/facturas", icon: Receipt },
+      { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign, minRole: "admin" },
+      { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap, minRole: "barber" },
+      { name: "Arriendo", href: "/dashboard/arriendo", icon: Zap, minRole: "admin" },
+      { name: "MercadoPago", href: "/dashboard/mercadopago", icon: CreditCard, minRole: "admin" },
+      { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3, minRole: "admin" },
+      { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin" },
+      { name: "Facturas", href: "/dashboard/facturas", icon: Receipt, minRole: "admin" },
     ],
   },
   {
     title: "Catalogo",
     items: [
-      { name: "Servicios", href: "/dashboard/servicios", icon: Tag },
-      { name: "Inventario", href: "/dashboard/inventario", icon: Package },
-      { name: "Cupones", href: "/dashboard/cupones", icon: CreditCard },
-      { name: "Precios", href: "/dashboard/precios", icon: Tag },
-      { name: "Galeria", href: "/dashboard/galeria", icon: Image },
+      { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
+      { name: "Inventario", href: "/dashboard/inventario", icon: Package, minRole: "admin" },
+      { name: "Cupones", href: "/dashboard/cupones", icon: CreditCard, minRole: "admin" },
+      { name: "Precios", href: "/dashboard/precios", icon: Tag, minRole: "super_admin" },
+      { name: "Galeria", href: "/dashboard/galeria", icon: Image, minRole: "admin" },
     ],
   },
   {
     title: "Equipo",
     items: [
-      { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors },
-      { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin },
-      { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard },
-      { name: "Config", href: "/dashboard/configuracion", icon: Settings },
+      { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
+      { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "super_admin" },
+      { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "super_admin" },
+      { name: "Config", href: "/dashboard/configuracion", icon: Settings, minRole: "super_admin" },
     ],
   },
 ];
@@ -91,12 +100,21 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
+  const { isAtLeast } = useAuth();
+
+  // Filter sections based on role
+  const filteredSections = sections
+    .map((section) => ({
+      ...section,
+      items: section.items.filter((item) => isAtLeast(item.minRole)),
+    }))
+    .filter((section) => section.items.length > 0);
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
     if (saved === "true") setCollapsed(true);
     // Open section that contains active route
-    const active = sections.find((s) => s.items.some((i) => i.href === pathname));
+    const active = filteredSections.find((s) => s.items.some((i) => i.href === pathname));
     if (active) setOpenSections((prev) => ({ ...prev, [active.title]: true }));
   }, []);
 
@@ -117,14 +135,15 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
   };
 
   const roleLabel: Record<string, string> = {
+    super_admin: "Super Admin",
     admin: "Administrador",
-    barber: "Barbero",
+    barber: "Profesional",
     receptionist: "Recepcionista",
   };
 
   const renderNav = (showLabels: boolean) => (
     <nav className="flex-1 overflow-y-auto px-2 py-2">
-      {sections.map((section) => {
+      {filteredSections.map((section) => {
         const isOpen = openSections[section.title] !== false; // default open
         const hasActive = section.items.some((i) => i.href === pathname);
 
