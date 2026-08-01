@@ -1,5 +1,5 @@
 // Role-based access control configuration
-export type Role = "super_admin" | "admin" | "barber" | "client";
+export type Role = "super_admin" | "admin" | "barber" | "client" | "receptionist";
 
 export interface Permission {
   routes: string[]; // Allowed dashboard routes (prefix match)
@@ -71,6 +71,20 @@ export const ROLE_PERMISSIONS: Record<Role, Permission> = {
     ],
     features: [
       "booking", "portal_own",
+    ],
+  },
+  receptionist: {
+    routes: [
+      "/dashboard",
+      "/dashboard/pos",
+      "/dashboard/calendario",
+      "/dashboard/clientes",
+      "/dashboard/reservas",
+      "/dashboard/standby",
+      "/dashboard/caja",
+    ],
+    features: [
+      "pos", "calendar_all", "clients_all", "standby", "cash_register",
     ],
   },
 };

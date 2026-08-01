@@ -25,6 +25,7 @@ interface AuthContextType {
 const ROLE_HIERARCHY: Record<Role, number> = {
   client: 0,
   barber: 1,
+  receptionist: 2,
   admin: 2,
   super_admin: 3,
 };
