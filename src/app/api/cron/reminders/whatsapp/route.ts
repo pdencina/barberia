@@ -48,9 +48,9 @@ export async function GET(req: NextRequest) {
 
       const message = `Hola ${client?.name || ""}! Te recordamos tu cita de manana:\n\n` +
         `Servicio: ${services}\n` +
-        `Profesional: ${barber?.name || "EstudioLevels"}\n` +
+        `Profesional: ${barber?.name || "Tu profesional"}\n` +
         `Hora: ${time}\n\n` +
-        `Te esperamos en EstudioLevels!\n` +
+        `Te esperamos!\n` +
         `Si necesitas cancelar: 9 4266 6172`;
 
       return {

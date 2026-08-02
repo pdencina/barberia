@@ -11,7 +11,7 @@ export async function POST(req: NextRequest) {
   }
 
   webPush.setVapidDetails(
-    "mailto:admin@estudiolevels.com",
+    "mailto:no-reply@rebooking.cl",
     vapidPublic,
     vapidPrivate
   );

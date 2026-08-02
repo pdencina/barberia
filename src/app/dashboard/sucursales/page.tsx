@@ -108,7 +108,7 @@ export default function SucursalesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
                 <input type="text" required value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") })}
-                  placeholder="Ej: EstudioLevels Santiago Centro"
+                  placeholder="Ej: Mi Barberia Santiago Centro"
                   className="w-full border rounded-lg px-3 py-2" />
               </div>
               <div>

@@ -1,12 +1,12 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({ subsets: ["latin"] });
+const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], weight: ["400", "500", "600", "700", "800"] });
 
 export const metadata: Metadata = {
-  title: "EstudioLevels - Sistema de Gestion",
-  description: "Sistema de gestion integral para EstudioLevels Barberia. Agenda, POS, inventario, clientes y mas.",
+  title: "re-booking - Sistema de Gestion",
+  description: "Todo tu negocio. Un solo sistema. El software de gestion todo en uno para agendar, atender, fidelizar y hacer crecer tu negocio.",
   icons: { icon: "/logo.png" },
   viewport: "width=device-width, initial-scale=1, maximum-scale=1",
 };
@@ -22,11 +22,11 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/logo_black_512.png" />
         <link rel="apple-touch-icon" href="/logo_black_512.png" />
-        <meta name="theme-color" content="#111827" />
+        <meta name="theme-color" content="#1E88E5" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body className={inter.className}>{children}</body>
+      <body className={jakarta.className}>{children}</body>
     </html>
   );
 }

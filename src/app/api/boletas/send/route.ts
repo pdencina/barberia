@@ -43,7 +43,7 @@ export async function POST(req: NextRequest) {
       total: Number(tx.total),
       paymentMethod: tx.payment_method,
       date: new Date(tx.created_at),
-      barberName: tx.barber?.name || "EstudioLevels",
+      barberName: tx.barber?.name || "Tu profesional",
     });
 
     await supabase

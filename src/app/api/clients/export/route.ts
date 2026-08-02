@@ -24,7 +24,7 @@ export async function GET() {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="clientes-estudiolevels-${new Date().toISOString().split("T")[0]}.csv"`,
+      "Content-Disposition": `attachment; filename="clientes-rebooking-${new Date().toISOString().split("T")[0]}.csv"`,
     },
   });
 }

@@ -53,7 +53,7 @@ export default function DashboardPage() {
     <div className="p-4 md:p-6 space-y-5 animate-fade-in">
       <div>
         <h2 className="text-xl md:text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-sm text-gray-500">Resumen de EstudioLevels</p>
+        <p className="text-sm text-gray-500">Resumen general</p>
       </div>
 
       {/* KPI Cards */}

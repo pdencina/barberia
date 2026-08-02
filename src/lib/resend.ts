@@ -63,12 +63,12 @@ export async function sendReceipt(params: SendReceiptParams) {
   const html = `
 <!DOCTYPE html>
 <html>
-<head><meta charset="utf-8"><title>Boleta EstudioLevels</title></head>
+<head><meta charset="utf-8"><title>Boleta re-booking</title></head>
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
   <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
     <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e53e3e; padding-bottom: 20px;">
-      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic; letter-spacing: 1px;">Estudio+Levels</h1>
-      <p style="color: #e53e3e; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Barberia Premium en Puente Alto</p>
+      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic; letter-spacing: 1px;">re-booking</h1>
+      <p style="color: #2563eb; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Gestiona. Reserva. Repite el exito.</p>
     </div>
 
     <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -102,7 +102,7 @@ export async function sendReceipt(params: SendReceiptParams) {
         Califica tu atencion ★
       </a>
       <p style="color: #888; font-size: 13px; margin: 4px 0;">Gracias por tu preferencia!</p>
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">EstudioLevels | estudiolevels.com</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">re-booking | rebooking.cl</p>
     </div>
   </div>
 </body>
@@ -110,9 +110,9 @@ export async function sendReceipt(params: SendReceiptParams) {
 
   const resend = getResendClient();
   const { data, error } = await resend.emails.send({
-    from: process.env.EMAIL_FROM || "EstudioLevels <boletas@estudiolevels.com>",
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
     to,
-    subject: `Boleta EstudioLevels - ${new Date(date).toLocaleDateString("es-CL")}`,
+    subject: `Boleta re-booking - ${new Date(date).toLocaleDateString("es-CL")}`,
     html,
   });
 
@@ -155,8 +155,8 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
   <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
     <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #e53e3e; padding-bottom: 20px;">
-      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic;">Estudio+Levels</h1>
-      <p style="color: #e53e3e; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Cita Confirmada</p>
+      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic;">re-booking</h1>
+      <p style="color: #2563eb; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Cita Confirmada</p>
     </div>
 
     <p style="color: #ccc; font-size: 16px; margin-bottom: 20px;">Hola <strong style="color: #fff;">${clientName}</strong>, tu cita esta confirmada!</p>
@@ -180,8 +180,8 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 
     <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
       <p style="color: #888; font-size: 13px; margin: 4px 0;">Te esperamos!</p>
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">EstudioLevels | 1889 Juan de Dios Malebran, Puente Alto</p>
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">estudiolevels.com</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">re-booking | rebooking.cl</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">rebooking.cl</p>
     </div>
   </div>
 </body>
@@ -189,9 +189,9 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 
   const resend = getResendClient();
   await resend.emails.send({
-    from: process.env.EMAIL_FROM || "EstudioLevels <boletas@estudiolevels.com>",
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
     to,
-    subject: `Cita confirmada - ${serviceName} con ${barberName} | EstudioLevels`,
+    subject: `Cita confirmada - ${serviceName} con ${barberName} | re-booking`,
     html,
   });
 }
@@ -247,8 +247,7 @@ export async function sendRetentionEmail(params: SendRetentionEmailParams) {
     </div>
 
     <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">EstudioLevels | 1889 Juan de Dios Malebran, Puente Alto</p>
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">estudiolevels.com</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">re-booking | rebooking.cl</p>
     </div>
   </div>
 </body>
@@ -256,9 +255,9 @@ export async function sendRetentionEmail(params: SendRetentionEmailParams) {
 
   const resend = getResendClient();
   await resend.emails.send({
-    from: process.env.EMAIL_FROM || "EstudioLevels <boletas@estudiolevels.com>",
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
     to,
-    subject: `Te extrañamos ${clientName}! | EstudioLevels`,
+    subject: `Te extrañamos ${clientName}! | re-booking`,
     html,
   });
 }
@@ -319,7 +318,7 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
 
     <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
       <p style="color: #888; font-size: 13px; margin: 4px 0;">Te esperamos!</p>
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">EstudioLevels | 1889 Juan de Dios Malebran, Puente Alto</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">re-booking | rebooking.cl</p>
     </div>
   </div>
 </body>
@@ -327,9 +326,9 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
 
   const resend = getResendClient();
   await resend.emails.send({
-    from: process.env.EMAIL_FROM || "EstudioLevels <boletas@estudiolevels.com>",
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
     to,
-    subject: `Recordatorio: ${serviceName} manana a las ${timeStr} | EstudioLevels`,
+    subject: `Recordatorio: ${serviceName} manana a las ${timeStr} | re-booking`,
     html,
   });
 }

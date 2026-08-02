@@ -201,7 +201,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-gray-900 flex items-center px-4 gap-3">
         <button onClick={() => setMobileOpen(true)} className="text-white p-1"><Menu className="h-6 w-6" /></button>
-        <img src="/logo.png" alt="EstudioLevels" className="h-7 w-auto" />
+        <img src="/logo.png" alt="re-booking" className="h-7 w-auto" />
       </div>
 
       {/* Mobile overlay */}
@@ -213,7 +213,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex h-14 items-center justify-between px-4 border-b border-gray-800">
-          <img src="/logo.png" alt="EstudioLevels" className="h-8 w-auto" />
+          <img src="/logo.png" alt="re-booking" className="h-8 w-auto" />
           <button onClick={() => setMobileOpen(false)} className="text-gray-400 hover:text-white"><X className="h-5 w-5" /></button>
         </div>
         {renderNav(true)}
@@ -234,7 +234,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
         collapsed ? "w-14" : "w-56"
       )}>
         <div className={cn("flex h-12 items-center border-b border-gray-800", collapsed ? "justify-center" : "justify-between px-3")}>
-          {!collapsed && <img src="/logo.png" alt="EstudioLevels" className="h-7 w-auto" />}
+          {!collapsed && <img src="/logo.png" alt="re-booking" className="h-7 w-auto" />}
           <button onClick={toggleCollapse} className="text-gray-500 hover:text-white p-1 rounded hover:bg-gray-800">
             {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
           </button>

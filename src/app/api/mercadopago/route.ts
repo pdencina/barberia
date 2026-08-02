@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         },
         body: JSON.stringify({
           amount: Number(amount),
-          description: description || "Venta EstudioLevels",
+          description: description || "Venta re-booking",
           external_reference: externalReference || `pos-${Date.now()}`,
           print_on_terminal: true,
           additional_info: {

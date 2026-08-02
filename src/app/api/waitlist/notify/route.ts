@@ -21,7 +21,7 @@ export async function POST(req: NextRequest) {
     const phone = entry.client_phone.replace(/\D/g, "").replace(/^0/, "56");
     const whatsappPhone = phone.startsWith("56") ? phone : `56${phone}`;
 
-    const message = `Hola ${entry.client_name}! Se libero una hora en EstudioLevels para el ${new Date(entry.preferred_date).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}.\n\n` +
+    const message = `Hola ${entry.client_name}! Se libero una hora para el ${new Date(entry.preferred_date).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}.\n\n` +
       (entry.service ? `Servicio: ${(entry as any).service?.name}\n` : "") +
       (entry.barber ? `Barbero: ${(entry as any).barber?.name}\n` : "") +
       `\nAgenda aqui antes de que se ocupe: ${bookingUrl}/booking\n\n` +

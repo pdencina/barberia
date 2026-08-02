@@ -73,7 +73,7 @@ export async function GET(req: NextRequest) {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Cierre Mensual - ${monthNames[month-1]} ${year} - EstudioLevels</title>
+  <title>Cierre Mensual - ${monthNames[month-1]} ${year} - re-booking</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #1a1a1a; padding: 40px; max-width: 800px; margin: 0 auto; }
@@ -183,8 +183,8 @@ export async function GET(req: NextRequest) {
   </div>
 
   <div class="footer">
-    <p>EstudioLevels · Cierre Mensual ${monthNames[month-1]} ${year}</p>
-    <p>Documento generado automaticamente · estudiolevels.com</p>
+    <p>re-booking · Cierre Mensual ${monthNames[month-1]} ${year}</p>
+    <p>Documento generado automaticamente · rebooking.cl</p>
   </div>
 </body>
 </html>`;

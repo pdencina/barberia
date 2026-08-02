@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
       items,
       payer: {
         name: clientName,
-        email: clientEmail || "cliente@estudiolevels.com",
+        email: clientEmail || "cliente@rebooking.cl",
       },
       back_urls: {
         success: `${appUrl}/booking/payment-result?status=success&appointment=${appointmentId}`,
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
       auto_return: "approved",
       external_reference: appointmentId,
       notification_url: `${appUrl}/api/payments/webhook`,
-      statement_descriptor: "ESTUDIOLEVELS",
+      statement_descriptor: "REBOOKING",
     }),
   });
 

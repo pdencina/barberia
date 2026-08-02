@@ -43,7 +43,7 @@ export default function ReviewPage() {
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="EstudioLevels" className="h-10 mx-auto mb-4" />
+          <img src="/logo.png" alt="re-booking" className="h-10 mx-auto mb-4" />
         </div>
 
         {submitted ? (
@@ -62,7 +62,7 @@ export default function ReviewPage() {
         ) : (
           <div>
             <h1 className="text-2xl font-bold text-center mb-2">Como estuvo tu experiencia?</h1>
-            <p className="text-gray-400 text-center mb-8">Califica tu atencion en EstudioLevels</p>
+            <p className="text-gray-400 text-center mb-8">Califica tu atencion</p>
 
             {/* Star rating */}
             <div className="flex justify-center gap-2 mb-6">

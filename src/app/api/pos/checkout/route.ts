@@ -167,7 +167,7 @@ export async function POST(req: NextRequest) {
           total,
           paymentMethod: primaryMethod,
           date: new Date(),
-          barberName: barber?.name || "EstudioLevels",
+          barberName: barber?.name || "Tu profesional",
         });
 
         await supabase

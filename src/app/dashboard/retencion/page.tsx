@@ -118,7 +118,7 @@ export default function RetencionPage() {
                 if (data.links && data.links.length > 0) {
                   // Copy phone list + message to clipboard for WhatsApp Broadcast
                   const phones = data.links.map((l: any) => l.phone).join("\n");
-                  const msg = customMessage || "Te extrañamos en EstudioLevels! Agenda tu cita.";
+                  const msg = customMessage || "Te extrañamos! Agenda tu cita.";
                   const fullText = `MENSAJE:\n${msg}${selectedCoupon ? `\n\nCupon: ${selectedCoupon}` : ""}\n\n---\nDESTINATARIOS (${data.links.length}):\n${phones}`;
                   await navigator.clipboard.writeText(fullText);
                   showToast(`Lista de ${data.links.length} contactos copiada. Usa WhatsApp Broadcast para enviar.`, "success");
@@ -188,7 +188,7 @@ export default function RetencionPage() {
               type="text"
               value={customMessage}
               onChange={(e) => setCustomMessage(e.target.value)}
-              placeholder="Te extrañamos! Vuelve a EstudioLevels..."
+              placeholder="Te extrañamos! Vuelve pronto..."
               className="w-full border rounded-lg px-3 py-2 text-sm"
             />
           </div>

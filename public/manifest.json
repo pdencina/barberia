@@ -1,11 +1,11 @@
 {
-  "name": "EstudioLevels - Gestion",
-  "short_name": "EstudioLevels",
-  "description": "Sistema de gestion para EstudioLevels Barberia",
+  "name": "re-booking",
+  "short_name": "re-booking",
+  "description": "Todo tu negocio. Un solo sistema.",
   "start_url": "/dashboard",
   "display": "standalone",
-  "background_color": "#111827",
-  "theme_color": "#111827",
+  "background_color": "#FFFFFF",
+  "theme_color": "#1E88E5",
   "orientation": "portrait",
   "icons": [
     {

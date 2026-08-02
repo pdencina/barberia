@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
       await sendRetentionEmail({
         to: client.email,
         clientName: client.name,
-        message: message || "Te extrañamos! Vuelve a EstudioLevels.",
+        message: message || "Te extrañamos! Vuelve pronto.",
         couponCode: couponDetails?.code || null,
         couponDescription: couponDetails?.description || null,
         discountType: couponDetails?.discount_type || null,
@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     const phone = client.phone.replace(/\D/g, "").replace(/^0/, "56");
     const whatsappPhone = phone.startsWith("56") ? phone : `56${phone}`;
 
-    let whatsappMessage = message || `Hola ${client.name}! Te extrañamos en EstudioLevels. Agenda tu proxima cita.`;
+    let whatsappMessage = message || `Hola ${client.name}! Te extrañamos. Agenda tu proxima cita.`;
     if (couponDetails) {
       const discount = couponDetails.discount_type === "percentage"
         ? `${couponDetails.discount_value}%`

@@ -124,7 +124,7 @@ export default function BookingPage() {
       <div className="border-b border-gray-800 py-4 px-6 flex items-center justify-between">
         <div className="flex-1" />
         <div className="text-center">
-          <img src="/logo.png" alt="EstudioLevels" className="h-10 mx-auto" />
+          <img src="/logo.png" alt="re-booking" className="h-10 mx-auto" />
           <p className="text-xs text-red-500 uppercase tracking-widest mt-2">Agendar Hora</p>
         </div>
         <div className="flex-1 flex justify-end">
@@ -603,7 +603,7 @@ export default function BookingPage() {
 
       {/* Footer */}
       <div className="border-t border-gray-800 py-4 text-center text-xs text-gray-600">
-        EstudioLevels · Puente Alto · estudiolevels.com
+        re-booking · rebooking.cl
       </div>
     </div>
   );

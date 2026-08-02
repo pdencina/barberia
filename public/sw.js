@@ -1,10 +1,10 @@
-// Service Worker for Push Notifications - EstudioLevels
+// Service Worker for Push Notifications - re-booking
 
 self.addEventListener("push", (event) => {
   const data = event.data ? event.data.json() : {};
 
   const options = {
-    body: data.body || "Nueva notificacion de EstudioLevels",
+    body: data.body || "Nueva notificacion de re-booking",
     icon: "/logo.png",
     badge: "/logo.png",
     vibrate: [200, 100, 200],
@@ -15,7 +15,7 @@ self.addEventListener("push", (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || "EstudioLevels", options)
+    self.registration.showNotification(data.title || "re-booking", options)
   );
 });
 

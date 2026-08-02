@@ -47,7 +47,7 @@ export default function RankingPage() {
     <div className="min-h-screen bg-gray-950 text-white">
       {/* Header */}
       <div className="border-b border-gray-800 py-4 px-6 text-center">
-        <img src="/logo.png" alt="EstudioLevels" className="h-10 mx-auto" />
+        <img src="/logo.png" alt="re-booking" className="h-10 mx-auto" />
         <p className="text-xs text-red-500 uppercase tracking-widest mt-2">Nuestro Equipo</p>
       </div>
 
@@ -154,7 +154,7 @@ export default function RankingPage() {
       </div>
 
       <div className="border-t border-gray-800 py-4 text-center text-xs text-gray-600">
-        EstudioLevels · Puente Alto · estudiolevels.com
+        re-booking · rebooking.cl
       </div>
     </div>
   );

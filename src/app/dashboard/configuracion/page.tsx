@@ -4,7 +4,7 @@ import { useState } from "react";
 
 export default function ConfiguracionPage() {
   const [businessData, setBusinessData] = useState({
-    name: "EstudioLevels",
+    name: "Mi Negocio",
     address: "",
     phone: "",
     website: "",

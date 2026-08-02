@@ -76,7 +76,7 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-sm text-gray-600 hover:text-blue-600 hidden md:block">Iniciar Sesion</Link>
             <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              href="#contacto" className="hidden md:inline-flex px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-full hover:bg-blue-700 shadow-lg shadow-blue-600/25">
+              href="#contacto" className="hidden md:inline-flex px-5 py-2.5 bg-brand-blue text-white text-sm font-medium rounded-full hover:bg-blue-700 shadow-lg shadow-blue-600/25">
               Agenda una demo
             </motion.a>
             {/* Mobile hamburger */}
@@ -143,11 +143,11 @@ export default function LandingPage() {
 
             <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2 }}
               className="text-3xl sm:text-4xl md:text-6xl lg:text-7xl font-bold tracking-tight leading-[1.1]">
-              Gestiona. Reserva.
+              Todo tu negocio.
               <br />
-              <span className="text-blue-600">
+              <span className="text-brand-blue">
                 <TypeAnimation
-                  sequence={["Repite el exito.", 3000, "Crece sin limites.", 3000, "Fideliza clientes.", 3000, "Automatiza todo.", 3000]}
+                  sequence={["Un solo sistema.", 3000, "Repite el exito.", 3000, "Crece sin limites.", 3000, "Fideliza clientes.", 3000]}
                   wrapper="span"
                   speed={40}
                   repeat={Infinity}
@@ -157,14 +157,14 @@ export default function LandingPage() {
 
             <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.4 }}
               className="mt-4 md:mt-6 text-base md:text-xl text-gray-600 max-w-2xl mx-auto leading-relaxed px-2">
-              El sistema de gestion todo en uno para agendar, atender y fidelizar clientes.
-              Diseñado para barberias y salones que quieren crecer.
+              El software de gestion todo en uno para agendar, atender, fidelizar
+              y hacer crecer tu negocio.
             </motion.p>
 
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.6 }}
               className="mt-8 md:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
               <motion.a whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(37,99,235,0.3)" }} whileTap={{ scale: 0.95 }}
-                href="#contacto" className="px-8 py-4 bg-blue-600 text-white font-semibold rounded-full transition-colors hover:bg-blue-700">
+                href="#contacto" className="px-8 py-4 bg-brand-blue text-white font-semibold rounded-full transition-colors hover:bg-blue-700">
                 Comenzar gratis
               </motion.a>
               <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
@@ -317,7 +317,7 @@ export default function LandingPage() {
                   <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center text-lg font-bold">N</div>
                   <div>
                     <p className="font-bold">Nicolas Levels</p>
-                    <p className="text-blue-200 text-sm">CEO EstudioLevels — Puente Alto</p>
+                    <p className="text-blue-200 text-sm">CEO, cliente re-booking</p>
                   </div>
                 </div>
               </div>

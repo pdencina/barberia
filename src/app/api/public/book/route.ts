@@ -138,7 +138,7 @@ export async function POST(req: NextRequest) {
       await sendBookingConfirmation({
         to: clientEmail,
         clientName,
-        barberName: barber?.name || "EstudioLevels",
+        barberName: barber?.name || "Tu profesional",
         serviceName: serviceNames,
         date: start,
         duration: totalDuration,
@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         title: "Nueva Cita Agendada",
-        body: `${clientName} - ${serviceNames} con ${barber?.name || "EstudioLevels"} (${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })})`,
+        body: `${clientName} - ${serviceNames} con ${barber?.name || "Profesional"} (${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })})`,
         url: "/dashboard/agenda",
         tag: "new-appointment",
       }),

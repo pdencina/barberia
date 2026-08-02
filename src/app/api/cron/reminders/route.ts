@@ -65,7 +65,7 @@ export async function GET(req: NextRequest) {
         await sendAppointmentReminder({
           to: client.email,
           clientName: client.name,
-          barberName: barber?.name || "EstudioLevels",
+          barberName: barber?.name || "Tu profesional",
           serviceName,
           date: startTime,
         });
