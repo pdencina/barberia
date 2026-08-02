@@ -4,85 +4,136 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 export async function GET() {
   const supabase = createAdminSupabase();
 
-  // Use UTC dates (same as Supabase)
   const now = new Date();
   const todayStr = now.toISOString().split("T")[0];
-  const firstOfMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-01T00:00:00`;
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayStr = yesterday.toISOString().split("T")[0];
 
-  // Weekly sales (last 7 days)
-  const weekData: Array<{ day: string; total: number }> = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now);
-    d.setUTCDate(d.getUTCDate() - i);
-    const dayStr = d.toISOString().split("T")[0];
+  // Today appointments count
+  const { count: todayApptCount } = await supabase
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("date", todayStr);
 
-    const { data: dayTx } = await supabase
-      .from("transactions")
-      .select("total")
-      .eq("type", "income")
-      .eq("status", "completed")
-      .gte("created_at", `${dayStr}T00:00:00`)
-      .lte("created_at", `${dayStr}T23:59:59`);
+  // Yesterday appointments count (for comparison)
+  const { count: yesterdayApptCount } = await supabase
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("date", yesterdayStr);
 
-    const dayTotal = (dayTx || []).reduce((sum, t) => sum + Number(t.total), 0);
-    const dayNames = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
-    weekData.push({ day: dayNames[d.getUTCDay()], total: dayTotal });
-  }
-
-  // Today = last entry of week chart
-  const todayIncome = weekData[weekData.length - 1]?.total || 0;
-
-  // Month income
-  const { data: monthTx } = await supabase
+  // Today income
+  const { data: todayTx } = await supabase
     .from("transactions")
     .select("total")
     .eq("type", "income")
     .eq("status", "completed")
-    .gte("created_at", firstOfMonth);
+    .gte("created_at", `${todayStr}T00:00:00`)
+    .lte("created_at", `${todayStr}T23:59:59`);
+  const todayIncome = (todayTx || []).reduce((s, t) => s + Number(t.total), 0);
 
-  const monthIncome = (monthTx || []).reduce((sum, t) => sum + Number(t.total), 0);
+  // Yesterday income
+  const { data: yesterdayTx } = await supabase
+    .from("transactions")
+    .select("total")
+    .eq("type", "income")
+    .eq("status", "completed")
+    .gte("created_at", `${yesterdayStr}T00:00:00`)
+    .lte("created_at", `${yesterdayStr}T23:59:59`);
+  const yesterdayIncome = (yesterdayTx || []).reduce((s, t) => s + Number(t.total), 0);
 
-  // Today's appointments
+  // New clients today
+  const { count: newClientsToday } = await supabase
+    .from("clients")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", `${todayStr}T00:00:00`)
+    .lte("created_at", `${todayStr}T23:59:59`);
+
+  const { count: newClientsYesterday } = await supabase
+    .from("clients")
+    .select("id", { count: "exact", head: true })
+    .gte("created_at", `${yesterdayStr}T00:00:00`)
+    .lte("created_at", `${yesterdayStr}T23:59:59`);
+
+  // Rescheduled today
+  const { count: rescheduledToday } = await supabase
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("date", todayStr)
+    .eq("status", "confirmed");
+
+  const { count: rescheduledYesterday } = await supabase
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("date", yesterdayStr)
+    .eq("status", "confirmed");
+
+  // Cancellations today
+  const { count: cancelledToday } = await supabase
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("date", todayStr)
+    .in("status", ["cancelled", "no_show"]);
+
+  const { count: cancelledYesterday } = await supabase
+    .from("appointments")
+    .select("id", { count: "exact", head: true })
+    .eq("date", yesterdayStr)
+    .in("status", ["cancelled", "no_show"]);
+
+  // Today's agenda (upcoming appointments)
   const { data: todayAppointments } = await supabase
     .from("appointments")
     .select(`
       id, start_time, end_time, status,
-      client:clients(name, phone),
+      client:clients(name),
       barber:profiles(name),
       services:appointment_services(service:services(name))
     `)
     .eq("date", todayStr)
     .in("status", ["scheduled", "confirmed", "in_progress"])
-    .order("start_time", { ascending: true });
+    .order("start_time", { ascending: true })
+    .limit(8);
 
-  // Counts
-  const { count: totalClients } = await supabase
-    .from("clients")
-    .select("id", { count: "exact", head: true });
+  // Top services (last 30 days)
+  const thirtyDaysAgo = new Date(now);
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const { data: serviceItems } = await supabase
+    .from("transaction_items")
+    .select("description, quantity")
+    .not("service_id", "is", null)
+    .gte("created_at", thirtyDaysAgo.toISOString());
 
-  const { count: todayApptCount } = await supabase
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("date", todayStr)
-    .in("status", ["scheduled", "confirmed", "in_progress", "completed"]);
+  const serviceMap: Record<string, number> = {};
+  for (const item of serviceItems || []) {
+    serviceMap[item.description] = (serviceMap[item.description] || 0) + (item.quantity || 1);
+  }
+  const topServices = Object.entries(serviceMap)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
 
-  const { data: lowStock } = await supabase
-    .from("products")
-    .select("id, name, stock, min_stock")
-    .eq("active", true)
-    .filter("stock", "lte", "min_stock");
-
-  // Week total
-  const weekTotal = weekData.reduce((sum, d) => sum + d.total, 0);
+  // Calculate percentage changes
+  const calcChange = (today: number, yesterday: number): number => {
+    if (yesterday === 0) return today > 0 ? 100 : 0;
+    return Math.round(((today - yesterday) / yesterday) * 100);
+  };
 
   return NextResponse.json({
-    todayIncome,
-    monthIncome,
-    weekTotal,
-    weekData,
-    totalClients: totalClients || 0,
+    greeting: true,
+    stats: {
+      reservasHoy: todayApptCount || 0,
+      reservasChange: calcChange(todayApptCount || 0, yesterdayApptCount || 0),
+      ventasHoy: todayIncome,
+      ventasChange: calcChange(todayIncome, yesterdayIncome),
+      clientesNuevos: newClientsToday || 0,
+      clientesChange: calcChange(newClientsToday || 0, newClientsYesterday || 0),
+      reagendamientos: rescheduledToday || 0,
+      reagendamientosChange: calcChange(rescheduledToday || 0, rescheduledYesterday || 0),
+      cancelaciones: cancelledToday || 0,
+      cancelacionesChange: calcChange(cancelledToday || 0, cancelledYesterday || 0),
+    },
     todayAppointments: todayAppointments || [],
-    todayApptCount: todayApptCount || 0,
-    lowStock: lowStock || [],
+    topServices,
   });
 }

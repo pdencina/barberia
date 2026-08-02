@@ -145,23 +145,21 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
   };
 
   const renderNav = (showLabels: boolean) => (
-    <nav className="flex-1 overflow-y-auto px-2 py-2">
+    <nav className="flex-1 overflow-y-auto px-3 py-4">
       {filteredSections.map((section) => {
-        const isOpen = openSections[section.title] !== false; // default open
+        const isOpen = openSections[section.title] !== false;
         const hasActive = section.items.some((i) => i.href === pathname);
 
         return (
-          <div key={section.title} className="mb-1">
-            {showLabels ? (
+          <div key={section.title} className="mb-2">
+            {showLabels && (
               <button
                 onClick={() => toggleSection(section.title)}
-                className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] uppercase tracking-wider text-gray-500 hover:text-gray-300 font-medium"
+                className="w-full flex items-center justify-between px-3 py-1.5 text-[10px] uppercase tracking-wider text-brand-gray font-semibold"
               >
                 <span>{section.title}</span>
-                <ChevronDown className={cn("h-3 w-3 transition-transform", !isOpen && "-rotate-90")} />
+                <ChevronDown className={cn("h-3 w-3 transition-transform text-brand-gray", !isOpen && "-rotate-90")} />
               </button>
-            ) : (
-              <div className="h-px bg-gray-800 mx-2 my-2" />
             )}
 
             {(isOpen || !showLabels) && (
@@ -175,14 +173,14 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
                         onClick={() => setMobileOpen(false)}
                         title={!showLabels ? item.name : undefined}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors",
+                          "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
                           !showLabels && "justify-center px-2",
                           isActive
-                            ? "bg-red-600/10 text-red-400 border-l-2 border-red-500 pl-[10px]"
-                            : "text-gray-400 hover:bg-gray-800/50 hover:text-gray-200"
+                            ? "bg-brand-blue/10 text-brand-blue"
+                            : "text-brand-dark/70 hover:bg-brand-light hover:text-brand-dark"
                         )}
                       >
-                        <item.icon className="h-3.5 w-3.5 flex-shrink-0" />
+                        <item.icon className={cn("h-[18px] w-[18px] flex-shrink-0", isActive ? "text-brand-blue" : "text-brand-gray")} strokeWidth={1.5} />
                         {showLabels && <span className="truncate">{item.name}</span>}
                       </Link>
                     </li>
@@ -199,44 +197,44 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
   return (
     <>
       {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-gray-900 flex items-center px-4 gap-3">
-        <button onClick={() => setMobileOpen(true)} className="text-white p-1"><Menu className="h-6 w-6" /></button>
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-gray-100 flex items-center px-4 gap-3">
+        <button onClick={() => setMobileOpen(true)} className="text-brand-dark p-1"><Menu className="h-6 w-6" /></button>
         <img src="/logo.png" alt="re-booking" className="h-7 w-auto" />
       </div>
 
       {/* Mobile overlay */}
-      {mobileOpen && <div className="lg:hidden fixed inset-0 z-50 bg-black/50" onClick={() => setMobileOpen(false)} />}
+      {mobileOpen && <div className="lg:hidden fixed inset-0 z-50 bg-black/30 backdrop-blur-sm" onClick={() => setMobileOpen(false)} />}
 
       {/* Mobile drawer */}
       <div className={cn(
-        "lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 text-white flex flex-col transform transition-transform duration-200",
+        "lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white flex flex-col transform transition-transform duration-200 shadow-xl",
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-800">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-100">
           <img src="/logo.png" alt="re-booking" className="h-8 w-auto" />
-          <button onClick={() => setMobileOpen(false)} className="text-gray-400 hover:text-white"><X className="h-5 w-5" /></button>
+          <button onClick={() => setMobileOpen(false)} className="text-brand-gray hover:text-brand-dark"><X className="h-5 w-5" /></button>
         </div>
         {renderNav(true)}
-        <div className="border-t border-gray-800 p-3">
+        <div className="border-t border-gray-100 p-3">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{userName}</p>
-              <p className="text-xs text-gray-400">{roleLabel[userRole] || userRole}</p>
+              <p className="text-sm font-medium text-brand-dark truncate">{userName}</p>
+              <p className="text-xs text-brand-gray">{roleLabel[userRole] || userRole}</p>
             </div>
-            <button onClick={handleLogout} className="text-gray-400 hover:text-white p-2"><LogOut className="h-4 w-4" /></button>
+            <button onClick={handleLogout} className="text-brand-gray hover:text-red-500 p-2"><LogOut className="h-4 w-4" /></button>
           </div>
         </div>
       </div>
 
       {/* Desktop sidebar */}
       <div className={cn(
-        "hidden lg:flex h-full flex-col bg-gray-900 text-white flex-shrink-0 transition-all duration-200",
-        collapsed ? "w-14" : "w-56"
+        "hidden lg:flex h-full flex-col bg-white border-r border-gray-100 flex-shrink-0 transition-all duration-200",
+        collapsed ? "w-16" : "w-60"
       )}>
-        <div className={cn("flex h-12 items-center border-b border-gray-800", collapsed ? "justify-center" : "justify-between px-3")}>
+        <div className={cn("flex h-14 items-center border-b border-gray-100", collapsed ? "justify-center" : "justify-between px-4")}>
           {!collapsed && <img src="/logo.png" alt="re-booking" className="h-7 w-auto" />}
-          <button onClick={toggleCollapse} className="text-gray-500 hover:text-white p-1 rounded hover:bg-gray-800">
-            {collapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+          <button onClick={toggleCollapse} className="text-brand-gray hover:text-brand-dark p-1 rounded-lg hover:bg-brand-light">
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
         </div>
 
@@ -244,31 +242,31 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
         {!collapsed && (
           <button
             onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
-            className="mx-2 mt-2 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-800/50 hover:bg-gray-800 transition-colors text-gray-500 hover:text-gray-300"
+            className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-light hover:bg-gray-100 transition-colors text-brand-gray"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
-            <span className="text-xs flex-1">Buscar...</span>
-            <kbd className="text-[9px] bg-gray-700 px-1.5 py-0.5 rounded font-mono">⌘K</kbd>
+            <span className="text-xs flex-1 text-left">Buscar...</span>
+            <kbd className="text-[9px] bg-white border border-gray-200 px-1.5 py-0.5 rounded font-mono text-brand-gray">⌘K</kbd>
           </button>
         )}
         {renderNav(!collapsed)}
-        <div className="border-t border-gray-800 p-2">
+        <div className="border-t border-gray-100 p-3">
           {collapsed ? (
-            <button onClick={handleLogout} className="w-full flex justify-center text-gray-400 hover:text-white p-2" title="Cerrar sesion">
+            <button onClick={handleLogout} className="w-full flex justify-center text-brand-gray hover:text-red-500 p-2" title="Cerrar sesion">
               <LogOut className="h-4 w-4" />
             </button>
           ) : (
             <div className="flex items-center gap-2 px-2">
-              <div className="w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-[10px] font-bold text-gray-300">
+              <div className="w-8 h-8 rounded-full bg-brand-blue/10 flex items-center justify-center text-[10px] font-bold text-brand-blue">
                 {userName.split(" ").map((n) => n[0]).join("").slice(0, 2)}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium truncate">{userName}</p>
-                <p className="text-[10px] text-gray-500">{roleLabel[userRole] || userRole}</p>
+                <p className="text-xs font-medium text-brand-dark truncate">{userName}</p>
+                <p className="text-[10px] text-brand-gray">{roleLabel[userRole] || userRole}</p>
               </div>
-              <button onClick={handleLogout} className="text-gray-500 hover:text-white p-1"><LogOut className="h-3.5 w-3.5" /></button>
+              <button onClick={handleLogout} className="text-brand-gray hover:text-red-500 p-1"><LogOut className="h-3.5 w-3.5" /></button>
             </div>
           )}
         </div>

@@ -3,40 +3,38 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { useAuth } from "@/lib/auth-context";
+import Link from "next/link";
 
 interface DashboardData {
-  todayIncome: number;
-  monthIncome: number;
-  weekTotal: number;
-  weekData: Array<{ day: string; total: number }>;
-  totalClients: number;
+  stats: {
+    reservasHoy: number;
+    reservasChange: number;
+    ventasHoy: number;
+    ventasChange: number;
+    clientesNuevos: number;
+    clientesChange: number;
+    reagendamientos: number;
+    reagendamientosChange: number;
+    cancelaciones: number;
+    cancelacionesChange: number;
+  };
   todayAppointments: Array<{
     id: string;
     start_time: string;
+    end_time: string;
     status: string;
-    client: { name: string; phone: string | null } | null;
+    client: { name: string } | null;
     barber: { name: string } | null;
     services: Array<{ service: { name: string } }>;
   }>;
-  todayApptCount: number;
-  lowStock: Array<{ id: string; name: string; stock: number; min_stock: number }>;
+  topServices: Array<{ name: string; count: number }>;
 }
-
-const statusLabels: Record<string, string> = {
-  scheduled: "Agendada",
-  confirmed: "Confirmada",
-  in_progress: "En Atencion",
-};
-
-const statusColors: Record<string, string> = {
-  scheduled: "bg-yellow-100 text-yellow-700",
-  confirmed: "bg-blue-100 text-blue-700",
-  in_progress: "bg-purple-100 text-purple-700",
-};
 
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
 
   useEffect(() => {
     fetch("/api/dashboard")
@@ -47,133 +45,129 @@ export default function DashboardPage() {
 
   if (loading || !data) return <Spinner />;
 
-  const maxWeekValue = Math.max(...data.weekData.map((d) => d.total), 1);
+  const firstName = user?.name?.split(" ")[0] || "Usuario";
+  const today = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
+
+  const StatChange = ({ value }: { value: number }) => (
+    <span className={`text-xs font-medium ${value >= 0 ? "text-green-600" : "text-red-500"}`}>
+      {value >= 0 ? "+" : ""}{value}% vs ayer
+    </span>
+  );
 
   return (
-    <div className="p-4 md:p-6 space-y-5 animate-fade-in">
-      <div>
-        <h2 className="text-xl md:text-2xl font-bold text-gray-900">Dashboard</h2>
-        <p className="text-sm text-gray-500">Resumen general</p>
-      </div>
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-2xl shadow-lg shadow-green-500/20 p-4 md:p-5 text-white">
-          <p className="text-[10px] md:text-xs uppercase opacity-80 font-medium">Hoy</p>
-          <p className="text-lg md:text-2xl font-bold mt-0.5">{formatCurrency(data.todayIncome)}</p>
+    <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-dark">
+            Hola, {firstName}! 👋
+          </h1>
+          <p className="text-brand-gray text-sm mt-0.5">
+            Aqui tienes el resumen de tu negocio hoy.
+          </p>
         </div>
-        <div className="bg-gradient-to-br from-blue-500 to-blue-700 rounded-2xl shadow-lg shadow-blue-500/20 p-4 md:p-5 text-white">
-          <p className="text-[10px] md:text-xs uppercase opacity-80 font-medium">Semana</p>
-          <p className="text-lg md:text-2xl font-bold mt-0.5">{formatCurrency(data.weekTotal)}</p>
-        </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-700 rounded-2xl shadow-lg shadow-purple-500/20 p-4 md:p-5 text-white">
-          <p className="text-[10px] md:text-xs uppercase opacity-80 font-medium">Mes</p>
-          <p className="text-lg md:text-2xl font-bold mt-0.5">{formatCurrency(data.monthIncome)}</p>
-        </div>
-        <div className="bg-gradient-to-br from-gray-700 to-gray-900 rounded-2xl shadow-lg shadow-gray-900/20 p-4 md:p-5 text-white">
-          <p className="text-[10px] md:text-xs uppercase opacity-80 font-medium">Citas Hoy</p>
-          <p className="text-lg md:text-2xl font-bold mt-0.5">{data.todayApptCount}</p>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Weekly chart */}
-        <div className="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
-          <h3 className="font-bold text-gray-800 mb-4 text-sm md:text-base">Ventas de la Semana</h3>
-          <div className="flex items-end justify-between gap-2 md:gap-3 h-44 md:h-52">
-            {data.weekData.map((d, i) => {
-              const barHeight = maxWeekValue > 0 ? Math.max((d.total / maxWeekValue) * 160, 8) : 8;
-              const isToday = i === data.weekData.length - 1;
-              return (
-                <div key={d.day} className="flex-1 flex flex-col items-center justify-end h-full">
-                  <span className="text-[9px] md:text-[10px] text-gray-400 mb-1 font-medium">
-                    {d.total > 0 ? formatCurrency(d.total) : ""}
-                  </span>
-                  <div
-                    className={`w-full max-w-[32px] md:max-w-[40px] rounded-t-xl transition-all ${
-                      isToday
-                        ? "bg-gradient-to-t from-blue-700 to-blue-400 shadow-md shadow-blue-500/30"
-                        : "bg-gradient-to-t from-blue-200 to-blue-100"
-                    }`}
-                    style={{ height: `${barHeight}px` }}
-                  />
-                  <span className={`text-[10px] md:text-xs mt-2 font-medium ${isToday ? "text-blue-600" : "text-gray-400"}`}>
-                    {d.day}
-                  </span>
-                </div>
-              );
-            })}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm text-brand-gray">
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+            </svg>
+            <span className="capitalize">{today}</span>
           </div>
         </div>
+      </div>
 
-        {/* Low stock alerts */}
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
-          <h3 className="font-bold text-gray-800 mb-4 text-sm md:text-base">Alertas Stock</h3>
-          {data.lowStock.length === 0 ? (
-            <p className="text-gray-400 text-sm text-center py-4">Todo en orden</p>
+      {/* Stat Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+          <p className="text-xs text-brand-gray font-medium">Reservas hoy</p>
+          <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.reservasHoy}</p>
+          <StatChange value={data.stats.reservasChange} />
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+          <p className="text-xs text-brand-gray font-medium">Ventas hoy</p>
+          <p className="text-3xl font-bold text-brand-dark mt-1">{formatCurrency(data.stats.ventasHoy)}</p>
+          <StatChange value={data.stats.ventasChange} />
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+          <p className="text-xs text-brand-gray font-medium">Clientes nuevos</p>
+          <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.clientesNuevos}</p>
+          <StatChange value={data.stats.clientesChange} />
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+          <p className="text-xs text-brand-gray font-medium">Reagendamientos</p>
+          <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.reagendamientos}</p>
+          <StatChange value={data.stats.reagendamientosChange} />
+        </div>
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+          <p className="text-xs text-brand-gray font-medium">Cancelaciones</p>
+          <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.cancelaciones}</p>
+          <StatChange value={data.stats.cancelacionesChange} />
+        </div>
+      </div>
+
+      {/* Main content: Agenda + Top Services */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        {/* Agenda de hoy */}
+        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-bold text-brand-dark">Agenda de hoy</h3>
+            <Link href="/dashboard/calendario" className="text-xs text-brand-blue font-medium hover:underline">
+              Ver agenda completa →
+            </Link>
+          </div>
+
+          {data.todayAppointments.length === 0 ? (
+            <div className="text-center py-12">
+              <div className="text-4xl mb-3">📅</div>
+              <p className="text-brand-gray text-sm">No hay citas agendadas para hoy</p>
+            </div>
           ) : (
-            <div className="space-y-3">
-              {data.lowStock.map((p) => (
-                <div key={p.id} className="flex items-center justify-between">
-                  <span className="text-sm text-gray-700">{p.name}</span>
-                  <span className="px-2 py-1 bg-red-100 text-red-700 rounded-full text-xs font-medium">
-                    {p.stock}/{p.min_stock}
-                  </span>
+            <div className="space-y-1">
+              {data.todayAppointments.map((appt) => {
+                const time = appt.start_time?.match(/(\d{2}:\d{2})/)?.[1] || "";
+                const serviceName = appt.services?.map((s: any) => s.service?.name).join(" + ") || "Servicio";
+                return (
+                  <div key={appt.id} className="flex items-center gap-4 py-3 border-b border-gray-50 last:border-0">
+                    <span className="text-sm text-brand-gray font-medium w-12">{time}</span>
+                    <div className="flex-1 flex items-center gap-3">
+                      <div className="w-1 h-10 rounded-full bg-brand-blue/60" />
+                      <div>
+                        <p className="text-sm font-semibold text-brand-dark">{serviceName}</p>
+                        <p className="text-xs text-brand-gray">{appt.client?.name || "Cliente"} · {appt.barber?.name}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        {/* Top Servicios */}
+        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="font-bold text-brand-dark">Top Servicios</h3>
+            <Link href="/dashboard/reportes" className="text-xs text-brand-blue font-medium hover:underline">
+              Ver reporte completo →
+            </Link>
+          </div>
+
+          {data.topServices.length === 0 ? (
+            <p className="text-center py-8 text-brand-gray text-sm">Sin datos aun</p>
+          ) : (
+            <div className="space-y-4">
+              {data.topServices.map((svc, i) => (
+                <div key={svc.name} className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs text-brand-gray font-medium w-4">{i + 1}</span>
+                    <span className="text-sm text-brand-dark font-medium">{svc.name}</span>
+                  </div>
+                  <span className="text-sm font-bold text-brand-dark">{svc.count}</span>
                 </div>
               ))}
             </div>
           )}
         </div>
-      </div>
-
-      {/* Today's appointments */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-        <div className="p-4 border-b border-gray-50 flex items-center justify-between">
-          <h3 className="font-bold text-gray-800 text-sm md:text-base">Citas de Hoy</h3>
-          <a href="/dashboard/calendario" className="text-xs text-blue-600 hover:underline font-medium">Ver calendario →</a>
-        </div>
-        {data.todayAppointments.length === 0 ? (
-          <p className="p-6 text-center text-gray-400">No hay citas pendientes para hoy</p>
-        ) : (
-          <div className="divide-y">
-            {data.todayAppointments.map((appt: any) => (
-              <div key={appt.id} className="p-4 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="text-center min-w-[50px]">
-                    <p className="text-lg font-bold text-blue-600">
-                      {appt.start_time?.match(/(\d{2}:\d{2})/)?.[1] || ""}
-                    </p>
-                  </div>
-                  <div>
-                    <p className="font-medium text-gray-900">{appt.client?.name || "Cliente"}</p>
-                    <p className="text-xs text-gray-500">
-                      {appt.barber?.name} · {appt.services?.map((s: any) => s.service?.name).join(", ")}
-                    </p>
-                  </div>
-                </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[appt.status] || ""}`}>
-                  {statusLabels[appt.status] || appt.status}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Quick stats */}
-      <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-        <div className="bg-white rounded-lg shadow p-5 text-center">
-          <p className="text-3xl font-bold text-gray-900">{data.totalClients}</p>
-          <p className="text-xs text-gray-500 uppercase mt-1">Clientes Totales</p>
-        </div>
-        <a href="/dashboard/booking" className="bg-white rounded-lg shadow p-5 text-center hover:shadow-md transition-shadow">
-          <p className="text-3xl font-bold text-blue-600">24/7</p>
-          <p className="text-xs text-gray-500 uppercase mt-1">Booking Online</p>
-        </a>
-        <a href="/dashboard/retencion" className="bg-white rounded-lg shadow p-5 text-center hover:shadow-md transition-shadow">
-          <p className="text-3xl font-bold text-red-600">♥</p>
-          <p className="text-xs text-gray-500 uppercase mt-1">Retencion</p>
-        </a>
       </div>
     </div>
   );
