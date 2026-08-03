@@ -219,56 +219,108 @@ export default function POSPage() {
     <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-4rem)]">
       {/* Left: Items */}
       <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
-        <div className="flex gap-4 mb-4">
+        {/* Tabs with count */}
+        <div className="flex gap-2 mb-4">
           <button
             onClick={() => setActiveTab("services")}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              activeTab === "services" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700"
+            className={`px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 transition-all ${
+              activeTab === "services" ? "bg-brand-blue text-white shadow-md shadow-brand-blue/20" : "bg-white border border-gray-200 text-brand-dark hover:border-brand-blue"
             }`}
           >
-            Servicios
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+            </svg>
+            Servicios ({services.length})
           </button>
           <button
             onClick={() => setActiveTab("products")}
-            className={`px-4 py-2 rounded-lg font-medium ${
-              activeTab === "products" ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700"
+            className={`px-4 py-2.5 rounded-xl font-medium text-sm flex items-center gap-2 transition-all ${
+              activeTab === "products" ? "bg-brand-blue text-white shadow-md shadow-brand-blue/20" : "bg-white border border-gray-200 text-brand-dark hover:border-brand-blue"
             }`}
           >
-            Productos
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+            </svg>
+            Productos ({products.length})
           </button>
         </div>
 
-        <input
-          type="text"
-          placeholder="Buscar..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full border rounded-lg px-4 py-2 mb-4"
-        />
+        {/* Search */}
+        <div className="relative mb-4">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Buscar..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
+          />
+        </div>
 
+        {/* Product/Service grid */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filteredItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => addToCart(item, activeTab === "services" ? "service" : "product")}
-              className="bg-white p-4 rounded-lg shadow hover:shadow-md transition text-left"
-            >
-              <p className="font-medium text-gray-900">{item.name}</p>
-              <p className="text-indigo-600 font-bold">{formatCurrency(Number(item.price))}</p>
-              <p className="text-xs text-gray-500">
-                {activeTab === "services"
-                  ? `${(item as Service).duration} min`
-                  : `Stock: ${(item as Product).stock}`}
-              </p>
-            </button>
-          ))}
+          {filteredItems.map((item) => {
+            const inCart = cart.find((c) => c.id === item.id && c.type === (activeTab === "services" ? "service" : "product"));
+            return (
+              <button
+                key={item.id}
+                onClick={() => addToCart(item, activeTab === "services" ? "service" : "product")}
+                className={`relative bg-white p-4 rounded-2xl border transition-all text-left group active:scale-95 ${
+                  inCart ? "border-brand-blue shadow-md shadow-brand-blue/10" : "border-gray-100 hover:border-brand-blue/50 hover:shadow-md"
+                }`}
+              >
+                {/* Type badge */}
+                <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
+                  activeTab === "services" ? "bg-blue-50 text-brand-blue" : "bg-orange-50 text-orange-500"
+                }`}>
+                  {activeTab === "services" ? (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                    </svg>
+                  )}
+                </div>
+                <p className="font-semibold text-sm text-brand-dark truncate">{item.name}</p>
+                <p className="text-brand-blue font-bold text-base mt-1">{formatCurrency(Number(item.price))}</p>
+                <p className="text-[11px] text-brand-gray mt-0.5">
+                  {activeTab === "services"
+                    ? `${(item as Service).duration} min`
+                    : `Stock: ${(item as Product).stock}`}
+                </p>
+
+                {/* Quantity badge if in cart */}
+                {inCart && (
+                  <div className="absolute -top-2 -right-2 w-6 h-6 bg-brand-blue text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md">
+                    {inCart.quantity}
+                  </div>
+                )}
+              </button>
+            );
+          })}
         </div>
       </div>
 
       {/* Right: Cart */}
       <div className="w-full lg:w-96 bg-white border-t lg:border-t-0 lg:border-l flex flex-col max-h-[60vh] lg:max-h-none">
         <div className="p-4 border-b space-y-3">
-          <h2 className="font-bold text-lg">Venta</h2>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h2 className="font-bold text-lg text-brand-dark">Venta</h2>
+              {cart.length > 0 && (
+                <span className="w-5 h-5 bg-brand-blue text-white rounded-full flex items-center justify-center text-[10px] font-bold">
+                  {cart.reduce((s, c) => s + c.quantity, 0)}
+                </span>
+              )}
+            </div>
+            {cart.length > 0 && (
+              <span className="text-sm font-bold text-brand-blue">{formatCurrency(total)}</span>
+            )}
+          </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Barbero *</label>
             <select
@@ -360,42 +412,61 @@ export default function POSPage() {
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
           {cart.length === 0 ? (
-            <p className="text-gray-400 text-center py-8">Agrega items a la venta</p>
-          ) : (
-            cart.map((item) => (
-              <div key={`${item.type}-${item.id}`} className="bg-gray-50 rounded-lg p-3">
-                <div className="flex justify-between items-start">
-                  <p className="font-medium text-sm">{item.name}</p>
-                  <button
-                    onClick={() => removeFromCart(item.id, item.type)}
-                    className="text-red-500 text-xs hover:text-red-700"
-                  >
-                    Quitar
-                  </button>
-                </div>
-                <div className="flex items-center gap-2 mt-2">
-                  <button
-                    onClick={() => updateQuantity(item.id, item.type, -1)}
-                    className="w-7 h-7 rounded bg-gray-200 text-gray-700 flex items-center justify-center"
-                  >
-                    -
-                  </button>
-                  <span className="text-sm font-medium">{item.quantity}</span>
-                  <button
-                    onClick={() => updateQuantity(item.id, item.type, 1)}
-                    className="w-7 h-7 rounded bg-gray-200 text-gray-700 flex items-center justify-center"
-                  >
-                    +
-                  </button>
-                  <input
-                    type="number"
-                    value={item.price}
-                    onChange={(e) => updatePrice(item.id, item.type, parseFloat(e.target.value) || 0)}
-                    className="w-24 border rounded px-2 py-1 text-sm text-right ml-auto"
-                  />
-                </div>
+            <div className="text-center py-12">
+              <div className="w-16 h-16 bg-brand-light rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-8 h-8 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 3h1.386c.51 0 .955.343 1.087.835l.383 1.437M7.5 14.25a3 3 0 00-3 3h15.75m-12.75-3h11.218c1.121-2.3 2.1-4.684 2.924-7.138a60.114 60.114 0 00-16.536-1.84M7.5 14.25L5.106 5.272M6 20.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm12.75 0a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
+                </svg>
               </div>
-            ))
+              <p className="text-brand-gray text-sm">Carrito vacio</p>
+              <p className="text-brand-gray text-xs mt-1">Selecciona servicios o productos</p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs text-brand-gray font-medium">{cart.reduce((s, c) => s + c.quantity, 0)} items</span>
+                <button onClick={() => setCart([])} className="text-xs text-red-500 hover:underline">Vaciar</button>
+              </div>
+              {cart.map((item) => (
+                <div key={`${item.type}-${item.id}`} className="bg-brand-light rounded-xl p-3 group">
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
+                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold ${
+                        item.type === "service" ? "bg-blue-100 text-brand-blue" : "bg-orange-100 text-orange-500"
+                      }`}>
+                        {item.type === "service" ? "S" : "P"}
+                      </div>
+                      <div>
+                        <p className="font-medium text-sm text-brand-dark">{item.name}</p>
+                        <p className="text-xs text-brand-gray">{formatCurrency(Number(item.price))} c/u</p>
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => removeFromCart(item.id, item.type)}
+                      className="text-brand-gray hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => updateQuantity(item.id, item.type, -1)}
+                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-brand-dark flex items-center justify-center text-sm hover:border-brand-blue"
+                      >−</button>
+                      <span className="text-sm font-bold text-brand-dark w-6 text-center">{item.quantity}</span>
+                      <button
+                        onClick={() => updateQuantity(item.id, item.type, 1)}
+                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-brand-dark flex items-center justify-center text-sm hover:border-brand-blue"
+                      >+</button>
+                    </div>
+                    <p className="font-bold text-sm text-brand-dark">{formatCurrency(Number(item.price) * item.quantity)}</p>
+                  </div>
+                </div>
+              ))}
+            </>
           )}
         </div>
 
