@@ -69,27 +69,56 @@ export default function ClientesPage() {
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Clientes</h1>
         <div className="flex gap-2">
           <label className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm cursor-pointer">
-            Importar CSV
-            <input type="file" accept=".csv" className="hidden" onChange={async (e) => {
+            Importar CSV/Excel
+            <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={async (e) => {
               const file = e.target.files?.[0];
               if (!file) return;
-              const text = await file.text();
-              const lines = text.split("\n").filter(Boolean);
-              const headers = lines[0].toLowerCase().split(",").map((h: string) => h.trim().replace(/"/g, ""));
-              const nameIdx = headers.findIndex((h: string) => h.includes("nombre") || h === "name");
-              const emailIdx = headers.findIndex((h: string) => h.includes("email") || h.includes("correo"));
-              const phoneIdx = headers.findIndex((h: string) => h.includes("telefono") || h.includes("phone") || h.includes("fono"));
-              if (nameIdx === -1) { alert("CSV debe tener columna Nombre"); return; }
-              const clients = lines.slice(1).map((line: string) => {
-                const cols = line.split(",").map((c: string) => c.trim().replace(/"/g, ""));
-                return { name: cols[nameIdx], email: cols[emailIdx] || null, phone: cols[phoneIdx] || null };
-              }).filter((c: any) => c.name);
+
+              let clients: Array<{ name: string; email: string | null; phone: string | null }> = [];
+
+              if (file.name.endsWith(".csv")) {
+                // Parse CSV
+                const text = await file.text();
+                const lines = text.split("\n").filter(Boolean);
+                const headers = lines[0].toLowerCase().split(",").map((h: string) => h.trim().replace(/"/g, ""));
+                const nameIdx = headers.findIndex((h: string) => h.includes("nombre") || h === "name");
+                const emailIdx = headers.findIndex((h: string) => h.includes("email") || h.includes("correo"));
+                const phoneIdx = headers.findIndex((h: string) => h.includes("telefono") || h.includes("phone") || h.includes("fono"));
+                if (nameIdx === -1) { alert("Archivo debe tener columna Nombre"); return; }
+                clients = lines.slice(1).map((line: string) => {
+                  const cols = line.split(",").map((c: string) => c.trim().replace(/"/g, ""));
+                  return { name: cols[nameIdx], email: cols[emailIdx] || null, phone: cols[phoneIdx] || null };
+                }).filter((c: any) => c.name);
+              } else {
+                // Parse Excel
+                const XLSX = (await import("xlsx")).default;
+                const buffer = await file.arrayBuffer();
+                const workbook = XLSX.read(buffer, { type: "array" });
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const rows: any[] = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+                if (rows.length === 0) { alert("Archivo vacio"); return; }
+                // Detect columns by header name
+                const headers = Object.keys(rows[0]).map((h) => h.toLowerCase());
+                const nameKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("nombre") || k.toLowerCase() === "name");
+                const emailKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("email") || k.toLowerCase().includes("correo"));
+                const phoneKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("telefono") || k.toLowerCase().includes("phone") || k.toLowerCase().includes("fono") || k.toLowerCase().includes("celular"));
+                if (!nameKey) { alert("Excel debe tener columna Nombre"); return; }
+                clients = rows.map((row: any) => ({
+                  name: String(row[nameKey] || "").trim(),
+                  email: emailKey ? String(row[emailKey] || "").trim() || null : null,
+                  phone: phoneKey ? String(row[phoneKey] || "").trim() || null : null,
+                })).filter((c) => c.name);
+              }
+
+              if (clients.length === 0) { alert("No se encontraron clientes en el archivo"); return; }
+              if (!confirm(`Se encontraron ${clients.length} clientes. Importar?`)) return;
+
               const res = await fetch("/api/clients/import", {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ clients }),
               });
               const data = await res.json();
-              showToast(`${data.imported} importados, ${data.skipped} omitidos`, "success");
+              showToast(`${data.imported} importados, ${data.skipped} duplicados omitidos`, "success");
               fetchClients("");
               e.target.value = "";
             }} />
