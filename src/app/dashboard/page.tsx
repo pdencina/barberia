@@ -29,6 +29,7 @@ interface DashboardData {
     services: Array<{ service: { name: string } }>;
   }>;
   topServices: Array<{ name: string; count: number }>;
+  weekData: Array<{ day: string; date: string; total: number }>;
 }
 
 export default function DashboardPage() {
@@ -104,6 +105,52 @@ export default function DashboardPage() {
           <StatChange value={data.stats.cancelacionesChange} />
         </div>
       </div>
+
+      {/* Weekly Sales Chart */}
+      {data.weekData && data.weekData.length > 0 && (() => {
+        const maxVal = Math.max(...data.weekData.map((d) => d.total), 1);
+        const weekTotal = data.weekData.reduce((s, d) => s + d.total, 0);
+        return (
+          <div className="bg-white rounded-2xl border border-gray-100 p-5">
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h3 className="font-bold text-brand-dark">Ventas de la semana</h3>
+                <p className="text-xs text-brand-gray mt-0.5">Ultimos 7 dias · Total: {formatCurrency(weekTotal)}</p>
+              </div>
+              <Link href="/dashboard/reportes" className="text-xs text-brand-blue font-medium hover:underline">
+                Ver reportes →
+              </Link>
+            </div>
+            <div className="flex items-end justify-between gap-2 h-44">
+              {data.weekData.map((d, i) => {
+                const barHeight = maxVal > 0 ? Math.max((d.total / maxVal) * 140, 4) : 4;
+                const isToday = i === data.weekData.length - 1;
+                return (
+                  <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full group">
+                    {/* Amount tooltip on hover */}
+                    <span className="text-[9px] text-brand-gray mb-1 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
+                      {d.total > 0 ? formatCurrency(d.total) : "-"}
+                    </span>
+                    <div
+                      className={`w-full max-w-[36px] rounded-xl transition-all ${
+                        isToday
+                          ? "bg-gradient-to-t from-brand-blue to-blue-400 shadow-md shadow-brand-blue/20"
+                          : d.total > 0
+                          ? "bg-gradient-to-t from-blue-200 to-blue-100"
+                          : "bg-gray-100"
+                      }`}
+                      style={{ height: `${barHeight}px` }}
+                    />
+                    <span className={`text-[11px] mt-2 font-medium ${isToday ? "text-brand-blue" : "text-brand-gray"}`}>
+                      {d.day}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Main content: Agenda + Top Services */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">

@@ -113,6 +113,24 @@ export async function GET() {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
+  // Weekly sales (last 7 days)
+  const dayNames = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
+  const weekData: Array<{ day: string; date: string; total: number }> = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(now);
+    d.setDate(d.getDate() - i);
+    const dayStr = d.toISOString().split("T")[0];
+    const { data: dayTx } = await supabase
+      .from("transactions")
+      .select("total")
+      .eq("type", "income")
+      .eq("status", "completed")
+      .gte("created_at", `${dayStr}T00:00:00`)
+      .lte("created_at", `${dayStr}T23:59:59`);
+    const dayTotal = (dayTx || []).reduce((sum, t) => sum + Number(t.total), 0);
+    weekData.push({ day: dayNames[d.getDay()], date: dayStr, total: dayTotal });
+  }
+
   // Calculate percentage changes
   const calcChange = (today: number, yesterday: number): number => {
     if (yesterday === 0) return today > 0 ? 100 : 0;
@@ -135,5 +153,6 @@ export async function GET() {
     },
     todayAppointments: todayAppointments || [],
     topServices,
+    weekData,
   });
 }
