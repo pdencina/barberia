@@ -14,6 +14,11 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmNewPassword, setConfirmNewPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [changeError, setChangeError] = useState("");
   const router = useRouter();
   const supabase = createClient();
 
@@ -29,6 +34,30 @@ export default function LoginPage() {
     setForgotLoading(false);
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setChangeError("");
+    if (newPassword.length < 6) { setChangeError("Minimo 6 caracteres"); return; }
+    if (newPassword !== confirmNewPassword) { setChangeError("Las contrasenas no coinciden"); return; }
+    setChangingPassword(true);
+
+    // Update password in Supabase Auth
+    const { error } = await supabase.auth.updateUser({ password: newPassword });
+    if (error) { setChangeError("Error al cambiar contrasena"); setChangingPassword(false); return; }
+
+    // Clear must_change_password flag on tenant
+    await fetch("/api/auth/clear-temp-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email }),
+    });
+
+    setChangingPassword(false);
+    setShowChangePassword(false);
+    router.push("/dashboard");
+    router.refresh();
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -37,7 +66,7 @@ export default function LoginPage() {
     // Clear any existing session first
     await supabase.auth.signOut();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -46,6 +75,16 @@ export default function LoginPage() {
       setError("Credenciales incorrectas");
       setLoading(false);
     } else {
+      // Check if user must change password (new tenant admin)
+      const res = await fetch(`/api/auth/check-tenant?email=${encodeURIComponent(email)}`);
+      const tenantData = await res.json();
+
+      if (tenantData.must_change_password) {
+        setLoading(false);
+        setShowChangePassword(true);
+        return;
+      }
+
       router.push("/dashboard");
       router.refresh();
     }
@@ -196,6 +235,40 @@ export default function LoginPage() {
 
       {/* Version */}
       <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] text-brand-gray/50">re-booking v1.0</p>
+
+      {/* Change Password Modal (first login for new tenants) */}
+      {showChangePassword && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl">
+            <div className="text-center mb-5">
+              <img src="/oti/confirmado.png" alt="Oti" className="w-16 h-16 mx-auto mb-3" />
+              <h3 className="text-lg font-bold text-brand-dark">Bienvenido a re-booking!</h3>
+              <p className="text-sm text-brand-gray mt-1">Por seguridad, elige una nueva contrasena</p>
+            </div>
+            <form onSubmit={handleChangePassword} className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-brand-gray block mb-1">Nueva contrasena</label>
+                <input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)}
+                  required minLength={6} placeholder="Minimo 6 caracteres"
+                  className="w-full h-11 rounded-xl border border-gray-200 bg-brand-light/50 px-4 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-brand-gray block mb-1">Confirmar contrasena</label>
+                <input type="password" value={confirmNewPassword} onChange={(e) => setConfirmNewPassword(e.target.value)}
+                  required minLength={6} placeholder="Repite la contrasena"
+                  className="w-full h-11 rounded-xl border border-gray-200 bg-brand-light/50 px-4 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
+              </div>
+              {changeError && <p className="text-xs text-red-500 text-center bg-red-50 rounded-lg py-2">{changeError}</p>}
+              <button type="submit" disabled={changingPassword}
+                className="w-full h-11 rounded-xl bg-brand-blue text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-70 flex items-center justify-center gap-2">
+                {changingPassword ? (
+                  <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> Guardando...</>
+                ) : "Guardar y continuar"}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

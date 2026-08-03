@@ -22,7 +22,7 @@ export default async function DashboardLayout({
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("name, role")
+    .select("name, role, tenant_id")
     .eq("id", user.id)
     .single();
 
@@ -33,6 +33,7 @@ export default async function DashboardLayout({
         serverUserId={user.id}
         serverEmail={user.email || ""}
         serverName={profile?.name || user.email || ""}
+        serverTenantId={profile?.tenant_id || null}
       >
         <div className="flex h-screen">
           <Sidebar userName={profile?.name || user.email || ""} userRole={profile?.role || "barber"} />
