@@ -12,9 +12,24 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "barberId and date required" }, { status: 400 });
   }
 
-  // Business hours: 10:00 - 21:00
-  const openHour = 10;
-  const closeHour = 21;
+  // Get business hours for this day of week
+  const dayOfWeek = new Date(date + "T12:00:00").getDay();
+  const { data: hoursData } = await supabase
+    .from("business_hours")
+    .select("open_time, close_time, is_closed")
+    .eq("day_of_week", dayOfWeek)
+    .single();
+
+  // Default to 10-21 if not configured
+  const openHour = hoursData?.open_time ? parseInt(hoursData.open_time.split(":")[0]) : 10;
+  const openMin = hoursData?.open_time ? parseInt(hoursData.open_time.split(":")[1]) : 0;
+  const closeHour = hoursData?.close_time ? parseInt(hoursData.close_time.split(":")[0]) : 21;
+  const closeMin = hoursData?.close_time ? parseInt(hoursData.close_time.split(":")[1]) : 0;
+
+  // If day is closed, return empty
+  if (hoursData?.is_closed) {
+    return NextResponse.json({ slots: [], date, barberId, closed: true });
+  }
 
   // Get existing appointments for this barber on this date
   const { data: appointments } = await supabase
@@ -40,14 +55,18 @@ export async function GET(req: NextRequest) {
   const slots: string[] = [];
   const slotInterval = 15; // every 15 minutes
 
-  for (let hour = openHour; hour < closeHour; hour++) {
-    for (let min = 0; min < 60; min += slotInterval) {
-      const slotStart = new Date(`${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00`);
-      const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+  const startMinutes = openHour * 60 + openMin;
+  const endMinutes = closeHour * 60 + closeMin;
 
-      // Check slot doesn't exceed business hours
-      const closeTime = new Date(`${date}T${closeHour.toString().padStart(2, "0")}:00:00`);
-      if (slotEnd > closeTime) continue;
+  for (let totalMin = startMinutes; totalMin < endMinutes; totalMin += slotInterval) {
+    const hour = Math.floor(totalMin / 60);
+    const min = totalMin % 60;
+    const slotStart = new Date(`${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00`);
+    const slotEnd = new Date(slotStart.getTime() + duration * 60000);
+
+    // Check slot doesn't exceed business hours
+    const closeTime = new Date(`${date}T${closeHour.toString().padStart(2, "0")}:${closeMin.toString().padStart(2, "0")}:00`);
+    if (slotEnd > closeTime) continue;
 
       // Check slot is not in the past
       const now = new Date();
@@ -72,7 +91,6 @@ export async function GET(req: NextRequest) {
       if (!hasConflict && !isBlocked) {
         slots.push(slotStart.toISOString());
       }
-    }
   }
 
   return NextResponse.json({ slots, date, barberId });

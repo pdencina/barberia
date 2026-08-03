@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
 
 interface Appointment {
   id: string;
@@ -60,14 +61,20 @@ export default function MiAgendaPage() {
   });
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { user, isAtLeast } = useAuth();
 
   useEffect(() => {
     fetch("/api/barberos").then((r) => r.json()).then((data) => {
       const list = Array.isArray(data) ? data : [];
       setBarbers(list);
-      if (list.length > 0) setSelectedBarber(list[0].id);
+      // If barber role, auto-select own profile
+      if (user?.role === "barber" && user?.id) {
+        setSelectedBarber(user.id);
+      } else if (list.length > 0) {
+        setSelectedBarber(list[0].id);
+      }
     });
-  }, []);
+  }, [user]);
 
   const fetchData = async () => {
     if (!selectedBarber) return;
@@ -148,16 +155,18 @@ export default function MiAgendaPage() {
         </button>
       </div>
 
-      {/* Barber selector (for admin view) */}
-      <select
-        value={selectedBarber}
-        onChange={(e) => setSelectedBarber(e.target.value)}
-        className="w-full border rounded-lg px-3 py-2 text-sm"
-      >
-        {barbers.map((b) => (
-          <option key={b.id} value={b.id}>{b.name}</option>
-        ))}
-      </select>
+      {/* Barber selector (only for admin/super_admin) */}
+      {isAtLeast("admin") && (
+        <select
+          value={selectedBarber}
+          onChange={(e) => setSelectedBarber(e.target.value)}
+          className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
+        >
+          {barbers.map((b) => (
+            <option key={b.id} value={b.id}>{b.name}</option>
+          ))}
+        </select>
+      )}
 
       {/* Date navigation */}
       <div className="flex items-center justify-between bg-white rounded-lg p-3 shadow">

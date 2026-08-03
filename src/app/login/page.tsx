@@ -10,8 +10,24 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
+  const [forgotLoading, setForgotLoading] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  const handleForgot = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotLoading(true);
+    await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: forgotEmail }),
+    });
+    setForgotSent(true);
+    setForgotLoading(false);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,12 +142,56 @@ export default function LoginPage() {
 
           {/* Forgot password */}
           <div className="text-center pt-1">
-            <button type="button" className="text-xs text-brand-gray hover:text-brand-blue transition-colors">
+            <button type="button" onClick={() => { setShowForgot(true); setForgotEmail(email); }}
+              className="text-xs text-brand-gray hover:text-brand-blue transition-colors">
               Olvidaste tu contrasena?
             </button>
           </div>
         </form>
       </div>
+
+      {/* Forgot password modal */}
+      {showForgot && (
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowForgot(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            {forgotSent ? (
+              <div className="text-center py-4">
+                <div className="text-4xl mb-3">📧</div>
+                <h3 className="font-bold text-brand-dark">Revisa tu email</h3>
+                <p className="text-sm text-brand-gray mt-2">Si la cuenta existe, recibiras un link para restablecer tu contrasena.</p>
+                <button onClick={() => { setShowForgot(false); setForgotSent(false); }}
+                  className="mt-4 px-6 py-2 bg-brand-blue text-white rounded-xl text-sm font-medium">
+                  Entendido
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleForgot}>
+                <h3 className="font-bold text-brand-dark text-lg">Recuperar contrasena</h3>
+                <p className="text-sm text-brand-gray mt-1 mb-4">Ingresa tu email y te enviaremos un link.</p>
+                <input
+                  type="email"
+                  value={forgotEmail}
+                  onChange={(e) => setForgotEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  required
+                  className="w-full h-11 rounded-xl border border-gray-200 bg-brand-light/50 px-4 text-sm text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+                  autoFocus
+                />
+                <div className="flex gap-2 mt-4">
+                  <button type="button" onClick={() => setShowForgot(false)}
+                    className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
+                    Cancelar
+                  </button>
+                  <button type="submit" disabled={forgotLoading}
+                    className="flex-1 py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-70">
+                    {forgotLoading ? "Enviando..." : "Enviar link"}
+                  </button>
+                </div>
+              </form>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Version */}
       <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] text-brand-gray/50">re-booking v1.0</p>

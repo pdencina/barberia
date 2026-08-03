@@ -143,6 +143,7 @@ export async function POST(req: NextRequest) {
         date: start,
         duration: totalDuration,
         price: totalPrice,
+        appointmentId: appointment!.id,
       });
     } catch (e) {
       console.error("Error sending confirmation email:", e);
