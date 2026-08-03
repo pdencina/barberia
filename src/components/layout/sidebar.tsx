@@ -82,10 +82,17 @@ const sections: NavSection[] = [
     title: "Equipo",
     items: [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
-      { name: "Empresas", href: "/dashboard/superadmin/tenants", icon: Users, minRole: "super_admin" },
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "super_admin" },
       { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "super_admin" },
       { name: "Config", href: "/dashboard/configuracion", icon: Settings, minRole: "super_admin" },
+    ],
+  },
+  {
+    title: "Super Admin",
+    items: [
+      { name: "Empresas", href: "/dashboard/superadmin/tenants", icon: Users, minRole: "super_admin" },
+      { name: "Planes", href: "/dashboard/superadmin/tenants", icon: CreditCard, minRole: "super_admin" },
+      { name: "Horarios", href: "/dashboard/configuracion/horarios", icon: Calendar, minRole: "super_admin" },
     ],
   },
 ];
