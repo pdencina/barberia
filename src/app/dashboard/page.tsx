@@ -38,7 +38,7 @@ export default function DashboardPage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    fetch("/api/dashboard")
+    fetch("/api/dashboard", { cache: "no-store" })
       .then((r) => r.json())
       .then((d) => setData(d))
       .finally(() => setLoading(false));
