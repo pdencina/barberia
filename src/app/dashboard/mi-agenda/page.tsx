@@ -52,6 +52,17 @@ export default function MiAgendaPage() {
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
   const [showBlockModal, setShowBlockModal] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState({
+    clientName: "",
+    clientPhone: "",
+    serviceId: "",
+    date: new Date().toISOString().split("T")[0],
+    time: "10:00",
+  });
+  const [services, setServices] = useState<Array<{ id: string; name: string; duration: number; price: number }>>([]);
+  const [creating, setCreating] = useState(false);
+  const [clientSuggestions, setClientSuggestions] = useState<Array<{ id: string; name: string; phone: string | null }>>([]);
   const [blockForm, setBlockForm] = useState({
     date: new Date().toISOString().split("T")[0],
     allDay: true,
@@ -67,12 +78,14 @@ export default function MiAgendaPage() {
     fetch("/api/barberos").then((r) => r.json()).then((data) => {
       const list = Array.isArray(data) ? data : [];
       setBarbers(list);
-      // If barber role, auto-select own profile
       if (user?.role === "barber" && user?.id) {
         setSelectedBarber(user.id);
       } else if (list.length > 0) {
         setSelectedBarber(list[0].id);
       }
+    });
+    fetch("/api/services").then((r) => r.json()).then((data) => {
+      setServices(Array.isArray(data) ? data : []);
     });
   }, [user]);
 
@@ -104,6 +117,49 @@ export default function MiAgendaPage() {
     });
     showToast("Estado actualizado", "success");
     fetchData();
+  };
+
+  const searchClients = async (query: string) => {
+    if (query.length < 2) { setClientSuggestions([]); return; }
+    const res = await fetch(`/api/clients?search=${encodeURIComponent(query)}&limit=5`);
+    const data = await res.json();
+    setClientSuggestions(Array.isArray(data?.clients) ? data.clients : Array.isArray(data) ? data : []);
+  };
+
+  const handleCreateAppointment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.clientName.trim() || !createForm.serviceId || !selectedBarber) return;
+    setCreating(true);
+
+    const service = services.find((s) => s.id === createForm.serviceId);
+    const duration = service?.duration || 45;
+    const startTime = `${createForm.date}T${createForm.time}:00`;
+
+    const res = await fetch("/api/public/book", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        serviceIds: [createForm.serviceId],
+        barberId: selectedBarber,
+        date: createForm.date,
+        startTime,
+        clientName: createForm.clientName.trim(),
+        clientPhone: createForm.clientPhone.trim() || null,
+        clientEmail: null,
+      }),
+    });
+
+    setCreating(false);
+    if (res.ok) {
+      showToast("Cita creada", "success");
+      setShowCreateModal(false);
+      setCreateForm({ clientName: "", clientPhone: "", serviceId: "", date, time: "10:00" });
+      setClientSuggestions([]);
+      fetchData();
+    } else {
+      const data = await res.json();
+      showToast(data.error || "Error al crear cita", "error");
+    }
   };
 
   const handleBlock = async (e: React.FormEvent) => {
@@ -321,6 +377,117 @@ export default function MiAgendaPage() {
                   className="flex-1 px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
                 <button type="submit"
                   className="flex-1 px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Bloquear</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* FAB - Quick create appointment */}
+      {!showCreateModal && !showBlockModal && (
+        <button
+          onClick={() => { setCreateForm({ ...createForm, date }); setShowCreateModal(true); }}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-brand-blue text-white rounded-full shadow-lg shadow-brand-blue/30 flex items-center justify-center text-2xl z-30 active:scale-95 hover:bg-blue-700 transition-all"
+        >
+          +
+        </button>
+      )}
+
+      {/* Create Appointment Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center z-50" onClick={() => setShowCreateModal(false)}>
+          <div className="bg-white rounded-t-2xl sm:rounded-2xl p-5 w-full max-w-sm shadow-xl animate-scale-in max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-brand-dark mb-4">Crear Cita Rapida</h2>
+            <form onSubmit={handleCreateAppointment} className="space-y-4">
+              {/* Client name with autocomplete */}
+              <div className="relative">
+                <label className="block text-xs font-medium text-brand-gray mb-1">Cliente</label>
+                <input
+                  type="text"
+                  value={createForm.clientName}
+                  onChange={(e) => { setCreateForm({ ...createForm, clientName: e.target.value }); searchClients(e.target.value); }}
+                  placeholder="Nombre del cliente"
+                  required
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
+                />
+                {clientSuggestions.length > 0 && (
+                  <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-32 overflow-y-auto">
+                    {clientSuggestions.map((c) => (
+                      <button key={c.id} type="button"
+                        onClick={() => { setCreateForm({ ...createForm, clientName: c.name, clientPhone: c.phone || "" }); setClientSuggestions([]); }}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-brand-light border-b border-gray-50 last:border-0">
+                        <p className="font-medium text-brand-dark">{c.name}</p>
+                        {c.phone && <p className="text-xs text-brand-gray">{c.phone}</p>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Telefono (opcional)</label>
+                <input
+                  type="tel"
+                  value={createForm.clientPhone}
+                  onChange={(e) => setCreateForm({ ...createForm, clientPhone: e.target.value })}
+                  placeholder="+56 9 1234 5678"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
+                />
+              </div>
+
+              {/* Service */}
+              <div>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Servicio</label>
+                <select
+                  value={createForm.serviceId}
+                  onChange={(e) => setCreateForm({ ...createForm, serviceId: e.target.value })}
+                  required
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
+                >
+                  <option value="">Seleccionar servicio</option>
+                  {services.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name} ({s.duration}min)</option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Date + Time */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Fecha</label>
+                  <input
+                    type="date"
+                    value={createForm.date}
+                    onChange={(e) => setCreateForm({ ...createForm, date: e.target.value })}
+                    required
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Hora</label>
+                  <input
+                    type="time"
+                    value={createForm.time}
+                    onChange={(e) => setCreateForm({ ...createForm, time: e.target.value })}
+                    required
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div className="flex gap-2 pt-2">
+                <button type="button" onClick={() => { setShowCreateModal(false); setClientSuggestions([]); }}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={creating || !createForm.clientName.trim() || !createForm.serviceId}
+                  className="flex-1 py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 flex items-center justify-center gap-2">
+                  {creating ? (
+                    <><svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Creando...</>
+                  ) : "Crear Cita"}
+                </button>
               </div>
             </form>
           </div>
