@@ -47,6 +47,8 @@ export default function POSPage() {
   const [selectedBarber, setSelectedBarber] = useState("");
   const [selectedClient, setSelectedClient] = useState("");
   const [clientSearch, setClientSearch] = useState("");
+  const [clientPoints, setClientPoints] = useState(0);
+  const [redeemedPoints, setRedeemedPoints] = useState(0);
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [couponError, setCouponError] = useState("");
@@ -187,6 +189,7 @@ export default function POSPage() {
           discount,
           subtotal,
           total,
+          redeemedPoints: redeemedPoints || 0,
         }),
       });
       if (res.ok) {
@@ -198,6 +201,8 @@ export default function POSPage() {
         setSplitMode(false);
         setSplitPayments([{ method: "debit_card", amount: "" }, { method: "cash", amount: "" }]);
         setSelectedClient("");
+        setClientPoints(0);
+        setRedeemedPoints(0);
         showToast(
           result.receiptSent ? "Venta registrada - Boleta enviada al email" : "Venta registrada exitosamente",
           "success"
@@ -297,7 +302,13 @@ export default function POSPage() {
                     .filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
                     .slice(0, 5)
                     .map((c) => (
-                      <button key={c.id} onClick={() => { setSelectedClient(c.id); setClientSearch(c.name); }}
+                      <button key={c.id} onClick={async () => {
+                        setSelectedClient(c.id); setClientSearch(c.name);
+                        // Fetch client points
+                        const res = await fetch(`/api/clients/${c.id}`);
+                        const data = await res.json();
+                        setClientPoints(data?.client?.loyalty_points || data?.loyalty_points || 0);
+                      }}
                         className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100">
                         {c.name}
                       </button>
@@ -306,6 +317,45 @@ export default function POSPage() {
               )}
             </div>
           </div>
+
+          {/* Loyalty points display + redeem */}
+          {selectedClient && clientPoints > 0 && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-brand-blue font-medium">Puntos disponibles</p>
+                  <p className="text-lg font-bold text-brand-blue">{clientPoints - redeemedPoints} pts</p>
+                </div>
+                {redeemedPoints === 0 ? (
+                  <button
+                    onClick={() => {
+                      // 1 punto = $100 CLP discount
+                      const maxDiscount = Math.min((clientPoints) * 100, subtotal);
+                      const pointsToUse = Math.floor(maxDiscount / 100);
+                      setRedeemedPoints(pointsToUse);
+                      setDiscount(pointsToUse * 100);
+                    }}
+                    disabled={subtotal === 0}
+                    className="px-3 py-1.5 bg-brand-blue text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                  >
+                    Canjear
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => { setRedeemedPoints(0); setDiscount(0); }}
+                    className="px-3 py-1.5 border border-red-300 text-red-500 text-xs rounded-lg hover:bg-red-50"
+                  >
+                    Quitar canje
+                  </button>
+                )}
+              </div>
+              {redeemedPoints > 0 && (
+                <p className="text-xs text-brand-blue mt-1">
+                  Canjeando {redeemedPoints} pts = -{formatCurrency(redeemedPoints * 100)} descuento
+                </p>
+              )}
+            </div>
+          )}
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">

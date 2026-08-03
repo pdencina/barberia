@@ -4,7 +4,7 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { items, clientId, barberId, paymentMethod, payments, couponCode, discount, subtotal, total } = body;
+  const { items, clientId, barberId, paymentMethod, payments, couponCode, discount, subtotal, total, redeemedPoints } = body;
   // payments: optional array [{method: "cash", amount: 10000}, {method: "debit_card", amount: 7000}]
   // If not provided, falls back to single paymentMethod for full total
 
@@ -132,6 +132,32 @@ export async function POST(req: NextRequest) {
       }
     } catch (e) {
       console.error("Error awarding loyalty points:", e);
+    }
+  }
+
+  // Deduct redeemed points
+  if (clientId && redeemedPoints > 0) {
+    try {
+      await supabase.from("loyalty_points").insert({
+        client_id: clientId,
+        points: -redeemedPoints,
+        reason: "redemption",
+        transaction_id: tx.id,
+      });
+
+      // Update cached balance
+      const { data: client } = await supabase
+        .from("clients")
+        .select("loyalty_points")
+        .eq("id", clientId)
+        .single();
+
+      await supabase
+        .from("clients")
+        .update({ loyalty_points: Math.max((client?.loyalty_points || 0) - redeemedPoints, 0) })
+        .eq("id", clientId);
+    } catch (e) {
+      console.error("Error deducting loyalty points:", e);
     }
   }
 
