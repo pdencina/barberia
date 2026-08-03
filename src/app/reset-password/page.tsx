@@ -54,7 +54,7 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
         <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl p-8 text-center">
-          <div className="text-5xl mb-4">✓</div>
+          <img src="/oti/confirmado.png" alt="Oti" className="w-20 h-20 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-brand-dark">Contrasena actualizada</h2>
           <p className="text-sm text-brand-gray mt-2">Redirigiendo al login...</p>
         </div>

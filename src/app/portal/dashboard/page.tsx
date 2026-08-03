@@ -159,7 +159,7 @@ export default function PortalDashboard() {
           <div className="space-y-3">
             {data.upcoming.length === 0 ? (
               <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-                <p className="text-3xl mb-2">📅</p>
+                <img src="/oti/feliz.png" alt="Oti" className="w-16 h-16 mx-auto mb-2" />
                 <p className="text-brand-gray text-sm">No tienes citas agendadas</p>
                 <a href="/booking" className="mt-4 inline-block px-5 py-2 bg-brand-blue text-white text-sm font-medium rounded-xl hover:bg-blue-700">
                   Agendar cita

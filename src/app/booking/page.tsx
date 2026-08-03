@@ -529,11 +529,7 @@ export default function BookingPage() {
         {/* Step 5: Confirmation */}
         {step === "confirmed" && (
           <div className="text-center py-12">
-            <div className="w-20 h-20 rounded-full bg-green-600/20 flex items-center justify-center mx-auto mb-6">
-              <svg className="w-10 h-10 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
+            <img src="/oti/confirmado.png" alt="Confirmado!" className="w-24 h-24 mx-auto mb-4" />
             <h2 className="text-3xl font-bold mb-3">Cita Confirmada!</h2>
             <p className="text-brand-gray mb-6">Tu cita ha sido agendada exitosamente</p>
 

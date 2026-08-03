@@ -165,8 +165,9 @@ export default function DashboardPage() {
 
           {data.todayAppointments.length === 0 ? (
             <div className="text-center py-12">
-              <div className="text-4xl mb-3">📅</div>
+              <img src="/oti/feliz.png" alt="Oti feliz" className="w-20 h-20 mx-auto mb-3" />
               <p className="text-brand-gray text-sm">No hay citas agendadas para hoy</p>
+              <p className="text-xs text-brand-gray mt-1">Disfruta tu tiempo libre!</p>
             </div>
           ) : (
             <div className="space-y-1">

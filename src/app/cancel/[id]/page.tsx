@@ -34,7 +34,7 @@ export default function CancelPage() {
 
         {status === "confirm" && (
           <>
-            <div className="text-4xl mb-4">📅</div>
+            <img src="/oti/pensando.png" alt="Oti" className="w-20 h-20 mx-auto mb-4" />
             <h2 className="text-lg font-bold text-brand-dark">Cancelar cita</h2>
             <p className="text-sm text-brand-gray mt-2 mb-6">
               Estas seguro que deseas cancelar tu cita? Esta accion no se puede deshacer.
@@ -62,7 +62,7 @@ export default function CancelPage() {
 
         {status === "success" && (
           <>
-            <div className="text-4xl mb-4">✓</div>
+            <img src="/oti/confirmado.png" alt="Oti confirmado" className="w-20 h-20 mx-auto mb-4" />
             <h2 className="text-lg font-bold text-brand-dark">Cita cancelada</h2>
             <p className="text-sm text-brand-gray mt-2 mb-6">
               Tu cita ha sido cancelada exitosamente. Puedes reagendar cuando quieras.
@@ -75,7 +75,7 @@ export default function CancelPage() {
 
         {status === "error" && (
           <>
-            <div className="text-4xl mb-4">⚠️</div>
+            <img src="/oti/sorprendido.png" alt="Oti sorprendido" className="w-20 h-20 mx-auto mb-4" />
             <h2 className="text-lg font-bold text-brand-dark">No se pudo cancelar</h2>
             <p className="text-sm text-red-500 mt-2 mb-6">{errorMsg}</p>
             <a href="/booking" className="block w-full py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
