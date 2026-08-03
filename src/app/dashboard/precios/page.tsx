@@ -32,9 +32,15 @@ export default function PreciosPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Historial de Precios</h1>
-        <p className="text-gray-500 text-sm">Registro de todos los cambios de precios</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Historial de Precios</h1>
+          <p className="text-gray-500 text-sm">Registro de todos los cambios de precios</p>
+        </div>
+        <a href="/dashboard/barberos/precios"
+          className="px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:bg-blue-700 font-medium">
+          Precios por Barbero
+        </a>
       </div>
 
       {/* Filter */}
