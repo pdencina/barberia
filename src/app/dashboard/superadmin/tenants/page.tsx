@@ -40,7 +40,7 @@ export default function SuperAdminTenantsPage() {
   const [creating, setCreating] = useState(false);
   const [createdInfo, setCreatedInfo] = useState<{ email: string; password: string; slug: string } | null>(null);
   const [form, setForm] = useState({
-    name: "", slug: "", admin_email: "", admin_name: "", phone: "", address: "", rut_empresa: "", plan: "starter",
+    name: "", slug: "", admin_email: "", admin_name: "", phone: "", address: "", rut_empresa: "", plan: "basic",
   });
   const { showToast } = useToast();
 
@@ -240,14 +240,15 @@ export default function SuperAdminTenantsPage() {
                 </div>
                 <div className="col-span-2">
                   <label className="text-xs font-medium text-brand-gray block mb-1">Plan</label>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="grid grid-cols-2 gap-2">
                     {[
-                      { key: "starter", label: "Starter", desc: "3 prof · $49.990/mes" },
-                      { key: "pro", label: "Pro", desc: "10 prof · $89.990/mes" },
-                      { key: "enterprise", label: "Enterprise", desc: "Ilimitado · Custom" },
+                      { key: "basic", label: "Basic", desc: "1 prof · $8.900/mes" },
+                      { key: "starter", label: "Starter", desc: "3 prof · $29.990/mes" },
+                      { key: "pro", label: "Pro", desc: "8 prof · $49.990/mes" },
+                      { key: "enterprise", label: "Enterprise", desc: "Ilimitado · $189.990/mes" },
                     ].map((p) => (
                       <button key={p.key} type="button" onClick={() => setForm({ ...form, plan: p.key })}
-                        className={`p-3 rounded-xl border-2 text-left transition-all ${form.plan === p.key ? "border-brand-blue bg-blue-50" : "border-gray-200 hover:border-gray-300"}`}>
+                        className={`p-3 rounded-xl border-2 text-left transition-all ${form.plan === p.key ? "border-brand-blue bg-brand-blue/5" : "border-gray-200 hover:border-gray-300"}`}>
                         <p className="text-sm font-bold text-brand-dark">{p.label}</p>
                         <p className="text-[10px] text-brand-gray">{p.desc}</p>
                       </button>

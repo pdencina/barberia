@@ -22,7 +22,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" href="/icon-white.png" />
         <link rel="apple-touch-icon" href="/icon-blue.png" />
-        <meta name="theme-color" content="#1E88E5" />
+        <meta name="theme-color" content="#0F8B8D" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
