@@ -42,6 +42,7 @@ const sections: NavSection[] = [
       { name: "Clientes", href: "/dashboard/clientes", icon: Users, minRole: "barber" },
       { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star, minRole: "admin" },
       { name: "Retencion", href: "/dashboard/retencion", icon: Heart, minRole: "admin" },
+      { name: "WhatsApp", href: "/dashboard/whatsapp", icon: Users, minRole: "admin" },
       { name: "Lista Espera", href: "/dashboard/waitlist", icon: Users, minRole: "admin" },
     ],
   },
