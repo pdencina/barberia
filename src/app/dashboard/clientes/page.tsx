@@ -192,8 +192,31 @@ export default function ClientesPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
                 <textarea value={formData.notes}
                   onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2" rows={3} />
+                  className="w-full border rounded-lg px-3 py-2" rows={2} />
               </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Como nos conocio?</label>
+                <select value={(formData as any).source || ""}
+                  onChange={(e) => setFormData({ ...formData, source: e.target.value } as any)}
+                  className="w-full border rounded-lg px-3 py-2">
+                  <option value="">Seleccionar...</option>
+                  <option value="friend">Amigo / Referido</option>
+                  <option value="google_maps">Google Maps</option>
+                  <option value="instagram">Instagram</option>
+                  <option value="tiktok">TikTok</option>
+                  <option value="ads">Publicidad</option>
+                  <option value="other">Otro</option>
+                </select>
+              </div>
+              {(formData as any).source === "instagram" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta de Instagram</label>
+                  <input type="text" value={(formData as any).source_detail || ""}
+                    onChange={(e) => setFormData({ ...formData, source_detail: e.target.value } as any)}
+                    placeholder="@usuario"
+                    className="w-full border rounded-lg px-3 py-2" />
+                </div>
+              )}
               <div className="flex gap-2 justify-end">
                 <button type="button" onClick={() => setShowModal(false)}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
