@@ -306,11 +306,12 @@ export default function POSPage() {
       </div>
 
       {/* Right: Cart */}
-      <div className="w-full lg:w-96 bg-white border-t lg:border-t-0 lg:border-l flex flex-col max-h-[60vh] lg:max-h-none">
-        <div className="p-4 border-b space-y-3">
+      <div className="w-full lg:w-[420px] bg-white border-t lg:border-t-0 lg:border-l flex flex-col lg:max-h-screen">
+        {/* Compact header: barber + client */}
+        <div className="p-3 border-b space-y-2">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h2 className="font-bold text-lg text-brand-dark">Venta</h2>
+              <h2 className="font-bold text-base text-brand-dark">Venta</h2>
               {cart.length > 0 && (
                 <span className="w-5 h-5 bg-brand-blue text-white rounded-full flex items-center justify-center text-[10px] font-bold">
                   {cart.reduce((s, c) => s + c.quantity, 0)}
@@ -321,32 +322,27 @@ export default function POSPage() {
               <span className="text-sm font-bold text-brand-blue">{formatCurrency(total)}</span>
             )}
           </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Barbero *</label>
+          <div className="grid grid-cols-2 gap-2">
             <select
               value={selectedBarber}
               onChange={(e) => setSelectedBarber(e.target.value)}
-              className="w-full border rounded-lg px-3 py-2 text-sm"
-              required
+              className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs"
             >
-              <option value="">Seleccionar barbero</option>
+              <option value="">Barbero *</option>
               {barbers.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}
             </select>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-gray-600 mb-1">Cliente</label>
             <div className="relative">
               <input
                 type="text"
-                placeholder="Buscar cliente..."
+                placeholder="Cliente..."
                 value={clientSearch}
                 onChange={(e) => {
                   setClientSearch(e.target.value);
                   setSelectedClient("");
                 }}
-                className="w-full border rounded-lg px-3 py-2 text-sm"
+                className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs"
               />
               {clientSearch && !selectedClient && (
                 <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto">
@@ -356,12 +352,11 @@ export default function POSPage() {
                     .map((c) => (
                       <button key={c.id} onClick={async () => {
                         setSelectedClient(c.id); setClientSearch(c.name);
-                        // Fetch client points
                         const res = await fetch(`/api/clients/${c.id}`);
                         const data = await res.json();
                         setClientPoints(data?.client?.loyalty_points || data?.loyalty_points || 0);
                       }}
-                        className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100">
+                        className="w-full text-left px-3 py-2 text-xs hover:bg-gray-100">
                         {c.name}
                       </button>
                     ))}
@@ -370,95 +365,77 @@ export default function POSPage() {
             </div>
           </div>
 
-          {/* Loyalty points display + redeem */}
+          {/* Loyalty points - compact */}
           {selectedClient && clientPoints > 0 && (
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs text-brand-blue font-medium">Puntos disponibles</p>
-                  <p className="text-lg font-bold text-brand-blue">{clientPoints - redeemedPoints} pts</p>
-                </div>
-                {redeemedPoints === 0 ? (
-                  <button
-                    onClick={() => {
-                      // 1 punto = $100 CLP discount
-                      const maxDiscount = Math.min((clientPoints) * 100, subtotal);
-                      const pointsToUse = Math.floor(maxDiscount / 100);
-                      setRedeemedPoints(pointsToUse);
-                      setDiscount(pointsToUse * 100);
-                    }}
-                    disabled={subtotal === 0}
-                    className="px-3 py-1.5 bg-brand-blue text-white text-xs rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                  >
-                    Canjear
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => { setRedeemedPoints(0); setDiscount(0); }}
-                    className="px-3 py-1.5 border border-red-300 text-red-500 text-xs rounded-lg hover:bg-red-50"
-                  >
-                    Quitar canje
-                  </button>
-                )}
-              </div>
-              {redeemedPoints > 0 && (
-                <p className="text-xs text-brand-blue mt-1">
-                  Canjeando {redeemedPoints} pts = -{formatCurrency(redeemedPoints * 100)} descuento
-                </p>
+            <div className="flex items-center justify-between bg-blue-50 rounded-lg px-3 py-2">
+              <span className="text-xs text-brand-blue font-medium">{clientPoints - redeemedPoints} pts</span>
+              {redeemedPoints === 0 ? (
+                <button onClick={() => { const max = Math.min(clientPoints * 100, subtotal); setRedeemedPoints(Math.floor(max / 100)); setDiscount(Math.floor(max / 100) * 100); }}
+                  disabled={subtotal === 0} className="text-[10px] px-2 py-1 bg-brand-blue text-white rounded-md hover:bg-blue-700 disabled:opacity-50">
+                  Canjear
+                </button>
+              ) : (
+                <button onClick={() => { setRedeemedPoints(0); setDiscount(0); }}
+                  className="text-[10px] px-2 py-1 border border-red-300 text-red-500 rounded-md hover:bg-red-50">
+                  Quitar (-{formatCurrency(redeemedPoints * 100)})
+                </button>
               )}
             </div>
           )}
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-2">
+        {/* Cart items - scrollable, spacious */}
+        <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
           {cart.length === 0 ? (
-            <div className="text-center py-12">
-              <img src="/oti/pensando.png" alt="Oti pensando" className="w-24 h-24 mx-auto mb-3 opacity-90" />
+            <div className="text-center py-10">
+              <img src="/oti/pensando.png" alt="Oti pensando" className="w-20 h-20 mx-auto mb-2 opacity-90" />
               <p className="text-brand-gray text-sm font-medium">Carrito vacio</p>
-              <p className="text-brand-gray text-xs mt-1">Selecciona servicios o productos</p>
+              <p className="text-brand-gray text-[11px] mt-1">Toca un servicio o producto para agregar</p>
             </div>
           ) : (
             <>
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs text-brand-gray font-medium">{cart.reduce((s, c) => s + c.quantity, 0)} items</span>
-                <button onClick={() => setCart([])} className="text-xs text-red-500 hover:underline">Vaciar</button>
+              <div className="flex items-center justify-between px-1 mb-1">
+                <span className="text-[11px] text-brand-gray font-medium uppercase tracking-wider">Items ({cart.reduce((s, c) => s + c.quantity, 0)})</span>
+                <button onClick={() => setCart([])} className="text-[11px] text-red-400 hover:text-red-600 font-medium">Vaciar todo</button>
               </div>
               {cart.map((item) => (
-                <div key={`${item.type}-${item.id}`} className="bg-brand-light rounded-xl p-3 group">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <div className={`w-7 h-7 rounded-lg flex items-center justify-center text-[10px] font-bold ${
-                        item.type === "service" ? "bg-blue-100 text-brand-blue" : "bg-orange-100 text-orange-500"
-                      }`}>
-                        {item.type === "service" ? "S" : "P"}
-                      </div>
-                      <div>
-                        <p className="font-medium text-sm text-brand-dark">{item.name}</p>
-                        <p className="text-xs text-brand-gray">{formatCurrency(Number(item.price))} c/u</p>
-                      </div>
+                <div key={`${item.type}-${item.id}`} className="bg-white border border-gray-100 rounded-xl p-3 hover:border-brand-blue/30 transition-colors">
+                  <div className="flex items-center gap-3">
+                    {/* Type icon */}
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                      item.type === "service" ? "bg-blue-50 text-brand-blue" : "bg-orange-50 text-orange-500"
+                    }`}>
+                      {item.type === "service" ? (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+                        </svg>
+                      )}
                     </div>
-                    <button
-                      onClick={() => removeFromCart(item.id, item.type)}
-                      className="text-brand-gray hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1"
-                    >
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-                      </svg>
-                    </button>
+                    {/* Name + price per unit */}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-sm text-brand-dark truncate">{item.name}</p>
+                      <p className="text-[11px] text-brand-gray">{formatCurrency(Number(item.price))} c/u</p>
+                    </div>
+                    {/* Line total */}
+                    <p className="font-bold text-sm text-brand-dark flex-shrink-0">{formatCurrency(Number(item.price) * item.quantity)}</p>
                   </div>
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => updateQuantity(item.id, item.type, -1)}
-                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-brand-dark flex items-center justify-center text-sm hover:border-brand-blue"
-                      >−</button>
-                      <span className="text-sm font-bold text-brand-dark w-6 text-center">{item.quantity}</span>
-                      <button
-                        onClick={() => updateQuantity(item.id, item.type, 1)}
-                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-brand-dark flex items-center justify-center text-sm hover:border-brand-blue"
-                      >+</button>
+                  {/* Quantity controls */}
+                  <div className="flex items-center justify-between mt-2 pl-[52px]">
+                    <div className="flex items-center gap-1">
+                      <button onClick={() => updateQuantity(item.id, item.type, -1)}
+                        className="w-7 h-7 rounded-lg bg-brand-light border border-gray-200 text-brand-dark flex items-center justify-center text-base hover:border-brand-blue hover:text-brand-blue transition-colors">−</button>
+                      <span className="text-sm font-bold text-brand-dark w-8 text-center">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, item.type, 1)}
+                        className="w-7 h-7 rounded-lg bg-brand-light border border-gray-200 text-brand-dark flex items-center justify-center text-base hover:border-brand-blue hover:text-brand-blue transition-colors">+</button>
                     </div>
-                    <p className="font-bold text-sm text-brand-dark">{formatCurrency(Number(item.price) * item.quantity)}</p>
+                    <button onClick={() => removeFromCart(item.id, item.type)}
+                      className="text-[11px] text-red-400 hover:text-red-600 font-medium">
+                      Quitar
+                    </button>
                   </div>
                 </div>
               ))}
