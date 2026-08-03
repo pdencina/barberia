@@ -5,8 +5,8 @@ self.addEventListener("push", (event) => {
 
   const options = {
     body: data.body || "Nueva notificacion de re-booking",
-    icon: "/icon-white.png",
-    badge: "/icon-blue.png",
+    icon: "/icon-white-512.png",
+    badge: "/icon-512.png",
     vibrate: [200, 100, 200],
     tag: data.tag || "default",
     data: {

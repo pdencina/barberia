@@ -43,7 +43,7 @@ export default function ReviewPage() {
       <div className="max-w-md w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="re-booking" className="h-10 mx-auto mb-4" />
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-10 mx-auto mb-4" />
         </div>
 
         {submitted ? (

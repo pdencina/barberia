@@ -208,7 +208,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-gray-100 flex items-center px-4 gap-3">
         <button onClick={() => setMobileOpen(true)} className="text-brand-dark p-1"><Menu className="h-6 w-6" /></button>
-        <img src="/logo.png" alt="re-booking" className="h-7 w-auto" />
+        <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" />
       </div>
 
       {/* Mobile overlay */}
@@ -220,7 +220,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex h-14 items-center justify-between px-4 border-b border-gray-100">
-          <img src="/logo.png" alt="re-booking" className="h-8 w-auto" />
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto" />
           <button onClick={() => setMobileOpen(false)} className="text-brand-gray hover:text-brand-dark"><X className="h-5 w-5" /></button>
         </div>
         {renderNav(true)}
@@ -241,7 +241,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
         collapsed ? "w-16" : "w-60"
       )}>
         <div className={cn("flex h-14 items-center border-b border-gray-100", collapsed ? "justify-center" : "justify-between px-4")}>
-          {!collapsed && <img src="/logo.png" alt="re-booking" className="h-7 w-auto" />}
+          {!collapsed && <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" />}
           <button onClick={toggleCollapse} className="text-brand-gray hover:text-brand-dark p-1 rounded-lg hover:bg-brand-light">
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>

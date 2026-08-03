@@ -131,7 +131,7 @@ export default function BookingPage() {
       <div className="border-b border-gray-100 py-4 px-6 flex items-center justify-between bg-white">
         <div className="flex-1" />
         <div className="text-center">
-          <img src="/logo.png" alt="re-booking" className="h-10 mx-auto" />
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-10 mx-auto" />
           <p className="text-xs text-brand-blue uppercase tracking-widest mt-2 font-medium">Agendar Hora</p>
         </div>
         <div className="flex-1 flex justify-end">

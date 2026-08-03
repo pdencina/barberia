@@ -30,7 +30,7 @@ export default function CancelPage() {
   return (
     <div className="min-h-screen bg-brand-light flex items-center justify-center p-4">
       <div className="w-full max-w-sm bg-white rounded-2xl border border-gray-200 shadow-xl p-6 text-center">
-        <img src="/logo.png" alt="re-booking" className="h-10 mx-auto mb-6" />
+        <img src="/logo-horizontal.png" alt="re-booking" className="h-10 mx-auto mb-6" />
 
         {status === "confirm" && (
           <>

@@ -68,7 +68,7 @@ export default function PortalLoginPage() {
     <div className="min-h-screen bg-brand-light flex items-center justify-center p-4">
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="re-booking" className="h-12 mx-auto mb-3" />
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-12 mx-auto mb-3" />
           <h1 className="text-xl font-bold text-brand-dark">Portal del Cliente</h1>
           <p className="text-sm text-brand-gray mt-1">Consulta tus citas y beneficios</p>
         </div>

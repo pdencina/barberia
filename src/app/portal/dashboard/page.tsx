@@ -110,7 +110,7 @@ export default function PortalDashboard() {
       {/* Header */}
       <header className="bg-white border-b border-gray-100 px-4 py-3 sticky top-0 z-10">
         <div className="max-w-lg mx-auto flex items-center justify-between">
-          <img src="/logo.png" alt="re-booking" className="h-7" />
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-7" />
           <button onClick={logout} className="text-xs text-brand-gray hover:text-brand-blue">
             Cerrar sesion
           </button>

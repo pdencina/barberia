@@ -66,7 +66,7 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
       <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl shadow-blue-900/5 p-6 md:p-8">
         <div className="text-center mb-6">
-          <img src="/logo.png" alt="re-booking" className="h-10 w-auto mx-auto mb-3" />
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-10 w-auto mx-auto mb-3" />
           <h2 className="text-lg font-bold text-brand-dark">Nueva contrasena</h2>
           <p className="text-xs text-brand-gray mt-1">Ingresa tu nueva contrasena</p>
         </div>
