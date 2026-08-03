@@ -41,12 +41,50 @@ export default function CajaPage() {
   const [closingNotes, setClosingNotes] = useState("");
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const [showReopenModal, setShowReopenModal] = useState(false);
+  const [reopenPin, setReopenPin] = useState("");
+  const [reopenError, setReopenError] = useState("");
+  const [reopening, setReopening] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
     const res = await fetch("/api/caja");
     setData(await res.json());
     setLoading(false);
+  };
+
+  const handleReopen = async () => {
+    setReopenError("");
+    if (reopenPin.length !== 4) { setReopenError("PIN de 4 digitos"); return; }
+    setReopening(true);
+
+    // Verify admin PIN
+    const pinRes = await fetch("/api/pos/verify-pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: reopenPin }),
+    });
+    const pinData = await pinRes.json();
+
+    if (!pinData.valid) {
+      setReopenError("PIN incorrecto");
+      setReopening(false);
+      return;
+    }
+
+    // Reopen the register
+    const res = await fetch("/api/caja/reopen", { method: "POST" });
+    setReopening(false);
+
+    if (res.ok) {
+      showToast(`Caja reabierta por ${pinData.adminName}`, "success");
+      setShowReopenModal(false);
+      setReopenPin("");
+      fetchData();
+    } else {
+      const err = await res.json();
+      setReopenError(err.error || "Error al reabrir");
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -129,6 +167,12 @@ export default function CajaPage() {
              data?.register?.status === "closed" ? "Caja Cerrada" :
              "Caja No Abierta"}
           </span>
+          {data?.register?.status === "closed" && (
+            <button onClick={() => setShowReopenModal(true)}
+              className="ml-3 px-3 py-1 text-xs border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 font-medium">
+              Reabrir caja
+            </button>
+          )}
           {data?.register?.opened_at && (
             <span className="text-xs text-gray-500 ml-auto">
               Abierta: {new Date(data.register.opened_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
@@ -295,6 +339,52 @@ export default function CajaPage() {
             )}
           </div>
         </>
+      )}
+
+      {/* Reopen Modal */}
+      {showReopenModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowReopenModal(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-brand-dark">Reabrir Caja</h3>
+              <p className="text-sm text-brand-gray mt-1">Accion excepcional. Requiere PIN de administrador.</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-brand-gray block mb-1">PIN Admin (4 digitos)</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={reopenPin}
+                  onChange={(e) => { setReopenPin(e.target.value.replace(/\D/g, "")); setReopenError(""); }}
+                  placeholder="••••"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter" && reopenPin.length === 4) handleReopen(); }}
+                  className="w-full border-2 rounded-xl px-3 py-3 text-center text-2xl tracking-[0.5em] font-mono focus:border-orange-400 outline-none"
+                />
+              </div>
+
+              {reopenError && <p className="text-xs text-red-500 text-center">{reopenError}</p>}
+
+              <div className="flex gap-2">
+                <button onClick={() => { setShowReopenModal(false); setReopenPin(""); setReopenError(""); }}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={handleReopen} disabled={reopenPin.length !== 4 || reopening}
+                  className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-medium hover:bg-orange-700 disabled:opacity-50">
+                  {reopening ? "Reabriendo..." : "Confirmar reapertura"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
