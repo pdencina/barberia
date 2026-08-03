@@ -7,7 +7,8 @@ export async function POST(req: NextRequest) {
   const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
 
   if (!vapidPublic || !vapidPrivate) {
-    return NextResponse.json({ error: "VAPID keys not configured" }, { status: 500 });
+    // VAPID not configured - skip silently (don't break booking flow)
+    return NextResponse.json({ sent: 0, skipped: true });
   }
 
   webPush.setVapidDetails(
