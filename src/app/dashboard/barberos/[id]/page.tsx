@@ -21,6 +21,7 @@ interface Professional {
   personal_pin: string | null;
   active: boolean;
   avatar_url: string | null;
+  role: string;
 }
 
 export default function EditProfessionalPage() {

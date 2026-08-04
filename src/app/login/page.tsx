@@ -37,7 +37,7 @@ export default function LoginPage() {
     // Clear any existing session first
     await supabase.auth.signOut();
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data: authData } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -46,6 +46,16 @@ export default function LoginPage() {
       setError("Credenciales incorrectas");
       setLoading(false);
     } else {
+      // Log session
+      const ua = navigator.userAgent;
+      const device = /Mobile|Android|iPhone/i.test(ua) ? "mobile" : /Tablet|iPad/i.test(ua) ? "tablet" : "desktop";
+      const browser = /Chrome/i.test(ua) ? "Chrome" : /Firefox/i.test(ua) ? "Firefox" : /Safari/i.test(ua) ? "Safari" : "Otro";
+      fetch("/api/auth/log-session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: authData?.user?.id, userEmail: email, device, browser }),
+      });
+
       router.push("/dashboard");
       router.refresh();
     }
