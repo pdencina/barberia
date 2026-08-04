@@ -61,6 +61,7 @@ const sections: NavSection[] = [
     items: [
       { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign, minRole: "admin" },
       { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap, minRole: "barber" },
+      { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: Wallet, minRole: "barber" },
       { name: "Arriendo", href: "/dashboard/arriendo", icon: Zap, minRole: "admin" },
       { name: "MercadoPago", href: "/dashboard/mercadopago", icon: CreditCard, minRole: "admin" },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3, minRole: "admin" },
