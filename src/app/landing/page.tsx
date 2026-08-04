@@ -290,6 +290,53 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Video Demo Section */}
+      <section className="py-20 md:py-32">
+        <div className="max-w-5xl mx-auto px-6">
+          <AnimatedSection className="text-center mb-12">
+            <p className="text-brand-blue font-semibold text-sm uppercase tracking-wider mb-3">Mira como funciona</p>
+            <h2 className="text-3xl md:text-5xl font-bold text-brand-dark">Todo lo que necesitas saber<br /><span className="text-brand-blue">en menos de un minuto</span></h2>
+          </AnimatedSection>
+
+          <AnimatedSection delay={0.2}>
+            <div className="relative rounded-3xl overflow-hidden bg-brand-dark shadow-2xl aspect-video group cursor-pointer">
+              {/* Video placeholder - replace src with actual video URL */}
+              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-dark to-[#0F8B8D]/80">
+                <img src="/oti/feliz.png" alt="Oti" className="absolute bottom-4 right-8 w-24 h-24 opacity-30" />
+                <div className="text-center relative z-10">
+                  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}
+                    className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-white/30 group-hover:bg-white/30 transition-colors">
+                    <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M8 5v14l11-7z"/>
+                    </svg>
+                  </motion.div>
+                  <p className="text-white font-medium text-lg">Ver demo de re-booking</p>
+                  <p className="text-white/60 text-sm mt-1">2 minutos · Sin compromiso</p>
+                </div>
+              </div>
+              {/* Uncomment when video is ready:
+              <video className="w-full h-full object-cover" poster="/video-poster.jpg" controls>
+                <source src="/demo-rebooking.mp4" type="video/mp4" />
+              </video>
+              */}
+            </div>
+          </AnimatedSection>
+
+          <div className="grid grid-cols-3 gap-6 mt-8">
+            {[
+              { icon: "⚡", text: "Configura en 5 minutos" },
+              { icon: "📱", text: "Funciona en cualquier dispositivo" },
+              { icon: "🔒", text: "Datos seguros en la nube" },
+            ].map((item) => (
+              <div key={item.text} className="text-center">
+                <span className="text-2xl">{item.icon}</span>
+                <p className="text-xs text-brand-gray mt-1">{item.text}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Testimonial */}
       <section id="testimonios" className="py-20 md:py-32">
         <div className="max-w-7xl mx-auto px-6">
