@@ -112,15 +112,18 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
   const { isAtLeast, loading: authLoading, role: userAuthRole } = useAuth();
 
   // Filter sections based on role
-  // While auth is loading, show minimal items to avoid flash
+  // Show all items but mark locked ones for upsell
   const filteredSections = authLoading
     ? sections.map((s) => ({ ...s, items: s.items.slice(0, 1) })).slice(0, 2)
     : sections
         .map((section) => ({
           ...section,
-          items: section.items.filter((item) => isAtLeast(item.minRole)),
+          items: section.items.map((item) => ({
+            ...item,
+            locked: !isAtLeast(item.minRole),
+          })),
         }))
-        .filter((section) => section.items.length > 0);
+        .filter((section) => section.items.some((item) => !item.locked || isAtLeast("admin")));
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
@@ -175,23 +178,42 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
               <ul className="space-y-0.5">
                 {section.items.map((item) => {
                   const isActive = pathname === item.href;
+                  const isLocked = (item as any).locked;
                   return (
                     <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={() => setMobileOpen(false)}
-                        title={!showLabels ? item.name : undefined}
-                        className={cn(
-                          "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
-                          !showLabels && "justify-center px-2",
-                          isActive
-                            ? "bg-brand-blue/10 text-brand-blue"
-                            : "text-brand-dark/70 hover:bg-brand-light hover:text-brand-dark"
-                        )}
-                      >
-                        <item.icon className={cn("h-[18px] w-[18px] flex-shrink-0", isActive ? "text-brand-blue" : "text-brand-gray")} strokeWidth={1.5} />
-                        {showLabels && <span className="truncate">{item.name}</span>}
-                      </Link>
+                      {isLocked ? (
+                        <div
+                          title="Disponible en plan superior"
+                          className={cn(
+                            "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium opacity-40 cursor-not-allowed",
+                            !showLabels && "justify-center px-2",
+                          )}
+                        >
+                          <item.icon className="h-[18px] w-[18px] flex-shrink-0 text-brand-gray" strokeWidth={1.5} />
+                          {showLabels && (
+                            <span className="truncate flex-1">{item.name}</span>
+                          )}
+                          {showLabels && (
+                            <span className="px-1.5 py-0.5 bg-brand-accent/20 text-brand-accent text-[9px] font-bold rounded">PRO</span>
+                          )}
+                        </div>
+                      ) : (
+                        <Link
+                          href={item.href}
+                          onClick={() => setMobileOpen(false)}
+                          title={!showLabels ? item.name : undefined}
+                          className={cn(
+                            "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
+                            !showLabels && "justify-center px-2",
+                            isActive
+                              ? "bg-brand-blue/10 text-brand-blue"
+                              : "text-brand-dark/70 hover:bg-brand-light hover:text-brand-dark"
+                          )}
+                        >
+                          <item.icon className={cn("h-[18px] w-[18px] flex-shrink-0", isActive ? "text-brand-blue" : "text-brand-gray")} strokeWidth={1.5} />
+                          {showLabels && <span className="truncate">{item.name}</span>}
+                        </Link>
+                      )}
                     </li>
                   );
                 })}
@@ -208,7 +230,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
       {/* Mobile header */}
       <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-gray-100 flex items-center px-4 gap-3">
         <button onClick={() => setMobileOpen(true)} className="text-brand-dark p-1"><Menu className="h-6 w-6" /></button>
-        <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" />
+        <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" /></Link>
       </div>
 
       {/* Mobile overlay */}
@@ -220,7 +242,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex h-14 items-center justify-between px-4 border-b border-gray-100">
-          <img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto" />
+          <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto" /></Link>
           <button onClick={() => setMobileOpen(false)} className="text-brand-gray hover:text-brand-dark"><X className="h-5 w-5" /></button>
         </div>
         {renderNav(true)}
@@ -241,7 +263,7 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
         collapsed ? "w-16" : "w-60"
       )}>
         <div className={cn("flex h-14 items-center border-b border-gray-100", collapsed ? "justify-center" : "justify-between px-4")}>
-          {!collapsed && <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" />}
+          {!collapsed && <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" /></Link>}
           <button onClick={toggleCollapse} className="text-brand-gray hover:text-brand-dark p-1 rounded-lg hover:bg-brand-light">
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>

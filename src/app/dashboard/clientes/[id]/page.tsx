@@ -232,6 +232,27 @@ export default function ClienteDetailPage() {
         </div>
       </div>
 
+      {/* Client personality tags */}
+      <div className="bg-white rounded-lg shadow p-4">
+        <h3 className="font-bold text-gray-800 mb-3">Perfil del Cliente</h3>
+        <div className="flex flex-wrap gap-2">
+          {["Reservado", "Extrovertido", "Puntual", "Impuntual", "VIP", "Conversador", "Apurado", "Detallista"].map((tag) => {
+            const isActive = (client as any).personality_tags?.includes(tag.toLowerCase());
+            return (
+              <button key={tag} onClick={async () => {
+                const current: string[] = (client as any).personality_tags || [];
+                const updated = isActive ? current.filter((t: string) => t !== tag.toLowerCase()) : [...current, tag.toLowerCase()];
+                await fetch(`/api/clients/${params.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ personality_tags: updated }) });
+                setData({ ...data!, client: { ...client, personality_tags: updated } as any });
+              }}
+                className={`px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${isActive ? "bg-brand-blue text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                {tag}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       {/* Favorite services */}
       {stats.favoriteServices.length > 0 && (
         <div className="bg-white rounded-lg shadow p-4">

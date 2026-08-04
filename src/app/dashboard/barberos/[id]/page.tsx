@@ -268,9 +268,46 @@ export default function EditProfessionalPage() {
         </div>
       )}
 
+      {/* Change Role */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+        <h2 className="font-bold text-gray-800">Rol del Usuario</h2>
+        <div className="flex items-center gap-3">
+          <select
+            value={data.role || "barber"}
+            onChange={(e) => setData({ ...data, role: e.target.value as any })}
+            className="border rounded-xl px-3 py-2.5 text-sm flex-1"
+          >
+            <option value="barber">Profesional</option>
+            <option value="admin">Administrador</option>
+            <option value="receptionist">Recepcionista</option>
+          </select>
+          <button
+            onClick={async () => {
+              const pin = prompt("PIN de admin (4 digitos):");
+              if (!pin || pin.length !== 4) return;
+              const res = await fetch(`/api/barberos/${params.id}/role`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ role: data.role, pin }),
+              });
+              const result = await res.json();
+              if (res.ok) {
+                showToast(result.message || "Rol actualizado", "success");
+              } else {
+                showToast(result.error || "Error", "error");
+              }
+            }}
+            className="px-4 py-2.5 bg-orange-600 text-white text-sm rounded-xl hover:bg-orange-700"
+          >
+            Cambiar Rol
+          </button>
+        </div>
+        <p className="text-xs text-gray-400">Requiere PIN de administrador para confirmar el cambio.</p>
+      </div>
+
       {/* Save */}
       <button onClick={save} disabled={saving}
-        className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold hover:bg-indigo-700 disabled:opacity-50 transition-all active:scale-[0.98]">
+        className="w-full py-3 bg-brand-blue text-white rounded-xl font-bold hover:opacity-90 disabled:opacity-50 transition-all active:scale-[0.98]">
         {saving ? "Guardando..." : "Guardar Cambios"}
       </button>
     </div>
