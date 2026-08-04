@@ -59,6 +59,8 @@ export default function POSPage() {
     { method: "cash", amount: "" },
   ]);
   const [processing, setProcessing] = useState(false);
+  const [mpPaymentStatus, setMpPaymentStatus] = useState<"idle" | "waiting" | "approved" | "rejected">("idle");
+  const [mpPaymentIntentId, setMpPaymentIntentId] = useState("");
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
@@ -170,6 +172,70 @@ export default function POSPage() {
       if (!paymentMethod) return;
     }
 
+    const isCardPayment = !splitMode && (paymentMethod === "debit_card" || paymentMethod === "credit_card");
+
+    // If card payment → send to MP machine first, wait for approval
+    if (isCardPayment) {
+      setMpPaymentStatus("waiting");
+      try {
+        const mpRes = await fetch("/api/mercadopago", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            barberId: selectedBarber,
+            amount: total,
+            description: cart.map((c) => c.name).join(", ").slice(0, 50) || "Venta re-booking",
+            externalReference: `pos-${Date.now()}`,
+          }),
+        });
+        const mpData = await mpRes.json();
+
+        if (!mpRes.ok || !mpData.paymentIntentId) {
+          setMpPaymentStatus("rejected");
+          setTimeout(() => setMpPaymentStatus("idle"), 3000);
+          return;
+        }
+
+        setMpPaymentIntentId(mpData.paymentIntentId);
+
+        // Poll for payment status
+        const pollInterval = setInterval(async () => {
+          const statusRes = await fetch(`/api/mercadopago/status?id=${mpData.paymentIntentId}&barberId=${selectedBarber}`);
+          const statusData = await statusRes.json();
+
+          if (statusData.status === "approved") {
+            clearInterval(pollInterval);
+            setMpPaymentStatus("approved");
+            // Wait 1.5s showing green, then process checkout
+            setTimeout(() => processCheckout(), 1500);
+          } else if (statusData.status === "cancelled" || statusData.status === "rejected") {
+            clearInterval(pollInterval);
+            setMpPaymentStatus("rejected");
+            setTimeout(() => setMpPaymentStatus("idle"), 3000);
+          }
+        }, 3000); // Check every 3 seconds
+
+        // Timeout after 2 minutes
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (mpPaymentStatus === "waiting") {
+            setMpPaymentStatus("rejected");
+            setTimeout(() => setMpPaymentStatus("idle"), 3000);
+          }
+        }, 120000);
+
+      } catch (err) {
+        setMpPaymentStatus("rejected");
+        setTimeout(() => setMpPaymentStatus("idle"), 3000);
+      }
+      return;
+    }
+
+    // Non-card payments: process immediately
+    await processCheckout();
+  };
+
+  const processCheckout = async () => {
     setProcessing(true);
     try {
       const payments = splitMode
@@ -203,6 +269,8 @@ export default function POSPage() {
         setSelectedClient("");
         setClientPoints(0);
         setRedeemedPoints(0);
+        setMpPaymentStatus("idle");
+        setMpPaymentIntentId("");
         showToast(
           result.receiptSent ? "Venta registrada - Boleta enviada al email" : "Venta registrada exitosamente",
           "success"
@@ -671,6 +739,53 @@ export default function POSPage() {
                 >Autorizar</button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+      {/* MercadoPago Payment Modal */}
+      {mpPaymentStatus !== "idle" && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center">
+            {mpPaymentStatus === "waiting" && (
+              <>
+                <div className="w-20 h-20 mx-auto mb-5 relative">
+                  <div className="absolute inset-0 border-4 border-brand-blue/20 rounded-full" />
+                  <div className="absolute inset-0 border-4 border-brand-blue border-t-transparent rounded-full animate-spin" />
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <span className="text-2xl">💳</span>
+                  </div>
+                </div>
+                <h3 className="text-lg font-bold text-brand-dark">Esperando pago...</h3>
+                <p className="text-sm text-brand-gray mt-2">Pasa la tarjeta en la maquina Point</p>
+                <p className="text-xs text-brand-gray mt-4">Monto: <strong className="text-brand-dark">{formatCurrency(total)}</strong></p>
+                <button onClick={() => setMpPaymentStatus("idle")}
+                  className="mt-6 text-xs text-brand-gray hover:text-red-500">Cancelar</button>
+              </>
+            )}
+
+            {mpPaymentStatus === "approved" && (
+              <>
+                <div className="w-20 h-20 mx-auto mb-5 bg-green-100 rounded-full flex items-center justify-center">
+                  <svg className="w-10 h-10 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-green-700">Pago aprobado!</h3>
+                <p className="text-sm text-brand-gray mt-2">Procesando venta...</p>
+              </>
+            )}
+
+            {mpPaymentStatus === "rejected" && (
+              <>
+                <div className="w-20 h-20 mx-auto mb-5 bg-red-100 rounded-full flex items-center justify-center">
+                  <svg className="w-10 h-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-red-700">Pago rechazado</h3>
+                <p className="text-sm text-brand-gray mt-2">Intenta de nuevo o usa otro metodo de pago</p>
+              </>
+            )}
           </div>
         </div>
       )}
