@@ -53,7 +53,12 @@ export default function BookingPage() {
   const [closedDays, setClosedDays] = useState<number[]>([]);
 
   useEffect(() => {
-    fetch("/api/public/barbers").then((r) => r.json()).then(setBarbers);
+    // Get tenant slug from URL params
+    const urlParams = new URLSearchParams(window.location.search);
+    const tenantSlug = urlParams.get("tenant") || urlParams.get("branch");
+    const barberUrl = tenantSlug ? `/api/public/barbers?branch=${tenantSlug}` : "/api/public/barbers";
+
+    fetch(barberUrl).then((r) => r.json()).then(setBarbers);
     fetch("/api/business-hours").then((r) => r.json()).then((hours: any[]) => {
       setClosedDays(hours.filter((h) => h.is_closed).map((h) => h.day_of_week));
     });
