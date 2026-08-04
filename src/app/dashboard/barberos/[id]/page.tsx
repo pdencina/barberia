@@ -271,6 +271,40 @@ export default function EditProfessionalPage() {
 
       {/* Change Role */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+        <h2 className="font-bold text-gray-800">Presentacion (visible en booking)</h2>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Bio / Descripcion corta</label>
+          <textarea value={(data as any).bio || ""} rows={2}
+            onChange={(e) => setData({ ...data, bio: e.target.value } as any)}
+            placeholder="Ej: Especialista en degradados y disenos con navaja. 5 anos de experiencia."
+            className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+        </div>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Especialidades (separar con coma)</label>
+          <input type="text" value={(data as any).specialties?.join(", ") || ""}
+            onChange={(e) => setData({ ...data, specialties: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) } as any)}
+            placeholder="Degradado, Barba, Diseno, Color"
+            className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Anos experiencia</label>
+            <input type="number" min="0" value={(data as any).years_experience || ""}
+              onChange={(e) => setData({ ...data, years_experience: parseInt(e.target.value) || null } as any)}
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Video intro (URL)</label>
+            <input type="url" value={(data as any).intro_video_url || ""}
+              onChange={(e) => setData({ ...data, intro_video_url: e.target.value } as any)}
+              placeholder="https://..."
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+        </div>
+      </div>
+
+      {/* Change Role */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Rol del Usuario</h2>
         <div className="flex items-center gap-3">
           <select

@@ -8,7 +8,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("profiles")
-    .select("id, name, avatar_url, branch_id")
+    .select("id, name, avatar_url, branch_id, bio, specialties, intro_video_url, years_experience")
     .eq("role", "barber")
     .eq("active", true)
     .order("name");

@@ -15,6 +15,10 @@ interface Barber {
   id: string;
   name: string;
   avatar_url: string | null;
+  bio: string | null;
+  specialties: string[] | null;
+  intro_video_url: string | null;
+  years_experience: number | null;
 }
 
 type Step = "barber" | "service" | "datetime" | "details" | "confirmed";
@@ -260,18 +264,32 @@ export default function BookingPage() {
 
             <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {barbers.map((b) => (
                 <button
                   key={b.id}
                   onClick={() => { setSelectedBarber(b); setSelectedServices([]); setStep("service"); }}
-                  className="flex flex-col items-center p-6 rounded-xl border border-gray-200 hover:border-brand-blue hover:bg-blue-50/50 transition-colors"
+                  className="flex flex-col items-center p-5 rounded-2xl border border-gray-200 hover:border-brand-blue hover:shadow-lg transition-all text-center group"
                 >
-                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-xl font-bold text-brand-gray mb-3">
-                    {b.name.split(" ").map((n) => n[0]).join("")}
-                  </div>
-                  <p className="font-medium text-brand-dark text-sm">{b.name}</p>
-                  <p className="text-xs text-brand-gray">Barbero</p>
+                  {b.avatar_url ? (
+                    <img src={b.avatar_url} alt={b.name} className="w-20 h-20 rounded-full object-cover border-2 border-gray-100 group-hover:border-brand-blue/50 transition-colors" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-xl font-bold text-brand-gray group-hover:bg-brand-blue/10 group-hover:text-brand-blue transition-colors">
+                      {b.name.split(" ").map((n) => n[0]).join("")}
+                    </div>
+                  )}
+                  <p className="font-semibold text-brand-dark text-sm mt-3">{b.name}</p>
+                  {b.specialties && b.specialties.length > 0 && (
+                    <div className="flex flex-wrap justify-center gap-1 mt-2">
+                      {b.specialties.slice(0, 3).map((s) => (
+                        <span key={s} className="px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] rounded-full">{s}</span>
+                      ))}
+                    </div>
+                  )}
+                  {b.bio && <p className="text-xs text-brand-gray mt-2 line-clamp-2">{b.bio}</p>}
+                  {b.years_experience && (
+                    <p className="text-[10px] text-brand-gray mt-1">{b.years_experience} años de experiencia</p>
+                  )}
                 </button>
               ))}
             </div>
