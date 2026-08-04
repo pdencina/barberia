@@ -121,10 +121,10 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
           ...section,
           items: section.items.map((item) => ({
             ...item,
-            locked: !isAtLeast(item.minRole),
+            locked: !isAtLeast(item.minRole) && userAuthRole !== "super_admin" && userAuthRole !== "admin",
           })),
         }))
-        .filter((section) => section.items.some((item) => !item.locked || isAtLeast("admin")));
+        .filter((section) => section.items.some((item) => !(item as any).locked) || isAtLeast("admin"));
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
