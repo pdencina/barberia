@@ -75,6 +75,23 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    // Cancel any pending orders first (avoid "already queued" error)
+    const { data: pendingOrders } = await supabase
+      .from("mp_payment_intents")
+      .select("mp_payment_id")
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(3);
+
+    for (const order of pendingOrders || []) {
+      if (!order.mp_payment_id) continue;
+      await fetch(`https://api.mercadopago.com/v1/orders/${order.mp_payment_id}/cancel`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      });
+      await supabase.from("mp_payment_intents").update({ status: "cancelled" }).eq("mp_payment_id", order.mp_payment_id);
+    }
+
     // Chile uses Orders API (not Point Integration API)
     const idempotencyKey = `${externalReference || "pos"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const ordersRes = await fetch("https://api.mercadopago.com/v1/orders", {
