@@ -113,8 +113,7 @@ export async function POST(req: NextRequest) {
           external_reference: externalReference || `pos-${Date.now()}`,
           transactions: {
             payments: [{
-              amount: Number(amount),
-              payment_method: { type: "credit_card" },
+              amount: String(Number(amount)),
             }],
           },
           config: {

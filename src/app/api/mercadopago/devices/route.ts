@@ -34,8 +34,7 @@ export async function GET() {
           external_reference: "test-device-check",
           transactions: {
             payments: [{
-              amount: 100,
-              payment_method: { type: "debit_card" },
+              amount: "100",
             }],
           },
           config: {
