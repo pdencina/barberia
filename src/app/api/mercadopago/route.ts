@@ -110,6 +110,15 @@ export async function POST(req: NextRequest) {
       }, { status: ordersRes.status });
     }
 
+    // Process the order (sends it to the terminal)
+    const processRes = await fetch(`https://api.mercadopago.com/v1/orders/${ordersData.id}/process`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+    });
+
     // Store payment intent
     await supabase.from("mp_payment_intents").insert({
       barber_id: barberId,

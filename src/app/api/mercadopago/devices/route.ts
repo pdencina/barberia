@@ -48,6 +48,28 @@ export async function GET() {
 
       const ordersData = await ordersRes.json();
 
+      // Process the order (sends it to the terminal)
+      if (ordersRes.ok && ordersData.id) {
+        const processRes = await fetch(`https://api.mercadopago.com/v1/orders/${ordersData.id}/process`, {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        });
+        const processData = await processRes.json();
+
+        return NextResponse.json({
+          point_integration_api: "Not available in Chile (403 forbidden)",
+          orders_api_response: ordersData,
+          orders_api_status: ordersRes.status,
+          process_response: processData,
+          process_status: processRes.status,
+          device_id_configured: process.env.MP_DEVICE_ID || "not set",
+          note: "Chile uses Orders API (/v1/orders) + /process to send to terminal",
+        });
+      }
+
       return NextResponse.json({
         point_integration_api: "Not available in Chile (403 forbidden)",
         orders_api_response: ordersData,
