@@ -99,12 +99,14 @@ export async function POST(req: NextRequest) {
     if (!res.ok) {
       const errorData = await res.json();
       
-      // Try with /v1/orders (newer API)
+      // Try with /v1/orders (newer API - used in Chile)
+      const idempotencyKey = `${externalReference || "pos"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const ordersRes = await fetch("https://api.mercadopago.com/v1/orders", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
+          "X-Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify({
           type: "point",

@@ -21,11 +21,13 @@ export async function GET() {
     // If point integration API fails (Chile), try getting device info via orders
     if (res.status === 403) {
       // Try creating a test order to see if Orders API works
+      const idempotencyKey = `test-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
       const ordersRes = await fetch("https://api.mercadopago.com/v1/orders", {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
+          "X-Idempotency-Key": idempotencyKey,
         },
         body: JSON.stringify({
           type: "point",
