@@ -801,7 +801,18 @@ export default function POSPage() {
                 <h3 className="text-lg font-bold text-brand-dark">Esperando pago...</h3>
                 <p className="text-sm text-brand-gray mt-2">Pasa la tarjeta en la maquina Point</p>
                 <p className="text-xs text-brand-gray mt-4">Monto: <strong className="text-brand-dark">{formatCurrency(total)}</strong></p>
-                <button onClick={() => setMpPaymentStatus("idle")}
+                <button onClick={async () => {
+                  // Cancel the order in MP
+                  if (mpPaymentIntentId) {
+                    fetch("/api/mercadopago/cancel", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ orderId: mpPaymentIntentId }),
+                    });
+                  }
+                  setMpPaymentStatus("idle");
+                  setMpPaymentIntentId("");
+                }}
                   className="mt-6 text-xs text-brand-gray hover:text-red-500">Cancelar</button>
               </>
             )}
