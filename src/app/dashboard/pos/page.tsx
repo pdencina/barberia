@@ -61,6 +61,8 @@ export default function POSPage() {
   const [processing, setProcessing] = useState(false);
   const [mpPaymentStatus, setMpPaymentStatus] = useState<"idle" | "waiting" | "approved" | "rejected">("idle");
   const [mpPaymentIntentId, setMpPaymentIntentId] = useState("");
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successAmount, setSuccessAmount] = useState(0);
   const [showPinModal, setShowPinModal] = useState(false);
   const [pinInput, setPinInput] = useState("");
   const [pinError, setPinError] = useState("");
@@ -271,10 +273,9 @@ export default function POSPage() {
         setRedeemedPoints(0);
         setMpPaymentStatus("idle");
         setMpPaymentIntentId("");
-        showToast(
-          result.receiptSent ? "Venta registrada - Boleta enviada al email" : "Venta registrada exitosamente",
-          "success"
-        );
+        setSuccessAmount(total);
+        setShowSuccessModal(true);
+        setTimeout(() => setShowSuccessModal(false), 4000);
       }
     } catch (err) {
       console.error("Error en checkout:", err);
@@ -742,6 +743,48 @@ export default function POSPage() {
           </div>
         </div>
       )}
+      {/* Success Celebration Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowSuccessModal(false)}>
+          <div className="text-center animate-scale-in">
+            {/* Confetti particles */}
+            <div className="absolute inset-0 pointer-events-none overflow-hidden">
+              {[...Array(20)].map((_, i) => (
+                <div key={i} className="absolute animate-bounce" style={{
+                  left: `${Math.random() * 100}%`,
+                  top: `${Math.random() * 60}%`,
+                  animationDelay: `${Math.random() * 0.5}s`,
+                  animationDuration: `${1 + Math.random()}s`,
+                }}>
+                  <div className={`w-3 h-3 rounded-full ${["bg-[#2EC4B6]", "bg-[#0F8B8D]", "bg-yellow-400", "bg-green-400", "bg-white"][i % 5]}`} />
+                </div>
+              ))}
+            </div>
+
+            {/* Main content */}
+            <div className="relative">
+              <img src="/oti/confirmado.png" alt="Venta exitosa!" className="w-28 h-28 mx-auto mb-4 drop-shadow-2xl" />
+              <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-sm mx-auto">
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-9 h-9 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                </div>
+                <h2 className="text-2xl font-bold text-brand-dark">Venta exitosa!</h2>
+                <p className="text-4xl font-black text-brand-blue mt-3">{formatCurrency(successAmount)}</p>
+                <p className="text-sm text-brand-gray mt-3">Registrada correctamente</p>
+                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-green-600">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Stock actualizado · Boleta enviada · Puntos acreditados
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MercadoPago Payment Modal */}
       {mpPaymentStatus !== "idle" && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
