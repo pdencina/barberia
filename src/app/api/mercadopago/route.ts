@@ -75,99 +75,54 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Use Orders API (new MP Point integration method)
-    const res = await fetch(`https://api.mercadopago.com/point/integration-api/devices/${deviceId}/payment-intents`, {
+    // Chile uses Orders API (not Point Integration API)
+    const idempotencyKey = `${externalReference || "pos"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const ordersRes = await fetch("https://api.mercadopago.com/v1/orders", {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${accessToken}`,
         "Content-Type": "application/json",
+        "X-Idempotency-Key": idempotencyKey,
       },
       body: JSON.stringify({
-        amount: Number(amount),
+        type: "point",
+        external_reference: externalReference || `pos-${Date.now()}`,
+        transactions: {
+          payments: [{
+            amount: String(Number(amount)),
+          }],
+        },
+        config: {
+          point: {
+            terminal_id: deviceId,
+          },
+        },
         description: description || "Venta re-booking",
-        payment: {
-          type: "credit_card",
-        },
-        additional_info: {
-          external_reference: externalReference || `pos-${Date.now()}`,
-          print_on_terminal: true,
-        },
       }),
     });
 
-    // If payment-intents fails, try Orders API
-    if (!res.ok) {
-      const errorData = await res.json();
-      
-      // Try with /v1/orders (newer API - used in Chile)
-      const idempotencyKey = `${externalReference || "pos"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const ordersRes = await fetch("https://api.mercadopago.com/v1/orders", {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${accessToken}`,
-          "Content-Type": "application/json",
-          "X-Idempotency-Key": idempotencyKey,
-        },
-        body: JSON.stringify({
-          type: "point",
-          external_reference: externalReference || `pos-${Date.now()}`,
-          transactions: {
-            payments: [{
-              amount: String(Number(amount)),
-            }],
-          },
-          config: {
-            point: {
-              terminal_id: deviceId,
-            },
-          },
-          description: description || "Venta re-booking",
-        }),
-      });
+    const ordersData = await ordersRes.json();
 
-      const ordersData = await ordersRes.json();
-
-      if (!ordersRes.ok) {
-        return NextResponse.json({
-          error: ordersData.message || errorData.message || "Error al crear intento de pago",
-          details: { paymentIntents: errorData, orders: ordersData },
-        }, { status: ordersRes.status });
-      }
-
-      // Store payment intent from orders
-      await supabase.from("mp_payment_intents").insert({
-        barber_id: barberId,
-        amount,
-        status: "pending",
-        mp_payment_id: ordersData.id,
-        mp_external_reference: externalReference,
-        device_id: deviceId,
-      });
-
+    if (!ordersRes.ok) {
       return NextResponse.json({
-        success: true,
-        paymentIntentId: ordersData.id,
-        deviceId,
-        barberName: barber.name,
-        terminal: barber.work_mode === "rental" && barber.mp_access_token ? "personal" : "house",
-      });
+        error: ordersData.errors?.[0]?.message || "Error al crear orden de pago",
+        details: ordersData,
+      }, { status: ordersRes.status });
     }
-
-    const mpData = await res.json();
 
     // Store payment intent
     await supabase.from("mp_payment_intents").insert({
       barber_id: barberId,
       amount,
       status: "pending",
-      mp_payment_id: mpData.id,
+      mp_payment_id: ordersData.id,
       mp_external_reference: externalReference,
       device_id: deviceId,
     });
 
     return NextResponse.json({
       success: true,
-      paymentIntentId: mpData.id,
+      paymentIntentId: ordersData.id,
       deviceId,
       barberName: barber.name,
       terminal: barber.work_mode === "rental" && barber.mp_access_token ? "personal" : "house",
