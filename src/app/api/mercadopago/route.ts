@@ -74,37 +74,85 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Dispositivo MP no configurado para este barbero" }, { status: 400 });
   }
 
-  // Create payment intent via MP Point API
   try {
-    const mpResponse = await fetch(
-      `https://api.mercadopago.com/point/integration-api/devices/${deviceId}/payment-intents`,
-      {
+    // Use Orders API (new MP Point integration method)
+    const res = await fetch(`https://api.mercadopago.com/point/integration-api/devices/${deviceId}/payment-intents`, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        amount: Number(amount),
+        description: description || "Venta re-booking",
+        payment: {
+          type: "credit_card",
+        },
+        additional_info: {
+          external_reference: externalReference || `pos-${Date.now()}`,
+          print_on_terminal: true,
+        },
+      }),
+    });
+
+    // If payment-intents fails, try Orders API
+    if (!res.ok) {
+      const errorData = await res.json();
+      
+      // Try with /v1/orders (newer API)
+      const ordersRes = await fetch("https://api.mercadopago.com/v1/orders", {
         method: "POST",
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          "Authorization": `Bearer ${accessToken}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          amount: Number(amount),
-          description: description || "Venta re-booking",
+          type: "point",
           external_reference: externalReference || `pos-${Date.now()}`,
-          print_on_terminal: true,
-          additional_info: {
-            external_reference: externalReference,
-            print_on_terminal: true,
+          transactions: {
+            payments: [{
+              amount: Number(amount),
+              payment_method: { type: "credit_card" },
+            }],
           },
+          config: {
+            point: {
+              terminal_id: deviceId,
+            },
+          },
+          description: description || "Venta re-booking",
         }),
+      });
+
+      const ordersData = await ordersRes.json();
+
+      if (!ordersRes.ok) {
+        return NextResponse.json({
+          error: ordersData.message || errorData.message || "Error al crear intento de pago",
+          details: { paymentIntents: errorData, orders: ordersData },
+        }, { status: ordersRes.status });
       }
-    );
 
-    const mpData = await mpResponse.json();
+      // Store payment intent from orders
+      await supabase.from("mp_payment_intents").insert({
+        barber_id: barberId,
+        amount,
+        status: "pending",
+        mp_payment_id: ordersData.id,
+        mp_external_reference: externalReference,
+        device_id: deviceId,
+      });
 
-    if (!mpResponse.ok) {
       return NextResponse.json({
-        error: mpData.message || "Error al crear intento de pago",
-        details: mpData,
-      }, { status: mpResponse.status });
+        success: true,
+        paymentIntentId: ordersData.id,
+        deviceId,
+        barberName: barber.name,
+        terminal: barber.work_mode === "rental" && barber.mp_access_token ? "personal" : "house",
+      });
     }
+
+    const mpData = await res.json();
 
     // Store payment intent
     await supabase.from("mp_payment_intents").insert({
