@@ -290,6 +290,65 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Payment Methods Section */}
+      <section className="py-16 md:py-24 bg-brand-light">
+        <div className="max-w-5xl mx-auto px-6">
+          <AnimatedSection className="text-center mb-12">
+            <p className="text-brand-blue font-semibold text-sm uppercase tracking-wider mb-3">Medios de pago</p>
+            <h2 className="text-3xl md:text-4xl font-bold text-brand-dark">Cobra como quieras,<br /><span className="text-brand-blue">todo integrado</span></h2>
+          </AnimatedSection>
+
+          {/* MP Integration highlight */}
+          <AnimatedSection delay={0.1}>
+            <div className="bg-white rounded-3xl border border-gray-100 p-6 md:p-8 shadow-sm mb-8">
+              <div className="flex flex-col md:flex-row items-center gap-6">
+                <div className="w-16 h-16 bg-[#00B1EA]/10 rounded-2xl flex items-center justify-center flex-shrink-0">
+                  <svg className="w-10 h-10 text-[#00B1EA]" viewBox="0 0 24 24" fill="currentColor">
+                    <path d="M21.6 10.2c0-4.4-3.6-6-7.2-6h-7.8c-.6 0-1.2.6-1.2 1.2l-3 16.2c0 .6.4 1 .8 1h4.2l1-6.6v.4c0-.6.6-1.2 1.2-1.2h2.6c5 0 8.8-2 10-7.8-.2-.2 0 .2 0 0 .2-1.4.2-2.4-.6-3.2z"/>
+                  </svg>
+                </div>
+                <div className="flex-1 text-center md:text-left">
+                  <h3 className="text-lg font-bold text-brand-dark">Integración directa con MercadoPago Point</h3>
+                  <p className="text-sm text-brand-gray mt-1">Cobra desde el sistema y la máquina se activa sola. Sin doble digitación, sin errores.</p>
+                </div>
+                <div className="px-4 py-2 bg-green-100 text-green-700 text-xs font-bold rounded-full">CONECTADO</div>
+              </div>
+            </div>
+          </AnimatedSection>
+
+          {/* Payment methods grid */}
+          <AnimatedSection delay={0.2}>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+              {[
+                { name: "Débito", icon: "💳", desc: "Tarjeta débito" },
+                { name: "Crédito", icon: "💳", desc: "Visa / Mastercard" },
+                { name: "Efectivo", icon: "💵", desc: "Pago en caja" },
+                { name: "Transferencia", icon: "🏦", desc: "Banco a banco" },
+                { name: "MercadoPago", icon: "📱", desc: "Point Smart" },
+                { name: "Mixto", icon: "🔀", desc: "Combina métodos" },
+              ].map((m) => (
+                <div key={m.name} className="bg-white rounded-2xl border border-gray-100 p-4 text-center hover:shadow-md hover:border-brand-blue/30 transition-all">
+                  <span className="text-2xl">{m.icon}</span>
+                  <p className="text-sm font-bold text-brand-dark mt-2">{m.name}</p>
+                  <p className="text-[10px] text-brand-gray mt-0.5">{m.desc}</p>
+                </div>
+              ))}
+            </div>
+          </AnimatedSection>
+
+          {/* Trust logos */}
+          <AnimatedSection delay={0.3} className="mt-8 text-center">
+            <p className="text-xs text-brand-gray mb-4">Compatible con los principales medios de pago de Chile</p>
+            <div className="flex items-center justify-center gap-6 opacity-50 grayscale">
+              <span className="text-2xl font-bold text-gray-400">VISA</span>
+              <span className="text-2xl font-bold text-gray-400">MC</span>
+              <span className="text-lg font-bold text-gray-400">Amex</span>
+              <span className="text-lg font-bold text-gray-400">MercadoPago</span>
+            </div>
+          </AnimatedSection>
+        </div>
+      </section>
+
       {/* Video Demo Section */}
       <section className="py-20 md:py-32">
         <div className="max-w-5xl mx-auto px-6">
