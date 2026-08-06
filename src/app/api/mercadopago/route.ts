@@ -85,10 +85,12 @@ export async function POST(req: NextRequest) {
 
     for (const order of pendingOrders || []) {
       if (!order.mp_payment_id) continue;
-      await fetch(`https://api.mercadopago.com/v1/orders/${order.mp_payment_id}/cancel`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
-      });
+      try {
+        await fetch(`https://api.mercadopago.com/v1/orders/${order.mp_payment_id}/cancel`, {
+          method: "POST",
+          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+        });
+      } catch {} // Ignore cancel errors (order might already be expired/cancelled)
       await supabase.from("mp_payment_intents").update({ status: "cancelled" }).eq("mp_payment_id", order.mp_payment_id);
     }
 
@@ -121,6 +123,41 @@ export async function POST(req: NextRequest) {
     const ordersData = await ordersRes.json();
 
     if (!ordersRes.ok) {
+      // If "already queued", wait and retry once
+      const errorMsg = ordersData.errors?.[0]?.message || ordersData.error || "";
+      if (errorMsg.includes("already") && errorMsg.includes("queued")) {
+        // Wait 2s for the terminal to clear
+        await new Promise((r) => setTimeout(r, 2000));
+        const retryRes = await fetch("https://api.mercadopago.com/v1/orders", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            "X-Idempotency-Key": `${idempotencyKey}-retry`,
+          },
+          body: JSON.stringify({
+            type: "point",
+            external_reference: externalReference || `pos-${Date.now()}`,
+            transactions: { payments: [{ amount: String(Number(amount)) }] },
+            config: { point: { terminal_id: deviceId } },
+            description: description || "Venta re-booking",
+          }),
+        });
+        const retryData = await retryRes.json();
+        if (retryRes.ok) {
+          await supabase.from("mp_payment_intents").insert({
+            barber_id: barberId, amount, status: "pending",
+            mp_payment_id: retryData.id, mp_external_reference: externalReference, device_id: deviceId,
+          });
+          // Process
+          await fetch(`https://api.mercadopago.com/v1/orders/${retryData.id}/process`, {
+            method: "POST",
+            headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          });
+          return NextResponse.json({ success: true, paymentIntentId: retryData.id, deviceId, barberName: barber.name, terminal: "house" });
+        }
+      }
+
       return NextResponse.json({
         error: ordersData.errors?.[0]?.message || "Error al crear orden de pago",
         details: ordersData,
