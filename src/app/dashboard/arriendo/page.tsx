@@ -248,7 +248,7 @@ export default function ArriendoPage() {
                 <select value={adjustForm.barberId} onChange={(e) => setAdjustForm({ ...adjustForm, barberId: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
                   <option value="">Seleccionar...</option>
-                  {professionals.map((p) => <option key={p.barberId} value={p.barberId}>{p.barberName}</option>)}
+                  {professionals.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
