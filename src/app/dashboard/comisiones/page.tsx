@@ -31,6 +31,9 @@ export default function ComisionesPage() {
   const [loading, setLoading] = useState(true);
   const [editingRate, setEditingRate] = useState<string | null>(null);
   const [newRate, setNewRate] = useState("");
+  const [showAdjustModal, setShowAdjustModal] = useState(false);
+  const [adjustForm, setAdjustForm] = useState({ barberId: "", amount: "", type: "addition", reason: "", pin: "" });
+  const [adjusting, setAdjusting] = useState(false);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
 
@@ -96,9 +99,15 @@ export default function ComisionesPage() {
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Comisiones</h1>
-        <p className="text-gray-500 text-sm">Calculo automatico por barbero</p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Comisiones</h1>
+          <p className="text-gray-500 text-sm">Calculo automatico por barbero</p>
+        </div>
+        <button onClick={() => setShowAdjustModal(true)}
+          className="px-4 py-2 bg-orange-600 text-white text-sm rounded-xl hover:bg-orange-700 font-medium">
+          Ajuste Manual
+        </button>
       </div>
 
       {/* Month navigation */}
@@ -195,6 +204,91 @@ export default function ComisionesPage() {
           </tbody>
         </table>
       </div>
+      {/* Adjust Modal */}
+      {showAdjustModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowAdjustModal(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-brand-dark mb-1">Ajuste Manual de Comision</h3>
+            <p className="text-sm text-brand-gray mb-4">Agrega o deduce un monto. Queda registrado en auditoria.</p>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-brand-gray block mb-1">Profesional</label>
+                <select value={adjustForm.barberId} onChange={(e) => setAdjustForm({ ...adjustForm, barberId: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                  <option value="">Seleccionar...</option>
+                  {barbers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-brand-gray block mb-1">Tipo</label>
+                  <select value={adjustForm.type} onChange={(e) => setAdjustForm({ ...adjustForm, type: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                    <option value="addition">Agregar (+)</option>
+                    <option value="deduction">Deducir (-)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs text-brand-gray block mb-1">Monto ($)</label>
+                  <input type="number" min="0" value={adjustForm.amount} onChange={(e) => setAdjustForm({ ...adjustForm, amount: e.target.value })}
+                    placeholder="10000" className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-brand-gray block mb-1">Motivo / Justificacion *</label>
+                <input type="text" value={adjustForm.reason} onChange={(e) => setAdjustForm({ ...adjustForm, reason: e.target.value })}
+                  placeholder="Ej: Bono por meta, correccion comision, adelanto..."
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-brand-gray block mb-1">PIN Super Admin</label>
+                <input type="password" maxLength={4} value={adjustForm.pin}
+                  onChange={(e) => setAdjustForm({ ...adjustForm, pin: e.target.value.replace(/\D/g, "") })}
+                  placeholder="••••"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-3 text-center text-xl tracking-[0.4em] font-mono" />
+              </div>
+
+              <div className="flex gap-2 pt-2">
+                <button onClick={() => setShowAdjustModal(false)}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">Cancelar</button>
+                <button
+                  onClick={async () => {
+                    if (!adjustForm.barberId || !adjustForm.amount || !adjustForm.reason || adjustForm.pin.length !== 4) {
+                      showToast("Completa todos los campos", "error"); return;
+                    }
+                    setAdjusting(true);
+                    const res = await fetch("/api/comisiones/adjust", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        barberId: adjustForm.barberId,
+                        amount: parseInt(adjustForm.amount),
+                        type: adjustForm.type,
+                        reason: adjustForm.reason,
+                        pin: adjustForm.pin,
+                      }),
+                    });
+                    const data = await res.json();
+                    setAdjusting(false);
+                    if (res.ok) {
+                      showToast(`Ajuste registrado por ${data.adjustedBy}`, "success");
+                      setShowAdjustModal(false);
+                      setAdjustForm({ barberId: "", amount: "", type: "addition", reason: "", pin: "" });
+                      fetchData();
+                    } else {
+                      showToast(data.error || "Error", "error");
+                    }
+                  }}
+                  disabled={adjusting || !adjustForm.barberId || !adjustForm.amount || !adjustForm.reason || adjustForm.pin.length !== 4}
+                  className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-medium hover:bg-orange-700 disabled:opacity-50">
+                  {adjusting ? "Procesando..." : "Registrar Ajuste"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
