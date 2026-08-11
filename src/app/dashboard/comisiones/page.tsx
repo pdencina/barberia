@@ -217,7 +217,7 @@ export default function ComisionesPage() {
                 <select value={adjustForm.barberId} onChange={(e) => setAdjustForm({ ...adjustForm, barberId: e.target.value })}
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
                   <option value="">Seleccionar...</option>
-                  {barbers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                  {barbers.map((b) => <option key={b.barberId} value={b.barberId}>{b.barberName}</option>)}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-3">

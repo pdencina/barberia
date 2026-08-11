@@ -11,11 +11,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "barberId, amount, reason y pin son obligatorios" }, { status: 400 });
   }
 
-  // Verify super admin PIN
+  // Verify admin or super admin PIN
   const { data: admin } = await supabase
     .from("profiles")
     .select("id, name")
-    .in("role", ["super_admin"])
+    .in("role", ["admin", "super_admin"])
     .eq("personal_pin", pin)
     .eq("active", true)
     .single();
@@ -68,11 +68,11 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "id y pin requeridos" }, { status: 400 });
   }
 
-  // Verify super admin PIN
+  // Verify admin or super admin PIN
   const { data: admin } = await supabase
     .from("profiles")
     .select("id, name")
-    .in("role", ["super_admin"])
+    .in("role", ["admin", "super_admin"])
     .eq("personal_pin", pin)
     .eq("active", true)
     .single();
