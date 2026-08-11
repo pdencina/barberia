@@ -115,7 +115,8 @@ export default function POSPage() {
   };
 
   const subtotal = cart.reduce((sum, c) => sum + Number(c.price) * c.quantity, 0);
-  const total = subtotal - discount;
+  const [tip, setTip] = useState(0);
+  const total = subtotal - discount + tip;
 
   const applyCoupon = async () => {
     setCouponError("");
@@ -271,6 +272,7 @@ export default function POSPage() {
         setSelectedClient("");
         setClientPoints(0);
         setRedeemedPoints(0);
+        setTip(0);
         setMpPaymentStatus("idle");
         setMpPaymentIntentId("");
         setSuccessAmount(total);
@@ -556,6 +558,22 @@ export default function POSPage() {
                 <span>-{formatCurrency(discount)}</span>
               </div>
             )}
+            {/* Tip / Propina */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-gray-600">Propina</span>
+              <div className="flex items-center gap-1">
+                {[0, 1000, 2000, 5000].map((t) => (
+                  <button key={t} onClick={() => setTip(t)}
+                    className={`px-2 py-0.5 rounded text-[10px] font-medium ${tip === t ? "bg-brand-blue text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                    {t === 0 ? "Sin" : `$${(t/1000).toFixed(0)}K`}
+                  </button>
+                ))}
+                <input type="number" min="0" step="500" value={tip || ""}
+                  onChange={(e) => setTip(parseInt(e.target.value) || 0)}
+                  placeholder="$"
+                  className="w-16 border rounded px-1.5 py-0.5 text-xs text-right" />
+              </div>
+            </div>
             <div className="flex justify-between font-bold text-lg pt-1 border-t">
               <span>Total</span>
               <span>{formatCurrency(total)}</span>

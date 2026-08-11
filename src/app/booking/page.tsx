@@ -516,22 +516,23 @@ export default function BookingPage() {
                 />
               </div>
               <div>
-                <label className="text-sm text-brand-gray mb-1 block">Telefono</label>
+                <label className="text-sm text-brand-gray mb-1 block">Celular (WhatsApp) *</label>
                 <input
                   type="tel"
                   value={clientPhone}
                   onChange={(e) => setClientPhone(e.target.value)}
                   placeholder="+56 9 XXXX XXXX"
+                  required
                   className="w-full rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-3 text-brand-dark placeholder:text-brand-gray focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 focus:outline-none"
                 />
               </div>
               <div>
-                <label className="text-sm text-brand-gray mb-1 block">Notas (opcional)</label>
-                <textarea
+                <label className="text-sm text-brand-gray mb-1 block">Direccion (opcional)</label>
+                <input
+                  type="text"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Algo que debamos saber..."
-                  rows={2}
+                  placeholder="Calle, numero, comuna"
                   className="w-full rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-3 text-brand-dark placeholder:text-brand-gray focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 focus:outline-none"
                 />
               </div>
@@ -541,7 +542,7 @@ export default function BookingPage() {
 
             <button
               onClick={handleBook}
-              disabled={!clientName.trim() || submitting}
+              disabled={!clientName.trim() || !clientPhone.trim() || submitting}
               className="w-full mt-6 py-4 rounded-xl bg-brand-blue text-white font-bold text-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? "Agendando..." : "Confirmar Cita"}

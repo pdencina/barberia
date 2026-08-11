@@ -68,6 +68,7 @@ export async function GET(req: NextRequest) {
           barberName: barber?.name || "Tu profesional",
           serviceName,
           date: startTime,
+          appointmentId: appt.id,
         });
         emailSent = true;
         emailsSent++;

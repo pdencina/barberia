@@ -270,10 +270,11 @@ interface SendAppointmentReminderParams {
   barberName: string;
   serviceName: string;
   date: Date;
+  appointmentId?: string;
 }
 
 export async function sendAppointmentReminder(params: SendAppointmentReminderParams) {
-  const { to, clientName, barberName, serviceName, date } = params;
+  const { to, clientName, barberName, serviceName, date, appointmentId } = params;
 
   const dateStr = new Date(date).toLocaleDateString("es-CL", {
     weekday: "long",
@@ -316,6 +317,18 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
         Si necesitas cancelar o reprogramar, contactanos al <strong>9 4266 6172</strong>
       </p>
     </div>
+
+    ${appointmentId ? `
+    <div style="text-align: center; margin-bottom: 20px;">
+      <p style="color: #888; font-size: 13px; margin-bottom: 12px;">Confirma tu asistencia:</p>
+      <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app"}/api/public/confirm-attendance?id=${appointmentId}&action=confirm" style="display: inline-block; background: #0F8B8D; color: #fff; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-weight: bold; font-size: 14px; margin-right: 8px;">
+        ✓ Asistire
+      </a>
+      <a href="${process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app"}/cancel/${appointmentId}" style="display: inline-block; background: #333; color: #fff; text-decoration: none; padding: 10px 24px; border-radius: 8px; font-weight: bold; font-size: 14px;">
+        ✕ No podre ir
+      </a>
+    </div>
+    ` : ""}
 
     <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
       <p style="color: #888; font-size: 13px; margin: 4px 0;">Te esperamos!</p>
