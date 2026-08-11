@@ -31,7 +31,7 @@ export async function PATCH(
     "commission_rate", "rental_daily_rate", "rental_min_days",
     "rental_max_days", "rental_deductions", "rental_notes",
     "personal_pin", "avatar_url", "bio", "specialties",
-    "intro_video_url", "years_experience",
+    "intro_video_url", "years_experience", "slot_duration",
   ];
 
   const update: Record<string, any> = {};

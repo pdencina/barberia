@@ -164,6 +164,20 @@ export default function EditProfessionalPage() {
               onChange={(e) => setData({ ...data, personal_pin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
               className="w-full border rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest" />
           </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Duración de slot (minutos)</label>
+            <select value={(data as any).slot_duration || 45}
+              onChange={(e) => setData({ ...data, slot_duration: parseInt(e.target.value) } as any)}
+              className="w-full border rounded-xl px-3 py-2.5 text-sm">
+              <option value="15">15 min</option>
+              <option value="20">20 min</option>
+              <option value="30">30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">60 min</option>
+              <option value="90">90 min</option>
+            </select>
+            <p className="text-[10px] text-gray-400 mt-1">Intervalo entre citas disponibles en la agenda online</p>
+          </div>
         </div>
       </div>
 

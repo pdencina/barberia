@@ -31,6 +31,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ slots: [], date, barberId, closed: true });
   }
 
+  // Get barber's custom slot duration
+  const { data: barberProfile } = await supabase
+    .from("profiles")
+    .select("slot_duration")
+    .eq("id", barberId)
+    .single();
+
+  const slotInterval = barberProfile?.slot_duration || 15; // Default 15min intervals
+
   // Get existing appointments for this barber on this date
   const { data: appointments } = await supabase
     .from("appointments")
@@ -53,7 +62,6 @@ export async function GET(req: NextRequest) {
 
   // Generate all possible slots
   const slots: string[] = [];
-  const slotInterval = 15; // every 15 minutes
 
   const startMinutes = openHour * 60 + openMin;
   const endMinutes = closeHour * 60 + closeMin;
