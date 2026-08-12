@@ -570,15 +570,25 @@ export default function BookingPage() {
 
             <div className="bg-white border border-gray-200 rounded-xl p-6 text-left max-w-sm mx-auto mb-8">
               <p className="text-sm text-brand-gray mb-1">Servicios</p>
-              <p className="text-brand-dark font-medium mb-3">{selectedServices.map((s) => s.name).join(" + ")}</p>
-              <p className="text-sm text-brand-gray mb-1">Barbero</p>
-              <p className="text-white mb-3">{selectedBarber?.name}</p>
-              <p className="text-sm text-brand-gray mb-1">Fecha y hora</p>
-              <p className="text-white font-bold">
-                {new Date(selectedSlot).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
-                {" - "}
-                {new Date(selectedSlot).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+              <p className="text-brand-dark font-semibold mb-4">{selectedServices.map((s) => s.name).join(" + ")}</p>
+
+              <p className="text-sm text-brand-gray mb-1">Profesional</p>
+              <p className="text-brand-dark font-semibold mb-4">{selectedBarber?.name}</p>
+
+              <p className="text-sm text-brand-gray mb-1">Fecha</p>
+              <p className="text-brand-dark font-semibold mb-4">
+                {selectedSlot ? new Date(selectedSlot).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : selectedDate}
               </p>
+
+              <p className="text-sm text-brand-gray mb-1">Hora</p>
+              <p className="text-brand-blue font-bold text-xl">
+                {selectedSlot ? new Date(selectedSlot).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }) : "—"}
+              </p>
+
+              <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between">
+                <span className="text-sm text-brand-gray">Total</span>
+                <span className="text-brand-dark font-bold">{formatCurrency(totalPrice)}</span>
+              </div>
             </div>
 
             {clientEmail && (
