@@ -139,6 +139,27 @@ export default function EditProfessionalPage() {
         </div>
       </div>
 
+      {/* Personal booking link */}
+      <div className="bg-brand-light border border-brand-blue/20 rounded-2xl p-4">
+        <p className="text-xs text-brand-gray font-medium mb-1.5">Link de agenda personal</p>
+        <div className="flex items-center gap-2">
+          <code className="flex-1 text-sm text-brand-blue bg-white px-3 py-2 rounded-xl border border-gray-200 truncate">
+            {`${typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl"}/booking?barber=${data.name.toLowerCase().replace(/\s+/g, "-")}`}
+          </code>
+          <button
+            onClick={() => {
+              const link = `${window.location.origin}/booking?barber=${data.name.toLowerCase().replace(/\s+/g, "-")}`;
+              navigator.clipboard.writeText(link);
+              showToast("Link copiado!", "success");
+            }}
+            className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:opacity-90 flex-shrink-0"
+          >
+            Copiar
+          </button>
+        </div>
+        <p className="text-[10px] text-brand-gray mt-2">Comparte este link en Instagram, WhatsApp o redes sociales para que tus clientes agenden directo contigo.</p>
+      </div>
+
       {/* Basic info */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Datos Personales</h2>

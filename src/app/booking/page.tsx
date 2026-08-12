@@ -56,9 +56,20 @@ export default function BookingPage() {
     // Get tenant slug from URL params
     const urlParams = new URLSearchParams(window.location.search);
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch");
+    const barberSlug = urlParams.get("barber");
     const barberUrl = tenantSlug ? `/api/public/barbers?branch=${tenantSlug}` : "/api/public/barbers";
 
-    fetch(barberUrl).then((r) => r.json()).then(setBarbers);
+    fetch(barberUrl).then((r) => r.json()).then((data) => {
+      setBarbers(data);
+      // Auto-select barber if URL has ?barber=slug
+      if (barberSlug && data.length > 0) {
+        const match = data.find((b: any) => b.name.toLowerCase().replace(/\s+/g, "-") === barberSlug);
+        if (match) {
+          setSelectedBarber(match);
+          setStep("service");
+        }
+      }
+    });
     fetch("/api/business-hours").then((r) => r.json()).then((hours: any[]) => {
       setClosedDays(hours.filter((h) => h.is_closed).map((h) => h.day_of_week));
     });
