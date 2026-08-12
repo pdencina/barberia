@@ -14,6 +14,7 @@ export default function BarberPreciosPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [selectedBarber, setSelectedBarber] = useState("");
   const [customPrices, setCustomPrices] = useState<CustomPrice[]>([]);
+  const [assignedServices, setAssignedServices] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const { showToast } = useToast();
@@ -35,11 +36,29 @@ export default function BarberPreciosPage() {
       fetch(`/api/barber-services?barberId=${selectedBarber}`)
         .then((r) => r.json())
         .then((data) => setCustomPrices(Array.isArray(data) ? data : []));
+      fetch(`/api/barber-service-assignments?barberId=${selectedBarber}`)
+        .then((r) => r.json())
+        .then((data) => setAssignedServices(Array.isArray(data) ? data : []));
     }
   }, [selectedBarber]);
 
   const getCustom = (serviceId: string) => {
     return customPrices.find((c) => c.service_id === serviceId);
+  };
+
+  const toggleService = async (serviceId: string) => {
+    let newAssigned: string[];
+    if (assignedServices.includes(serviceId)) {
+      newAssigned = assignedServices.filter((id) => id !== serviceId);
+    } else {
+      newAssigned = [...assignedServices, serviceId];
+    }
+    setAssignedServices(newAssigned);
+    await fetch("/api/barber-service-assignments", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ barberId: selectedBarber, serviceIds: newAssigned }),
+    });
   };
 
   const saveCustom = async (serviceId: string, price: string, duration: string) => {
@@ -89,6 +108,7 @@ export default function BarberPreciosPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
+              <th className="text-center p-4 font-medium text-gray-600 w-14">Activo</th>
               <th className="text-left p-4 font-medium text-gray-600">Servicio</th>
               <th className="text-center p-4 font-medium text-gray-600">Precio Default</th>
               <th className="text-center p-4 font-medium text-gray-600">Precio Custom</th>
@@ -107,6 +127,8 @@ export default function BarberPreciosPage() {
                   customPrice={custom?.custom_price}
                   customDuration={custom?.custom_duration}
                   saving={saving === s.id}
+                  active={assignedServices.length === 0 || assignedServices.includes(s.id)}
+                  onToggle={() => toggleService(s.id)}
                   onSave={(price, duration) => saveCustom(s.id, price, duration)}
                 />
               );
@@ -118,11 +140,13 @@ export default function BarberPreciosPage() {
   );
 }
 
-function ServiceRow({ service, customPrice, customDuration, saving, onSave }: {
+function ServiceRow({ service, customPrice, customDuration, saving, active, onToggle, onSave }: {
   service: { id: string; name: string; price: number; duration: number };
   customPrice: number | null | undefined;
   customDuration: number | null | undefined;
   saving: boolean;
+  active: boolean;
+  onToggle: () => void;
   onSave: (price: string, duration: string) => void;
 }) {
   const [price, setPrice] = useState(customPrice ? String(customPrice) : "");
@@ -134,7 +158,11 @@ function ServiceRow({ service, customPrice, customDuration, saving, onSave }: {
   }, [customPrice, customDuration]);
 
   return (
-    <tr className="hover:bg-gray-50">
+    <tr className={`hover:bg-gray-50 ${!active ? "opacity-40" : ""}`}>
+      <td className="p-4 text-center">
+        <input type="checkbox" checked={active} onChange={onToggle}
+          className="w-4 h-4 rounded border-gray-300 text-brand-blue focus:ring-brand-blue" />
+      </td>
       <td className="p-4 font-medium">{service.name}</td>
       <td className="p-4 text-center text-gray-500">{formatCurrency(Number(service.price))}</td>
       <td className="p-4 text-center">

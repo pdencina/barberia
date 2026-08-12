@@ -10,7 +10,7 @@ interface Service {
   duration: number;
 }
 
-export function BarberServicesEditor({ barberId, showToast }: { barberId: string; showToast: (msg: string, type: string) => void }) {
+export function BarberServicesEditor({ barberId, showToast }: { barberId: string; showToast: (msg: string, type?: "success" | "error" | "info") => void }) {
   const [services, setServices] = useState<Service[]>([]);
   const [assigned, setAssigned] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);

@@ -13,7 +13,7 @@ interface ScheduleDay {
   break_end: string | null;
 }
 
-export function BarberScheduleEditor({ barberId, showToast }: { barberId: string; showToast: (msg: string, type: string) => void }) {
+export function BarberScheduleEditor({ barberId, showToast }: { barberId: string; showToast: (msg: string, type?: "success" | "error" | "info") => void }) {
   const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
   const [saving, setSaving] = useState(false);
 
