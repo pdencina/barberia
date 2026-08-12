@@ -5,6 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
+import { BarberScheduleEditor } from "@/components/barber-schedule-editor";
+import { BarberServicesEditor } from "@/components/barber-services-editor";
 
 interface Professional {
   id: string;
@@ -304,7 +306,21 @@ export default function EditProfessionalPage() {
         </div>
       )}
 
-      {/* Change Role */}
+      {/* Work Schedule */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+        <h2 className="font-bold text-gray-800">Horario de Trabajo</h2>
+        <p className="text-xs text-gray-400">Define dias y horas. Esto determina disponibilidad en la agenda online.</p>
+        <BarberScheduleEditor barberId={params.id as string} showToast={showToast} />
+      </div>
+
+      {/* Services assignment */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+        <h2 className="font-bold text-gray-800">Servicios que ofrece</h2>
+        <p className="text-xs text-gray-400">Selecciona que servicios realiza. Si no seleccionas ninguno, ofrece todos.</p>
+        <BarberServicesEditor barberId={params.id as string} showToast={showToast} />
+      </div>
+
+      {/* Presentacion (visible en booking) */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Presentacion (visible en booking)</h2>
         <div>
