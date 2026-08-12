@@ -21,17 +21,29 @@ export async function GET(req: NextRequest) {
   // Get custom prices for this barber
   const { data: customPrices } = await supabase
     .from("barber_services")
-    .select("service_id, custom_price, custom_duration, active")
+    .select("service_id, custom_price, custom_duration")
     .eq("barber_id", barberId);
+
+  // Get assigned services (if any)
+  const { data: assignments } = await supabase
+    .from("barber_service_assignments")
+    .select("service_id")
+    .eq("barber_id", barberId);
+
+  const assignedIds = (assignments || []).map((a) => a.service_id);
+  const hasAssignments = assignedIds.length > 0;
 
   // Merge: apply custom prices where they exist
   const customMap = new Map((customPrices || []).map((c) => [c.service_id, c]));
 
   const result = (services || [])
+    .filter((s) => {
+      // If barber has specific assignments, only show those
+      if (hasAssignments && !assignedIds.includes(s.id)) return false;
+      return true;
+    })
     .map((s) => {
       const custom = customMap.get(s.id);
-      // If custom entry exists and is inactive, hide this service for this barber
-      if (custom && !custom.active) return null;
       return {
         id: s.id,
         name: s.name,
@@ -40,8 +52,7 @@ export async function GET(req: NextRequest) {
         duration: custom?.custom_duration || s.duration,
         hasCustomPrice: !!custom?.custom_price,
       };
-    })
-    .filter(Boolean);
+    });
 
   return NextResponse.json(result);
 }
