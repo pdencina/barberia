@@ -20,8 +20,14 @@ export function BarberServicesEditor({ barberId, showToast }: { barberId: string
       fetch("/api/services?all=true").then((r) => r.json()),
       fetch(`/api/barber-service-assignments?barberId=${barberId}`).then((r) => r.json()),
     ]).then(([svcs, assignedIds]) => {
-      setServices(Array.isArray(svcs) ? svcs.filter((s: any) => s.active !== false) : []);
-      setAssigned(Array.isArray(assignedIds) ? assignedIds : []);
+      const activeServices = Array.isArray(svcs) ? svcs.filter((s: any) => s.active !== false) : [];
+      setServices(activeServices);
+      // If no assignments saved yet, pre-select ALL (better UX)
+      if (!Array.isArray(assignedIds) || assignedIds.length === 0) {
+        setAssigned(activeServices.map((s: any) => s.id));
+      } else {
+        setAssigned(assignedIds);
+      }
     });
   }, [barberId]);
 

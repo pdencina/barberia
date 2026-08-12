@@ -31,16 +31,15 @@ export async function GET(req: NextRequest) {
     .eq("barber_id", barberId);
 
   const assignedIds = (assignments || []).map((a) => a.service_id);
-  const hasAssignments = assignedIds.length > 0;
 
   // Merge: apply custom prices where they exist
   const customMap = new Map((customPrices || []).map((c) => [c.service_id, c]));
 
+  // Only show assigned services
   const result = (services || [])
     .filter((s) => {
-      // If barber has specific assignments, only show those
-      if (hasAssignments && !assignedIds.includes(s.id)) return false;
-      return true;
+      if (assignedIds.length === 0) return true; // Not configured yet = show all
+      return assignedIds.includes(s.id);
     })
     .map((s) => {
       const custom = customMap.get(s.id);
