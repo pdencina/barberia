@@ -66,39 +66,53 @@ export async function GET(req: NextRequest) {
   const startMinutes = openHour * 60 + openMin;
   const endMinutes = closeHour * 60 + closeMin;
 
+  // Get current time in Chile for "past slots" filter
+  const nowChile = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Santiago" }));
+  const todayStr = `${nowChile.getFullYear()}-${String(nowChile.getMonth() + 1).padStart(2, "0")}-${String(nowChile.getDate()).padStart(2, "0")}`;
+  const nowMinutes = nowChile.getHours() * 60 + nowChile.getMinutes();
+  const isToday = date === todayStr;
+
   for (let totalMin = startMinutes; totalMin < endMinutes; totalMin += slotInterval) {
     const hour = Math.floor(totalMin / 60);
     const min = totalMin % 60;
-    const slotStart = new Date(`${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00`);
-    const slotEnd = new Date(slotStart.getTime() + duration * 60000);
 
-    // Check slot doesn't exceed business hours
-    const closeTime = new Date(`${date}T${closeHour.toString().padStart(2, "0")}:${closeMin.toString().padStart(2, "0")}:00`);
-    if (slotEnd > closeTime) continue;
+    // Check slot + duration doesn't exceed close time
+    if (totalMin + duration > endMinutes) continue;
 
-      // Check slot is not in the past
-      const now = new Date();
-      if (slotStart <= now) continue;
+    // Check slot is not in the past (only matters for today)
+    if (isToday && totalMin <= nowMinutes) continue;
 
-      // Check no conflict with existing appointments
-      const hasConflict = (appointments || []).some((appt) => {
-        const apptStart = new Date(appt.start_time);
-        const apptEnd = new Date(appt.end_time);
-        return slotStart < apptEnd && slotEnd > apptStart;
-      });
+    // Build ISO string with explicit timezone offset for Chile (-04:00 or -03:00)
+    const slotISO = `${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00`;
 
-      // Check no conflict with partial blocks
-      const isBlocked = (blocks || []).some((block) => {
-        if (block.all_day) return true;
-        if (!block.start_time || !block.end_time) return false;
-        const blockStart = new Date(`${date}T${block.start_time}`);
-        const blockEnd = new Date(`${date}T${block.end_time}`);
-        return slotStart < blockEnd && slotEnd > blockStart;
-      });
+    // Check no conflict with existing appointments (compare as minutes, not Date objects)
+    const slotStartMin = totalMin;
+    const slotEndMin = totalMin + duration;
 
-      if (!hasConflict && !isBlocked) {
-        slots.push(slotStart.toISOString());
-      }
+    const hasConflict = (appointments || []).some((appt) => {
+      const apptStartMatch = appt.start_time.match(/(\d{2}):(\d{2})/);
+      const apptEndMatch = appt.end_time.match(/(\d{2}):(\d{2})/);
+      if (!apptStartMatch || !apptEndMatch) return false;
+      const apptStartMin = parseInt(apptStartMatch[1]) * 60 + parseInt(apptStartMatch[2]);
+      const apptEndMin = parseInt(apptEndMatch[1]) * 60 + parseInt(apptEndMatch[2]);
+      return slotStartMin < apptEndMin && slotEndMin > apptStartMin;
+    });
+
+    // Check no conflict with partial blocks
+    const isBlocked = (blocks || []).some((block) => {
+      if (block.all_day) return true;
+      if (!block.start_time || !block.end_time) return false;
+      const blockStartMatch = block.start_time.match(/(\d{2}):(\d{2})/);
+      const blockEndMatch = block.end_time.match(/(\d{2}):(\d{2})/);
+      if (!blockStartMatch || !blockEndMatch) return false;
+      const blockStartMin = parseInt(blockStartMatch[1]) * 60 + parseInt(blockStartMatch[2]);
+      const blockEndMin = parseInt(blockEndMatch[1]) * 60 + parseInt(blockEndMatch[2]);
+      return slotStartMin < blockEndMin && slotEndMin > blockStartMin;
+    });
+
+    if (!hasConflict && !isBlocked) {
+      slots.push(slotISO);
+    }
   }
 
   return NextResponse.json({ slots, date, barberId });
