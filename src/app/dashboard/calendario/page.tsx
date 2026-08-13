@@ -51,6 +51,33 @@ export default function CalendarioPage() {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
 
+  const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
+  const [apptDetails, setApptDetails] = useState<any>(null);
+  const [apptTab, setApptTab] = useState<"detalles" | "historial">("detalles");
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  const openApptDetails = async (apptId: string) => {
+    setSelectedApptId(apptId);
+    setApptTab("detalles");
+    setLoadingDetails(true);
+    const res = await fetch(`/api/appointments/${apptId}/details`);
+    const data = await res.json();
+    setApptDetails(data);
+    setLoadingDetails(false);
+  };
+
+  const updateApptStatus = async (status: string) => {
+    if (!selectedApptId) return;
+    await fetch(`/api/appointments/${selectedApptId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    showToast("Estado actualizado", "success");
+    setSelectedApptId(null);
+    await fetchAppointments();
+  };
+
   // Drag-to-create state
   const [dragging, setDragging] = useState(false);
   const [dragBarberId, setDragBarberId] = useState<string | null>(null);
@@ -490,7 +517,7 @@ export default function CalendarioPage() {
                         }}
                         onClick={(e) => {
                           e.stopPropagation();
-                          showToast(`${appt.client?.name || "Cliente"} · ${timeLabel} · ${appt.services?.map((s: any) => s.service?.name).join(", ")}`, "info");
+                          openApptDetails(appt.id);
                         }}
                         className={`absolute left-1 right-1 rounded-md border-l-[3px] ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10 group`}
                         style={getBlockStyle(appt)}
@@ -745,6 +772,141 @@ export default function CalendarioPage() {
                 {creating ? "Creando..." : "Crear"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Appointment Detail Popup */}
+      {selectedApptId && (
+        <div className="fixed inset-0 z-50 flex items-start justify-end p-4 pt-20" onClick={() => setSelectedApptId(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            {loadingDetails ? (
+              <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-brand-blue/20 border-t-brand-blue rounded-full animate-spin mx-auto" /></div>
+            ) : apptDetails ? (
+              <>
+                {/* Header */}
+                <div className="flex items-center justify-between p-4 border-b">
+                  <h3 className="font-bold text-lg text-brand-dark">Cita</h3>
+                  <div className="flex items-center gap-2">
+                    <select value={apptDetails.status} onChange={(e) => updateApptStatus(e.target.value)}
+                      className="border border-gray-200 rounded-lg px-2 py-1 text-xs font-medium">
+                      <option value="scheduled">Pendiente</option>
+                      <option value="confirmed">Confirmado</option>
+                      <option value="in_progress">En atencion</option>
+                      <option value="completed">Completado</option>
+                      <option value="no_show">No presentado</option>
+                      <option value="cancelled">Cancelado</option>
+                    </select>
+                    <button onClick={() => setSelectedApptId(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+                  </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b px-4">
+                  <button onClick={() => setApptTab("detalles")}
+                    className={`pb-2 pt-3 px-3 text-sm font-medium border-b-2 ${apptTab === "detalles" ? "border-brand-blue text-brand-blue" : "border-transparent text-brand-gray"}`}>
+                    Detalles
+                  </button>
+                  <button onClick={() => setApptTab("historial")}
+                    className={`pb-2 pt-3 px-3 text-sm font-medium border-b-2 ${apptTab === "historial" ? "border-brand-blue text-brand-blue" : "border-transparent text-brand-gray"}`}>
+                    Historial
+                  </button>
+                </div>
+
+                {apptTab === "detalles" ? (
+                  <div className="p-4 space-y-4">
+                    {/* Service */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-3 h-3 rounded-full bg-brand-blue mt-1.5 flex-shrink-0" />
+                      <div>
+                        <p className="font-semibold text-brand-dark">{apptDetails.services?.map((s: any) => s.service?.name).join(" + ")}</p>
+                        <p className="text-xs text-brand-gray mt-0.5">
+                          Costo: {formatCurrency(apptDetails.services?.reduce((s: number, sv: any) => s + Number(sv.price || 0), 0) || 0)}
+                          {" · "}Duracion: {apptDetails.services?.reduce((s: number, sv: any) => s + (sv.service?.duration || 0), 0)} min
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Date & Time */}
+                    <div className="flex items-center gap-3">
+                      <svg className="w-4 h-4 text-brand-gray flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      <div>
+                        <p className="text-sm text-brand-dark font-medium">
+                          {new Date(apptDetails.date + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" })}
+                          {"  "}
+                          {apptDetails.start_time?.match(/(\d{2}:\d{2})/)?.[1] || ""}
+                          {" – "}
+                          {apptDetails.end_time?.match(/(\d{2}:\d{2})/)?.[1] || ""}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Client */}
+                    {apptDetails.client && (
+                      <div className="flex items-start gap-3">
+                        <svg className="w-4 h-4 text-brand-gray flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0" />
+                        </svg>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-medium text-brand-dark">{apptDetails.client.name}</p>
+                            {apptDetails.isNewClient && (
+                              <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-bold rounded">NUEVO</span>
+                            )}
+                            {!apptDetails.isNewClient && apptDetails.totalVisits > 0 && (
+                              <span className="text-[10px] text-brand-gray">{apptDetails.totalVisits} visitas</span>
+                            )}
+                          </div>
+                          {apptDetails.client.email && <p className="text-xs text-brand-gray">{apptDetails.client.email}</p>}
+                          {apptDetails.client.phone && <p className="text-xs text-brand-gray">{apptDetails.client.phone}</p>}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Barber */}
+                    <div className="flex items-center gap-3">
+                      <svg className="w-4 h-4 text-brand-gray flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25" />
+                      </svg>
+                      <p className="text-sm text-brand-dark">{apptDetails.barber?.name}</p>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-2 pt-3 border-t">
+                      <button onClick={() => { setSelectedApptId(null); /* TODO: open edit modal */ }}
+                        className="flex-1 py-2 border border-gray-200 rounded-xl text-xs text-brand-gray hover:bg-gray-50 font-medium">
+                        Editar hora
+                      </button>
+                      <button onClick={() => updateApptStatus("cancelled")}
+                        className="flex-1 py-2 border border-red-200 rounded-xl text-xs text-red-500 hover:bg-red-50 font-medium">
+                        Cancelar cita
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-4 space-y-3">
+                    {apptDetails.lastServices?.length > 0 ? (
+                      <>
+                        <p className="text-xs text-brand-gray font-medium uppercase">Ultimas visitas de {apptDetails.client?.name}</p>
+                        {apptDetails.lastServices.map((svc: string, i: number) => (
+                          <div key={i} className="flex items-center gap-3 py-2 border-b border-gray-50 last:border-0">
+                            <div className="w-6 h-6 rounded-full bg-brand-blue/10 flex items-center justify-center text-[10px] text-brand-blue font-bold">{i + 1}</div>
+                            <p className="text-sm text-brand-dark">{svc || "—"}</p>
+                          </div>
+                        ))}
+                      </>
+                    ) : (
+                      <div className="text-center py-6">
+                        <p className="text-sm text-brand-gray">Sin historial previo</p>
+                        {apptDetails.isNewClient && <p className="text-xs text-green-600 mt-1">Cliente nuevo — primera visita!</p>}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
+            ) : null}
           </div>
         </div>
       )}
