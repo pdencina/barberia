@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
+import { GripVertical } from "lucide-react";
 
 interface Service {
   id: string;
@@ -24,6 +25,16 @@ export default function ServiciosPage() {
   const [form, setForm] = useState({ name: "", description: "", price: "", duration: "" });
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+
+  // Drag state
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+  const [touchDragging, setTouchDragging] = useState(false);
+  const [touchStartY, setTouchStartY] = useState(0);
+  const [touchOffsetY, setTouchOffsetY] = useState(0);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const fetchServices = async () => {
     setLoading(true);
@@ -56,7 +67,6 @@ export default function ServiciosPage() {
     e.preventDefault();
 
     if (editingService) {
-      // Update
       await fetch(`/api/services/${editingService.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -69,7 +79,6 @@ export default function ServiciosPage() {
       });
       showToast("Servicio actualizado", "success");
     } else {
-      // Create
       await fetch("/api/services", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -78,6 +87,7 @@ export default function ServiciosPage() {
           description: form.description || null,
           price: parseInt(form.price),
           duration: parseInt(form.duration),
+          sort_order: activeServices.length,
         }),
       });
       showToast("Servicio creado", "success");
@@ -107,22 +117,101 @@ export default function ServiciosPage() {
     fetchServices();
   };
 
-  const moveService = async (index: number, direction: "up" | "down") => {
-    const active = services.filter((s) => s.active);
-    const swapIndex = direction === "up" ? index - 1 : index + 1;
-    if (swapIndex < 0 || swapIndex >= active.length) return;
-
-    const newOrder = [...active];
-    [newOrder[index], newOrder[swapIndex]] = [newOrder[swapIndex], newOrder[index]];
-
-    const order = newOrder.map((s, i) => ({ id: s.id, sort_order: i }));
+  // ===== REORDER LOGIC =====
+  const saveOrder = async (newList: Service[]) => {
+    const order = newList.map((s, i) => ({ id: s.id, sort_order: i }));
     await fetch("/api/services/reorder", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ order }),
     });
-    showToast("Orden actualizado", "success");
-    fetchServices();
+  };
+
+  const reorder = useCallback((fromIndex: number, toIndex: number) => {
+    setServices((prev) => {
+      const active = prev.filter((s) => s.active);
+      const inactive = prev.filter((s) => !s.active);
+      const newActive = [...active];
+      const [moved] = newActive.splice(fromIndex, 1);
+      newActive.splice(toIndex, 0, moved);
+      const reordered = newActive.map((s, i) => ({ ...s, sort_order: i }));
+      saveOrder(reordered);
+      return [...reordered, ...inactive];
+    });
+  }, []);
+
+  // Desktop drag events
+  const handleDragStart = (index: number) => {
+    setDragIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    setOverIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    if (dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
+      reorder(dragIndex, overIndex);
+      showToast("Orden actualizado", "success");
+    }
+    setDragIndex(null);
+    setOverIndex(null);
+  };
+
+  // Touch drag events
+  const handleTouchStart = (e: React.TouchEvent, index: number) => {
+    const touch = e.touches[0];
+    setTouchStartY(touch.clientY);
+
+    longPressTimer.current = setTimeout(() => {
+      setDragIndex(index);
+      setTouchDragging(true);
+      // Haptic feedback if available
+      if (navigator.vibrate) navigator.vibrate(50);
+    }, 300);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchDragging || dragIndex === null) {
+      // If not yet dragging, cancel long press if moved too much
+      const touch = e.touches[0];
+      if (Math.abs(touch.clientY - touchStartY) > 10) {
+        if (longPressTimer.current) clearTimeout(longPressTimer.current);
+      }
+      return;
+    }
+
+    e.preventDefault();
+    const touch = e.touches[0];
+    setTouchOffsetY(touch.clientY - touchStartY);
+
+    // Find which item we're over
+    const active = services.filter((s) => s.active);
+    for (let i = 0; i < active.length; i++) {
+      const el = itemRefs.current[i];
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        if (touch.clientY >= rect.top && touch.clientY <= rect.bottom) {
+          setOverIndex(i);
+          break;
+        }
+      }
+    }
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+
+    if (touchDragging && dragIndex !== null && overIndex !== null && dragIndex !== overIndex) {
+      reorder(dragIndex, overIndex);
+      showToast("Orden actualizado", "success");
+    }
+
+    setDragIndex(null);
+    setOverIndex(null);
+    setTouchDragging(false);
+    setTouchOffsetY(0);
   };
 
   const activeServices = services.filter((s) => s.active);
@@ -132,11 +221,11 @@ export default function ServiciosPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Servicios</h1>
-          <p className="text-gray-500 text-sm">Gestiona el menu de servicios de tu barberia</p>
+          <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Servicios</h1>
+          <p className="text-brand-gray text-sm">Gestiona el menu de servicios de tu barberia</p>
         </div>
         <button onClick={openNew}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm font-medium">
+          className="px-4 py-2 bg-brand-blue text-white rounded-xl hover:bg-brand-blue/90 text-sm font-medium transition-colors">
           Nuevo Servicio
         </button>
       </div>
@@ -144,38 +233,68 @@ export default function ServiciosPage() {
       {/* Active services */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-4 border-b flex items-center justify-between">
-          <h2 className="font-bold text-gray-800">Servicios Activos ({activeServices.length})</h2>
+          <h2 className="font-bold text-brand-dark">Servicios Activos ({activeServices.length})</h2>
+          <span className="text-xs text-brand-gray hidden md:block">Arrastra para reordenar</span>
+          <span className="text-xs text-brand-gray md:hidden">Manten presionado para mover</span>
         </div>
         {loading ? (
-          <Spinner />
+          <div className="p-8"><Spinner /></div>
         ) : (
-          <div className="divide-y">
+          <div ref={listRef} className="divide-y select-none">
             {activeServices.map((s, index) => (
-              <div key={s.id} className="p-4 flex items-center justify-between hover:bg-gray-50">
-                {/* Reorder buttons */}
-                <div className="flex flex-col gap-0.5 mr-3">
-                  <button onClick={() => moveService(index, "up")}
-                    disabled={index === 0}
-                    className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▲</button>
-                  <button onClick={() => moveService(index, "down")}
-                    disabled={index === activeServices.length - 1}
-                    className="text-gray-400 hover:text-gray-700 disabled:opacity-20 text-xs">▼</button>
+              <div
+                key={s.id}
+                ref={(el) => { itemRefs.current[index] = el; }}
+                draggable
+                onDragStart={() => handleDragStart(index)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDragEnd={handleDragEnd}
+                onTouchStart={(e) => handleTouchStart(e, index)}
+                onTouchMove={(e) => handleTouchMove(e)}
+                onTouchEnd={handleTouchEnd}
+                className={`p-3 md:p-4 flex items-center gap-2 md:gap-3 transition-all ${
+                  dragIndex === index
+                    ? "opacity-50 bg-brand-blue/5 scale-[0.98]"
+                    : overIndex === index && dragIndex !== null
+                    ? "border-t-2 border-t-brand-blue bg-brand-blue/5"
+                    : "hover:bg-gray-50"
+                } ${touchDragging && dragIndex === index ? "shadow-lg z-10 relative" : ""}`}
+                style={touchDragging && dragIndex === index ? { transform: `translateY(${touchOffsetY}px)` } : undefined}
+              >
+                {/* Drag handle */}
+                <div className="cursor-grab active:cursor-grabbing touch-none text-gray-300 hover:text-gray-500 p-1">
+                  <GripVertical className="w-5 h-5" />
                 </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-3">
-                    <p className="font-medium text-gray-900">{s.name}</p>
-                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-xs">{s.duration} min</span>
+
+                {/* Service info */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="font-medium text-brand-dark text-sm md:text-base truncate">{s.name}</p>
+                    <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] md:text-xs font-medium flex-shrink-0">
+                      {s.duration} min
+                    </span>
                   </div>
-                  {s.description && <p className="text-sm text-gray-500 mt-0.5">{s.description}</p>}
+                  {s.description && (
+                    <p className="text-xs text-brand-gray mt-0.5 truncate hidden md:block">{s.description}</p>
+                  )}
                 </div>
-                <div className="flex items-center gap-4">
-                  <p className="text-lg font-bold text-gray-900">{formatCurrency(Number(s.price))}</p>
-                  <div className="flex gap-1">
+
+                {/* Price + Actions */}
+                <div className="flex items-center gap-2 md:gap-4 flex-shrink-0">
+                  <p className="text-sm md:text-lg font-bold text-brand-dark">{formatCurrency(Number(s.price))}</p>
+                  <div className="hidden md:flex gap-1">
                     <button onClick={() => openEdit(s)}
-                      className="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-100">Editar</button>
+                      className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors">Editar</button>
                     <button onClick={() => toggleActive(s)}
-                      className="px-3 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">Eliminar</button>
+                      className="px-3 py-1.5 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50 transition-colors">Eliminar</button>
                   </div>
+                  {/* Mobile: tap to open edit */}
+                  <button onClick={() => openEdit(s)}
+                    className="md:hidden p-2 text-brand-gray hover:text-brand-dark">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
+                    </svg>
+                  </button>
                 </div>
               </div>
             ))}
@@ -187,7 +306,7 @@ export default function ServiciosPage() {
       {inactiveServices.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 opacity-75">
           <div className="p-4 border-b">
-            <h2 className="font-bold text-gray-500">Inactivos ({inactiveServices.length})</h2>
+            <h2 className="font-bold text-brand-gray">Inactivos ({inactiveServices.length})</h2>
           </div>
           <div className="divide-y">
             {inactiveServices.map((s) => (
@@ -208,49 +327,49 @@ export default function ServiciosPage() {
 
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
-            <h2 className="text-lg font-bold mb-4">
+            <h2 className="text-lg font-bold mb-4 text-brand-dark">
               {editingService ? "Editar Servicio" : "Nuevo Servicio"}
             </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Nombre</label>
                 <input type="text" required value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   placeholder="Ej: Corte Clasico"
-                  className="w-full border rounded-lg px-3 py-2" />
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion (opcional)</label>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Descripcion (opcional)</label>
                 <input type="text" value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Breve descripcion del servicio"
-                  className="w-full border rounded-lg px-3 py-2" />
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Precio ($)</label>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Precio ($)</label>
                   <input type="number" required min="0" step="500" value={form.price}
                     onChange={(e) => setForm({ ...form, price: e.target.value })}
                     placeholder="8000"
-                    className="w-full border rounded-lg px-3 py-2" />
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Duracion (min)</label>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Duracion (min)</label>
                   <input type="number" required min="5" step="5" value={form.duration}
                     onChange={(e) => setForm({ ...form, duration: e.target.value })}
                     placeholder="30"
-                    className="w-full border rounded-lg px-3 py-2" />
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
               </div>
-              <div className="flex gap-2 justify-end">
+              <div className="flex gap-2 justify-end pt-2">
                 <button type="button" onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+                  className="px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-sm">Cancelar</button>
                 <button type="submit"
                   disabled={!form.name || !form.price || !form.duration}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {editingService ? "Guardar Cambios" : "Crear Servicio"}
+                  className="px-5 py-2.5 bg-brand-blue text-white rounded-xl hover:bg-brand-blue/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors">
+                  {editingService ? "Guardar" : "Crear"}
                 </button>
               </div>
             </form>

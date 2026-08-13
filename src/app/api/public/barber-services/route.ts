@@ -14,9 +14,9 @@ export async function GET(req: NextRequest) {
   // Get all active services
   const { data: services } = await supabase
     .from("services")
-    .select("id, name, description, price, duration")
+    .select("id, name, description, price, duration, sort_order")
     .eq("active", true)
-    .order("name");
+    .order("sort_order");
 
   // Get custom prices for this barber
   const { data: customPrices } = await supabase
