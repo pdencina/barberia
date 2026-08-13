@@ -102,9 +102,10 @@ const sections: NavSection[] = [
 interface SidebarProps {
   userName: string;
   userRole: string;
+  tenantName?: string;
 }
 
-export function Sidebar({ userName, userRole }: SidebarProps) {
+export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -244,7 +245,10 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex h-14 items-center justify-between px-4 border-b border-gray-100">
-          <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto" /></Link>
+          <div className="flex items-center gap-2">
+            <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto" /></Link>
+            {tenantName && <span className="text-xs text-brand-gray font-medium truncate max-w-[120px]">· {tenantName}</span>}
+          </div>
           <button onClick={() => setMobileOpen(false)} className="text-brand-gray hover:text-brand-dark"><X className="h-5 w-5" /></button>
         </div>
         {renderNav(true)}
@@ -270,6 +274,13 @@ export function Sidebar({ userName, userRole }: SidebarProps) {
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
         </div>
+
+        {/* Tenant name */}
+        {!collapsed && tenantName && (
+          <div className="px-4 pt-3 pb-1">
+            <p className="text-xs font-semibold text-brand-dark truncate">{tenantName}</p>
+          </div>
+        )}
 
         {/* Search hint */}
         {!collapsed && (

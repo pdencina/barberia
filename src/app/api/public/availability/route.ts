@@ -12,24 +12,53 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "barberId and date required" }, { status: 400 });
   }
 
-  // Get business hours for this day of week
+  // Get day of week (0=Sunday, 1=Monday, etc.)
   const dayOfWeek = new Date(date + "T12:00:00").getDay();
-  const { data: hoursData } = await supabase
-    .from("business_hours")
-    .select("open_time, close_time, is_closed")
+
+  // Try barber's personal schedule first
+  const { data: barberSchedule } = await supabase
+    .from("barber_schedule")
+    .select("is_working, start_time, end_time, break_start, break_end")
+    .eq("barber_id", barberId)
     .eq("day_of_week", dayOfWeek)
     .single();
 
-  // Default to 10-21 if not configured
-  const openHour = hoursData?.open_time ? parseInt(hoursData.open_time.split(":")[0]) : 10;
-  const openMin = hoursData?.open_time ? parseInt(hoursData.open_time.split(":")[1]) : 0;
-  const closeHour = hoursData?.close_time ? parseInt(hoursData.close_time.split(":")[0]) : 21;
-  const closeMin = hoursData?.close_time ? parseInt(hoursData.close_time.split(":")[1]) : 0;
+  let openTime: string;
+  let closeTime: string;
+  let breakStart: string | null = null;
+  let breakEnd: string | null = null;
 
-  // If day is closed, return empty
-  if (hoursData?.is_closed) {
-    return NextResponse.json({ slots: [], date, barberId, closed: true });
+  if (barberSchedule) {
+    // Use per-barber schedule
+    if (!barberSchedule.is_working) {
+      return NextResponse.json({ slots: [], date, barberId, closed: true });
+    }
+    openTime = barberSchedule.start_time || "10:00";
+    closeTime = barberSchedule.end_time || "20:00";
+    breakStart = barberSchedule.break_start || null;
+    breakEnd = barberSchedule.break_end || null;
+  } else {
+    // Fallback to global business hours
+    const { data: hoursData } = await supabase
+      .from("business_hours")
+      .select("open_time, close_time, is_closed")
+      .eq("day_of_week", dayOfWeek)
+      .single();
+
+    if (hoursData?.is_closed) {
+      return NextResponse.json({ slots: [], date, barberId, closed: true });
+    }
+    openTime = hoursData?.open_time || "10:00";
+    closeTime = hoursData?.close_time || "21:00";
   }
+
+  // Parse times to minutes (pure arithmetic, no Date objects — avoids timezone issues)
+  const openHour = parseInt(openTime.split(":")[0]);
+  const openMin = parseInt(openTime.split(":")[1]);
+  const closeHour = parseInt(closeTime.split(":")[0]);
+  const closeMin = parseInt(closeTime.split(":")[1]);
+  const breakStartMin = breakStart ? parseInt(breakStart.split(":")[0]) * 60 + parseInt(breakStart.split(":")[1]) : null;
+  const breakEndMin = breakEnd ? parseInt(breakEnd.split(":")[0]) * 60 + parseInt(breakEnd.split(":")[1]) : null;
 
   // Get barber's custom slot duration
   const { data: barberProfile } = await supabase
@@ -110,7 +139,12 @@ export async function GET(req: NextRequest) {
       return slotStartMin < blockEndMin && slotEndMin > blockStartMin;
     });
 
-    if (!hasConflict && !isBlocked) {
+    // Check no conflict with barber's break time
+    const isDuringBreak = (breakStartMin !== null && breakEndMin !== null)
+      ? (slotStartMin < breakEndMin && slotEndMin > breakStartMin)
+      : false;
+
+    if (!hasConflict && !isBlocked && !isDuringBreak) {
       slots.push(slotISO);
     }
   }

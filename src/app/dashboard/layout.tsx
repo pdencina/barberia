@@ -27,6 +27,17 @@ export default async function DashboardLayout({
     .eq("id", user.id)
     .single();
 
+  // Fetch tenant name for sidebar display
+  let tenantName = "";
+  if (profile?.tenant_id) {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("name")
+      .eq("id", profile.tenant_id)
+      .single();
+    tenantName = tenant?.name || "";
+  }
+
   return (
     <ToastWrapper>
       <AuthWrapper
@@ -37,7 +48,7 @@ export default async function DashboardLayout({
         serverTenantId={profile?.tenant_id || null}
       >
         <div className="flex h-screen">
-          <Sidebar userName={profile?.name || user.email || ""} userRole={profile?.role || "barber"} />
+          <Sidebar userName={profile?.name || user.email || ""} userRole={profile?.role || "barber"} tenantName={tenantName} />
           <main className="flex-1 overflow-y-auto bg-gray-50 pt-[4.5rem] lg:pt-0">
             <TrialBanner />
             <ErrorBoundary>
