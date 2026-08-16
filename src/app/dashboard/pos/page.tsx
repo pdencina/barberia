@@ -16,6 +16,7 @@ interface Product {
   name: string;
   price: number;
   stock: number;
+  barcode?: string;
 }
 
 interface Client {
@@ -87,7 +88,7 @@ export default function POSPage() {
   const filteredItems =
     activeTab === "services"
       ? services.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
-      : products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
+      : products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
 
   const addToCart = (item: Service | Product, type: "service" | "product") => {
     const existing = cart.find((c) => c.id === item.id && c.type === type);
@@ -323,9 +324,20 @@ export default function POSPage() {
           </svg>
           <input
             type="text"
-            placeholder="Buscar..."
+            placeholder="Buscar o escanear codigo de barras..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && search.trim()) {
+                // Barcode scanner sends Enter after scan
+                const found = products.find((p) => p.barcode === search.trim());
+                if (found) {
+                  addToCart(found, "product");
+                  setSearch("");
+                  setActiveTab("products");
+                }
+              }
+            }}
             className="w-full border border-gray-200 rounded-xl pl-10 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
           />
         </div>

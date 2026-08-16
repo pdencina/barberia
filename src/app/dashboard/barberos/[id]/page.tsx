@@ -327,7 +327,7 @@ export default function EditProfessionalPage() {
           <label className="block text-xs text-gray-500 mb-1">Bio / Descripcion corta</label>
           <textarea value={(data as any).bio || ""} rows={2}
             onChange={(e) => setData({ ...data, bio: e.target.value } as any)}
-            placeholder="Ej: Especialista en degradados y disenos con navaja. 5 anos de experiencia."
+            placeholder="Ej: Especialista en degradados y disenos con navaja. 5 años de experiencia."
             className="w-full border rounded-xl px-3 py-2.5 text-sm" />
         </div>
         <div>
@@ -339,7 +339,7 @@ export default function EditProfessionalPage() {
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-gray-500 mb-1">Anos experiencia</label>
+            <label className="block text-xs text-gray-500 mb-1">Años experiencia</label>
             <input type="number" min="0" value={(data as any).years_experience || ""}
               onChange={(e) => setData({ ...data, years_experience: parseInt(e.target.value) || null } as any)}
               className="w-full border rounded-xl px-3 py-2.5 text-sm" />

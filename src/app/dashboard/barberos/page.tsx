@@ -64,16 +64,17 @@ export default function BarberosPage() {
               <th className="text-left p-4 font-medium text-gray-600">Nombre</th>
               <th className="text-left p-4 font-medium text-gray-600">Email</th>
               <th className="text-left p-4 font-medium text-gray-600">Telefono</th>
+              <th className="text-right p-4 font-medium text-gray-600"></th>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={3}><Spinner /></td></tr>
+              <tr><td colSpan={4}><Spinner /></td></tr>
             ) : barbers.length === 0 ? (
-              <tr><td colSpan={3} className="p-4 text-center text-gray-500">No hay profesionales</td></tr>
+              <tr><td colSpan={4} className="p-4 text-center text-gray-500">No hay profesionales</td></tr>
             ) : barbers.map((b) => (
-              <tr key={b.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => window.location.href = `/dashboard/barberos/${b.id}`}>
-                <td className="p-4 font-medium text-blue-600">
+              <tr key={b.id} className="hover:bg-gray-50">
+                <td className="p-4 font-medium text-blue-600 cursor-pointer" onClick={() => window.location.href = `/dashboard/barberos/${b.id}`}>
                   <div className="flex items-center gap-3">
                     {b.avatar_url ? (
                       <img src={b.avatar_url} alt={b.name} className="w-8 h-8 rounded-full object-cover" />
@@ -87,6 +88,21 @@ export default function BarberosPage() {
                 </td>
                 <td className="p-4">{b.email || "-"}</td>
                 <td className="p-4">{b.phone || "-"}</td>
+                <td className="p-4 text-right">
+                  <button onClick={async (e) => {
+                    e.stopPropagation();
+                    if (!confirm(`Desactivar a "${b.name}"? Ya no aparecera en agenda ni booking.`)) return;
+                    await fetch(`/api/barberos/${b.id}`, {
+                      method: "PATCH",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ active: false }),
+                    });
+                    showToast("Profesional desactivado", "success");
+                    fetchBarbers();
+                  }} className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                    Eliminar
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

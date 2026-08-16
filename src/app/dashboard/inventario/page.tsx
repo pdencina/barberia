@@ -38,7 +38,7 @@ export default function InventarioPage() {
   const [showProductModal, setShowProductModal] = useState(false);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [productForm, setProductForm] = useState({
-    name: "", sku: "", cost: "", price: "", stock: "", min_stock: "",
+    name: "", sku: "", barcode: "", cost: "", price: "", stock: "", min_stock: "",
   });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [movementForm, setMovementForm] = useState({
@@ -78,6 +78,7 @@ export default function InventarioPage() {
     const payload = {
       name: productForm.name,
       sku: productForm.sku || null,
+      barcode: productForm.barcode || null,
       cost: parseFloat(productForm.cost),
       price: parseFloat(productForm.price),
       stock: parseInt(productForm.stock),
@@ -101,7 +102,7 @@ export default function InventarioPage() {
     }
     setShowProductModal(false);
     setEditingProductId(null);
-    setProductForm({ name: "", sku: "", cost: "", price: "", stock: "", min_stock: "" });
+    setProductForm({ name: "", sku: "", barcode: "", cost: "", price: "", stock: "", min_stock: "" });
     fetchData();
   };
 
@@ -141,7 +142,7 @@ export default function InventarioPage() {
             Registrar Movimiento
           </button>
           <button
-            onClick={() => { setEditingProductId(null); setProductForm({ name: "", sku: "", cost: "", price: "", stock: "", min_stock: "" }); setShowProductModal(true); }}
+            onClick={() => { setEditingProductId(null); setProductForm({ name: "", sku: "", barcode: "", cost: "", price: "", stock: "", min_stock: "" }); setShowProductModal(true); }}
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
           >
             Nuevo Producto
@@ -200,13 +201,27 @@ export default function InventarioPage() {
                   </span>
                 </td>
                 <td className="p-4 text-center">
-                  <button onClick={() => {
-                    setProductForm({ name: p.name, sku: p.sku || "", cost: String(p.cost), price: String(p.price), stock: String(p.stock), min_stock: String(p.min_stock) });
-                    setEditingProductId(p.id);
-                    setShowProductModal(true);
-                  }} className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-100">
-                    Editar
-                  </button>
+                  <div className="flex gap-1 justify-center">
+                    <button onClick={() => {
+                      setProductForm({ name: p.name, sku: p.sku || "", barcode: (p as any).barcode || "", cost: String(p.cost), price: String(p.price), stock: String(p.stock), min_stock: String(p.min_stock) });
+                      setEditingProductId(p.id);
+                      setShowProductModal(true);
+                    }} className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-100">
+                      Editar
+                    </button>
+                    <button onClick={async () => {
+                      if (!confirm(`Eliminar "${p.name}"?`)) return;
+                      await fetch(`/api/products/${p.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ active: false }),
+                      });
+                      showToast("Producto eliminado", "success");
+                      fetchData();
+                    }} className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                      Eliminar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}
@@ -349,6 +364,13 @@ export default function InventarioPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">SKU</label>
                 <input type="text" value={productForm.sku}
                   onChange={(e) => setProductForm({ ...productForm, sku: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Codigo de Barras</label>
+                <input type="text" value={productForm.barcode}
+                  onChange={(e) => setProductForm({ ...productForm, barcode: e.target.value })}
+                  placeholder="Escanea o ingresa manualmente"
                   className="w-full border rounded-lg px-3 py-2" />
               </div>
               <div className="grid grid-cols-2 gap-4">

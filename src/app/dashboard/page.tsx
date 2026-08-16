@@ -38,10 +38,18 @@ export default function DashboardPage() {
   const { user } = useAuth();
 
   useEffect(() => {
-    fetch("/api/dashboard", { cache: "no-store" })
-      .then((r) => r.json())
-      .then((d) => setData(d))
-      .finally(() => setLoading(false));
+    const fetchDashboard = () => {
+      fetch("/api/dashboard", { cache: "no-store" })
+        .then((r) => r.json())
+        .then((d) => setData(d))
+        .finally(() => setLoading(false));
+    };
+
+    fetchDashboard();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(fetchDashboard, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading || !data) return <Spinner />;
