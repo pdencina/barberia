@@ -45,12 +45,13 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { barberId, amount, description, externalReference } = body;
+  const { barberId, amount, description, externalReference, cartType } = body;
+  // cartType: "services" | "products" | "mixed" — determines which terminal to use
 
   // Determine which token to use
   const { data: barber } = await supabase
     .from("profiles")
-    .select("id, name, work_mode, mp_access_token, mp_device_id, mp_store_id")
+    .select("id, name, work_mode, mp_access_token, mp_device_id, mp_store_id, tenant_id")
     .eq("id", barberId)
     .single();
 
@@ -72,22 +73,74 @@ export async function POST(req: NextRequest) {
 
   if (!finalToken || !finalDeviceId) {
     // Read from tenant_settings (self-service config)
-    const { data: profile } = await supabase
-      .from("profiles")
-      .select("tenant_id")
-      .eq("id", barberId)
-      .single();
+    const tenantId = barber.tenant_id;
 
-    if (profile?.tenant_id) {
-      const { data: tenantSettings } = await supabase
-        .from("tenant_settings")
-        .select("mp_access_token, mp_device_id")
-        .eq("tenant_id", profile.tenant_id)
-        .single();
+    if (tenantId) {
+      // First: check multi-terminal table for the best match
+      const terminalType = cartType === "products" ? "products" : cartType === "services" ? "services" : null;
 
-      if (tenantSettings) {
-        if (!finalToken) finalToken = tenantSettings.mp_access_token || null;
-        if (!finalDeviceId) finalDeviceId = tenantSettings.mp_device_id || null;
+      if (terminalType) {
+        // Look for a terminal matching the cart type
+        const { data: typedTerminal } = await supabase
+          .from("mp_terminals")
+          .select("device_id, access_token")
+          .eq("tenant_id", tenantId)
+          .eq("terminal_type", terminalType)
+          .eq("active", true)
+          .limit(1)
+          .single();
+
+        if (typedTerminal) {
+          if (!finalDeviceId) finalDeviceId = typedTerminal.device_id;
+          if (!finalToken && typedTerminal.access_token) finalToken = typedTerminal.access_token;
+        }
+      }
+
+      // If no typed terminal found, look for "all" type
+      if (!finalDeviceId) {
+        const { data: allTerminal } = await supabase
+          .from("mp_terminals")
+          .select("device_id, access_token")
+          .eq("tenant_id", tenantId)
+          .eq("terminal_type", "all")
+          .eq("active", true)
+          .limit(1)
+          .single();
+
+        if (allTerminal) {
+          if (!finalDeviceId) finalDeviceId = allTerminal.device_id;
+          if (!finalToken && allTerminal.access_token) finalToken = allTerminal.access_token;
+        }
+      }
+
+      // If still no device, use any active terminal
+      if (!finalDeviceId) {
+        const { data: anyTerminal } = await supabase
+          .from("mp_terminals")
+          .select("device_id, access_token")
+          .eq("tenant_id", tenantId)
+          .eq("active", true)
+          .limit(1)
+          .single();
+
+        if (anyTerminal) {
+          if (!finalDeviceId) finalDeviceId = anyTerminal.device_id;
+          if (!finalToken && anyTerminal.access_token) finalToken = anyTerminal.access_token;
+        }
+      }
+
+      // Fallback: tenant_settings single device (legacy)
+      if (!finalToken || !finalDeviceId) {
+        const { data: tenantSettings } = await supabase
+          .from("tenant_settings")
+          .select("mp_access_token, mp_device_id")
+          .eq("tenant_id", tenantId)
+          .single();
+
+        if (tenantSettings) {
+          if (!finalToken) finalToken = tenantSettings.mp_access_token || null;
+          if (!finalDeviceId) finalDeviceId = tenantSettings.mp_device_id || null;
+        }
       }
     }
 

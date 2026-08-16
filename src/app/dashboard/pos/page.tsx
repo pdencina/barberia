@@ -182,6 +182,11 @@ export default function POSPage() {
     if (isCardPayment) {
       setMpPaymentStatus("waiting");
       try {
+        // Determine cart type for multi-terminal routing
+        const hasServices = cart.some((c) => c.type === "service");
+        const hasProducts = cart.some((c) => c.type === "product");
+        const cartType = hasServices && hasProducts ? "mixed" : hasServices ? "services" : "products";
+
         const mpRes = await fetch("/api/mercadopago", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -190,6 +195,7 @@ export default function POSPage() {
             amount: total,
             description: cart.map((c) => c.name).join(", ").slice(0, 50) || "Venta re-booking",
             externalReference: `pos-${Date.now()}`,
+            cartType,
           }),
         });
         const mpData = await mpRes.json();

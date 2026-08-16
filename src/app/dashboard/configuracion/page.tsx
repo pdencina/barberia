@@ -41,6 +41,12 @@ export default function ConfiguracionPage() {
   const [mpDevicesNote, setMpDevicesNote] = useState("");
   const [mpLoadingDevices, setMpLoadingDevices] = useState(false);
 
+  // Multi-terminal state
+  interface Terminal { id: string; name: string; device_id: string; terminal_type: string; active: boolean; }
+  const [terminals, setTerminals] = useState<Terminal[]>([]);
+  const [showAddTerminal, setShowAddTerminal] = useState(false);
+  const [newTerminal, setNewTerminal] = useState({ name: "", device_id: "", terminal_type: "all" });
+
   // Generate time options from 06:00 to 23:00
   const timeOptions: string[] = [];
   for (let h = 6; h <= 23; h++) {
@@ -92,6 +98,11 @@ export default function ConfiguracionPage() {
           setMpConfigured(mpData.mp_configured || false);
           setMpHasToken(mpData.has_token || false);
         }
+
+        // Fetch terminals
+        const termRes = await fetch(`/api/settings/mercadopago/terminals?tenantId=${profile.tenant_id}`);
+        const termData = await termRes.json();
+        if (Array.isArray(termData)) setTerminals(termData);
       }
     }
 
@@ -336,9 +347,9 @@ export default function ConfiguracionPage() {
           <CreditCard className="w-5 h-5 text-blue-500" />
           <div>
             <h2 className="font-bold text-brand-dark">MercadoPago Point</h2>
-            <p className="text-xs text-brand-gray">Configura tu maquina de cobro para recibir pagos desde el POS</p>
+            <p className="text-xs text-brand-gray">Configura tus maquinas de cobro para recibir pagos desde el POS</p>
           </div>
-          {mpConfigured && (
+          {(mpConfigured || terminals.length > 0) && (
             <span className="ml-auto px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full">CONECTADO</span>
           )}
         </div>
@@ -359,70 +370,7 @@ export default function ConfiguracionPage() {
             </p>
           </div>
 
-          {/* Device ID */}
-          <div>
-            <label className="block text-xs font-medium text-brand-gray mb-1">Device ID (Maquina)</label>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={mpDeviceId}
-                onChange={(e) => setMpDeviceId(e.target.value)}
-                placeholder="NEWLAND_N950__N950NCC904443218"
-                className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono"
-              />
-              <button
-                onClick={async () => {
-                  if (!tenantId) return;
-                  setMpLoadingDevices(true);
-                  setMpDevicesNote("");
-                  try {
-                    const res = await fetch(`/api/settings/mercadopago/devices?tenantId=${tenantId}`);
-                    const data = await res.json();
-                    if (data.devices) setMpDevices(data.devices);
-                    if (data.note) setMpDevicesNote(data.note);
-                    if (data.error) showToast(data.error, "error");
-                  } catch {
-                    showToast("Error de conexion", "error");
-                  }
-                  setMpLoadingDevices(false);
-                }}
-                disabled={!mpHasToken && !mpToken}
-                className="px-4 py-2.5 bg-gray-100 text-brand-dark text-xs font-medium rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-colors whitespace-nowrap"
-              >
-                {mpLoadingDevices ? "Buscando..." : "Buscar maquinas"}
-              </button>
-            </div>
-            {mpDevicesNote && (
-              <p className="text-[10px] text-orange-600 mt-1">{mpDevicesNote}</p>
-            )}
-            {mpDevices.length > 0 && (
-              <div className="mt-2 space-y-1">
-                {mpDevices.map((d) => (
-                  <button key={d.id} onClick={() => { setMpDeviceId(d.id); setMpDevices([]); }}
-                    className="w-full text-left px-3 py-2 bg-gray-50 rounded-lg text-xs font-mono hover:bg-brand-blue/5 hover:border-brand-blue border border-gray-200 transition-colors">
-                    {d.id} <span className="text-brand-gray">({d.operating_mode})</span>
-                  </button>
-                ))}
-              </div>
-            )}
-            <p className="text-[10px] text-brand-gray mt-1">
-              Formato: MARCA__SERIAL. Lo encuentras en la etiqueta de tu maquina o presionando "Buscar maquinas".
-            </p>
-          </div>
-
-          {/* Device Name (optional friendly name) */}
-          <div>
-            <label className="block text-xs font-medium text-brand-gray mb-1">Nombre de la maquina (opcional)</label>
-            <input
-              type="text"
-              value={mpDeviceName}
-              onChange={(e) => setMpDeviceName(e.target.value)}
-              placeholder="Ej: Maquina caja principal"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
-            />
-          </div>
-
-          {/* Save MP */}
+          {/* Save Token */}
           <button
             onClick={async () => {
               if (!tenantId) return;
@@ -430,23 +378,145 @@ export default function ConfiguracionPage() {
               await fetch("/api/settings/mercadopago", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  tenantId,
-                  mp_access_token: mpToken,
-                  mp_device_id: mpDeviceId,
-                  mp_device_name: mpDeviceName,
-                }),
+                body: JSON.stringify({ tenantId, mp_access_token: mpToken, mp_device_id: mpDeviceId, mp_device_name: mpDeviceName }),
               });
               setMpSaving(false);
-              setMpConfigured(!!(mpToken || mpDeviceId));
-              setMpHasToken(!!mpToken);
-              showToast("MercadoPago configurado", "success");
+              setMpConfigured(true);
+              setMpHasToken(true);
+              showToast("Token guardado", "success");
             }}
-            disabled={mpSaving || (!mpToken && !mpDeviceId)}
+            disabled={mpSaving || !mpToken}
             className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {mpSaving ? "Guardando..." : "Guardar MercadoPago"}
+            {mpSaving ? "Guardando..." : "Guardar Token"}
           </button>
+
+          {/* Terminals Section */}
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-medium text-brand-dark">Terminales</p>
+                <p className="text-[10px] text-brand-gray">Agrega multiples maquinas y asigna cuales cobran servicios y cuales productos</p>
+              </div>
+              <button
+                onClick={() => setShowAddTerminal(true)}
+                className="px-3 py-1.5 bg-brand-blue text-white text-xs rounded-lg hover:bg-brand-blue/90 font-medium"
+              >
+                + Anadir terminal
+              </button>
+            </div>
+
+            {/* Terminal list */}
+            {terminals.length > 0 ? (
+              <div className="space-y-2">
+                {terminals.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <CreditCard className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-brand-dark truncate">{t.name}</p>
+                      <p className="text-[10px] font-mono text-brand-gray truncate">{t.device_id}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full flex-shrink-0 ${
+                      t.terminal_type === "services" ? "bg-purple-100 text-purple-700" :
+                      t.terminal_type === "products" ? "bg-orange-100 text-orange-700" :
+                      "bg-gray-100 text-gray-600"
+                    }`}>
+                      {t.terminal_type === "services" ? "SERVICIOS" :
+                       t.terminal_type === "products" ? "PRODUCTOS" : "TODO"}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Eliminar terminal "${t.name}"?`)) return;
+                        await fetch(`/api/settings/mercadopago/terminals?id=${t.id}`, { method: "DELETE" });
+                        setTerminals((prev) => prev.filter((x) => x.id !== t.id));
+                        showToast("Terminal eliminado", "success");
+                      }}
+                      className="text-red-400 hover:text-red-600 text-xs flex-shrink-0"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <p className="text-sm text-brand-gray">No hay terminales configurados</p>
+                <p className="text-[10px] text-brand-gray mt-1">Agrega una maquina para empezar a cobrar con MercadoPago</p>
+              </div>
+            )}
+          </div>
+
+          {/* Add Terminal Form */}
+          {showAddTerminal && (
+            <div className="border border-brand-blue/20 bg-brand-blue/5 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-medium text-brand-dark">Nuevo Terminal</p>
+              <div>
+                <label className="block text-[10px] text-brand-gray mb-1">Nombre</label>
+                <input
+                  type="text"
+                  value={newTerminal.name}
+                  onChange={(e) => setNewTerminal({ ...newTerminal, name: e.target.value })}
+                  placeholder="Ej: Maquina Servicios"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-brand-gray mb-1">Device ID</label>
+                <input
+                  type="text"
+                  value={newTerminal.device_id}
+                  onChange={(e) => setNewTerminal({ ...newTerminal, device_id: e.target.value })}
+                  placeholder="NEWLAND_N950__SERIAL"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-brand-gray mb-1">Tipo de cobro</label>
+                <select
+                  value={newTerminal.terminal_type}
+                  onChange={(e) => setNewTerminal({ ...newTerminal, terminal_type: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="all">Todo (servicios + productos)</option>
+                  <option value="services">Solo Servicios (exento IVA)</option>
+                  <option value="products">Solo Productos (afecto IVA)</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setShowAddTerminal(false); setNewTerminal({ name: "", device_id: "", terminal_type: "all" }); }}
+                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-brand-gray hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!tenantId || !newTerminal.name || !newTerminal.device_id) {
+                      showToast("Completa nombre y Device ID", "error"); return;
+                    }
+                    const res = await fetch("/api/settings/mercadopago/terminals", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tenantId, ...newTerminal }),
+                    });
+                    const data = await res.json();
+                    if (data.id) {
+                      setTerminals((prev) => [...prev, data]);
+                      setShowAddTerminal(false);
+                      setNewTerminal({ name: "", device_id: "", terminal_type: "all" });
+                      showToast("Terminal agregado", "success");
+                    } else {
+                      showToast(data.error || "Error", "error");
+                    }
+                  }}
+                  disabled={!newTerminal.name || !newTerminal.device_id}
+                  className="flex-1 py-2 bg-brand-blue text-white rounded-lg text-sm font-medium hover:bg-brand-blue/90 disabled:opacity-50"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
