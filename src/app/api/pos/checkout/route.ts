@@ -47,6 +47,22 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
+  // Log in audit
+  const clientName = clientId
+    ? await supabase.from("clients").select("name").eq("id", clientId).single().then((r) => r.data?.name || "")
+    : "";
+  const barberName = await supabase.from("profiles").select("name").eq("id", barberId).single().then((r) => r.data?.name || "");
+
+  await supabase.from("audit_log").insert({
+    action: "transaction_create",
+    entity_type: "transaction",
+    entity_id: tx.id,
+    description: `Venta $${total.toLocaleString("es-CL")} — ${items.map((i: any) => i.name).join(", ")}${clientName ? ` — ${clientName}` : ""} (${primaryMethod})`,
+    user_id: barberId,
+    user_name: barberName,
+    metadata: { total, subtotal, discount, paymentMethod: primaryMethod, clientId, items: items.length },
+  });
+
   // Save split payment details
   if (payments && payments.length > 0) {
     const paymentInserts = payments.map((p: { method: string; amount: number }) => ({
