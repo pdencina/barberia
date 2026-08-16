@@ -131,7 +131,7 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <img src="/oti/feliz.png" alt="Oti" className="w-12 h-12" />
+                <img src="/oti/oti-face-96.png" alt="Oti" className="w-12 h-12" />
                 <div>
                   <h2 className="text-lg font-bold text-brand-dark">Agrega tu equipo</h2>
                   <p className="text-sm text-brand-gray">Quienes trabajan en tu negocio?</p>
@@ -165,7 +165,7 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <img src="/oti/gestionando.png" alt="Oti" className="w-12 h-12" />
+                <img src="/oti/oti-transparent-128.png" alt="Oti" className="w-12 h-12" />
                 <div>
                   <h2 className="text-lg font-bold text-brand-dark">Configura tus servicios</h2>
                   <p className="text-sm text-brand-gray">Que ofreces a tus clientes?</p>
@@ -199,7 +199,7 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <img src="/oti/confirmado.png" alt="Oti" className="w-12 h-12" />
+                <img src="/oti/oti-web-160.png" alt="Oti" className="w-12 h-12" />
                 <div>
                   <h2 className="text-lg font-bold text-brand-dark">Horarios de atencion</h2>
                   <p className="text-sm text-brand-gray">Cuando atiendes clientes?</p>

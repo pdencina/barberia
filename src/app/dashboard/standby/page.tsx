@@ -104,7 +104,7 @@ export default function StandbyPage() {
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4">
         <div className="w-full max-w-xs text-center">
-          <div className="w-16 h-16 rounded-2xl bg-indigo-100 flex items-center justify-center text-2xl mx-auto mb-4">🔑</div>
+          <img src="/oti/oti-face-96.png" alt="Oti" className="w-16 h-16 mx-auto mb-4 drop-shadow-md" />
           <h1 className="text-xl font-bold text-gray-900 mb-1">Modo Standby</h1>
           <p className="text-sm text-gray-500 mb-6">Ingresa tu codigo personal</p>
 

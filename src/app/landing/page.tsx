@@ -361,7 +361,7 @@ export default function LandingPage() {
             <div className="relative rounded-3xl overflow-hidden bg-brand-dark shadow-2xl aspect-video group cursor-pointer">
               {/* Video placeholder - replace src with actual video URL */}
               <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-dark to-[#0F8B8D]/80">
-                <img src="/oti/feliz.png" alt="Oti" className="absolute bottom-4 right-8 w-24 h-24 opacity-30" />
+                <img src="/oti/oti-transparent-128.png" alt="Oti" className="absolute bottom-4 right-8 w-24 h-24 opacity-30" />
                 <div className="text-center relative z-10">
                   <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}
                     className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-white/30 group-hover:bg-white/30 transition-colors">

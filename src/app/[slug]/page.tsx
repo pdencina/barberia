@@ -72,7 +72,7 @@ export default function TenantBookingPage() {
     return (
       <div className="min-h-screen bg-brand-light flex items-center justify-center p-4">
         <div className="text-center">
-          <img src="/oti/sorprendido.png" alt="No encontrado" className="w-20 h-20 mx-auto mb-4" />
+          <img src="/oti/oti-face-96.png" alt="No encontrado" className="w-20 h-20 mx-auto mb-4" />
           <h1 className="text-xl font-bold text-brand-dark">Negocio no encontrado</h1>
           <p className="text-sm text-brand-gray mt-2">No existe un negocio con el identificador "{slug}"</p>
           <a href="/landing" className="inline-block mt-4 px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:opacity-90">

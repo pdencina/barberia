@@ -59,13 +59,16 @@ export default function DashboardPage() {
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl md:text-3xl font-bold text-brand-dark">
-            Hola, {firstName}! 👋
-          </h1>
-          <p className="text-brand-gray text-sm mt-0.5">
-            Aqui tienes el resumen de tu negocio hoy.
-          </p>
+        <div className="flex items-center gap-3">
+          <img src="/oti/oti-face-64.png" alt="Oti" className="w-10 h-10 hidden md:block" />
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-dark">
+              Hola, {firstName}! 👋
+            </h1>
+            <p className="text-brand-gray text-sm mt-0.5">
+              Aqui tienes el resumen de tu negocio hoy.
+            </p>
+          </div>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm text-brand-gray">
@@ -165,7 +168,7 @@ export default function DashboardPage() {
 
           {data.todayAppointments.length === 0 ? (
             <div className="text-center py-12">
-              <img src="/oti/feliz.png" alt="Oti feliz" className="w-20 h-20 mx-auto mb-3" />
+              <img src="/oti/oti-face-128.png" alt="Oti feliz" className="w-20 h-20 mx-auto mb-3" />
               <p className="text-brand-gray text-sm">No hay citas agendadas para hoy</p>
               <p className="text-xs text-brand-gray mt-1">Disfruta tu tiempo libre!</p>
             </div>

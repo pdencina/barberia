@@ -564,7 +564,7 @@ export default function BookingPage() {
         {/* Step 5: Confirmation */}
         {step === "confirmed" && (
           <div className="text-center py-12">
-            <img src="/oti/confirmado.png" alt="Confirmado!" className="w-24 h-24 mx-auto mb-4" />
+            <img src="/oti/oti-web-160.png" alt="Confirmado!" className="w-24 h-24 mx-auto mb-4 drop-shadow-lg" />
             <h2 className="text-3xl font-bold mb-3">Cita Confirmada!</h2>
             <p className="text-brand-gray mb-6">Tu cita ha sido agendada exitosamente</p>
 

@@ -273,7 +273,7 @@ export default function MiAgendaPage() {
         <Spinner />
       ) : appointments.length === 0 && !isBlockedToday ? (
         <div className="text-center py-12">
-          <img src="/oti/feliz.png" alt="Oti feliz" className="w-20 h-20 mx-auto mb-3" />
+          <img src="/oti/oti-face-128.png" alt="Oti feliz" className="w-20 h-20 mx-auto mb-3" />
           <p className="text-lg text-brand-gray font-medium">Sin citas para hoy</p>
           <p className="text-sm text-brand-gray">Disfruta tu tiempo libre!</p>
         </div>

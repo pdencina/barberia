@@ -197,6 +197,12 @@
 .animate-glow-pulse { animation: glow-pulse 3s ease-in-out infinite; }
 .animate-bounce-subtle { animation: bounce-subtle 2s ease-in-out infinite; }
 
+@keyframes bounce-slow {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+.animate-bounce-slow { animation: bounce-slow 3s ease-in-out infinite; }
+
 .animation-delay-100 { animation-delay: 100ms; opacity: 0; }
 .animation-delay-200 { animation-delay: 200ms; opacity: 0; }
 .animation-delay-300 { animation-delay: 300ms; opacity: 0; }

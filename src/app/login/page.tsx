@@ -78,7 +78,8 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl shadow-blue-900/5 p-6 md:p-8 animate-scale-in">
         <div className="text-center mb-8">
-          <img src="/logo.png" alt="re-booking" className="h-12 md:h-14 w-auto mx-auto mb-3" />
+          <img src="/oti/oti-web-160.png" alt="Oti" className="w-16 h-16 mx-auto mb-3 drop-shadow-lg" />
+          <img src="/logo.png" alt="re-booking" className="h-8 w-auto mx-auto mb-2" />
           <p className="text-xs text-brand-gray uppercase tracking-[0.2em]">Todo tu negocio. Un solo sistema.</p>
         </div>
 
