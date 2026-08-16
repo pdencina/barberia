@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
-import { Copy, ExternalLink, Globe, Clock, Building2 } from "lucide-react";
+import { Copy, ExternalLink, Globe, Clock, Building2, CreditCard } from "lucide-react";
 
 const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
@@ -28,6 +28,18 @@ export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
+  const [tenantId, setTenantId] = useState<string | null>(null);
+
+  // MercadoPago state
+  const [mpToken, setMpToken] = useState("");
+  const [mpDeviceId, setMpDeviceId] = useState("");
+  const [mpDeviceName, setMpDeviceName] = useState("");
+  const [mpConfigured, setMpConfigured] = useState(false);
+  const [mpHasToken, setMpHasToken] = useState(false);
+  const [mpSaving, setMpSaving] = useState(false);
+  const [mpDevices, setMpDevices] = useState<Array<{ id: string; operating_mode: string }>>([]);
+  const [mpDevicesNote, setMpDevicesNote] = useState("");
+  const [mpLoadingDevices, setMpLoadingDevices] = useState(false);
 
   // Generate time options from 06:00 to 23:00
   const timeOptions: string[] = [];
@@ -53,6 +65,7 @@ export default function ConfiguracionPage() {
         .single();
 
       if (profile?.tenant_id) {
+        setTenantId(profile.tenant_id);
         const { data: tenant } = await supabase
           .from("tenants")
           .select("name, slug, address, phone")
@@ -67,6 +80,17 @@ export default function ConfiguracionPage() {
             website: "",
           });
           setTenantSlug(tenant.slug || null);
+        }
+
+        // Fetch MP settings
+        const mpRes = await fetch(`/api/settings/mercadopago?tenantId=${profile.tenant_id}`);
+        const mpData = await mpRes.json();
+        if (mpData) {
+          setMpToken(mpData.mp_access_token || "");
+          setMpDeviceId(mpData.mp_device_id || "");
+          setMpDeviceName(mpData.mp_device_name || "");
+          setMpConfigured(mpData.mp_configured || false);
+          setMpHasToken(mpData.has_token || false);
         }
       }
     }
@@ -304,6 +328,126 @@ export default function ConfiguracionPage() {
         <p className="text-xs text-brand-gray">
           Los profesionales pueden tener horarios propios que sobreescriben este horario general (configurable en cada perfil).
         </p>
+      </div>
+
+      {/* MercadoPago Config */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <CreditCard className="w-5 h-5 text-blue-500" />
+          <div>
+            <h2 className="font-bold text-brand-dark">MercadoPago Point</h2>
+            <p className="text-xs text-brand-gray">Configura tu maquina de cobro para recibir pagos desde el POS</p>
+          </div>
+          {mpConfigured && (
+            <span className="ml-auto px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full">CONECTADO</span>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          {/* Access Token */}
+          <div>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Access Token (Produccion)</label>
+            <input
+              type="password"
+              value={mpToken}
+              onChange={(e) => setMpToken(e.target.value)}
+              placeholder="APP_USR-xxxxxxxx-xxxx-xxxx..."
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono"
+            />
+            <p className="text-[10px] text-brand-gray mt-1">
+              Obtenlo en <a href="https://www.mercadopago.cl/developers/panel/app" target="_blank" rel="noopener noreferrer" className="text-brand-blue underline">mercadopago.cl/developers</a> → Tu aplicacion → Credenciales de produccion
+            </p>
+          </div>
+
+          {/* Device ID */}
+          <div>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Device ID (Maquina)</label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={mpDeviceId}
+                onChange={(e) => setMpDeviceId(e.target.value)}
+                placeholder="NEWLAND_N950__N950NCC904443218"
+                className="flex-1 border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono"
+              />
+              <button
+                onClick={async () => {
+                  if (!tenantId) return;
+                  setMpLoadingDevices(true);
+                  setMpDevicesNote("");
+                  try {
+                    const res = await fetch(`/api/settings/mercadopago/devices?tenantId=${tenantId}`);
+                    const data = await res.json();
+                    if (data.devices) setMpDevices(data.devices);
+                    if (data.note) setMpDevicesNote(data.note);
+                    if (data.error) showToast(data.error, "error");
+                  } catch {
+                    showToast("Error de conexion", "error");
+                  }
+                  setMpLoadingDevices(false);
+                }}
+                disabled={!mpHasToken && !mpToken}
+                className="px-4 py-2.5 bg-gray-100 text-brand-dark text-xs font-medium rounded-xl hover:bg-gray-200 disabled:opacity-50 transition-colors whitespace-nowrap"
+              >
+                {mpLoadingDevices ? "Buscando..." : "Buscar maquinas"}
+              </button>
+            </div>
+            {mpDevicesNote && (
+              <p className="text-[10px] text-orange-600 mt-1">{mpDevicesNote}</p>
+            )}
+            {mpDevices.length > 0 && (
+              <div className="mt-2 space-y-1">
+                {mpDevices.map((d) => (
+                  <button key={d.id} onClick={() => { setMpDeviceId(d.id); setMpDevices([]); }}
+                    className="w-full text-left px-3 py-2 bg-gray-50 rounded-lg text-xs font-mono hover:bg-brand-blue/5 hover:border-brand-blue border border-gray-200 transition-colors">
+                    {d.id} <span className="text-brand-gray">({d.operating_mode})</span>
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-brand-gray mt-1">
+              Formato: MARCA__SERIAL. Lo encuentras en la etiqueta de tu maquina o presionando "Buscar maquinas".
+            </p>
+          </div>
+
+          {/* Device Name (optional friendly name) */}
+          <div>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Nombre de la maquina (opcional)</label>
+            <input
+              type="text"
+              value={mpDeviceName}
+              onChange={(e) => setMpDeviceName(e.target.value)}
+              placeholder="Ej: Maquina caja principal"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
+            />
+          </div>
+
+          {/* Save MP */}
+          <button
+            onClick={async () => {
+              if (!tenantId) return;
+              setMpSaving(true);
+              await fetch("/api/settings/mercadopago", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  tenantId,
+                  mp_access_token: mpToken,
+                  mp_device_id: mpDeviceId,
+                  mp_device_name: mpDeviceName,
+                }),
+              });
+              setMpSaving(false);
+              setMpConfigured(!!(mpToken || mpDeviceId));
+              setMpHasToken(!!mpToken);
+              showToast("MercadoPago configurado", "success");
+            }}
+            disabled={mpSaving || (!mpToken && !mpDeviceId)}
+            className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          >
+            {mpSaving ? "Guardando..." : "Guardar MercadoPago"}
+          </button>
+        </div>
       </div>
 
       {/* Save */}

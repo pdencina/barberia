@@ -60,18 +60,48 @@ export async function POST(req: NextRequest) {
 
   const accessToken = (barber.work_mode === "rental" && barber.mp_access_token)
     ? barber.mp_access_token
-    : process.env.MP_ACCESS_TOKEN;
+    : null;
 
   const deviceId = (barber.work_mode === "rental" && barber.mp_device_id)
     ? barber.mp_device_id
-    : process.env.MP_DEVICE_ID;
+    : null;
 
-  if (!accessToken) {
-    return NextResponse.json({ error: "Token de MercadoPago no configurado" }, { status: 400 });
+  // If barber doesn't have personal terminal, use tenant's configured terminal
+  let finalToken = accessToken;
+  let finalDeviceId = deviceId;
+
+  if (!finalToken || !finalDeviceId) {
+    // Read from tenant_settings (self-service config)
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", barberId)
+      .single();
+
+    if (profile?.tenant_id) {
+      const { data: tenantSettings } = await supabase
+        .from("tenant_settings")
+        .select("mp_access_token, mp_device_id")
+        .eq("tenant_id", profile.tenant_id)
+        .single();
+
+      if (tenantSettings) {
+        if (!finalToken) finalToken = tenantSettings.mp_access_token || null;
+        if (!finalDeviceId) finalDeviceId = tenantSettings.mp_device_id || null;
+      }
+    }
+
+    // Last fallback: env vars (for backwards compatibility)
+    if (!finalToken) finalToken = process.env.MP_ACCESS_TOKEN || null;
+    if (!finalDeviceId) finalDeviceId = process.env.MP_DEVICE_ID || null;
   }
 
-  if (!deviceId) {
-    return NextResponse.json({ error: "Dispositivo MP no configurado para este barbero" }, { status: 400 });
+  if (!finalToken) {
+    return NextResponse.json({ error: "Token de MercadoPago no configurado. Ve a Configuracion → MercadoPago." }, { status: 400 });
+  }
+
+  if (!finalDeviceId) {
+    return NextResponse.json({ error: "Dispositivo MP no configurado. Ve a Configuracion → MercadoPago." }, { status: 400 });
   }
 
   try {
@@ -88,7 +118,7 @@ export async function POST(req: NextRequest) {
       try {
         await fetch(`https://api.mercadopago.com/v1/orders/${order.mp_payment_id}/cancel`, {
           method: "POST",
-          headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          headers: { "Authorization": `Bearer ${finalToken}`, "Content-Type": "application/json" },
         });
       } catch {} // Ignore cancel errors (order might already be expired/cancelled)
       await supabase.from("mp_payment_intents").update({ status: "cancelled" }).eq("mp_payment_id", order.mp_payment_id);
@@ -99,7 +129,7 @@ export async function POST(req: NextRequest) {
     const ordersRes = await fetch("https://api.mercadopago.com/v1/orders", {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${finalToken}`,
         "Content-Type": "application/json",
         "X-Idempotency-Key": idempotencyKey,
       },
@@ -113,7 +143,7 @@ export async function POST(req: NextRequest) {
         },
         config: {
           point: {
-            terminal_id: deviceId,
+            terminal_id: finalDeviceId,
           },
         },
         description: description || "Venta re-booking",
@@ -131,7 +161,7 @@ export async function POST(req: NextRequest) {
         const retryRes = await fetch("https://api.mercadopago.com/v1/orders", {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${accessToken}`,
+            "Authorization": `Bearer ${finalToken}`,
             "Content-Type": "application/json",
             "X-Idempotency-Key": `${idempotencyKey}-retry`,
           },
@@ -139,7 +169,7 @@ export async function POST(req: NextRequest) {
             type: "point",
             external_reference: externalReference || `pos-${Date.now()}`,
             transactions: { payments: [{ amount: String(Number(amount)) }] },
-            config: { point: { terminal_id: deviceId } },
+            config: { point: { terminal_id: finalDeviceId } },
             description: description || "Venta re-booking",
           }),
         });
@@ -147,14 +177,14 @@ export async function POST(req: NextRequest) {
         if (retryRes.ok) {
           await supabase.from("mp_payment_intents").insert({
             barber_id: barberId, amount, status: "pending",
-            mp_payment_id: retryData.id, mp_external_reference: externalReference, device_id: deviceId,
+            mp_payment_id: retryData.id, mp_external_reference: externalReference, device_id: finalDeviceId,
           });
           // Process
           await fetch(`https://api.mercadopago.com/v1/orders/${retryData.id}/process`, {
             method: "POST",
-            headers: { "Authorization": `Bearer ${accessToken}`, "Content-Type": "application/json" },
+            headers: { "Authorization": `Bearer ${finalToken}`, "Content-Type": "application/json" },
           });
-          return NextResponse.json({ success: true, paymentIntentId: retryData.id, deviceId, barberName: barber.name, terminal: "house" });
+          return NextResponse.json({ success: true, paymentIntentId: retryData.id, deviceId: finalDeviceId, barberName: barber.name, terminal: "house" });
         }
       }
 
@@ -168,7 +198,7 @@ export async function POST(req: NextRequest) {
     const processRes = await fetch(`https://api.mercadopago.com/v1/orders/${ordersData.id}/process`, {
       method: "POST",
       headers: {
-        "Authorization": `Bearer ${accessToken}`,
+        "Authorization": `Bearer ${finalToken}`,
         "Content-Type": "application/json",
       },
     });
@@ -180,13 +210,13 @@ export async function POST(req: NextRequest) {
       status: "pending",
       mp_payment_id: ordersData.id,
       mp_external_reference: externalReference,
-      device_id: deviceId,
+      device_id: finalDeviceId,
     });
 
     return NextResponse.json({
       success: true,
       paymentIntentId: ordersData.id,
-      deviceId,
+      deviceId: finalDeviceId,
       barberName: barber.name,
       terminal: barber.work_mode === "rental" && barber.mp_access_token ? "personal" : "house",
     });
