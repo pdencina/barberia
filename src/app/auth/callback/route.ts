@@ -1,18 +1,19 @@
+import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { NextResponse } from "next/server";
 
-export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/dashboard";
+  const next = searchParams.get("next") || "/dashboard";
 
   if (code) {
     const supabase = createServerSupabase();
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
-      return NextResponse.redirect(`${origin}${next}`);
+      return NextResponse.redirect(new URL(next, req.url));
     }
   }
 
-  return NextResponse.redirect(`${origin}/login?error=auth`);
+  // Redirect to login on error
+  return NextResponse.redirect(new URL("/login?error=auth_failed", req.url));
 }

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Barber {
@@ -18,6 +19,7 @@ export default function BarberosPage() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "" });
   const { showToast } = useToast();
+  const { tenant } = useTenant();
 
   const fetchBarbers = async () => {
     setLoading(true);
@@ -39,12 +41,31 @@ export default function BarberosPage() {
     await fetch("/api/barberos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
+      body: JSON.stringify({ ...formData, tenantId: tenant?.id }),
     });
-    showToast("Profesional creado exitosamente", "success");
+    showToast("Profesional creado. Se envio email con credenciales.", "success");
     setShowModal(false);
     setFormData({ name: "", email: "", phone: "", password: "" });
     fetchBarbers();
+  };
+
+  const [inviteCode, setInviteCode] = useState<string | null>(null);
+  const [generatingCode, setGeneratingCode] = useState(false);
+
+  const generateInviteCode = async () => {
+    if (!tenant?.id) return;
+    setGeneratingCode(true);
+    const res = await fetch("/api/invite-codes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tenantId: tenant.id }),
+    });
+    const data = await res.json();
+    if (data.code) {
+      setInviteCode(data.code);
+      showToast("Codigo generado", "success");
+    }
+    setGeneratingCode(false);
   };
 
   return (
@@ -55,6 +76,26 @@ export default function BarberosPage() {
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
           Nuevo Profesional
         </button>
+      </div>
+
+      {/* Invite Code */}
+      <div className="bg-gradient-to-r from-brand-blue/5 to-brand-accent/5 rounded-2xl border border-brand-blue/20 p-4 flex flex-col md:flex-row md:items-center gap-3">
+        <div className="flex-1">
+          <p className="text-sm font-medium text-brand-dark">Codigo de invitacion</p>
+          <p className="text-xs text-brand-gray">Comparte este codigo para que un profesional se una a tu negocio al registrarse.</p>
+        </div>
+        {inviteCode ? (
+          <div className="flex items-center gap-2">
+            <span className="px-4 py-2 bg-white border border-gray-200 rounded-xl font-mono text-lg font-bold text-brand-dark tracking-widest">{inviteCode}</span>
+            <button onClick={() => { navigator.clipboard.writeText(inviteCode); showToast("Codigo copiado!", "success"); }}
+              className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:bg-brand-blue/90">Copiar</button>
+          </div>
+        ) : (
+          <button onClick={generateInviteCode} disabled={generatingCode}
+            className="px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:bg-brand-blue/90 disabled:opacity-50 whitespace-nowrap">
+            {generatingCode ? "Generando..." : "Generar codigo"}
+          </button>
+        )}
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">

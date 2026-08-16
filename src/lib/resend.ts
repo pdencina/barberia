@@ -346,3 +346,69 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
     html,
   });
 }
+
+
+// ==================== WELCOME EMAIL FOR NEW PROFESSIONALS ====================
+
+interface SendWelcomeParams {
+  to: string;
+  professionalName: string;
+  businessName: string;
+  password: string;
+  loginUrl: string;
+}
+
+export async function sendWelcomeEmail(params: SendWelcomeParams) {
+  const { to, professionalName, businessName, password, loginUrl } = params;
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background-color: #F5F7FA; margin: 0; padding: 20px;">
+  <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+    <div style="background: linear-gradient(135deg, #0F8B8D, #2EC4B6); padding: 32px 24px; text-align: center;">
+      <img src="${loginUrl.replace("/login", "")}/oti/oti-web-160.png" alt="Oti" style="width: 64px; height: 64px; margin-bottom: 12px;" />
+      <h1 style="color: white; margin: 0; font-size: 22px;">Bienvenido a re-booking</h1>
+      <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">${businessName} te ha agregado como profesional</p>
+    </div>
+    <div style="padding: 32px 24px;">
+      <p style="color: #1F2937; font-size: 15px; margin: 0 0 20px;">Hola <strong>${professionalName}</strong>,</p>
+      <p style="color: #6B7280; font-size: 14px; line-height: 1.6; margin: 0 0 24px;">
+        Ya tienes tu cuenta lista en re-booking. Desde ahi podras ver tu agenda, registrar servicios y gestionar tus comisiones.
+      </p>
+      
+      <div style="background: #F5F7FA; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
+        <p style="color: #6B7280; font-size: 12px; margin: 0 0 8px; text-transform: uppercase; letter-spacing: 0.5px;">Tus credenciales</p>
+        <p style="color: #1F2937; font-size: 14px; margin: 0 0 6px;"><strong>Email:</strong> ${to}</p>
+        <p style="color: #1F2937; font-size: 14px; margin: 0;"><strong>Contraseña:</strong> ${password}</p>
+      </div>
+
+      <a href="${loginUrl}" style="display: block; text-align: center; background: #0F8B8D; color: white; padding: 14px 24px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 14px;">
+        Iniciar sesion
+      </a>
+
+      <p style="color: #9CA3AF; font-size: 12px; text-align: center; margin: 20px 0 0;">
+        Te recomendamos cambiar tu contraseña despues del primer ingreso.
+      </p>
+    </div>
+    <div style="border-top: 1px solid #F3F4F6; padding: 16px 24px; text-align: center;">
+      <p style="color: #9CA3AF; font-size: 11px; margin: 0;">re-booking · Todo tu negocio. Un solo sistema.</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  try {
+    const resend = getResendClient();
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
+      to,
+      subject: `${professionalName}, te dieron acceso a ${businessName} en re-booking`,
+      html,
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error sending welcome email:", error);
+    return { success: false, error: error.message };
+  }
+}

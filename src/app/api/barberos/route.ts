@@ -21,12 +21,14 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const adminSupabase = createAdminSupabase();
   const body = await req.json();
-  const { name, email, phone, password } = body;
+  const { name, email, phone, password, tenantId } = body;
+
+  const tempPassword = password || Math.random().toString(36).slice(-8);
 
   // Create user in Supabase Auth
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
     email,
-    password: password || "123456",
+    password: tempPassword,
     email_confirm: true,
     user_metadata: { name, role: "barber" },
   });
@@ -35,12 +37,43 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: authError.message }, { status: 500 });
   }
 
-  // Update phone in profile
-  if (phone && authData.user) {
-    await adminSupabase
-      .from("profiles")
-      .update({ phone })
-      .eq("id", authData.user.id);
+  // Update phone and tenant in profile
+  if (authData.user) {
+    const updates: any = {};
+    if (phone) updates.phone = phone;
+    if (tenantId) updates.tenant_id = tenantId;
+    if (Object.keys(updates).length > 0) {
+      await adminSupabase
+        .from("profiles")
+        .update(updates)
+        .eq("id", authData.user.id);
+    }
+  }
+
+  // Send welcome email with credentials
+  try {
+    let businessName = "tu negocio";
+    if (tenantId) {
+      const { data: tenant } = await adminSupabase
+        .from("tenants")
+        .select("name")
+        .eq("id", tenantId)
+        .single();
+      if (tenant?.name) businessName = tenant.name;
+    }
+
+    const { sendWelcomeEmail } = await import("@/lib/resend");
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://re-booking.cl";
+    await sendWelcomeEmail({
+      to: email,
+      professionalName: name,
+      businessName,
+      password: tempPassword,
+      loginUrl: `${baseUrl}/login`,
+    });
+  } catch (e) {
+    // Don't fail the creation if email fails
+    console.error("Error sending welcome email:", e);
   }
 
   return NextResponse.json(
