@@ -22,7 +22,7 @@ export default function ServiciosPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", price: "", duration: "" });
+  const [form, setForm] = useState({ name: "", description: "", price: "", duration: "", category: "" });
   const { showToast } = useToast();
   const { confirm } = useConfirm();
 
@@ -48,7 +48,7 @@ export default function ServiciosPage() {
 
   const openNew = () => {
     setEditingService(null);
-    setForm({ name: "", description: "", price: "", duration: "" });
+    setForm({ name: "", description: "", price: "", duration: "", category: "" });
     setShowModal(true);
   };
 
@@ -59,6 +59,7 @@ export default function ServiciosPage() {
       description: s.description || "",
       price: String(s.price),
       duration: String(s.duration),
+      category: (s as any).category || "",
     });
     setShowModal(true);
   };
@@ -75,6 +76,7 @@ export default function ServiciosPage() {
           description: form.description || null,
           price: parseInt(form.price),
           duration: parseInt(form.duration),
+          category: form.category || null,
         }),
       });
       showToast("Servicio actualizado", "success");
@@ -87,6 +89,7 @@ export default function ServiciosPage() {
           description: form.description || null,
           price: parseInt(form.price),
           duration: parseInt(form.duration),
+          category: form.category || null,
           sort_order: activeServices.length,
         }),
       });
@@ -345,6 +348,13 @@ export default function ServiciosPage() {
                 <input type="text" value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   placeholder="Breve descripcion del servicio"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Categoria (opcional)</label>
+                <input type="text" value={form.category}
+                  onChange={(e) => setForm({ ...form, category: e.target.value })}
+                  placeholder="Ej: Cortes, Barba, Especiales, Nicolas"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-4">

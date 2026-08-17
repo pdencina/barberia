@@ -9,6 +9,7 @@ interface Service {
   name: string;
   price: number;
   duration: number;
+  category?: string;
 }
 
 interface Product {
@@ -44,6 +45,7 @@ export default function POSPage() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [activeTab, setActiveTab] = useState<"services" | "products">("services");
   const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedBarber, setSelectedBarber] = useState("");
   const [selectedClient, setSelectedClient] = useState("");
@@ -85,9 +87,16 @@ export default function POSPage() {
     });
   }, []);
 
+  // Get unique categories from services
+  const serviceCategories = Array.from(new Set(services.map((s) => s.category).filter(Boolean))) as string[];
+
   const filteredItems =
     activeTab === "services"
-      ? services.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()))
+      ? services.filter((s) => {
+          const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+          const matchesCategory = categoryFilter === "all" || s.category === categoryFilter;
+          return matchesSearch && matchesCategory;
+        })
       : products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
 
   const addToCart = (item: Service | Product, type: "service" | "product") => {
@@ -324,6 +333,26 @@ export default function POSPage() {
         </div>
 
         {/* Search */}
+        {/* Category filter for services */}
+        {activeTab === "services" && serviceCategories.length > 0 && (
+          <div className="flex gap-1.5 mb-3 overflow-x-auto pb-1 -mx-1 px-1">
+            <button onClick={() => setCategoryFilter("all")}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                categoryFilter === "all" ? "bg-brand-blue text-white" : "bg-gray-100 text-brand-gray hover:bg-gray-200"
+              }`}>
+              Todos
+            </button>
+            {serviceCategories.map((cat) => (
+              <button key={cat} onClick={() => setCategoryFilter(cat)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-colors ${
+                  categoryFilter === cat ? "bg-brand-blue text-white" : "bg-gray-100 text-brand-gray hover:bg-gray-200"
+                }`}>
+                {cat}
+              </button>
+            ))}
+          </div>
+        )}
+
         <div className="relative mb-4">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />

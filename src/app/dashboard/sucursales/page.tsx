@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
+import { MoreVertical, MapPin, Phone, Mail, Clock, Pencil, Trash2 } from "lucide-react";
 
 interface Branch {
   id: string;
@@ -20,6 +21,8 @@ export default function SucursalesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [editingBranch, setEditingBranch] = useState<Branch | null>(null);
+  const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", slug: "", address: "", phone: "", email: "", open_time: "10:00", close_time: "21:00" });
   const { showToast } = useToast();
 
@@ -32,30 +35,70 @@ export default function SucursalesPage() {
 
   useEffect(() => { fetchBranches(); }, []);
 
+  const openNew = () => {
+    setEditingBranch(null);
+    setForm({ name: "", slug: "", address: "", phone: "", email: "", open_time: "10:00", close_time: "21:00" });
+    setShowModal(true);
+  };
+
+  const openEdit = (b: Branch) => {
+    setEditingBranch(b);
+    setForm({
+      name: b.name,
+      slug: b.slug,
+      address: b.address || "",
+      phone: b.phone || "",
+      email: b.email || "",
+      open_time: b.open_time || "10:00",
+      close_time: b.close_time || "21:00",
+    });
+    setShowModal(true);
+    setMenuOpen(null);
+  };
+
+  const handleDelete = async (b: Branch) => {
+    if (!confirm(`Eliminar sucursal "${b.name}"?`)) return;
+    await fetch(`/api/branches/${b.id}`, { method: "DELETE" });
+    showToast("Sucursal eliminada", "success");
+    fetchBranches();
+    setMenuOpen(null);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/branches", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
-    });
-    showToast("Sucursal creada", "success");
+
+    if (editingBranch) {
+      await fetch(`/api/branches/${editingBranch.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      showToast("Sucursal actualizada", "success");
+    } else {
+      await fetch("/api/branches", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      showToast("Sucursal creada", "success");
+    }
+
     setShowModal(false);
-    setForm({ name: "", slug: "", address: "", phone: "", email: "", open_time: "10:00", close_time: "21:00" });
+    setEditingBranch(null);
     fetchBranches();
   };
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app";
+  const bookingBaseUrl = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Sucursales</h1>
-          <p className="text-gray-500 text-sm">Gestiona tus locales</p>
+          <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Sucursales</h1>
+          <p className="text-brand-gray text-sm">Gestiona tus locales</p>
         </div>
-        <button onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 text-sm">
+        <button onClick={openNew}
+          className="px-4 py-2 bg-brand-blue text-white rounded-xl hover:bg-brand-blue/90 text-sm font-medium">
           Nueva Sucursal
         </button>
       </div>
@@ -63,23 +106,64 @@ export default function SucursalesPage() {
       {loading ? <Spinner /> : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {branches.map((b) => (
-            <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
-              <div className="flex items-start justify-between mb-3">
-                <div>
-                  <h3 className="font-bold text-lg text-gray-900">{b.name}</h3>
-                  <p className="text-sm text-gray-500">{b.address || "Sin direccion"}</p>
+            <div key={b.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5 relative">
+              {/* 3-dot menu */}
+              <div className="absolute top-4 right-4">
+                <button onClick={() => setMenuOpen(menuOpen === b.id ? null : b.id)}
+                  className="p-1.5 rounded-lg hover:bg-gray-100 text-brand-gray">
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+                {menuOpen === b.id && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(null)} />
+                    <div className="absolute right-0 top-8 z-20 bg-white border border-gray-200 rounded-xl shadow-lg py-1 w-36">
+                      <button onClick={() => openEdit(b)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-brand-dark hover:bg-gray-50">
+                        <Pencil className="w-3.5 h-3.5" /> Editar
+                      </button>
+                      <button onClick={() => handleDelete(b)}
+                        className="w-full flex items-center gap-2 px-3 py-2 text-sm text-red-600 hover:bg-red-50">
+                        <Trash2 className="w-3.5 h-3.5" /> Eliminar
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div className="mb-3">
+                <h3 className="font-bold text-lg text-brand-dark pr-8">{b.name}</h3>
+                <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-[10px] font-bold">Activa</span>
+              </div>
+
+              <div className="space-y-1.5 text-sm text-brand-gray">
+                {b.address && (
+                  <div className="flex items-center gap-2">
+                    <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{b.address}</span>
+                  </div>
+                )}
+                {b.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{b.phone}</span>
+                  </div>
+                )}
+                {b.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span>{b.email}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <Clock className="w-3.5 h-3.5 flex-shrink-0" />
+                  <span>{b.open_time} – {b.close_time}</span>
                 </div>
-                <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs">Activa</span>
               </div>
-              <div className="space-y-2 text-sm text-gray-600">
-                {b.phone && <p>Tel: {b.phone}</p>}
-                {b.email && <p>Email: {b.email}</p>}
-                <p>Horario: {b.open_time} - {b.close_time}</p>
-              </div>
+
               <div className="mt-4 pt-3 border-t">
-                <p className="text-xs text-gray-400 mb-1">Link de booking:</p>
-                <code className="text-xs bg-gray-100 px-2 py-1 rounded text-blue-600 block truncate">
-                  {appUrl}/booking?branch={b.slug}
+                <p className="text-[10px] text-brand-gray mb-1">Link de booking:</p>
+                <code className="text-xs bg-gray-50 px-2 py-1 rounded-lg text-brand-blue block truncate border border-gray-100">
+                  {bookingBaseUrl}/booking?branch={b.slug}
                 </code>
               </div>
             </div>
@@ -87,78 +171,70 @@ export default function SucursalesPage() {
         </div>
       )}
 
-      {/* Info card */}
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <h3 className="font-medium text-blue-800 mb-2">Como funciona Multi-Sucursal</h3>
-        <ul className="text-sm text-blue-700 space-y-1">
-          <li>• Cada sucursal tiene sus propios barberos, horarios y link de booking</li>
-          <li>• Los reportes se pueden filtrar por sucursal</li>
-          <li>• El inventario es independiente por local</li>
-          <li>• Un admin puede ver todas las sucursales desde un solo dashboard</li>
-        </ul>
-      </div>
-
       {/* Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
-            <h2 className="text-lg font-bold mb-4">Nueva Sucursal</h2>
+            <h2 className="text-lg font-bold text-brand-dark mb-4">
+              {editingBranch ? "Editar Sucursal" : "Nueva Sucursal"}
+            </h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Nombre</label>
                 <input type="text" required value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value, slug: e.target.value.toLowerCase().replace(/\s+/g, "-") })}
-                  placeholder="Ej: Mi Barberia Santiago Centro"
-                  className="w-full border rounded-lg px-3 py-2" />
+                  onChange={(e) => setForm({ ...form, name: e.target.value, slug: editingBranch ? form.slug : e.target.value.toLowerCase().replace(/\s+/g, "-") })}
+                  placeholder="Ej: Estudio Levels Puente Alto"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Slug (URL)</label>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Slug (URL)</label>
                 <input type="text" required value={form.slug}
                   onChange={(e) => setForm({ ...form, slug: e.target.value })}
-                  placeholder="santiago-centro"
-                  className="w-full border rounded-lg px-3 py-2 font-mono text-sm" />
+                  placeholder="puente-alto"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Direccion</label>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Direccion</label>
                 <input type="text" value={form.address}
                   onChange={(e) => setForm({ ...form, address: e.target.value })}
-                  className="w-full border rounded-lg px-3 py-2" />
+                  placeholder="Av. Concha y Toro 123"
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Telefono</label>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Telefono</label>
                   <input type="text" value={form.phone}
                     onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Email</label>
                   <input type="email" value={form.email}
                     onChange={(e) => setForm({ ...form, email: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Apertura</label>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Apertura</label>
                   <input type="time" value={form.open_time}
                     onChange={(e) => setForm({ ...form, open_time: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cierre</label>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Cierre</label>
                   <input type="time" value={form.close_time}
                     onChange={(e) => setForm({ ...form, close_time: e.target.value })}
-                    className="w-full border rounded-lg px-3 py-2" />
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
               </div>
-              <div className="flex gap-2 justify-end">
-                <button type="button" onClick={() => setShowModal(false)}
-                  className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
+              <div className="flex gap-2 justify-end pt-2">
+                <button type="button" onClick={() => { setShowModal(false); setEditingBranch(null); }}
+                  className="px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-sm">Cancelar</button>
                 <button type="submit"
                   disabled={!form.name || !form.slug}
-                  className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50">
-                  Crear Sucursal
+                  className="px-5 py-2.5 bg-brand-blue text-white rounded-xl hover:bg-brand-blue/90 disabled:opacity-50 text-sm font-medium">
+                  {editingBranch ? "Guardar" : "Crear"}
                 </button>
               </div>
             </form>
