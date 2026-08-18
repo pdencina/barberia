@@ -76,8 +76,8 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <Link href="/login" className="text-sm text-gray-600 hover:text-brand-blue hidden md:block">Iniciar Sesion</Link>
             <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              href="#contacto" className="hidden md:inline-flex px-5 py-2.5 bg-brand-blue text-white text-sm font-medium rounded-full hover:bg-[#0a6b6d] shadow-lg shadow-brand-blue/25">
-              Agenda una demo
+              href="/signup" className="hidden md:inline-flex px-5 py-2.5 bg-brand-blue text-white text-sm font-medium rounded-full hover:bg-[#0a6b6d] shadow-lg shadow-brand-blue/25">
+              Registra tu negocio
             </motion.a>
             {/* Mobile hamburger */}
             <button onClick={() => setMobileMenu(!mobileMenu)} className="md:hidden p-2 text-gray-700">
@@ -110,8 +110,8 @@ export default function LandingPage() {
               <Link href="/login" className="block w-full text-center py-3 border border-brand-blue text-brand-blue font-semibold rounded-full hover:bg-brand-blue/5">
                 Iniciar Sesion
               </Link>
-              <a href="#contacto" onClick={() => setMobileMenu(false)} className="block w-full text-center py-3 bg-brand-blue text-white font-semibold rounded-full">
-                Agenda una demo
+              <a href="/signup" onClick={() => setMobileMenu(false)} className="block w-full text-center py-3 bg-brand-blue text-white font-semibold rounded-full">
+                Registra tu negocio
               </a>
             </div>
           </motion.div>
@@ -164,7 +164,7 @@ export default function LandingPage() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.6 }}
               className="mt-8 md:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
               <motion.a whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(37,99,235,0.3)" }} whileTap={{ scale: 0.95 }}
-                href="#contacto" className="px-8 py-4 bg-brand-blue text-white font-semibold rounded-full transition-colors hover:bg-[#0a6b6d]">
+                href="/signup" className="px-8 py-4 bg-brand-blue text-white font-semibold rounded-full transition-colors hover:bg-[#0a6b6d]">
                 Comenzar gratis
               </motion.a>
               <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}

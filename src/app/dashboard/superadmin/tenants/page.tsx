@@ -173,6 +173,16 @@ export default function SuperAdminTenantsPage() {
                   <p className="text-xs text-brand-gray">
                     {new Date(t.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })}
                   </p>
+                  {t.trial_ends_at && (
+                    <p className={`text-[10px] mt-0.5 ${daysLeft(t.trial_ends_at) <= 3 ? "text-red-500 font-bold" : "text-brand-gray"}`}>
+                      Expira: {new Date(t.trial_ends_at).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
+                    </p>
+                  )}
+                  {t.status === "trial" && daysLeft(t.trial_ends_at) <= 10 && (
+                    <button className="mt-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-bold rounded hover:bg-orange-200">
+                      Enviar recordatorio
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

@@ -167,7 +167,16 @@ export default function RetencionPage() {
               <option value={45}>45 dias</option>
               <option value={60}>60 dias</option>
               <option value={90}>90 dias</option>
+              <option value={120}>120 dias</option>
+              <option value={180}>180 dias</option>
+              <option value={365}>365 dias</option>
+              <option value={0}>Personalizado...</option>
             </select>
+            {days === 0 && (
+              <input type="number" min={1} max={999} placeholder="Dias"
+                onChange={(e) => { const v = parseInt(e.target.value); if (v > 0) setDays(v); }}
+                className="border rounded-lg px-3 py-2 text-sm w-24 mt-1" />
+            )}
           </div>
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Cupon a incluir</label>

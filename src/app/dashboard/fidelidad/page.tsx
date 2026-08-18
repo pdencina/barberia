@@ -178,7 +178,25 @@ export default function FidelidadPage() {
 
           {/* Rewards config */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
-            <h3 className="font-bold text-gray-800 mb-3">Recompensas Disponibles</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-bold text-gray-800">Recompensas Disponibles</h3>
+              <button onClick={async () => {
+                const name = prompt("Nombre de la recompensa (ej: Corte gratis)");
+                if (!name) return;
+                const points = prompt("Puntos requeridos");
+                if (!points) return;
+                const discount = prompt("Valor del descuento ($)");
+                await fetch("/api/loyalty/rewards", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ name, points_required: parseInt(points), discount_value: parseInt(discount || "0"), description: name }),
+                });
+                showToast("Recompensa creada", "success");
+                fetchData();
+              }} className="text-xs px-3 py-1 bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90">
+                + Agregar
+              </button>
+            </div>
             <div className="space-y-2">
               {rewards.map((r) => (
                 <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg">
@@ -186,12 +204,46 @@ export default function FidelidadPage() {
                     <p className="font-medium text-gray-900">{r.name}</p>
                     <p className="text-xs text-gray-500">{r.description} · Descuento: {formatCurrency(Number(r.discount_value))}</p>
                   </div>
-                  <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-bold">
-                    {r.points_required} pts
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-bold">
+                      {r.points_required} pts
+                    </span>
+                    <button onClick={async () => {
+                      const ok = await confirm({ title: "Eliminar recompensa", message: `Eliminar "${r.name}"?`, confirmText: "Eliminar", variant: "warning" });
+                      if (!ok) return;
+                      await fetch(`/api/loyalty/rewards?id=${r.id}`, { method: "DELETE" });
+                      showToast("Recompensa eliminada", "success");
+                      fetchData();
+                    }} className="text-red-400 hover:text-red-600 text-xs">✕</button>
+                  </div>
                 </div>
               ))}
+              {rewards.length === 0 && <p className="text-sm text-gray-400 text-center py-3">No hay recompensas configuradas</p>}
             </div>
+          </div>
+
+          {/* Terms & Conditions */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
+            <h3 className="font-bold text-gray-800 mb-3">Condiciones del Programa</h3>
+            <div className="space-y-2 text-sm text-gray-600">
+              <label className="flex items-start gap-2">
+                <input type="checkbox" defaultChecked className="mt-1 rounded" disabled />
+                <span>Los puntos se acumulan automaticamente al pagar en el POS</span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" defaultChecked className="mt-1 rounded" disabled />
+                <span>Los puntos solo se pueden canjear en la sucursal donde te atiendes</span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" defaultChecked className="mt-1 rounded" disabled />
+                <span>Los puntos se reinician automaticamente en diciembre de cada año</span>
+              </label>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" defaultChecked className="mt-1 rounded" disabled />
+                <span>Las recompensas no son acumulables con otros descuentos</span>
+              </label>
+            </div>
+            <p className="text-[10px] text-brand-gray mt-3">Estas condiciones se muestran al cliente en su portal y en los emails de fidelidad.</p>
           </div>
         </div>
 

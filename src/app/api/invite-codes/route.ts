@@ -43,7 +43,13 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    // If table doesn't exist yet, provide helpful message
+    if (error.message.includes("relation") || error.code === "42P01") {
+      return NextResponse.json({ error: "Tabla invite_codes no existe. Ejecuta la migracion 042." }, { status: 500 });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data);
 }
 

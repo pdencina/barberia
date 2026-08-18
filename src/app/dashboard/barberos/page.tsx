@@ -53,17 +53,26 @@ export default function BarberosPage() {
   const [generatingCode, setGeneratingCode] = useState(false);
 
   const generateInviteCode = async () => {
-    if (!tenant?.id) return;
+    if (!tenant?.id) {
+      showToast("Error: no se pudo obtener el negocio. Recarga la pagina.", "error");
+      return;
+    }
     setGeneratingCode(true);
-    const res = await fetch("/api/invite-codes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenantId: tenant.id }),
-    });
-    const data = await res.json();
-    if (data.code) {
-      setInviteCode(data.code);
-      showToast("Codigo generado", "success");
+    try {
+      const res = await fetch("/api/invite-codes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId: tenant.id }),
+      });
+      const data = await res.json();
+      if (data.code) {
+        setInviteCode(data.code);
+        showToast("Codigo generado", "success");
+      } else {
+        showToast(data.error || "Error al generar codigo", "error");
+      }
+    } catch (err) {
+      showToast("Error de conexion", "error");
     }
     setGeneratingCode(false);
   };

@@ -20,6 +20,8 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", notes: "" });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
 
@@ -61,6 +63,37 @@ export default function ClientesPage() {
       console.error("Error creating client:", err);
       showToast("Error al crear cliente", "error");
     }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleAll = () => {
+    if (selectedIds.size === clients.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(clients.map((c) => c.id)));
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.size === 0) return;
+    if (!confirm(`Eliminar ${selectedIds.size} cliente(s)? Esta accion no se puede deshacer.`)) return;
+    setDeleting(true);
+    await fetch("/api/clients/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ids: Array.from(selectedIds) }),
+    });
+    showToast(`${selectedIds.size} cliente(s) eliminados`, "success");
+    setSelectedIds(new Set());
+    setDeleting(false);
+    fetchClients(search);
   };
 
   return (
@@ -138,10 +171,30 @@ export default function ClientesPage() {
         value={search} onChange={(e) => handleSearch(e.target.value)}
         className="w-full border rounded-lg px-4 py-2" />
 
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 bg-red-50 border border-red-200 rounded-xl px-4 py-2.5">
+          <span className="text-sm text-red-700 font-medium">{selectedIds.size} seleccionado(s)</span>
+          <button onClick={handleBulkDelete} disabled={deleting}
+            className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium">
+            {deleting ? "Eliminando..." : "Eliminar seleccionados"}
+          </button>
+          <button onClick={() => setSelectedIds(new Set())}
+            className="px-3 py-1.5 border border-gray-300 text-xs rounded-lg hover:bg-white text-brand-gray">
+            Cancelar
+          </button>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
+              <th className="p-4 w-10">
+                <input type="checkbox" checked={clients.length > 0 && selectedIds.size === clients.length}
+                  onChange={toggleAll}
+                  className="w-4 h-4 rounded border-gray-300" />
+              </th>
               <th className="text-left p-4 font-medium text-gray-600">Nombre</th>
               <th className="text-left p-4 font-medium text-gray-600">Email</th>
               <th className="text-left p-4 font-medium text-gray-600">Telefono</th>
@@ -150,12 +203,17 @@ export default function ClientesPage() {
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={4}><Spinner /></td></tr>
+              <tr><td colSpan={5}><Spinner /></td></tr>
             ) : clients.length === 0 ? (
-              <tr><td colSpan={4} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
+              <tr><td colSpan={5} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
             ) : clients.map((c) => (
-              <tr key={c.id} className="hover:bg-gray-50 cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${c.id}`)}>
-                <td className="p-4 font-medium text-blue-600 hover:underline">{c.name}</td>
+              <tr key={c.id} className="hover:bg-gray-50">
+                <td className="p-4" onClick={(e) => e.stopPropagation()}>
+                  <input type="checkbox" checked={selectedIds.has(c.id)}
+                    onChange={() => toggleSelect(c.id)}
+                    className="w-4 h-4 rounded border-gray-300" />
+                </td>
+                <td className="p-4 font-medium text-blue-600 hover:underline cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${c.id}`)}>{c.name}</td>
                 <td className="p-4">{c.email || "-"}</td>
                 <td className="p-4">{c.phone || "-"}</td>
                 <td className="p-4 text-gray-500">{c.notes || "-"}</td>

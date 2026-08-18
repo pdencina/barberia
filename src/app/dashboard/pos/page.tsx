@@ -708,9 +708,22 @@ export default function POSPage() {
           {!splitMode && (paymentMethod === "debit_card" || paymentMethod === "credit_card") && selectedBarber && (
             <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
               <span className="text-blue-600 text-sm">💳</span>
-              <span className="text-xs text-blue-700">
+              <span className="text-xs text-blue-700 flex-1">
                 Terminal MP se activara al cobrar
               </span>
+              <button
+                onClick={async () => {
+                  await fetch("/api/mercadopago/cancel", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ barberId: selectedBarber, cancelAll: true }),
+                  });
+                  showToast("Cola MP limpiada", "success");
+                }}
+                className="text-[10px] px-2 py-1 bg-white border border-blue-300 text-blue-700 rounded hover:bg-blue-100"
+              >
+                Limpiar cola
+              </button>
             </div>
           )}
 
