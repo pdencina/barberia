@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const includeInactive = searchParams.get("all") === "true";
-  const tenantId = searchParams.get("tenantId");
+  const tenantId = searchParams.get("tenantId") || await getCurrentTenantId();
 
   let query = supabase.from("services").select("*").order("sort_order", { ascending: true }).order("name");
   if (!includeInactive) {

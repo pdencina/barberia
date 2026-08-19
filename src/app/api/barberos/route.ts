@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   // Use admin client to bypass RLS - barbers list is internal data
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  const tenantId = searchParams.get("tenantId");
+  const tenantId = searchParams.get("tenantId") || await getCurrentTenantId();
 
   let query = supabase
     .from("profiles")

@@ -41,3 +41,23 @@ export function createAdminSupabase() {
     }
   );
 }
+
+// Get the current user's tenant_id from the session
+export async function getCurrentTenantId(): Promise<string | null> {
+  try {
+    const supabase = createServerSupabase();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
+
+    const adminSupabase = createAdminSupabase();
+    const { data: profile } = await adminSupabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", user.id)
+      .single();
+
+    return profile?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search");
-  const tenantId = searchParams.get("tenantId");
+  const tenantId = searchParams.get("tenantId") || await getCurrentTenantId();
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
   const offset = (page - 1) * limit;
@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
   // Build query
   let query = supabase.from("clients").select("*", { count: "exact" }).order("name");
 
-  // Filter by tenant if provided
+  // ALWAYS filter by tenant (critical for isolation)
   if (tenantId) {
     query = query.eq("tenant_id", tenantId);
   }
