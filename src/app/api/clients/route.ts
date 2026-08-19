@@ -5,18 +5,23 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const search = searchParams.get("search");
-  const tenantId = searchParams.get("tenantId") || await getCurrentTenantId();
   const page = parseInt(searchParams.get("page") || "1");
   const limit = parseInt(searchParams.get("limit") || "50");
   const offset = (page - 1) * limit;
 
-  // Build query
-  let query = supabase.from("clients").select("*", { count: "exact" }).order("name");
-
-  // ALWAYS filter by tenant (critical for isolation)
-  if (tenantId) {
-    query = query.eq("tenant_id", tenantId);
+  // Get tenant: prefer query param from frontend, fallback to session
+  let tenantId = searchParams.get("tenantId");
+  if (!tenantId) {
+    tenantId = await getCurrentTenantId();
   }
+
+  // If no tenant can be determined, return empty (security: never show all data)
+  if (!tenantId) {
+    return NextResponse.json({ clients: [], total: 0, page: 1, totalPages: 0 });
+  }
+
+  // Build query
+  let query = supabase.from("clients").select("*", { count: "exact" }).order("name").eq("tenant_id", tenantId);
 
   if (search) {
     query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);

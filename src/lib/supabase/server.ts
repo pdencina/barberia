@@ -57,7 +57,8 @@ export async function getCurrentTenantId(): Promise<string | null> {
       .single();
 
     return profile?.tenant_id || null;
-  } catch {
+  } catch (e) {
+    console.error("getCurrentTenantId error:", e);
     return null;
   }
 }

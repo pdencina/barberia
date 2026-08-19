@@ -7,18 +7,18 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const tenantId = searchParams.get("tenantId") || await getCurrentTenantId();
 
-  let query = supabase
+  // If no tenant, return empty
+  if (!tenantId) {
+    return NextResponse.json([]);
+  }
+
+  const { data, error } = await supabase
     .from("profiles")
     .select("id, name, email, phone, avatar_url")
     .eq("role", "barber")
     .eq("active", true)
+    .eq("tenant_id", tenantId)
     .order("name");
-
-  if (tenantId) {
-    query = query.eq("tenant_id", tenantId);
-  }
-
-  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching barbers:", error.message);

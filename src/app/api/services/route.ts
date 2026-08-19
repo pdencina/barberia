@@ -7,12 +7,14 @@ export async function GET(req: NextRequest) {
   const includeInactive = searchParams.get("all") === "true";
   const tenantId = searchParams.get("tenantId") || await getCurrentTenantId();
 
-  let query = supabase.from("services").select("*").order("sort_order", { ascending: true }).order("name");
+  // If no tenant, return empty
+  if (!tenantId) {
+    return NextResponse.json([]);
+  }
+
+  let query = supabase.from("services").select("*").order("sort_order", { ascending: true }).order("name").eq("tenant_id", tenantId);
   if (!includeInactive) {
     query = query.eq("active", true);
-  }
-  if (tenantId) {
-    query = query.eq("tenant_id", tenantId);
   }
 
   const { data, error } = await query;

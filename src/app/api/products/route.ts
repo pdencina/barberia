@@ -5,17 +5,18 @@ export async function GET() {
   const supabase = createAdminSupabase();
   const tenantId = await getCurrentTenantId();
 
-  let query = supabase
+  // If no tenant, return empty
+  if (!tenantId) {
+    return NextResponse.json([]);
+  }
+
+  const { data, error } = await supabase
     .from("products")
     .select("*")
     .eq("active", true)
+    .eq("tenant_id", tenantId)
     .order("name");
 
-  if (tenantId) {
-    query = query.eq("tenant_id", tenantId);
-  }
-
-  const { data, error } = await query;
   if (error) return NextResponse.json([]);
   return NextResponse.json(data || []);
 }

@@ -56,7 +56,9 @@ export default function ClientesPage() {
     }
   };
 
-  useEffect(() => { fetchClients(""); }, [tenant?.id]);
+  useEffect(() => {
+    if (tenant?.id) fetchClients("");
+  }, [tenant?.id]);
 
   const handleSearch = (value: string) => {
     setSearch(value);
