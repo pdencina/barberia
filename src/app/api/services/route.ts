@@ -5,10 +5,14 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const includeInactive = searchParams.get("all") === "true";
+  const tenantId = searchParams.get("tenantId");
 
   let query = supabase.from("services").select("*").order("sort_order", { ascending: true }).order("name");
   if (!includeInactive) {
     query = query.eq("active", true);
+  }
+  if (tenantId) {
+    query = query.eq("tenant_id", tenantId);
   }
 
   const { data, error } = await query;

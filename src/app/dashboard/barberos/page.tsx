@@ -100,9 +100,9 @@ export default function BarberosPage() {
               className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:bg-brand-blue/90">Copiar</button>
           </div>
         ) : (
-          <button onClick={generateInviteCode} disabled={generatingCode}
+          <button onClick={generateInviteCode} disabled={generatingCode || !tenant?.id}
             className="px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:bg-brand-blue/90 disabled:opacity-50 whitespace-nowrap">
-            {generatingCode ? "Generando..." : "Generar codigo"}
+            {generatingCode ? "Generando..." : !tenant?.id ? "Cargando..." : "Generar codigo"}
           </button>
         )}
       </div>

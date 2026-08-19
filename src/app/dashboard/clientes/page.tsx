@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Client {
@@ -27,16 +28,27 @@ export default function ClientesPage() {
   const [importProgress, setImportProgress] = useState("");
   const [progressCurrent, setProgressCurrent] = useState(0);
   const [progressTotal, setProgressTotal] = useState(0);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalClients, setTotalClients] = useState(0);
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
+  const { tenant } = useTenant();
 
-  const fetchClients = async (query: string) => {
+  const fetchClients = async (query: string, p: number = page) => {
     setLoading(true);
     try {
-      const params = query ? `?search=${encodeURIComponent(query)}` : "";
-      const res = await fetch(`/api/clients${params}`);
+      const params = new URLSearchParams();
+      if (query) params.set("search", query);
+      if (tenant?.id) params.set("tenantId", tenant.id);
+      params.set("page", String(p));
+      params.set("limit", "50");
+      const res = await fetch(`/api/clients?${params.toString()}`);
       const data = await res.json();
-      setClients(data.clients || data || []);
+      setClients(data.clients || []);
+      setTotalPages(data.totalPages || 1);
+      setTotalClients(data.total || 0);
+      setPage(data.page || 1);
     } catch (err) {
       console.error("Error fetching clients:", err);
     } finally {
@@ -44,12 +56,12 @@ export default function ClientesPage() {
     }
   };
 
-  useEffect(() => { fetchClients(""); }, []);
+  useEffect(() => { fetchClients(""); }, [tenant?.id]);
 
   const handleSearch = (value: string) => {
     setSearch(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => fetchClients(value), 300);
+    debounceRef.current = setTimeout(() => { setPage(1); fetchClients(value, 1); }, 300);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -58,7 +70,7 @@ export default function ClientesPage() {
       await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, tenantId: tenant?.id }),
       });
       showToast("Cliente creado exitosamente", "success");
       setShowModal(false);
@@ -334,6 +346,31 @@ export default function ClientesPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between bg-white rounded-xl border border-gray-100 px-4 py-3">
+          <p className="text-sm text-brand-gray">
+            {totalClients} clientes total · Pagina {page} de {totalPages}
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => { const p = page - 1; setPage(p); fetchClients(search, p); }}
+              disabled={page <= 1}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              ← Anterior
+            </button>
+            <button
+              onClick={() => { const p = page + 1; setPage(p); fetchClients(search, p); }}
+              disabled={page >= totalPages}
+              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Siguiente →
+            </button>
+          </div>
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
