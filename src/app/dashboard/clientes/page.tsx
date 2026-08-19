@@ -114,13 +114,26 @@ export default function ClientesPage() {
                 const text = await file.text();
                 const lines = text.split("\n").filter(Boolean);
                 const headers = lines[0].toLowerCase().split(",").map((h: string) => h.trim().replace(/"/g, ""));
-                const nameIdx = headers.findIndex((h: string) => h.includes("nombre") || h === "name");
-                const emailIdx = headers.findIndex((h: string) => h.includes("email") || h.includes("correo"));
-                const phoneIdx = headers.findIndex((h: string) => h.includes("telefono") || h.includes("phone") || h.includes("fono"));
-                if (nameIdx === -1) { alert("Archivo debe tener columna Nombre"); return; }
+                const nameIdx = headers.findIndex((h: string) => h.includes("nombre") || h === "name" || h === "full name");
+                const firstNameIdx = headers.findIndex((h: string) => h === "first name" || h === "first_name" || h.includes("primer"));
+                const lastNameIdx = headers.findIndex((h: string) => h === "last name" || h === "last_name" || h.includes("apellido"));
+                const emailIdx = headers.findIndex((h: string) => h.includes("email") || h.includes("correo") || h.includes("e-mail"));
+                const phoneIdx = headers.findIndex((h: string) => h.includes("telefono") || h.includes("phone") || h.includes("fono") || h.includes("mobile") || h.includes("celular"));
+                
+                if (nameIdx === -1 && firstNameIdx === -1) { alert("Archivo debe tener columna Nombre (o First Name)"); return; }
+                
                 clients = lines.slice(1).map((line: string) => {
                   const cols = line.split(",").map((c: string) => c.trim().replace(/"/g, ""));
-                  return { name: cols[nameIdx], email: cols[emailIdx] || null, phone: cols[phoneIdx] || null };
+                  let name = "";
+                  if (nameIdx !== -1) {
+                    name = cols[nameIdx] || "";
+                  } else {
+                    // Concatenate First Name + Last Name (Setmore format)
+                    const first = cols[firstNameIdx] || "";
+                    const last = lastNameIdx !== -1 ? cols[lastNameIdx] || "" : "";
+                    name = `${first} ${last}`.trim();
+                  }
+                  return { name, email: cols[emailIdx] || null, phone: cols[phoneIdx] || null };
                 }).filter((c: any) => c.name);
               } else {
                 // Parse Excel
@@ -132,15 +145,29 @@ export default function ClientesPage() {
                 if (rows.length === 0) { alert("Archivo vacio"); return; }
                 // Detect columns by header name
                 const headers = Object.keys(rows[0]).map((h) => h.toLowerCase());
-                const nameKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("nombre") || k.toLowerCase() === "name");
-                const emailKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("email") || k.toLowerCase().includes("correo"));
-                const phoneKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("telefono") || k.toLowerCase().includes("phone") || k.toLowerCase().includes("fono") || k.toLowerCase().includes("celular"));
-                if (!nameKey) { alert("Excel debe tener columna Nombre"); return; }
-                clients = rows.map((row: any) => ({
-                  name: String(row[nameKey] || "").trim(),
-                  email: emailKey ? String(row[emailKey] || "").trim() || null : null,
-                  phone: phoneKey ? String(row[phoneKey] || "").trim() || null : null,
-                })).filter((c) => c.name);
+                const nameKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("nombre") || k.toLowerCase() === "name" || k.toLowerCase() === "full name");
+                const firstNameKey = Object.keys(rows[0]).find((k) => k.toLowerCase() === "first name" || k.toLowerCase() === "first_name" || k.toLowerCase().includes("primer"));
+                const lastNameKey = Object.keys(rows[0]).find((k) => k.toLowerCase() === "last name" || k.toLowerCase() === "last_name" || k.toLowerCase().includes("apellido"));
+                const emailKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("email") || k.toLowerCase().includes("correo") || k.toLowerCase().includes("e-mail"));
+                const phoneKey = Object.keys(rows[0]).find((k) => k.toLowerCase().includes("telefono") || k.toLowerCase().includes("phone") || k.toLowerCase().includes("fono") || k.toLowerCase().includes("celular") || k.toLowerCase().includes("mobile"));
+                
+                if (!nameKey && !firstNameKey) { alert("Excel debe tener columna Nombre (o First Name)"); return; }
+                
+                clients = rows.map((row: any) => {
+                  let name = "";
+                  if (nameKey) {
+                    name = String(row[nameKey] || "").trim();
+                  } else {
+                    const first = String(row[firstNameKey!] || "").trim();
+                    const last = lastNameKey ? String(row[lastNameKey] || "").trim() : "";
+                    name = `${first} ${last}`.trim();
+                  }
+                  return {
+                    name,
+                    email: emailKey ? String(row[emailKey] || "").trim() || null : null,
+                    phone: phoneKey ? String(row[phoneKey] || "").trim() || null : null,
+                  };
+                }).filter((c) => c.name);
               }
 
               if (clients.length === 0) { alert("No se encontraron clientes en el archivo"); return; }
