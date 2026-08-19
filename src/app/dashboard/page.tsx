@@ -37,9 +37,14 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
 
   useEffect(() => {
+    // If tenant context finished loading but no tenant found, stop loading
+    if (!tenantLoading && !tenant?.id) {
+      setLoading(false);
+      return;
+    }
     if (!tenant?.id) return;
 
     const fetchDashboard = () => {
@@ -54,12 +59,27 @@ export default function DashboardPage() {
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchDashboard, 30000);
     return () => clearInterval(interval);
-  }, [tenant?.id]);
+  }, [tenant?.id, tenantLoading]);
 
-  if (loading || !data) return <Spinner />;
+  if (loading) return <Spinner />;
 
   const firstName = user?.name?.split(" ")[0] || "Usuario";
   const today = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
+
+  // If no data (no tenant or empty), show empty dashboard
+  if (!data) {
+    return (
+      <div className="p-4 md:p-6 animate-fade-in">
+        <div className="flex items-center gap-3 mb-6">
+          <img src="/oti/oti-face-64.png" alt="Oti" className="w-10 h-10 hidden md:block" />
+          <div>
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-dark">Hola, {firstName}! 👋</h1>
+            <p className="text-brand-gray text-sm mt-0.5">Tu dashboard esta vacio. Agrega servicios y clientes para empezar.</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const StatChange = ({ value }: { value: number }) => (
     <span className={`text-xs font-medium ${value >= 0 ? "text-green-600" : "text-red-500"}`}>
