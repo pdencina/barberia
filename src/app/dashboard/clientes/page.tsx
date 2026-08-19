@@ -22,6 +22,9 @@ export default function ClientesPage() {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", notes: "" });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState("");
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState("");
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
 
@@ -85,6 +88,7 @@ export default function ClientesPage() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Eliminar ${selectedIds.size} cliente(s)? Esta accion no se puede deshacer.`)) return;
     setDeleting(true);
+    setDeleteProgress(`Eliminando ${selectedIds.size} clientes...`);
     const res = await fetch("/api/clients/bulk-delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -94,6 +98,7 @@ export default function ClientesPage() {
     showToast(`${data.deleted || selectedIds.size} cliente(s) eliminados`, "success");
     setSelectedIds(new Set());
     setDeleting(false);
+    setDeleteProgress("");
     fetchClients(search);
   };
 
@@ -101,12 +106,14 @@ export default function ClientesPage() {
     if (!confirm(`ELIMINAR TODOS los clientes? Esta accion no se puede deshacer.`)) return;
     if (!confirm(`CONFIRMACION FINAL: Se borraran TODOS los clientes de la base de datos. Continuar?`)) return;
     setDeleting(true);
+    setDeleteProgress("Preparando eliminacion masiva...");
     const res = await fetch("/api/clients/bulk-delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ deleteAll: true }),
     });
     const data = await res.json();
+    setDeleteProgress("");
     showToast(`${data.deleted} clientes eliminados`, "success");
     setSelectedIds(new Set());
     setDeleting(false);
@@ -190,11 +197,16 @@ export default function ClientesPage() {
               if (clients.length === 0) { alert("No se encontraron clientes en el archivo"); return; }
               if (!confirm(`Se encontraron ${clients.length} clientes. Importar?`)) return;
 
+              setImporting(true);
+              setImportProgress(`Importando ${clients.length} clientes...`);
+
               const res = await fetch("/api/clients/import", {
                 method: "POST", headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ clients }),
               });
               const data = await res.json();
+              setImporting(false);
+              setImportProgress("");
               showToast(`${data.imported} importados, ${data.skipped} duplicados omitidos`, "success");
               fetchClients("");
               e.target.value = "";
@@ -331,6 +343,23 @@ export default function ClientesPage() {
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Guardar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Loading overlay for delete/import */}
+      {(deleting || importing) && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center animate-scale-in">
+            <img src="/oti/oti-web-160.png" alt="Oti" className="w-20 h-20 mx-auto mb-4 animate-bounce-slow" />
+            <div className="w-12 h-12 border-3 border-brand-blue/20 border-t-brand-blue rounded-full animate-spin mx-auto mb-4" />
+            <h3 className="text-lg font-bold text-brand-dark mb-1">
+              {deleting ? "Eliminando clientes..." : "Importando clientes..."}
+            </h3>
+            <p className="text-sm text-brand-gray">
+              {deleteProgress || importProgress || "Esto puede tomar unos segundos"}
+            </p>
+            <p className="text-xs text-brand-gray mt-3">No cierres esta pagina</p>
           </div>
         </div>
       )}
