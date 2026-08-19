@@ -25,6 +25,8 @@ export default function ClientesPage() {
   const [deleteProgress, setDeleteProgress] = useState("");
   const [importing, setImporting] = useState(false);
   const [importProgress, setImportProgress] = useState("");
+  const [progressCurrent, setProgressCurrent] = useState(0);
+  const [progressTotal, setProgressTotal] = useState(0);
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
 
@@ -88,17 +90,31 @@ export default function ClientesPage() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Eliminar ${selectedIds.size} cliente(s)? Esta accion no se puede deshacer.`)) return;
     setDeleting(true);
-    setDeleteProgress(`Eliminando ${selectedIds.size} clientes...`);
-    const res = await fetch("/api/clients/bulk-delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ids: Array.from(selectedIds) }),
-    });
-    const data = await res.json();
-    showToast(`${data.deleted || selectedIds.size} cliente(s) eliminados`, "success");
+    const allIds = Array.from(selectedIds);
+    setProgressTotal(allIds.length);
+    setProgressCurrent(0);
+    setDeleteProgress(`Eliminando ${allIds.length} clientes...`);
+
+    const batchSize = 50;
+    let deleted = 0;
+    for (let i = 0; i < allIds.length; i += batchSize) {
+      const batch = allIds.slice(i, i + batchSize);
+      await fetch("/api/clients/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: batch }),
+      });
+      deleted += batch.length;
+      setProgressCurrent(deleted);
+      setDeleteProgress(`Eliminando... ${deleted} de ${allIds.length}`);
+    }
+
+    showToast(`${deleted} cliente(s) eliminados`, "success");
     setSelectedIds(new Set());
     setDeleting(false);
     setDeleteProgress("");
+    setProgressCurrent(0);
+    setProgressTotal(0);
     fetchClients(search);
   };
 
@@ -106,17 +122,37 @@ export default function ClientesPage() {
     if (!confirm(`ELIMINAR TODOS los clientes? Esta accion no se puede deshacer.`)) return;
     if (!confirm(`CONFIRMACION FINAL: Se borraran TODOS los clientes de la base de datos. Continuar?`)) return;
     setDeleting(true);
-    setDeleteProgress("Preparando eliminacion masiva...");
-    const res = await fetch("/api/clients/bulk-delete", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ deleteAll: true }),
-    });
-    const data = await res.json();
-    setDeleteProgress("");
-    showToast(`${data.deleted} clientes eliminados`, "success");
+    setDeleteProgress("Obteniendo lista de clientes...");
+    setProgressCurrent(0);
+    setProgressTotal(0);
+
+    // First get total count
+    const countRes = await fetch("/api/clients");
+    const countData = await countRes.json();
+    const allClients = countData.clients || countData || [];
+    const allIds = allClients.map((c: any) => c.id);
+    setProgressTotal(allIds.length);
+
+    const batchSize = 50;
+    let deleted = 0;
+    for (let i = 0; i < allIds.length; i += batchSize) {
+      const batch = allIds.slice(i, i + batchSize);
+      await fetch("/api/clients/bulk-delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: batch }),
+      });
+      deleted += batch.length;
+      setProgressCurrent(deleted);
+      setDeleteProgress(`Eliminando... ${deleted} de ${allIds.length}`);
+    }
+
+    showToast(`${deleted} clientes eliminados`, "success");
     setSelectedIds(new Set());
     setDeleting(false);
+    setDeleteProgress("");
+    setProgressCurrent(0);
+    setProgressTotal(0);
     fetchClients(search);
   };
 
@@ -198,16 +234,32 @@ export default function ClientesPage() {
               if (!confirm(`Se encontraron ${clients.length} clientes. Importar?`)) return;
 
               setImporting(true);
-              setImportProgress(`Importando ${clients.length} clientes...`);
+              setProgressTotal(clients.length);
+              setProgressCurrent(0);
+              setImportProgress(`Importando 0 de ${clients.length} clientes...`);
 
-              const res = await fetch("/api/clients/import", {
-                method: "POST", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ clients }),
-              });
-              const data = await res.json();
+              // Import in batches of 100
+              const batchSize = 100;
+              let imported = 0;
+              let skipped = 0;
+              for (let i = 0; i < clients.length; i += batchSize) {
+                const batch = clients.slice(i, i + batchSize);
+                const res = await fetch("/api/clients/import", {
+                  method: "POST", headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ clients: batch }),
+                });
+                const data = await res.json();
+                imported += data.imported || 0;
+                skipped += data.skipped || 0;
+                setProgressCurrent(Math.min(i + batchSize, clients.length));
+                setImportProgress(`Importando... ${Math.min(i + batchSize, clients.length)} de ${clients.length}`);
+              }
+
               setImporting(false);
               setImportProgress("");
-              showToast(`${data.imported} importados, ${data.skipped} duplicados omitidos`, "success");
+              setProgressCurrent(0);
+              setProgressTotal(0);
+              showToast(`${imported} importados, ${skipped} duplicados omitidos`, "success");
               fetchClients("");
               e.target.value = "";
             }} />
@@ -349,17 +401,33 @@ export default function ClientesPage() {
 
       {/* Loading overlay for delete/import */}
       {(deleting || importing) && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-8 w-full max-w-sm shadow-2xl text-center animate-scale-in">
-            <img src="/oti/oti-web-160.png" alt="Oti" className="w-20 h-20 mx-auto mb-4 animate-bounce-slow" />
-            <div className="w-12 h-12 border-3 border-brand-blue/20 border-t-brand-blue rounded-full animate-spin mx-auto mb-4" />
-            <h3 className="text-lg font-bold text-brand-dark mb-1">
-              {deleting ? "Eliminando clientes..." : "Importando clientes..."}
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center animate-scale-in">
+            <img src="/oti/oti-avatar-400.png" alt="Oti" className="w-28 h-28 mx-auto mb-5 drop-shadow-xl" />
+            
+            <h3 className="text-xl font-bold text-brand-dark mb-2">
+              {deleting ? "Eliminando clientes" : "Importando clientes"}
             </h3>
-            <p className="text-sm text-brand-gray">
-              {deleteProgress || importProgress || "Esto puede tomar unos segundos"}
+            
+            {/* Progress count */}
+            <p className="text-2xl font-bold text-brand-blue mb-1">
+              {progressCurrent} <span className="text-sm font-normal text-brand-gray">de</span> {progressTotal}
             </p>
-            <p className="text-xs text-brand-gray mt-3">No cierres esta pagina</p>
+            
+            {/* Progress bar */}
+            {progressTotal > 0 && (
+              <div className="w-full bg-gray-200 rounded-full h-3 mb-3 overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-brand-blue to-brand-accent rounded-full transition-all duration-300"
+                  style={{ width: `${Math.round((progressCurrent / progressTotal) * 100)}%` }}
+                />
+              </div>
+            )}
+            
+            <p className="text-sm text-brand-gray mb-1">
+              {Math.round((progressCurrent / (progressTotal || 1)) * 100)}% completado
+            </p>
+            <p className="text-xs text-brand-gray/60 mt-3">No cierres esta pagina</p>
           </div>
         </div>
       )}
