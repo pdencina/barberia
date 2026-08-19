@@ -85,12 +85,29 @@ export default function ClientesPage() {
     if (selectedIds.size === 0) return;
     if (!confirm(`Eliminar ${selectedIds.size} cliente(s)? Esta accion no se puede deshacer.`)) return;
     setDeleting(true);
-    await fetch("/api/clients/bulk-delete", {
+    const res = await fetch("/api/clients/bulk-delete", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ids: Array.from(selectedIds) }),
     });
-    showToast(`${selectedIds.size} cliente(s) eliminados`, "success");
+    const data = await res.json();
+    showToast(`${data.deleted || selectedIds.size} cliente(s) eliminados`, "success");
+    setSelectedIds(new Set());
+    setDeleting(false);
+    fetchClients(search);
+  };
+
+  const handleDeleteAll = async () => {
+    if (!confirm(`ELIMINAR TODOS los clientes? Esta accion no se puede deshacer.`)) return;
+    if (!confirm(`CONFIRMACION FINAL: Se borraran TODOS los clientes de la base de datos. Continuar?`)) return;
+    setDeleting(true);
+    const res = await fetch("/api/clients/bulk-delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deleteAll: true }),
+    });
+    const data = await res.json();
+    showToast(`${data.deleted} clientes eliminados`, "success");
     setSelectedIds(new Set());
     setDeleting(false);
     fetchClients(search);
@@ -205,6 +222,10 @@ export default function ClientesPage() {
           <button onClick={handleBulkDelete} disabled={deleting}
             className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium">
             {deleting ? "Eliminando..." : "Eliminar seleccionados"}
+          </button>
+          <button onClick={handleDeleteAll} disabled={deleting}
+            className="px-3 py-1.5 bg-red-800 text-white text-xs rounded-lg hover:bg-red-900 disabled:opacity-50 font-medium">
+            Eliminar TODOS
           </button>
           <button onClick={() => setSelectedIds(new Set())}
             className="px-3 py-1.5 border border-gray-300 text-xs rounded-lg hover:bg-white text-brand-gray">
