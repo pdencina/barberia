@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
 
 export async function GET() {
   const supabase = createAdminSupabase();
+  const tenantId = await getCurrentTenantId();
 
   const now = new Date();
   const todayStr = now.toISOString().split("T")[0];
@@ -10,79 +11,82 @@ export async function GET() {
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split("T")[0];
 
+  // Helper to add tenant filter
+  const withTenant = (query: any) => tenantId ? query.eq("tenant_id", tenantId) : query;
+
   // Today appointments count
-  const { count: todayApptCount } = await supabase
+  const { count: todayApptCount } = await withTenant(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
-    .eq("date", todayStr);
+    .eq("date", todayStr));
 
   // Yesterday appointments count (for comparison)
-  const { count: yesterdayApptCount } = await supabase
+  const { count: yesterdayApptCount } = await withTenant(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
-    .eq("date", yesterdayStr);
+    .eq("date", yesterdayStr));
 
   // Today income
-  const { data: todayTx } = await supabase
+  const { data: todayTx } = await withTenant(supabase
     .from("transactions")
     .select("total")
     .eq("type", "income")
     .eq("status", "completed")
     .gte("created_at", `${todayStr}T00:00:00`)
-    .lte("created_at", `${todayStr}T23:59:59`);
-  const todayIncome = (todayTx || []).reduce((s, t) => s + Number(t.total), 0);
+    .lte("created_at", `${todayStr}T23:59:59`));
+  const todayIncome = (todayTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
 
   // Yesterday income
-  const { data: yesterdayTx } = await supabase
+  const { data: yesterdayTx } = await withTenant(supabase
     .from("transactions")
     .select("total")
     .eq("type", "income")
     .eq("status", "completed")
     .gte("created_at", `${yesterdayStr}T00:00:00`)
-    .lte("created_at", `${yesterdayStr}T23:59:59`);
-  const yesterdayIncome = (yesterdayTx || []).reduce((s, t) => s + Number(t.total), 0);
+    .lte("created_at", `${yesterdayStr}T23:59:59`));
+  const yesterdayIncome = (yesterdayTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
 
   // New clients today
-  const { count: newClientsToday } = await supabase
+  const { count: newClientsToday } = await withTenant(supabase
     .from("clients")
     .select("id", { count: "exact", head: true })
     .gte("created_at", `${todayStr}T00:00:00`)
-    .lte("created_at", `${todayStr}T23:59:59`);
+    .lte("created_at", `${todayStr}T23:59:59`));
 
-  const { count: newClientsYesterday } = await supabase
+  const { count: newClientsYesterday } = await withTenant(supabase
     .from("clients")
     .select("id", { count: "exact", head: true })
     .gte("created_at", `${yesterdayStr}T00:00:00`)
-    .lte("created_at", `${yesterdayStr}T23:59:59`);
+    .lte("created_at", `${yesterdayStr}T23:59:59`));
 
   // Rescheduled today
-  const { count: rescheduledToday } = await supabase
+  const { count: rescheduledToday } = await withTenant(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("date", todayStr)
-    .eq("status", "confirmed");
+    .eq("status", "confirmed"));
 
-  const { count: rescheduledYesterday } = await supabase
+  const { count: rescheduledYesterday } = await withTenant(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("date", yesterdayStr)
-    .eq("status", "confirmed");
+    .eq("status", "confirmed"));
 
   // Cancellations today
-  const { count: cancelledToday } = await supabase
+  const { count: cancelledToday } = await withTenant(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("date", todayStr)
-    .in("status", ["cancelled", "no_show"]);
+    .in("status", ["cancelled", "no_show"]));
 
-  const { count: cancelledYesterday } = await supabase
+  const { count: cancelledYesterday } = await withTenant(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("date", yesterdayStr)
-    .in("status", ["cancelled", "no_show"]);
+    .in("status", ["cancelled", "no_show"]));
 
   // Today's agenda (upcoming appointments)
-  const { data: todayAppointments } = await supabase
+  const { data: todayAppointments } = await withTenant(supabase
     .from("appointments")
     .select(`
       id, start_time, end_time, status,
@@ -93,7 +97,7 @@ export async function GET() {
     .eq("date", todayStr)
     .in("status", ["scheduled", "confirmed", "in_progress"])
     .order("start_time", { ascending: true })
-    .limit(8);
+    .limit(8));
 
   // Top services (last 30 days)
   const thirtyDaysAgo = new Date(now);
@@ -120,14 +124,14 @@ export async function GET() {
     const d = new Date(now);
     d.setDate(d.getDate() - i);
     const dayStr = d.toISOString().split("T")[0];
-    const { data: dayTx } = await supabase
+    const { data: dayTx } = await withTenant(supabase
       .from("transactions")
       .select("total")
       .eq("type", "income")
       .eq("status", "completed")
       .gte("created_at", `${dayStr}T00:00:00`)
-      .lte("created_at", `${dayStr}T23:59:59`);
-    const dayTotal = (dayTx || []).reduce((sum, t) => sum + Number(t.total), 0);
+      .lte("created_at", `${dayStr}T23:59:59`));
+    const dayTotal = (dayTx || []).reduce((sum: number, t: any) => sum + Number(t.total), 0);
     weekData.push({ day: dayNames[d.getDay()], date: dayStr, total: dayTotal });
   }
 

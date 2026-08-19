@@ -36,6 +36,10 @@ export default function ClientesPage() {
   const { tenant } = useTenant();
 
   const fetchClients = async (query: string, p: number = page) => {
+    if (!tenant?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const params = new URLSearchParams();
