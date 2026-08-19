@@ -46,14 +46,27 @@ export function createAdminSupabase() {
 export async function getCurrentTenantId(): Promise<string | null> {
   try {
     const supabase = createServerSupabase();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return null;
+    const { data: { session } } = await supabase.auth.getSession();
+    
+    if (!session?.user) {
+      // Try getUser as fallback
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      
+      const adminSupabase = createAdminSupabase();
+      const { data: profile } = await adminSupabase
+        .from("profiles")
+        .select("tenant_id")
+        .eq("id", user.id)
+        .single();
+      return profile?.tenant_id || null;
+    }
 
     const adminSupabase = createAdminSupabase();
     const { data: profile } = await adminSupabase
       .from("profiles")
       .select("tenant_id")
-      .eq("id", user.id)
+      .eq("id", session.user.id)
       .single();
 
     return profile?.tenant_id || null;

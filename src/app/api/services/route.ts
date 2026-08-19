@@ -5,7 +5,8 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const includeInactive = searchParams.get("all") === "true";
-  const tenantId = searchParams.get("tenantId") || await getCurrentTenantId();
+  let tenantId = searchParams.get("tenantId");
+  if (!tenantId) tenantId = await getCurrentTenantId();
 
   // If no tenant, return empty
   if (!tenantId) {

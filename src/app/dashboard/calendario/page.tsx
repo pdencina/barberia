@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
+import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
 
 interface Barber { id: string; name: string; }
@@ -50,6 +51,7 @@ export default function CalendarioPage() {
   const [blocks, setBlocks] = useState<Array<{ id: string; barber_id: string; date: string; all_day: boolean; start_time: string | null; end_time: string | null; reason: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
+  const { tenant } = useTenant();
 
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
   const [apptDetails, setApptDetails] = useState<any>(null);
@@ -110,16 +112,18 @@ export default function CalendarioPage() {
 
   // Fetch data
   useEffect(() => {
+    if (!tenant?.id) return;
+    const t = tenant.id;
     Promise.all([
-      fetch("/api/barberos").then((r) => r.json()),
-      fetch("/api/services").then((r) => r.json()),
-      fetch("/api/clients").then((r) => r.json()),
+      fetch(`/api/barberos?tenantId=${t}`).then((r) => r.json()),
+      fetch(`/api/services?tenantId=${t}`).then((r) => r.json()),
+      fetch(`/api/clients?tenantId=${t}`).then((r) => r.json()),
     ]).then(([b, s, c]) => {
       setBarbers(Array.isArray(b) ? b : []);
       setServices(Array.isArray(s) ? s : []);
       setClients(Array.isArray(c?.clients) ? c.clients : Array.isArray(c) ? c : []);
     });
-  }, []);
+  }, [tenant?.id]);
 
   useEffect(() => {
     if (barbers.length > 0) fetchAppointments();

@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getCurrentTenantId();
+  const { searchParams } = new URL(req.url);
+  let tenantId = searchParams.get("tenantId");
+  if (!tenantId) tenantId = await getCurrentTenantId();
 
   // If no tenant, return empty
   if (!tenantId) {

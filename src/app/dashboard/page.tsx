@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
 import Link from "next/link";
 
 interface DashboardData {
@@ -36,10 +37,13 @@ export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  const { tenant } = useTenant();
 
   useEffect(() => {
+    if (!tenant?.id) return;
+
     const fetchDashboard = () => {
-      fetch("/api/dashboard", { cache: "no-store" })
+      fetch(`/api/dashboard?tenantId=${tenant.id}`, { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => setData(d))
         .finally(() => setLoading(false));
@@ -50,7 +54,7 @@ export default function DashboardPage() {
     // Auto-refresh every 30 seconds
     const interval = setInterval(fetchDashboard, 30000);
     return () => clearInterval(interval);
-  }, []);
+  }, [tenant?.id]);
 
   if (loading || !data) return <Spinner />;
 

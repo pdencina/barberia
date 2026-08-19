@@ -1,9 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getCurrentTenantId();
+  const { searchParams } = new URL(req.url);
+  
+  // Prefer query param from frontend, fallback to session
+  let tenantId = searchParams.get("tenantId");
+  if (!tenantId) {
+    tenantId = await getCurrentTenantId();
+  }
 
   const now = new Date();
   const todayStr = now.toISOString().split("T")[0];

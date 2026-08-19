@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 
 interface Service {
   id: string;
@@ -72,20 +73,23 @@ export default function POSPage() {
   const [manualDiscountAmount, setManualDiscountAmount] = useState("");
   const [manualDiscountType, setManualDiscountType] = useState<"fixed" | "percent">("fixed");
   const { showToast } = useToast();
+  const { tenant } = useTenant();
 
   useEffect(() => {
+    if (!tenant?.id) return;
+    const t = tenant.id;
     Promise.all([
-      fetch("/api/services").then((r) => r.json()).catch(() => []),
-      fetch("/api/products").then((r) => r.json()).catch(() => []),
-      fetch("/api/clients").then((r) => r.json()).catch(() => ({ clients: [] })),
-      fetch("/api/barberos").then((r) => r.json()).catch(() => []),
+      fetch(`/api/services?tenantId=${t}`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/products?tenantId=${t}`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/clients?tenantId=${t}`).then((r) => r.json()).catch(() => ({ clients: [] })),
+      fetch(`/api/barberos?tenantId=${t}`).then((r) => r.json()).catch(() => []),
     ]).then(([servicesData, productsData, clientsData, barbersData]) => {
       setServices(Array.isArray(servicesData) ? servicesData : []);
       setProducts(Array.isArray(productsData) ? productsData : []);
       setClients(Array.isArray(clientsData?.clients) ? clientsData.clients : Array.isArray(clientsData) ? clientsData : []);
       setBarbers(Array.isArray(barbersData) ? barbersData : []);
     });
-  }, []);
+  }, [tenant?.id]);
 
   // Get unique categories from services
   const serviceCategories = Array.from(new Set(services.map((s) => s.category).filter(Boolean))) as string[];
