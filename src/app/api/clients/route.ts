@@ -50,9 +50,15 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { name, email, phone, notes, tenantId } = body;
 
+  // Always resolve tenant_id: prefer param, fallback to session
+  let resolvedTenantId = tenantId;
+  if (!resolvedTenantId) {
+    resolvedTenantId = await getCurrentTenantId();
+  }
+
   const { data, error } = await supabase
     .from("clients")
-    .insert({ name, email: email || null, phone: phone || null, notes, tenant_id: tenantId || null })
+    .insert({ name, email: email || null, phone: phone || null, notes, tenant_id: resolvedTenantId || null })
     .select()
     .single();
 
