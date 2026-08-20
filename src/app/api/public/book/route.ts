@@ -67,6 +67,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Find or create client
+  // Get tenant_id from barber
+  const { data: barberData } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
+  const tenantId = barberData?.tenant_id || null;
+
   let clientId: string;
   if (clientEmail) {
     const { data: existingClient } = await supabase
@@ -84,7 +88,7 @@ export async function POST(req: NextRequest) {
     } else {
       const { data: newClient } = await supabase
         .from("clients")
-        .insert({ name: clientName, email: clientEmail, phone: clientPhone || null })
+        .insert({ name: clientName, email: clientEmail, phone: clientPhone || null, tenant_id: tenantId })
         .select("id")
         .single();
       clientId = newClient!.id;
@@ -92,7 +96,7 @@ export async function POST(req: NextRequest) {
   } else {
     const { data: newClient } = await supabase
       .from("clients")
-      .insert({ name: clientName, phone: clientPhone || null })
+      .insert({ name: clientName, phone: clientPhone || null, tenant_id: tenantId })
       .select("id")
       .single();
     clientId = newClient!.id;
@@ -109,6 +113,7 @@ export async function POST(req: NextRequest) {
       end_time: end.toISOString(),
       status: "scheduled",
       notes: notes || null,
+      tenant_id: tenantId,
     })
     .select("id")
     .single();

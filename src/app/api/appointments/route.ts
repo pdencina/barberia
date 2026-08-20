@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date");
   const barberId = searchParams.get("barberId");
+  const tenantId = await getTenantFromRequest(req);
 
   let query = supabase
     .from("appointments")
@@ -20,6 +22,7 @@ export async function GET(req: NextRequest) {
     `)
     .order("start_time", { ascending: true });
 
+  if (tenantId) query = query.eq("tenant_id", tenantId);
   if (date) query = query.eq("date", date);
   if (barberId) query = query.eq("barber_id", barberId);
 

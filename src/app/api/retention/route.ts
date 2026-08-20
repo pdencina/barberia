@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get("days") || "30");
 
@@ -12,7 +14,8 @@ export async function GET(req: NextRequest) {
   // Get all clients with their last appointment date
   const { data: clients } = await supabase
     .from("clients")
-    .select("id, name, email, phone, created_at");
+    .select("id, name, email, phone, created_at")
+    .eq("tenant_id", tenantId || "");
 
   if (!clients || clients.length === 0) {
     return NextResponse.json({ clients: [], stats: { total: 0, inactive: 0 } });

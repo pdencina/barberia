@@ -29,6 +29,10 @@ export async function POST(req: NextRequest) {
     : (paymentMethod || "cash");
 
   // Create transaction
+  // Get tenant_id from barber's profile
+  const { data: barberProfile } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
+  const tenantId = barberProfile?.tenant_id || null;
+
   const { data: tx, error } = await supabase
     .from("transactions")
     .insert({
@@ -41,6 +45,7 @@ export async function POST(req: NextRequest) {
       client_id: clientId || null,
       barber_id: barberId,
       coupon_id: couponId,
+      tenant_id: tenantId,
     })
     .select()
     .single();

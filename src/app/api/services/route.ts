@@ -26,11 +26,12 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { name, description, price, duration } = body;
+  const { name, description, price, duration, sort_order, category, tenantId } = body;
+  const tid = tenantId || await getCurrentTenantId();
 
   const { data, error } = await supabase
     .from("services")
-    .insert({ name, description, price, duration })
+    .insert({ name, description, price, duration, sort_order: sort_order || 0, category: category || null, tenant_id: tid })
     .select()
     .single();
 

@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { setTenantId as setGlobalTenantId } from "@/lib/api-fetch";
 
 interface TenantInfo {
   id: string;
@@ -48,6 +49,7 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
         if (data.tenant) {
           setTenant(data.tenant);
           setPlanFeatures(data.features || []);
+          setGlobalTenantId(data.tenant.id);
         }
       })
       .finally(() => setLoading(false));

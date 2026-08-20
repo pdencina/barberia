@@ -1,50 +1,53 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
   const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
   const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
 
   const startDate = new Date(year, month - 1, 1).toISOString();
   const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+  const tf = (q: any) => tenantId ? q.eq("tenant_id", tenantId) : q;
 
   // Income transactions
-  const { data: incomeTx } = await supabase
+  const { data: incomeTx } = await tf(supabase
     .from("transactions")
     .select("total, payment_method, barber_id")
     .eq("type", "income")
     .eq("status", "completed")
     .gte("created_at", startDate)
-    .lte("created_at", endDate);
+    .lte("created_at", endDate));
 
   // Expense transactions
-  const { data: expenseTx } = await supabase
+  const { data: expenseTx } = await tf(supabase
     .from("transactions")
     .select("total")
     .eq("type", "expense")
     .eq("status", "completed")
     .gte("created_at", startDate)
-    .lte("created_at", endDate);
+    .lte("created_at", endDate));
 
-  const totalIncome = (incomeTx || []).reduce((s, t) => s + Number(t.total), 0);
-  const totalExpenses = (expenseTx || []).reduce((s, t) => s + Number(t.total), 0);
+  const totalIncome = (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
+  const totalExpenses = (expenseTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
 
   // Appointments completed
-  const { count: appointmentsCompleted } = await supabase
+  const { count: appointmentsCompleted } = await tf(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("status", "completed")
     .gte("date", startDate.split("T")[0])
-    .lte("date", endDate.split("T")[0]);
+    .lte("date", endDate.split("T")[0]));
 
   // New clients
-  const { count: newClients } = await supabase
+  const { count: newClients } = await tf(supabase
     .from("clients")
     .select("id", { count: "exact", head: true })
     .gte("created_at", startDate)
-    .lte("created_at", endDate);
+    .lte("created_at", endDate));
 
   // Income by payment method
   const methodMap: Record<string, { total: number; count: number }> = {};
@@ -87,7 +90,7 @@ export async function GET(req: NextRequest) {
     }
   }
   // Add transactions without barber to commission (house sales)
-  const noBarberIncome = (incomeTx || []).filter((t) => !t.barber_id).reduce((s, t) => s + Number(t.total), 0);
+  const noBarberIncome = (incomeTx || []).filter((t: any) => !t.barber_id).reduce((s: number, t: any) => s + Number(t.total), 0);
   incomeCommission += noBarberIncome;
 
   // Top services (from transaction_items via transactions)

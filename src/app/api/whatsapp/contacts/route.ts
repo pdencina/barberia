@@ -1,17 +1,21 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 // GET: Get all clients with phones for WhatsApp broadcast
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
 
   // Get clients with phone numbers
-  const { data: clients } = await supabase
+  let query = supabase
     .from("clients")
     .select("id, name, phone, email")
-    .not("phone", "is", null)
-    .neq("phone", "")
-    .order("name");
+    .not("phone", "is", null);
+  if (tenantId) query = query.eq("tenant_id", tenantId);
+  query = query.neq("phone", "").order("name");
+
+  const { data: clients } = await query;
 
   // Get last visit for each client
   const clientIds = (clients || []).map((c) => c.id);
