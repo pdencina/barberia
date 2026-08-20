@@ -78,7 +78,9 @@ export default function LoginPage() {
 
       <div className="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl shadow-blue-900/5 p-6 md:p-8 animate-scale-in">
         <div className="text-center mb-8">
-          <img src="/logo-icon.png" alt="re-booking" className="w-16 h-16 mx-auto mb-3 drop-shadow-lg" />
+          <a href="/landing">
+            <img src="/logo-icon.png" alt="re-booking" className="w-16 h-16 mx-auto mb-3 drop-shadow-lg cursor-pointer hover:scale-105 transition-transform" />
+          </a>
           <img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto mx-auto mb-2" />
           <p className="text-xs text-brand-gray uppercase tracking-[0.2em]">Todo tu negocio. Un solo sistema.</p>
         </div>
