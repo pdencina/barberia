@@ -51,7 +51,7 @@ export default function CalendarioPage() {
   const [blocks, setBlocks] = useState<Array<{ id: string; barber_id: string; date: string; all_day: boolean; start_time: string | null; end_time: string | null; reason: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
 
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
   const [apptDetails, setApptDetails] = useState<any>(null);
@@ -112,18 +112,19 @@ export default function CalendarioPage() {
 
   // Fetch data
   useEffect(() => {
-    if (!tenant?.id) return;
-    const t = tenant.id;
+    if (tenantLoading) return;
+    const t = tenant?.id || "";
+    const params = t ? `?tenantId=${t}` : "";
     Promise.all([
-      fetch(`/api/barberos?tenantId=${t}`).then((r) => r.json()),
-      fetch(`/api/services?tenantId=${t}`).then((r) => r.json()),
-      fetch(`/api/clients?tenantId=${t}`).then((r) => r.json()),
+      fetch(`/api/barberos${params}`).then((r) => r.json()),
+      fetch(`/api/services${params}`).then((r) => r.json()),
+      fetch(`/api/clients${params}`).then((r) => r.json()),
     ]).then(([b, s, c]) => {
       setBarbers(Array.isArray(b) ? b : []);
       setServices(Array.isArray(s) ? s : []);
       setClients(Array.isArray(c?.clients) ? c.clients : Array.isArray(c) ? c : []);
     });
-  }, [tenant?.id]);
+  }, [tenant?.id, tenantLoading]);
 
   useEffect(() => {
     if (barbers.length > 0) fetchAppointments();

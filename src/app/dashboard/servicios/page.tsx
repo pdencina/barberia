@@ -26,7 +26,7 @@ export default function ServiciosPage() {
   const [form, setForm] = useState({ name: "", description: "", price: "", duration: "", category: "" });
   const { showToast } = useToast();
   const { confirm } = useConfirm();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
 
   // Drag state
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -47,7 +47,10 @@ export default function ServiciosPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchServices(); }, [tenant?.id]);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchServices();
+  }, [tenant?.id, tenantLoading]);
 
   const openNew = () => {
     setEditingService(null);

@@ -73,23 +73,24 @@ export default function POSPage() {
   const [manualDiscountAmount, setManualDiscountAmount] = useState("");
   const [manualDiscountType, setManualDiscountType] = useState<"fixed" | "percent">("fixed");
   const { showToast } = useToast();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
 
   useEffect(() => {
-    if (!tenant?.id) return;
-    const t = tenant.id;
+    if (tenantLoading) return;
+    const t = tenant?.id || "";
+    const params = t ? `?tenantId=${t}` : "";
     Promise.all([
-      fetch(`/api/services?tenantId=${t}`).then((r) => r.json()).catch(() => []),
-      fetch(`/api/products?tenantId=${t}`).then((r) => r.json()).catch(() => []),
-      fetch(`/api/clients?tenantId=${t}`).then((r) => r.json()).catch(() => ({ clients: [] })),
-      fetch(`/api/barberos?tenantId=${t}`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/services${params}`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/products${params}`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/clients${params}`).then((r) => r.json()).catch(() => ({ clients: [] })),
+      fetch(`/api/barberos${params}`).then((r) => r.json()).catch(() => []),
     ]).then(([servicesData, productsData, clientsData, barbersData]) => {
       setServices(Array.isArray(servicesData) ? servicesData : []);
       setProducts(Array.isArray(productsData) ? productsData : []);
       setClients(Array.isArray(clientsData?.clients) ? clientsData.clients : Array.isArray(clientsData) ? clientsData : []);
       setBarbers(Array.isArray(barbersData) ? barbersData : []);
     });
-  }, [tenant?.id]);
+  }, [tenant?.id, tenantLoading]);
 
   // Get unique categories from services
   const serviceCategories = Array.from(new Set(services.map((s) => s.category).filter(Boolean))) as string[];
