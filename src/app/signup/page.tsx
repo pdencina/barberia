@@ -45,7 +45,7 @@ export default function SignupPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
         <div className="w-full max-w-sm text-center rounded-2xl bg-white shadow-xl p-8">
-          <img src="/oti/oti-web-160.png" alt="Oti" className="w-20 h-20 mx-auto mb-4" />
+          <img src="/logo-icon.png" alt="re-booking" className="w-20 h-20 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-brand-dark">Cuenta creada</h2>
           <p className="text-sm text-brand-gray mt-2">Tu negocio esta listo. Redirigiendo al login...</p>
         </div>
@@ -59,9 +59,9 @@ export default function SignupPage() {
         {/* Header */}
         <div className="text-center mb-6">
           <Link href="/landing">
-            <img src="/oti/oti-web-160.png" alt="Oti" className="w-14 h-14 mx-auto mb-2" />
+            <img src="/logo-icon.png" alt="re-booking" className="w-14 h-14 mx-auto mb-2" />
           </Link>
-          <img src="/logo.png" alt="re-booking" className="h-7 w-auto mx-auto mb-3" />
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto mx-auto mb-3" />
           <h1 className="text-xl font-bold text-brand-dark">Registra tu negocio</h1>
           <p className="text-sm text-brand-gray mt-1">
             Publica tu negocio y gestiona tus reservas, clientes y pagos en un solo lugar.

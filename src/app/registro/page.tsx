@@ -82,8 +82,8 @@ export default function RegistroPage() {
     <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
       <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl p-6 md:p-8 animate-scale-in">
         <div className="text-center mb-6">
-          <img src="/oti/oti-web-160.png" alt="Oti" className="w-14 h-14 mx-auto mb-3" />
-          <img src="/logo.png" alt="re-booking" className="h-7 w-auto mx-auto mb-2" />
+          <img src="/logo-icon.png" alt="re-booking" className="w-14 h-14 mx-auto mb-3" />
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto mx-auto mb-2" />
         </div>
 
         {step === "code" ? (

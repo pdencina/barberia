@@ -61,12 +61,7 @@ export default function LandingPage() {
       >
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <motion.svg whileHover={{ rotate: 360 }} transition={{ duration: 0.6 }} className="w-7 h-7 md:w-8 md:h-8 text-brand-blue" viewBox="0 0 32 32" fill="none">
-              <path d="M16 4a12 12 0 0 1 12 12h-4a8 8 0 0 0-8-8V4z" fill="currentColor"/>
-              <path d="M28 16a12 12 0 0 1-12 12v-4a8 8 0 0 0 8-8h4z" fill="currentColor" opacity="0.7"/>
-              <path d="M16 28A12 12 0 0 1 4 16h4a8 8 0 0 0 8 8v4z" fill="currentColor" opacity="0.4"/>
-            </motion.svg>
-            <span className="text-lg md:text-xl font-bold text-gray-900">re-booking</span>
+            <img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto" />
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-600">
             <a href="#funciones" className="hover:text-brand-blue transition-colors">Funciones</a>
@@ -554,12 +549,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-6">
           <div className="flex flex-col md:flex-row justify-between items-center gap-6">
             <div className="flex items-center gap-2">
-              <svg className="w-6 h-6 text-brand-blue" viewBox="0 0 32 32" fill="none">
-                <path d="M16 4a12 12 0 0 1 12 12h-4a8 8 0 0 0-8-8V4z" fill="currentColor"/>
-                <path d="M28 16a12 12 0 0 1-12 12v-4a8 8 0 0 0 8-8h4z" fill="currentColor" opacity="0.7"/>
-                <path d="M16 28A12 12 0 0 1 4 16h4a8 8 0 0 0 8 8v4z" fill="currentColor" opacity="0.4"/>
-              </svg>
-              <span className="font-bold text-gray-900">re-booking</span>
+              <img src="/logo-horizontal.png" alt="re-booking" className="h-6 w-auto" />
             </div>
             <p className="text-sm text-gray-500">Organiza tu negocio. Impulsa tus resultados.</p>
             <p className="text-sm text-gray-400">© 2025 re-booking. Todos los derechos reservados.</p>

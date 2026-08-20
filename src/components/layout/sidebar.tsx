@@ -270,6 +270,7 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
       )}>
         <div className={cn("flex h-14 items-center border-b border-gray-100", collapsed ? "justify-center" : "justify-between px-4")}>
           {!collapsed && <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" /></Link>}
+          {collapsed && <Link href="/dashboard"><img src="/logo-icon.png" alt="re-booking" className="h-8 w-8" /></Link>}
           <button onClick={toggleCollapse} className="text-brand-gray hover:text-brand-dark p-1 rounded-lg hover:bg-brand-light">
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
