@@ -463,30 +463,30 @@ export default function BookingPage() {
             <p className="text-brand-gray mb-6">Ingresa tu informacion para confirmar la cita</p>
 
             {/* Summary card */}
-            <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6">
+            <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-brand-gray">Servicios</span>
-                <span className="text-white font-medium">{selectedServices.map((s) => s.name).join(" + ")}</span>
+                <span className="text-brand-dark font-medium">{selectedServices.map((s) => s.name).join(" + ")}</span>
               </div>
               <div className="flex justify-between text-sm mb-2">
-                <span className="text-brand-gray">Barbero</span>
-                <span className="text-white">{selectedBarber?.name}</span>
+                <span className="text-brand-gray">Profesional</span>
+                <span className="text-brand-dark font-medium">{selectedBarber?.name}</span>
               </div>
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-brand-gray">Fecha</span>
-                <span className="text-white">{new Date(selectedDate + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}</span>
+                <span className="text-brand-dark">{new Date(selectedDate + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}</span>
               </div>
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-brand-gray">Hora</span>
-                <span className="text-white font-bold">{new Date(selectedSlot).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</span>
+                <span className="text-brand-dark font-bold">{new Date(selectedSlot).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</span>
               </div>
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-brand-gray">Duracion</span>
                 <span className="text-brand-dark">{totalDuration} min</span>
               </div>
-              <div className="flex justify-between text-sm pt-2 border-t border-gray-100">
+              <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
                 <span className="text-brand-gray">Total</span>
-                <span className="text-brand-blue font-bold">{formatCurrency(totalPrice)}</span>
+                <span className="text-brand-blue font-bold text-lg">{formatCurrency(totalPrice)}</span>
               </div>
             </div>
 

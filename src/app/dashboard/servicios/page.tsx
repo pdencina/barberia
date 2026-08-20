@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { GripVertical } from "lucide-react";
@@ -25,6 +26,7 @@ export default function ServiciosPage() {
   const [form, setForm] = useState({ name: "", description: "", price: "", duration: "", category: "" });
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { tenant } = useTenant();
 
   // Drag state
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -38,13 +40,14 @@ export default function ServiciosPage() {
 
   const fetchServices = async () => {
     setLoading(true);
-    const res = await fetch("/api/services?all=true");
+    const params = tenant?.id ? `?all=true&tenantId=${tenant.id}` : "?all=true";
+    const res = await fetch(`/api/services${params}`);
     const data = await res.json();
     setServices(Array.isArray(data) ? data.sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0)) : []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchServices(); }, []);
+  useEffect(() => { fetchServices(); }, [tenant?.id]);
 
   const openNew = () => {
     setEditingService(null);
