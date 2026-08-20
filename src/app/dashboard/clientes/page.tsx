@@ -33,7 +33,7 @@ export default function ClientesPage() {
   const [totalClients, setTotalClients] = useState(0);
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
 
   const fetchClients = async (query: string, p: number = page) => {
     if (!tenant?.id) {
@@ -61,8 +61,13 @@ export default function ClientesPage() {
   };
 
   useEffect(() => {
-    if (tenant?.id) fetchClients("");
-  }, [tenant?.id]);
+    if (tenantLoading) return;
+    if (tenant?.id) {
+      fetchClients("");
+    } else {
+      setLoading(false);
+    }
+  }, [tenant?.id, tenantLoading]);
 
   const handleSearch = (value: string) => {
     setSearch(value);
