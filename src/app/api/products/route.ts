@@ -7,18 +7,22 @@ export async function GET(req: NextRequest) {
   let tenantId = searchParams.get("tenantId");
   if (!tenantId) tenantId = await getCurrentTenantId();
 
-  // If no tenant, return empty
+  // If no tenant, return empty (except super_admin)
   if (!tenantId) {
     return NextResponse.json([]);
   }
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("products")
     .select("*")
     .eq("active", true)
-    .eq("tenant_id", tenantId)
     .order("name");
 
+  if (tenantId !== "ALL") {
+    query = query.eq("tenant_id", tenantId);
+  }
+
+  const { data, error } = await query;
   if (error) return NextResponse.json([]);
   return NextResponse.json(data || []);
 }

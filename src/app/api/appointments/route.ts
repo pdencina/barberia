@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
     `)
     .order("start_time", { ascending: true });
 
-  if (tenantId) query = query.eq("tenant_id", tenantId);
+  if (tenantId && tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
   if (date) query = query.eq("date", date);
   if (barberId) query = query.eq("barber_id", barberId);
 

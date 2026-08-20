@@ -40,15 +40,13 @@ export default function DashboardPage() {
   const { tenant, loading: tenantLoading } = useTenant();
 
   useEffect(() => {
-    // If tenant context finished loading but no tenant found, stop loading
-    if (!tenantLoading && !tenant?.id) {
-      setLoading(false);
-      return;
-    }
-    if (!tenant?.id) return;
+    if (tenantLoading) return;
 
     const fetchDashboard = () => {
-      fetch(`/api/dashboard?tenantId=${tenant.id}`, { cache: "no-store" })
+      const url = tenant?.id
+        ? `/api/dashboard?tenantId=${tenant.id}`
+        : "/api/dashboard";
+      fetch(url, { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => setData(d))
         .finally(() => setLoading(false));

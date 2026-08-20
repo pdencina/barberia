@@ -43,6 +43,7 @@ export function createAdminSupabase() {
 }
 
 // Get the current user's tenant_id from the session
+// Returns: tenant_id string, "ALL" for super_admin, or null if can't determine
 export async function getCurrentTenantId(): Promise<string | null> {
   try {
     const supabase = createServerSupabase();
@@ -56,19 +57,24 @@ export async function getCurrentTenantId(): Promise<string | null> {
       const adminSupabase = createAdminSupabase();
       const { data: profile } = await adminSupabase
         .from("profiles")
-        .select("tenant_id")
+        .select("tenant_id, role")
         .eq("id", user.id)
         .single();
+
+      // Super admin sees everything
+      if (profile?.role === "super_admin") return "ALL";
       return profile?.tenant_id || null;
     }
 
     const adminSupabase = createAdminSupabase();
     const { data: profile } = await adminSupabase
       .from("profiles")
-      .select("tenant_id")
+      .select("tenant_id, role")
       .eq("id", session.user.id)
       .single();
 
+    // Super admin sees everything
+    if (profile?.role === "super_admin") return "ALL";
     return profile?.tenant_id || null;
   } catch (e) {
     console.error("getCurrentTenantId error:", e);

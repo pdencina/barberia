@@ -8,12 +8,15 @@ export async function GET(req: NextRequest) {
   let tenantId = searchParams.get("tenantId");
   if (!tenantId) tenantId = await getCurrentTenantId();
 
-  // If no tenant, return empty
+  // If no tenant, return empty (except super_admin = "ALL")
   if (!tenantId) {
     return NextResponse.json([]);
   }
 
-  let query = supabase.from("services").select("*").order("sort_order", { ascending: true }).order("name").eq("tenant_id", tenantId);
+  let query = supabase.from("services").select("*").order("sort_order", { ascending: true }).order("name");
+  if (tenantId !== "ALL") {
+    query = query.eq("tenant_id", tenantId);
+  }
   if (!includeInactive) {
     query = query.eq("active", true);
   }

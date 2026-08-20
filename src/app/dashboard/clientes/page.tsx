@@ -36,10 +36,6 @@ export default function ClientesPage() {
   const { tenant, loading: tenantLoading } = useTenant();
 
   const fetchClients = async (query: string, p: number = page) => {
-    if (!tenant?.id) {
-      setLoading(false);
-      return;
-    }
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -62,11 +58,7 @@ export default function ClientesPage() {
 
   useEffect(() => {
     if (tenantLoading) return;
-    if (tenant?.id) {
-      fetchClients("");
-    } else {
-      setLoading(false);
-    }
+    fetchClients("");
   }, [tenant?.id, tenantLoading]);
 
   const handleSearch = (value: string) => {

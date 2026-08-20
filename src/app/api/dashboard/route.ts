@@ -17,8 +17,8 @@ export async function GET(req: NextRequest) {
   yesterday.setDate(yesterday.getDate() - 1);
   const yesterdayStr = yesterday.toISOString().split("T")[0];
 
-  // Helper to add tenant filter
-  const withTenant = (query: any) => tenantId ? query.eq("tenant_id", tenantId) : query;
+  // Helper to add tenant filter (skip for super_admin "ALL")
+  const withTenant = (query: any) => (tenantId && tenantId !== "ALL") ? query.eq("tenant_id", tenantId) : query;
 
   // Today appointments count
   const { count: todayApptCount } = await withTenant(supabase

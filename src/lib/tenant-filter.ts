@@ -4,13 +4,7 @@ import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server
 /**
  * Get tenant_id from the request.
  * Priority: query param tenantId > session cookies > null
- * 
- * Usage in API routes:
- *   const tenantId = await getTenantFromRequest(req);
- *   if (!tenantId) return NextResponse.json([], { status: 200 });
- *   
- *   // Then use in queries:
- *   .eq("tenant_id", tenantId)
+ * Returns "ALL" for super_admin (bypass all filters)
  */
 export async function getTenantFromRequest(req: NextRequest): Promise<string | null> {
   // 1. Try query param (sent by frontend)
@@ -31,18 +25,20 @@ export async function getTenantFromRequest(req: NextRequest): Promise<string | n
       const adminSupabase = createAdminSupabase();
       const { data: profile } = await adminSupabase
         .from("profiles")
-        .select("tenant_id")
+        .select("tenant_id, role")
         .eq("id", user.id)
         .single();
+      if (profile?.role === "super_admin") return "ALL";
       return profile?.tenant_id || null;
     }
 
     const adminSupabase = createAdminSupabase();
     const { data: profile } = await adminSupabase
       .from("profiles")
-      .select("tenant_id")
+      .select("tenant_id, role")
       .eq("id", userId)
       .single();
+    if (profile?.role === "super_admin") return "ALL";
     return profile?.tenant_id || null;
   } catch {
     return null;

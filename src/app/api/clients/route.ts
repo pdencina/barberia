@@ -16,12 +16,18 @@ export async function GET(req: NextRequest) {
   }
 
   // If no tenant can be determined, return empty (security: never show all data)
+  // EXCEPT: super_admin ("ALL") can see everything
   if (!tenantId) {
     return NextResponse.json({ clients: [], total: 0, page: 1, totalPages: 0 });
   }
 
   // Build query
-  let query = supabase.from("clients").select("*", { count: "exact" }).order("name").eq("tenant_id", tenantId);
+  let query = supabase.from("clients").select("*", { count: "exact" }).order("name");
+
+  // Only filter by tenant if not super_admin
+  if (tenantId !== "ALL") {
+    query = query.eq("tenant_id", tenantId);
+  }
 
   if (search) {
     query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
