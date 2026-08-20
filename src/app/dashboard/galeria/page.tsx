@@ -49,7 +49,7 @@ export default function GaleriaPage() {
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selectedBarber) {
-      showToast("Selecciona un barbero primero", "error");
+      showToast("Selecciona un profesional primero", "error");
       return;
     }
 
@@ -120,7 +120,7 @@ export default function GaleriaPage() {
         <h3 className="font-bold text-gray-800 mb-3">Subir Foto</h3>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
           <div>
-            <label className="block text-xs text-gray-600 mb-1">Barbero *</label>
+            <label className="block text-xs text-gray-600 mb-1">Profesional *</label>
             <select value={selectedBarber} onChange={(e) => setSelectedBarber(e.target.value)}
               className="w-full border rounded-lg px-3 py-2 text-sm">
               <option value="">Seleccionar</option>
@@ -161,7 +161,7 @@ export default function GaleriaPage() {
         <span className="text-sm text-gray-500">Filtrar:</span>
         <select value={filterBarber} onChange={(e) => setFilterBarber(e.target.value)}
           className="border rounded-lg px-3 py-1.5 text-sm">
-          <option value="">Todos los barberos</option>
+          <option value="">Todos los profesionales</option>
           {barbers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
         </select>
       </div>

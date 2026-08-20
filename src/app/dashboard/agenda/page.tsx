@@ -167,7 +167,7 @@ export default function AgendaPage() {
           className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200">&rarr;</button>
         <select value={barberFilter} onChange={(e) => setBarberFilter(e.target.value)}
           className="border rounded-lg px-3 py-2 ml-4">
-          <option value="">Todos los barberos</option>
+          <option value="">Todos los profesionales</option>
           {barbers.map((b) => (
             <option key={b.id} value={b.id}>{b.name}</option>
           ))}

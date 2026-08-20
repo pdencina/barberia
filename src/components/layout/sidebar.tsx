@@ -83,9 +83,9 @@ const sections: NavSection[] = [
     title: "Equipo",
     items: [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
-      { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "super_admin" },
-      { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "super_admin" },
-      { name: "Config", href: "/dashboard/configuracion", icon: Settings, minRole: "super_admin" },
+      { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin" },
+      { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin" },
+      { name: "Config", href: "/dashboard/configuracion", icon: Settings, minRole: "admin" },
     ],
   },
   {
@@ -123,10 +123,10 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
           ...section,
           items: section.items.map((item) => ({
             ...item,
-            locked: !isAtLeast(item.minRole) && userAuthRole !== "super_admin" && userAuthRole !== "admin",
+            locked: !isAtLeast(item.minRole) && userAuthRole !== "super_admin",
           })),
         }))
-        .filter((section) => section.items.some((item) => !(item as any).locked) || isAtLeast("admin"));
+        .filter((section) => section.items.some((item) => !(item as any).locked));
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");

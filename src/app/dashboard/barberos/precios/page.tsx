@@ -85,7 +85,7 @@ export default function BarberPreciosPage() {
   return (
     <div className="p-6 space-y-6 max-w-4xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Precios por Barbero</h1>
+        <h1 className="text-2xl font-bold text-gray-900">Precios por Profesional</h1>
         <p className="text-gray-500 text-sm">Configura precios y duraciones personalizadas por profesional</p>
       </div>
 

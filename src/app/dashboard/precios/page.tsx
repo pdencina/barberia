@@ -39,7 +39,7 @@ export default function PreciosPage() {
         </div>
         <a href="/dashboard/barberos/precios"
           className="px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:bg-blue-700 font-medium">
-          Precios por Barbero
+          Precios por Profesional
         </a>
       </div>
 
