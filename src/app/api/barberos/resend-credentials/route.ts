@@ -12,25 +12,29 @@ export async function POST(req: NextRequest) {
   // Generate a new temporary password
   const tempPassword = Math.random().toString(36).slice(-8);
 
-  // Update the user's password in Supabase Auth
-  const { data: users } = await supabase.auth.admin.listUsers();
-  const user = users?.users?.find((u) => u.email === email);
-
-  if (!user) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
-  }
-
-  await supabase.auth.admin.updateUserById(user.id, { password: tempPassword });
-
-  // Get tenant name
+  // Find user by email in profiles (more reliable than listUsers)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("tenant_id")
-    .eq("id", user.id)
+    .select("id, tenant_id")
+    .ilike("email", email)
     .single();
 
+  if (!profile) {
+    return NextResponse.json({ error: "Usuario no encontrado en profiles" }, { status: 404 });
+  }
+
+  // Update password via admin API
+  const { error: updateError } = await supabase.auth.admin.updateUserById(profile.id, {
+    password: tempPassword,
+  });
+
+  if (updateError) {
+    return NextResponse.json({ error: updateError.message }, { status: 500 });
+  }
+
+  // Get tenant name
   let businessName = "re-booking";
-  if (profile?.tenant_id) {
+  if (profile.tenant_id) {
     const { data: tenant } = await supabase
       .from("tenants")
       .select("name")
