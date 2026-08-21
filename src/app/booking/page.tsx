@@ -268,7 +268,7 @@ export default function BookingPage() {
         {/* Step 1: Barber (PRIMERO) */}
         {step === "barber" && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">Elige tu barbero</h2>
+            <h2 className="text-2xl font-bold mb-2">Elige tu profesional</h2>
             <p className="text-brand-gray mb-6">Selecciona un miembro del equipo</p>
 
             {/* First available button */}
@@ -284,8 +284,8 @@ export default function BookingPage() {
               }}
               className="w-full mb-4 p-4 rounded-xl border-2 border-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 transition-colors text-center"
             >
-              <p className="font-bold text-brand-blue text-lg">Primer barbero disponible</p>
-              <p className="text-xs text-brand-gray">Te asignamos al barbero con mas disponibilidad</p>
+              <p className="font-bold text-brand-blue text-lg">Primer profesional disponible</p>
+              <p className="text-xs text-brand-gray">Te asignamos al profesional con mas disponibilidad</p>
             </button>
 
             <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>

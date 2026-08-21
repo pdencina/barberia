@@ -13,16 +13,29 @@ export async function GET(req: NextRequest) {
     .eq("active", true)
     .order("name");
 
-  // Filter by branch if specified
   if (branchSlug) {
-    const { data: branch } = await supabase
-      .from("branches")
+    // First try to match as tenant slug
+    const { data: tenant } = await supabase
+      .from("tenants")
       .select("id")
       .eq("slug", branchSlug)
+      .eq("active", true)
       .single();
 
-    if (branch) {
-      query = query.eq("branch_id", branch.id);
+    if (tenant) {
+      // Filter by tenant
+      query = query.eq("tenant_id", tenant.id);
+    } else {
+      // Try as branch slug
+      const { data: branch } = await supabase
+        .from("branches")
+        .select("id")
+        .eq("slug", branchSlug)
+        .single();
+
+      if (branch) {
+        query = query.eq("branch_id", branch.id);
+      }
     }
   }
 
