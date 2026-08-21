@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { formatCurrency } from "@/lib/utils";
 
 interface Tenant {
@@ -43,6 +44,7 @@ export default function SuperAdminTenantsPage() {
     name: "", slug: "", admin_email: "", admin_name: "", phone: "", address: "", rut_empresa: "", plan: "basic",
   });
   const { showToast } = useToast();
+  const { switchTenant } = useTenant();
 
   const fetchTenants = async () => {
     setLoading(true);
@@ -169,20 +171,26 @@ export default function SuperAdminTenantsPage() {
                     </p>
                   </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right flex flex-col items-end gap-1">
                   <p className="text-xs text-brand-gray">
                     {new Date(t.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })}
                   </p>
                   {t.trial_ends_at && (
-                    <p className={`text-[10px] mt-0.5 ${daysLeft(t.trial_ends_at) <= 3 ? "text-red-500 font-bold" : "text-brand-gray"}`}>
+                    <p className={`text-[10px] ${daysLeft(t.trial_ends_at) <= 3 ? "text-red-500 font-bold" : "text-brand-gray"}`}>
                       Expira: {new Date(t.trial_ends_at).toLocaleDateString("es-CL", { day: "numeric", month: "short" })}
                     </p>
                   )}
                   {t.status === "trial" && daysLeft(t.trial_ends_at) <= 10 && (
-                    <button className="mt-1 px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-bold rounded hover:bg-orange-200">
+                    <button className="px-2 py-0.5 bg-orange-100 text-orange-700 text-[9px] font-bold rounded hover:bg-orange-200">
                       Enviar recordatorio
                     </button>
                   )}
+                  <button
+                    onClick={() => switchTenant(t.id, t.name)}
+                    className="mt-1 px-3 py-1.5 bg-brand-blue text-white text-xs font-medium rounded-lg hover:bg-brand-blue/90 transition-colors"
+                  >
+                    Entrar →
+                  </button>
                 </div>
               </div>
             </div>

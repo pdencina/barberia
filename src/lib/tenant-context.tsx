@@ -21,6 +21,10 @@ interface TenantContextType {
   isTrialExpired: boolean;
   daysLeft: number;
   hasPlanFeature: (feature: string) => boolean;
+  // Switch tenant (super_admin feature)
+  isOverriding: boolean;
+  switchTenant: (tenantId: string, tenantName: string) => void;
+  exitTenant: () => void;
 }
 
 const TenantContext = createContext<TenantContextType>({
@@ -29,31 +33,74 @@ const TenantContext = createContext<TenantContextType>({
   isTrialExpired: false,
   daysLeft: 0,
   hasPlanFeature: () => true,
+  isOverriding: false,
+  switchTenant: () => {},
+  exitTenant: () => {},
 });
 
 export function TenantProvider({ children, serverTenantId }: { children: ReactNode; serverTenantId?: string | null }) {
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
   const [planFeatures, setPlanFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [overrideTenantId, setOverrideTenantId] = useState<string | null>(null);
+  const [isOverriding, setIsOverriding] = useState(false);
+
+  // Check localStorage for existing override on mount
+  useEffect(() => {
+    const stored = localStorage.getItem("tenant_override");
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored);
+        if (parsed.tenantId) {
+          setOverrideTenantId(parsed.tenantId);
+          setIsOverriding(true);
+        }
+      } catch {}
+    }
+  }, []);
+
+  // Determine which tenant to load: override > server-provided
+  const activeTenantId = overrideTenantId || serverTenantId;
 
   useEffect(() => {
-    if (!serverTenantId) {
-      // No tenant (super admin or old users without tenant)
+    if (!activeTenantId) {
+      // No tenant (super admin without override)
+      setTenant(null);
       setLoading(false);
       return;
     }
 
-    fetch(`/api/tenant/info?tenantId=${serverTenantId}`)
+    setLoading(true);
+    fetch(`/api/tenant/info?tenantId=${activeTenantId}`)
       .then((r) => r.json())
       .then((data) => {
         if (data.tenant) {
           setTenant(data.tenant);
           setPlanFeatures(data.features || []);
           setGlobalTenantId(data.tenant.id);
+        } else {
+          setTenant(null);
         }
       })
       .finally(() => setLoading(false));
-  }, [serverTenantId]);
+  }, [activeTenantId]);
+
+  const switchTenant = (tenantId: string, tenantName: string) => {
+    localStorage.setItem("tenant_override", JSON.stringify({ tenantId, tenantName }));
+    setOverrideTenantId(tenantId);
+    setIsOverriding(true);
+    // Force reload to refresh all data with new tenant
+    window.location.reload();
+  };
+
+  const exitTenant = () => {
+    localStorage.removeItem("tenant_override");
+    setOverrideTenantId(null);
+    setIsOverriding(false);
+    setTenant(null);
+    setGlobalTenantId(null);
+    window.location.reload();
+  };
 
   const daysLeft = tenant?.trial_ends_at
     ? Math.max(0, Math.ceil((new Date(tenant.trial_ends_at).getTime() - Date.now()) / (1000 * 60 * 60 * 24)))
@@ -67,7 +114,7 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
   };
 
   return (
-    <TenantContext.Provider value={{ tenant, loading, isTrialExpired, daysLeft, hasPlanFeature }}>
+    <TenantContext.Provider value={{ tenant, loading, isTrialExpired, daysLeft, hasPlanFeature, isOverriding, switchTenant, exitTenant }}>
       {children}
     </TenantContext.Provider>
   );
