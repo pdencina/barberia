@@ -42,22 +42,22 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
   const [planFeatures, setPlanFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const [overrideTenantId, setOverrideTenantId] = useState<string | null>(null);
-  const [isOverriding, setIsOverriding] = useState(false);
 
-  // Check localStorage for existing override on mount
-  useEffect(() => {
-    const stored = localStorage.getItem("tenant_override");
-    if (stored) {
-      try {
+  // Read override from localStorage synchronously on init
+  const getInitialOverride = (): string | null => {
+    if (typeof window === "undefined") return null;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed.tenantId) {
-          setOverrideTenantId(parsed.tenantId);
-          setIsOverriding(true);
-        }
-      } catch {}
-    }
-  }, []);
+        return parsed.tenantId || null;
+      }
+    } catch {}
+    return null;
+  };
+
+  const [overrideTenantId, setOverrideTenantId] = useState<string | null>(getInitialOverride);
+  const [isOverriding, setIsOverriding] = useState(!!getInitialOverride());
 
   // Determine which tenant to load: override > server-provided
   const activeTenantId = overrideTenantId || serverTenantId;

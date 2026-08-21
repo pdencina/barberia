@@ -20,7 +20,7 @@ export default function BarberosPage() {
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "", role: "barber" });
   const { showToast } = useToast();
-  const { tenant } = useTenant();
+  const { tenant, loading: tenantLoading } = useTenant();
 
   const fetchBarbers = async () => {
     setLoading(true);
@@ -101,9 +101,9 @@ export default function BarberosPage() {
               className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:bg-brand-blue/90">Copiar</button>
           </div>
         ) : (
-          <button onClick={generateInviteCode} disabled={generatingCode || !tenant?.id}
+          <button onClick={generateInviteCode} disabled={generatingCode || tenantLoading || !tenant?.id}
             className="px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:bg-brand-blue/90 disabled:opacity-50 whitespace-nowrap">
-            {generatingCode ? "Generando..." : !tenant?.id ? "Cargando..." : "Generar codigo"}
+            {generatingCode ? "Generando..." : tenantLoading ? "Cargando..." : "Generar codigo"}
           </button>
         )}
       </div>
