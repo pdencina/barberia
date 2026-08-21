@@ -120,7 +120,7 @@ export default function WhatsAppBroadcastPage() {
         />
         <div className="flex gap-2 flex-wrap">
           {[
-            { label: "Link booking", text: "https://barberia-kappa-weld.vercel.app/booking" },
+            { label: "Link booking", text: "https://re-booking.cl/booking" },
             { label: "Saludo", text: "Hola! " },
             { label: "Cupon", text: "\n\nUsa tu cupon: VUELVE10" },
           ].map((t) => (

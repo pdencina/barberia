@@ -84,7 +84,7 @@ export default function SuperAdminTenantsPage() {
     return Math.max(0, Math.ceil((new Date(date).getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
   };
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app";
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-5">
@@ -211,14 +211,14 @@ export default function SuperAdminTenantsPage() {
                   <label className="text-xs font-medium text-brand-gray block mb-1">Nombre de la empresa *</label>
                   <input type="text" required value={form.name}
                     onChange={(e) => setForm({ ...form, name: e.target.value, slug: form.slug || e.target.value.toLowerCase().replace(/[^a-z0-9]/g, "-").replace(/-+/g, "-") })}
-                    placeholder="Ej: Barberia Premium"
+                    placeholder="Ej: Mi Negocio Premium"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-brand-gray block mb-1">Slug (URL) *</label>
                   <input type="text" required value={form.slug}
                     onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "") })}
-                    placeholder="barberia-premium"
+                    placeholder="mi-negocio"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
                 </div>
                 <div>

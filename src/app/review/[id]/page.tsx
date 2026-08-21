@@ -56,7 +56,7 @@ export default function ReviewPage() {
             <h1 className="text-2xl font-bold mb-3">Gracias por tu review!</h1>
             <p className="text-gray-400 mb-6">Tu opinion nos ayuda a mejorar.</p>
             <a href="/ranking" className="text-red-500 hover:underline text-sm">
-              Ver ranking de barberos →
+              Ver ranking de profesionales →
             </a>
           </div>
         ) : (

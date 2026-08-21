@@ -155,7 +155,7 @@ export default function RecepcionPage() {
                 {inProgress.map((a: any) => (
                   <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 shadow border-l-4 border-yellow-400">
                     <p className="font-bold text-lg">{a.client?.name || "-"}</p>
-                    <p className="text-sm text-gray-500">Barbero: {a.barber?.name || "-"}</p>
+                    <p className="text-sm text-gray-500">Profesional: {a.barber?.name || "-"}</p>
                     <p className="text-sm text-gray-500">Servicios: {a.services?.map((s: any) => s.service?.name).join(", ") || "-"}</p>
                     <button onClick={() => updateStatus(a.id, "completed")}
                       className="mt-3 w-full py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">
@@ -183,7 +183,7 @@ export default function RecepcionPage() {
                       </span>
                     </div>
                     <p className="font-medium mt-1">{a.client?.name || "-"}</p>
-                    <p className="text-sm text-gray-500">Barbero: {a.barber?.name || "-"}</p>
+                    <p className="text-sm text-gray-500">Profesional: {a.barber?.name || "-"}</p>
                     <p className="text-sm text-gray-500">Servicios: {a.services?.map((s: any) => s.service?.name).join(", ") || "-"}</p>
                     {a.client?.phone && (
                       <p className="text-sm text-gray-400">Tel: {a.client.phone}</p>

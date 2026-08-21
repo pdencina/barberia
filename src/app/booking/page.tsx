@@ -45,6 +45,7 @@ export default function BookingPage() {
   const [appointmentId, setAppointmentId] = useState("");
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
+  const [businessName, setBusinessName] = useState("");
 
   // Computed totals
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
@@ -58,6 +59,13 @@ export default function BookingPage() {
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch");
     const barberSlug = urlParams.get("barber");
     const barberUrl = tenantSlug ? `/api/public/barbers?branch=${tenantSlug}` : "/api/public/barbers";
+
+    // Fetch business info if on subdomain
+    if (tenantSlug) {
+      fetch(`/api/public/business-info?slug=${tenantSlug}`).then((r) => r.json()).then((data) => {
+        if (data.name) setBusinessName(data.name);
+      }).catch(() => {});
+    }
 
     fetch(barberUrl).then((r) => r.json()).then((data) => {
       setBarbers(data);
@@ -152,7 +160,9 @@ export default function BookingPage() {
         <div className="flex-1" />
         <div className="text-center">
           <img src="/logo-horizontal.png" alt="re-booking" className="h-10 mx-auto" />
-          <p className="text-xs text-brand-blue uppercase tracking-widest mt-2 font-medium">Agendar Hora</p>
+          <p className="text-xs text-brand-blue uppercase tracking-widest mt-2 font-medium">
+            {businessName || "Agendar Hora"}
+          </p>
         </div>
         <div className="flex-1 flex justify-end">
           <button onClick={async () => {

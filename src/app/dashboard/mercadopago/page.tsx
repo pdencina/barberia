@@ -221,8 +221,8 @@ export default function MercadoPagoPage() {
         <p className="font-bold text-brand-dark text-sm">Como funciona:</p>
         <ul className="list-disc pl-4 space-y-1">
           <li><strong>Terminal de la Casa:</strong> se usa para todos los profesionales que no tienen terminal propio</li>
-          <li><strong>Terminal por profesional:</strong> si un barbero tiene su propio Point, configura su Device ID aqui</li>
-          <li><strong>En el POS:</strong> al seleccionar barbero y cobrar con tarjeta, se activa automaticamente SU terminal</li>
+          <li><strong>Terminal por profesional:</strong> si un profesional tiene su propio Point, configura su Device ID aqui</li>
+          <li><strong>En el POS:</strong> al seleccionar profesional y cobrar con tarjeta, se activa automaticamente SU terminal</li>
           <li><strong>Si no tiene terminal propio:</strong> se activa el de la casa</li>
         </ul>
       </div>

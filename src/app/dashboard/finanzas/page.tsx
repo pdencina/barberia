@@ -167,7 +167,7 @@ export default function FinanzasPage() {
               <th className="text-left p-4 font-medium text-gray-600">Fecha</th>
               <th className="text-left p-4 font-medium text-gray-600">Tipo</th>
               <th className="text-left p-4 font-medium text-gray-600">Descripcion</th>
-              <th className="text-left p-4 font-medium text-gray-600">Cliente/Barbero</th>
+              <th className="text-left p-4 font-medium text-gray-600">Cliente/Profesional</th>
               <th className="text-left p-4 font-medium text-gray-600">Metodo</th>
               <th className="text-right p-4 font-medium text-gray-600">Monto</th>
             </tr>

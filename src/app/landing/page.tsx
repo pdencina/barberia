@@ -210,7 +210,7 @@ export default function LandingPage() {
               { icon: "📊", title: "Reportes financieros", desc: "Ingresos separados por comision vs arriendo. Utilidad real del salon en tiempo real.", gradient: "from-emerald-500 to-green-600", glow: "shadow-green-500/40" },
               { icon: "👥", title: "Ficha del cliente", desc: "Historial completo, fotos de cortes, servicios favoritos, notas internas del equipo.", gradient: "from-orange-500 to-amber-600", glow: "shadow-orange-500/40" },
               { icon: "🔔", title: "Recordatorios", desc: "Notificaciones automaticas por email 24h antes de cada cita. Reduce no-shows.", gradient: "from-rose-500 to-pink-600", glow: "shadow-pink-500/40" },
-              { icon: "📱", title: "100% Movil", desc: "PWA instalable. Los barberos gestionan su agenda desde el celular como una app nativa.", gradient: "from-cyan-500 to-teal-600", glow: "shadow-teal-500/40" },
+              { icon: "📱", title: "100% Movil", desc: "PWA instalable. Los profesionales gestionan su agenda desde el celular como una app nativa.", gradient: "from-cyan-500 to-teal-600", glow: "shadow-teal-500/40" },
               { icon: "🏷️", title: "Cupones y descuentos", desc: "Crea codigos de descuento, autoriza descuentos manuales con PIN de admin.", gradient: "from-yellow-500 to-orange-600", glow: "shadow-yellow-500/40" },
               { icon: "⭐", title: "Reviews y ranking", desc: "Cada cliente califica su atencion. Ranking interno de profesionales.", gradient: "from-[#0F8B8D] to-[#2EC4B6]", glow: "shadow-[#0F8B8D]/40" },
               { icon: "📦", title: "Inventario", desc: "Control de stock, alertas de bajo inventario, movimientos automaticos al vender.", gradient: "from-slate-500 to-gray-700", glow: "shadow-gray-500/40" },
@@ -523,7 +523,7 @@ export default function LandingPage() {
                 <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
                   className="text-2xl md:text-3xl lg:text-5xl font-bold">Agenda tu demo gratuita</motion.h2>
                 <p className="mt-4 text-[#2EC4B6] text-lg max-w-xl mx-auto">
-                  En 15 minutos te mostramos como re-booking puede transformar tu barberia.
+                  En 15 minutos te mostramos como re-booking puede transformar tu negocio.
                 </p>
                 <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
                   <motion.a whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }} whileTap={{ scale: 0.95 }}

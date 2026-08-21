@@ -231,7 +231,7 @@ export default function ServiciosPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Servicios</h1>
-          <p className="text-brand-gray text-sm">Gestiona el menu de servicios de tu barberia</p>
+          <p className="text-brand-gray text-sm">Gestiona el menu de servicios de tu negocio</p>
         </div>
         <button onClick={openNew}
           className="px-4 py-2 bg-brand-blue text-white rounded-xl hover:bg-brand-blue/90 text-sm font-medium transition-colors">

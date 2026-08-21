@@ -473,7 +473,7 @@ export default function POSPage() {
               onChange={(e) => setSelectedBarber(e.target.value)}
               className="border border-gray-200 rounded-lg px-2 py-1.5 text-xs"
             >
-              <option value="">Barbero *</option>
+              <option value="">Profesional *</option>
               {barbers.map((b) => (
                 <option key={b.id} value={b.id}>{b.name}</option>
               ))}

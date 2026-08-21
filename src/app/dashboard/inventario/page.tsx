@@ -321,7 +321,7 @@ export default function InventarioPage() {
               <th className="text-left p-4 font-medium text-gray-600">Producto</th>
               <th className="text-left p-4 font-medium text-gray-600">Tipo</th>
               <th className="text-center p-4 font-medium text-gray-600">Cantidad</th>
-              <th className="text-left p-4 font-medium text-gray-600">Barbero</th>
+              <th className="text-left p-4 font-medium text-gray-600">Profesional</th>
               <th className="text-left p-4 font-medium text-gray-600">Notas</th>
             </tr>
           </thead>

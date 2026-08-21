@@ -52,7 +52,7 @@ export default function RankingPage() {
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-bold text-center mb-2">Ranking de Barberos</h1>
+        <h1 className="text-3xl font-bold text-center mb-2">Ranking de Profesionales</h1>
         <p className="text-gray-400 text-center mb-10">Calificados por nuestros clientes</p>
 
         {loading ? (

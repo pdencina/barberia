@@ -27,7 +27,7 @@ const commands: CommandItem[] = [
   { name: "Retencion", href: "/dashboard/retencion", icon: "❤️", keywords: "retencion inactivo whatsapp" },
   { name: "Cupones", href: "/dashboard/cupones", icon: "🏷️", keywords: "cupon descuento codigo" },
   { name: "Servicios", href: "/dashboard/servicios", icon: "✂️", keywords: "servicio corte precio" },
-  { name: "Barberos", href: "/dashboard/barberos", icon: "💈", keywords: "barbero equipo profesional" },
+  { name: "Equipo", href: "/dashboard/barberos", icon: "💈", keywords: "equipo profesional barbero" },
   { name: "Galeria", href: "/dashboard/galeria", icon: "🖼️", keywords: "foto galeria trabajo" },
   { name: "Boletas", href: "/dashboard/boletas", icon: "🧾", keywords: "boleta email enviar" },
   { name: "Recordatorios", href: "/dashboard/recordatorios", icon: "🔔", keywords: "recordatorio notificacion" },

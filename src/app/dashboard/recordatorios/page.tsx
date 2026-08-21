@@ -109,7 +109,7 @@ export default function RecordatoriosPage() {
                     <span className="font-medium text-gray-900">{link.clientName}</span>
                   </div>
                   <p className="text-sm text-gray-500 mt-1">
-                    {link.service} · Barbero: {link.barber} · Tel: {link.phone}
+                    {link.service} · Profesional: {link.barber} · Tel: {link.phone}
                   </p>
                 </div>
                 <button

@@ -102,7 +102,7 @@ export default function ComisionesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">Comisiones</h1>
-          <p className="text-gray-500 text-sm">Calculo automatico por barbero</p>
+          <p className="text-gray-500 text-sm">Calculo automatico por profesional</p>
         </div>
         <button onClick={() => setShowAdjustModal(true)}
           className="px-4 py-2 bg-orange-600 text-white text-sm rounded-xl hover:bg-orange-700 font-medium">
@@ -142,7 +142,7 @@ export default function ComisionesPage() {
         <table className="w-full text-sm">
           <thead className="bg-gray-50 border-b">
             <tr>
-              <th className="text-left p-4 font-medium text-gray-600">Barbero</th>
+              <th className="text-left p-4 font-medium text-gray-600">Profesional</th>
               <th className="text-center p-4 font-medium text-gray-600">% Comision</th>
               <th className="text-center p-4 font-medium text-gray-600">Ventas</th>
               <th className="text-right p-4 font-medium text-gray-600">Total Vendido</th>
