@@ -11,13 +11,14 @@ interface Barber {
   email: string;
   phone: string;
   avatar_url: string | null;
+  role?: string;
 }
 
 export default function BarberosPage() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "", role: "barber" });
   const { showToast } = useToast();
   const { tenant } = useTenant();
 
@@ -45,7 +46,7 @@ export default function BarberosPage() {
     });
     showToast("Profesional creado. Se envio email con credenciales.", "success");
     setShowModal(false);
-    setFormData({ name: "", email: "", phone: "", password: "" });
+    setFormData({ name: "", email: "", phone: "", password: "", role: "barber" });
     fetchBarbers();
   };
 
@@ -80,10 +81,10 @@ export default function BarberosPage() {
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Profesionales</h1>
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Equipo</h1>
         <button onClick={() => setShowModal(true)}
           className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-          Nuevo Profesional
+          Nuevo Miembro
         </button>
       </div>
 
@@ -134,6 +135,9 @@ export default function BarberosPage() {
                       </div>
                     )}
                     {b.name}
+                    {b.role === "receptionist" && (
+                      <span className="ml-2 px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[9px] font-bold rounded">RECEPCION</span>
+                    )}
                   </div>
                 </td>
                 <td className="p-4">{b.email || "-"}</td>
@@ -162,7 +166,7 @@ export default function BarberosPage() {
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl p-5 md:p-6 w-full max-w-md shadow-xl animate-scale-in">
-            <h2 className="text-lg font-bold mb-4">Nuevo Profesional</h2>
+            <h2 className="text-lg font-bold mb-4">Nuevo Miembro del Equipo</h2>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
@@ -187,6 +191,21 @@ export default function BarberosPage() {
                 <input type="password" required value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Rol</label>
+                <select value={formData.role}
+                  onChange={(e) => setFormData({ ...formData, role: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2">
+                  <option value="barber">Profesional</option>
+                  <option value="receptionist">Recepcionista</option>
+                  <option value="admin">Administrador</option>
+                </select>
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {formData.role === "barber" && "Ve su agenda, standby, clientes y comisiones"}
+                  {formData.role === "receptionist" && "Ve POS, calendario, clientes y recepcion. Sin acceso a finanzas."}
+                  {formData.role === "admin" && "Acceso completo al negocio (sin super admin)"}
+                </p>
               </div>
               <div className="flex gap-2 justify-end">
                 <button type="button" onClick={() => setShowModal(false)}

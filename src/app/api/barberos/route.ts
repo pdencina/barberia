@@ -14,8 +14,8 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("profiles")
-    .select("id, name, email, phone, avatar_url")
-    .eq("role", "barber")
+    .select("id, name, email, phone, avatar_url, role")
+    .in("role", ["barber", "receptionist"])
     .eq("active", true)
     .order("name");
 
@@ -35,16 +35,17 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const adminSupabase = createAdminSupabase();
   const body = await req.json();
-  const { name, email, phone, password, tenantId } = body;
+  const { name, email, phone, password, tenantId, role } = body;
 
   const tempPassword = password || Math.random().toString(36).slice(-8);
+  const userRole = role || "barber";
 
   // Create user in Supabase Auth
   const { data: authData, error: authError } = await adminSupabase.auth.admin.createUser({
     email,
     password: tempPassword,
     email_confirm: true,
-    user_metadata: { name, role: "barber" },
+    user_metadata: { name, role: userRole },
   });
 
   if (authError) {
@@ -53,15 +54,13 @@ export async function POST(req: NextRequest) {
 
   // Update phone and tenant in profile
   if (authData.user) {
-    const updates: any = {};
+    const updates: any = { role: userRole };
     if (phone) updates.phone = phone;
     if (tenantId) updates.tenant_id = tenantId;
-    if (Object.keys(updates).length > 0) {
-      await adminSupabase
-        .from("profiles")
-        .update(updates)
-        .eq("id", authData.user.id);
-    }
+    await adminSupabase
+      .from("profiles")
+      .update(updates)
+      .eq("id", authData.user.id);
   }
 
   // Send welcome email with credentials
