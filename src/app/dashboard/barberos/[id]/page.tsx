@@ -173,8 +173,26 @@ export default function EditProfessionalPage() {
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Email</label>
-            <input type="email" value={data.email || ""} onChange={(e) => setData({ ...data, email: e.target.value })}
-              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+            <div className="flex gap-2">
+              <input type="email" value={data.email || ""} onChange={(e) => setData({ ...data, email: e.target.value })}
+                className="flex-1 border rounded-xl px-3 py-2.5 text-sm" />
+              <button
+                onClick={async () => {
+                  if (!data.email) { showToast("No tiene email", "error"); return; }
+                  const res = await fetch("/api/barberos/resend-credentials", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ email: data.email, name: data.name }),
+                  });
+                  const result = await res.json();
+                  if (result.success) showToast("Email enviado", "success");
+                  else showToast(result.error || "Error al enviar", "error");
+                }}
+                className="px-3 py-2 bg-brand-blue/10 text-brand-blue text-xs rounded-xl hover:bg-brand-blue/20 whitespace-nowrap font-medium"
+              >
+                Enviar credenciales
+              </button>
+            </div>
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Teléfono</label>

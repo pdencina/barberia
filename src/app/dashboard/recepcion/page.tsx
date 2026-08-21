@@ -96,7 +96,26 @@ export default function RecepcionPage() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
-    showToast("Estado actualizado", "success");
+
+    // Notify barber when client arrives (status = in_progress)
+    if (status === "in_progress") {
+      const appt = appointments.find((a) => a.id === id);
+      if (appt) {
+        await fetch("/api/notifications/client-arrived", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            appointmentId: id,
+            clientName: appt.client?.name || "Cliente",
+            barberName: appt.barber?.name || "",
+          }),
+        });
+        showToast(`${appt.barber?.name} fue notificado`, "success");
+      }
+    } else {
+      showToast("Estado actualizado", "success");
+    }
+
     fetchAppointments();
   };
 

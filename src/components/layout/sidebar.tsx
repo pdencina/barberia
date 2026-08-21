@@ -123,7 +123,7 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
           ...section,
           items: section.items.map((item) => ({
             ...item,
-            locked: !isAtLeast(item.minRole) && userAuthRole !== "super_admin",
+            locked: !isAtLeast(item.minRole),
           })),
         }))
         .filter((section) => section.items.some((item) => !(item as any).locked));
