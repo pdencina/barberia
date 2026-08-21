@@ -49,6 +49,9 @@ export async function POST(req: NextRequest) {
   });
 
   if (authError) {
+    if (authError.message.includes("already") || authError.message.includes("exists")) {
+      return NextResponse.json({ error: "Ya existe una cuenta con ese email. Usa otro email o edita el profesional existente." }, { status: 409 });
+    }
     return NextResponse.json({ error: authError.message }, { status: 500 });
   }
 

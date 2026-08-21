@@ -20,7 +20,7 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (!profile) {
-    return NextResponse.json({ error: "Usuario no encontrado en profiles" }, { status: 404 });
+    return NextResponse.json({ error: "Este profesional no tiene cuenta activa. Crealo primero desde 'Nuevo Miembro'." }, { status: 404 });
   }
 
   // Update password via admin API

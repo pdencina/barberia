@@ -39,12 +39,17 @@ export default function BarberosPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/barberos", {
+    const res = await fetch("/api/barberos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...formData, tenantId: tenant?.id }),
     });
-    showToast("Profesional creado. Se envio email con credenciales.", "success");
+    const data = await res.json();
+    if (!res.ok) {
+      showToast(data.error || "Error al crear miembro", "error");
+      return;
+    }
+    showToast("Miembro creado. Se envio email con credenciales.", "success");
     setShowModal(false);
     setFormData({ name: "", email: "", phone: "", password: "", role: "barber" });
     fetchBarbers();
