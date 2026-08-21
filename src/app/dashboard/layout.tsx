@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { createServerSupabase } from "@/lib/supabase/server";
+import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/sidebar";
 import { ToastWrapper } from "@/components/providers/toast-wrapper";
 import { AuthWrapper } from "@/components/providers/auth-wrapper";
@@ -22,7 +22,7 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
-  const { data: profile } = await supabase
+  const { data: profile } = await createAdminSupabase()
     .from("profiles")
     .select("name, role, tenant_id")
     .eq("id", user.id)

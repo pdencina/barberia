@@ -12,6 +12,7 @@ interface Client {
   email: string;
   phone: string;
   notes: string;
+  created_at?: string;
 }
 
 export default function ClientesPage() {
@@ -340,7 +341,12 @@ export default function ClientesPage() {
                     onChange={() => toggleSelect(c.id)}
                     className="w-4 h-4 rounded border-gray-300" />
                 </td>
-                <td className="p-4 font-medium text-blue-600 hover:underline cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${c.id}`)}>{c.name}</td>
+                <td className="p-4 font-medium text-blue-600 hover:underline cursor-pointer" onClick={() => router.push(`/dashboard/clientes/${c.id}`)}>
+                  {c.name}
+                  {c.created_at && (Date.now() - new Date(c.created_at).getTime()) < 7 * 24 * 60 * 60 * 1000 && (
+                    <span className="ml-2 px-1.5 py-0.5 bg-green-100 text-green-700 text-[9px] font-bold rounded">NUEVO</span>
+                  )}
+                </td>
                 <td className="p-4">{c.email || "-"}</td>
                 <td className="p-4">{c.phone || "-"}</td>
                 <td className="p-4 text-gray-500">{c.notes || "-"}</td>

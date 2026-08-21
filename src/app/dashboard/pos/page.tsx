@@ -47,6 +47,7 @@ export default function POSPage() {
   const [activeTab, setActiveTab] = useState<"services" | "products">("services");
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc">("default");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedBarber, setSelectedBarber] = useState("");
   const [selectedClient, setSelectedClient] = useState("");
@@ -82,7 +83,7 @@ export default function POSPage() {
     Promise.all([
       fetch(`/api/services${params}`).then((r) => r.json()).catch(() => []),
       fetch(`/api/products${params}`).then((r) => r.json()).catch(() => []),
-      fetch(`/api/clients${params}`).then((r) => r.json()).catch(() => ({ clients: [] })),
+      fetch(`/api/clients${params}&limit=5000`).then((r) => r.json()).catch(() => ({ clients: [] })),
       fetch(`/api/barberos${params}`).then((r) => r.json()).catch(() => []),
     ]).then(([servicesData, productsData, clientsData, barbersData]) => {
       setServices(Array.isArray(servicesData) ? servicesData : []);
@@ -95,14 +96,19 @@ export default function POSPage() {
   // Get unique categories from services
   const serviceCategories = Array.from(new Set(services.map((s) => s.category).filter(Boolean))) as string[];
 
-  const filteredItems =
-    activeTab === "services"
+  const filteredItems = (() => {
+    let items: Array<Service | Product> = activeTab === "services"
       ? services.filter((s) => {
           const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
           const matchesCategory = categoryFilter === "all" || s.category === categoryFilter;
           return matchesSearch && matchesCategory;
         })
       : products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
+
+    if (sortBy === "price_asc") items = [...items].sort((a, b) => a.price - b.price);
+    if (sortBy === "price_desc") items = [...items].sort((a, b) => b.price - a.price);
+    return items;
+  })();
 
   const addToCart = (item: Service | Product, type: "service" | "product") => {
     const existing = cart.find((c) => c.id === item.id && c.type === type);
@@ -357,6 +363,22 @@ export default function POSPage() {
             ))}
           </div>
         )}
+
+        {/* Sort by price */}
+        <div className="flex gap-1.5 mb-3">
+          <button onClick={() => setSortBy(sortBy === "price_asc" ? "default" : "price_asc")}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+              sortBy === "price_asc" ? "bg-brand-blue text-white" : "bg-gray-100 text-brand-gray hover:bg-gray-200"
+            }`}>
+            Precio ↑
+          </button>
+          <button onClick={() => setSortBy(sortBy === "price_desc" ? "default" : "price_desc")}
+            className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+              sortBy === "price_desc" ? "bg-brand-blue text-white" : "bg-gray-100 text-brand-gray hover:bg-gray-200"
+            }`}>
+            Precio ↓
+          </button>
+        </div>
 
         <div className="relative mb-4">
           <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-brand-gray" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
