@@ -47,6 +47,13 @@ export default function ConfiguracionPage() {
   const [showAddTerminal, setShowAddTerminal] = useState(false);
   const [newTerminal, setNewTerminal] = useState({ name: "", device_id: "", terminal_type: "all" });
 
+  // Deposit/abono settings
+  const [depositEnabled, setDepositEnabled] = useState(false);
+  const [depositPercentage, setDepositPercentage] = useState(30);
+  const [cancellationHours, setCancellationHours] = useState(24);
+  const [depositMessage, setDepositMessage] = useState("Este servicio requiere un abono para confirmar tu cita.");
+  const [depositSaving, setDepositSaving] = useState(false);
+
   // Generate time options from 06:00 to 23:00
   const timeOptions: string[] = [];
   for (let h = 6; h <= 23; h++) {
@@ -103,6 +110,16 @@ export default function ConfiguracionPage() {
         const termRes = await fetch(`/api/settings/mercadopago/terminals?tenantId=${profile.tenant_id}`);
         const termData = await termRes.json();
         if (Array.isArray(termData)) setTerminals(termData);
+
+        // Fetch deposit settings
+        const depRes = await fetch(`/api/settings/deposit?tenantId=${profile.tenant_id}`);
+        const depData = await depRes.json();
+        if (depData) {
+          setDepositEnabled(depData.deposit_enabled || false);
+          setDepositPercentage(depData.deposit_percentage || 30);
+          setCancellationHours(depData.cancellation_free_hours || 24);
+          setDepositMessage(depData.deposit_message || "Este servicio requiere un abono para confirmar tu cita.");
+        }
       }
     }
 
@@ -518,6 +535,96 @@ export default function ConfiguracionPage() {
             </div>
           )}
         </div>
+      </div>
+
+      {/* Deposit / Abono Config */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+            </svg>
+            <div>
+              <h2 className="font-bold text-brand-dark">Abono para Reservas</h2>
+              <p className="text-xs text-brand-gray">Cobra un anticipo al momento de agendar para reducir cancelaciones</p>
+            </div>
+          </div>
+          <button
+            onClick={() => setDepositEnabled(!depositEnabled)}
+            className={`relative w-11 h-6 rounded-full transition-colors ${depositEnabled ? "bg-green-500" : "bg-gray-300"}`}
+          >
+            <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${depositEnabled ? "left-[22px]" : "left-0.5"}`} />
+          </button>
+        </div>
+
+        {depositEnabled && (
+          <div className="space-y-4 pt-2">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Porcentaje de abono</label>
+                <select value={depositPercentage} onChange={(e) => setDepositPercentage(parseInt(e.target.value))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                  <option value={20}>20%</option>
+                  <option value={30}>30%</option>
+                  <option value={40}>40%</option>
+                  <option value={50}>50%</option>
+                  <option value={75}>75%</option>
+                  <option value={100}>100% (pago completo)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-brand-gray mb-1">Cancelacion gratis hasta</label>
+                <select value={cancellationHours} onChange={(e) => setCancellationHours(parseInt(e.target.value))}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                  <option value={2}>2 horas antes</option>
+                  <option value={6}>6 horas antes</option>
+                  <option value={12}>12 horas antes</option>
+                  <option value={24}>24 horas antes</option>
+                  <option value={48}>48 horas antes</option>
+                  <option value={72}>72 horas antes</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-brand-gray mb-1">Mensaje al cliente</label>
+              <input type="text" value={depositMessage} onChange={(e) => setDepositMessage(e.target.value)}
+                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
+                placeholder="Este servicio requiere un abono para confirmar tu cita." />
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+              <p className="text-xs text-green-700">
+                <strong>Ejemplo:</strong> Si un servicio cuesta $35.000 y el abono es 30%, la clienta paga $10.500 al agendar.
+                Si cancela antes de {cancellationHours}h, se le devuelve. Despues de ese plazo, pierde el abono.
+              </p>
+            </div>
+
+            <button
+              onClick={async () => {
+                if (!tenantId) return;
+                setDepositSaving(true);
+                await fetch("/api/settings/deposit", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({
+                    tenantId,
+                    deposit_enabled: depositEnabled,
+                    deposit_percentage: depositPercentage,
+                    cancellation_free_hours: cancellationHours,
+                    deposit_message: depositMessage,
+                  }),
+                });
+                setDepositSaving(false);
+                showToast("Configuracion de abono guardada", "success");
+              }}
+              disabled={depositSaving}
+              className="w-full py-2.5 bg-green-600 text-white rounded-xl text-sm font-medium hover:bg-green-700 disabled:opacity-50 transition-colors"
+            >
+              {depositSaving ? "Guardando..." : "Guardar Abono"}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Save */}

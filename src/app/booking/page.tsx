@@ -46,6 +46,9 @@ export default function BookingPage() {
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
   const [businessName, setBusinessName] = useState("");
+  const [depositRequired, setDepositRequired] = useState(false);
+  const [depositPercentage, setDepositPercentage] = useState(30);
+  const [depositMessage, setDepositMessage] = useState("");
 
   // Computed totals
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
@@ -64,6 +67,16 @@ export default function BookingPage() {
     if (tenantSlug) {
       fetch(`/api/public/business-info?slug=${tenantSlug}`).then((r) => r.json()).then((data) => {
         if (data.name) setBusinessName(data.name);
+        // Fetch deposit settings for this tenant
+        if (data.id) {
+          fetch(`/api/settings/deposit?tenantId=${data.id}`).then((r) => r.json()).then((dep) => {
+            if (dep.deposit_enabled) {
+              setDepositRequired(true);
+              setDepositPercentage(dep.deposit_percentage || 30);
+              setDepositMessage(dep.deposit_message || "");
+            }
+          }).catch(() => {});
+        }
       }).catch(() => {});
     }
 
@@ -117,6 +130,38 @@ export default function BookingPage() {
     setError("");
     setSubmitting(true);
 
+    // If deposit is required, create MP checkout preference and redirect
+    if (depositRequired) {
+      const depositRes = await fetch("/api/booking/create-deposit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          serviceIds: selectedServices.map((s) => s.id),
+          barberId: selectedBarber!.id,
+          date: selectedDate,
+          startTime: selectedSlot,
+          clientName,
+          clientEmail: clientEmail || null,
+          clientPhone: clientPhone || null,
+          notes: notes || null,
+          totalPrice,
+        }),
+      });
+
+      const depositData = await depositRes.json();
+      setSubmitting(false);
+
+      if (depositData.checkoutUrl) {
+        // Redirect to MercadoPago Checkout
+        window.location.href = depositData.checkoutUrl;
+        return;
+      } else {
+        setError(depositData.error || "Error al crear link de pago");
+        return;
+      }
+    }
+
+    // Normal flow (no deposit required)
     const res = await fetch("/api/public/book", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -498,6 +543,15 @@ export default function BookingPage() {
                 <span className="text-brand-gray">Total</span>
                 <span className="text-brand-blue font-bold text-lg">{formatCurrency(totalPrice)}</span>
               </div>
+              {depositRequired && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
+                  <div className="flex justify-between items-center">
+                    <span className="text-sm text-yellow-800 font-medium">Abono requerido ({depositPercentage}%)</span>
+                    <span className="text-yellow-800 font-bold">{formatCurrency(Math.ceil(totalPrice * depositPercentage / 100))}</span>
+                  </div>
+                  <p className="text-[10px] text-yellow-700 mt-1">{depositMessage || "Se cobra al confirmar la reserva. El resto se paga en el local."}</p>
+                </div>
+              )}
             </div>
 
             <div className="space-y-4">
@@ -566,7 +620,7 @@ export default function BookingPage() {
               disabled={!clientName.trim() || !clientPhone.trim() || submitting}
               className="w-full mt-6 py-4 rounded-xl bg-brand-blue text-white font-bold text-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? "Agendando..." : "Confirmar Cita"}
+              {submitting ? "Procesando..." : depositRequired ? `Pagar abono ${formatCurrency(Math.ceil(totalPrice * depositPercentage / 100))}` : "Confirmar Cita"}
             </button>
           </div>
         )}
