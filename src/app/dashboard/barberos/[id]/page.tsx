@@ -146,11 +146,11 @@ export default function EditProfessionalPage() {
         <p className="text-xs text-brand-gray font-medium mb-1.5">Link de agenda personal</p>
         <div className="flex items-center gap-2">
           <code className="flex-1 text-sm text-brand-blue bg-white px-3 py-2 rounded-xl border border-gray-200 truncate">
-            {`${typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl"}/booking?barber=${data.name.toLowerCase().replace(/\s+/g, "-")}`}
+            {`${typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl"}/booking?profesional=${data.name.toLowerCase().replace(/\s+/g, "-")}`}
           </code>
           <button
             onClick={() => {
-              const link = `${window.location.origin}/booking?barber=${data.name.toLowerCase().replace(/\s+/g, "-")}`;
+              const link = `${window.location.origin}/booking?profesional=${data.name.toLowerCase().replace(/\s+/g, "-")}`;
               navigator.clipboard.writeText(link);
               showToast("Link copiado!", "success");
             }}

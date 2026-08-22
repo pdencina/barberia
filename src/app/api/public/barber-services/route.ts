@@ -11,12 +11,25 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "barberId requerido" }, { status: 400 });
   }
 
-  // Get all active services
-  const { data: services } = await supabase
+  // Get barber's tenant_id to filter services
+  const { data: barberProfile } = await supabase
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", barberId)
+    .single();
+
+  // Get active services filtered by tenant
+  let servicesQuery = supabase
     .from("services")
     .select("id, name, description, price, duration, sort_order")
     .eq("active", true)
     .order("sort_order");
+
+  if (barberProfile?.tenant_id) {
+    servicesQuery = servicesQuery.eq("tenant_id", barberProfile.tenant_id);
+  }
+
+  const { data: services } = await servicesQuery;
 
   // Get custom prices for this barber
   const { data: customPrices } = await supabase

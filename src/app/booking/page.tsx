@@ -57,7 +57,7 @@ export default function BookingPage() {
     // Get tenant slug from URL params
     const urlParams = new URLSearchParams(window.location.search);
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch");
-    const barberSlug = urlParams.get("barber");
+    const barberSlug = urlParams.get("profesional") || urlParams.get("barber");
     const barberUrl = tenantSlug ? `/api/public/barbers?branch=${tenantSlug}` : "/api/public/barbers";
 
     // Fetch business info if on subdomain
