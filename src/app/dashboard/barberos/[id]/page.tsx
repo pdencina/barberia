@@ -220,6 +220,25 @@ export default function EditProfessionalPage() {
             <p className="text-[10px] text-gray-400 mt-1">Intervalo entre citas disponibles en la agenda online</p>
           </div>
         </div>
+
+        {/* Also attends clients toggle (for admins) */}
+        {(data as any).role === "admin" || (data as any).role === "super_admin" ? (
+          <div className="flex items-center justify-between p-3 bg-brand-blue/5 border border-brand-blue/20 rounded-xl">
+            <div>
+              <p className="text-sm font-medium text-brand-dark">También atiendo clientes</p>
+              <p className="text-[10px] text-brand-gray">Activar para aparecer en el link de reserva online</p>
+            </div>
+            <button
+              onClick={() => setData({ ...data, also_attends_clients: !(data as any).also_attends_clients } as any)}
+              className={`relative w-11 h-6 rounded-full transition-colors ${
+                (data as any).also_attends_clients ? "bg-brand-blue" : "bg-gray-300"
+              }`}>
+              <div className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${
+                (data as any).also_attends_clients ? "left-[22px]" : "left-0.5"
+              }`} />
+            </button>
+          </div>
+        ) : null}
       </div>
 
       {/* Work mode selector */}
