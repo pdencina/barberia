@@ -127,11 +127,11 @@ export default function SuperAdminTenantsPage() {
               <p className="font-bold text-green-800">Empresa creada! Credenciales enviadas por email.</p>
               <div className="mt-2 text-sm text-green-700 space-y-1">
                 <p><strong>Email:</strong> {createdInfo.email}</p>
-                <p><strong>contrase�a temporal:</strong> <code className="bg-green-200 px-2 py-0.5 rounded">{createdInfo.password}</code></p>
+                <p><strong>contraseña temporal:</strong> <code className="bg-green-200 px-2 py-0.5 rounded">{createdInfo.password}</code></p>
                 <p><strong>URL:</strong> {appUrl}/login</p>
               </div>
             </div>
-            <button onClick={() => setCreatedInfo(null)} className="text-green-600 hover:text-green-800">✕</button>
+            <button onClick={() => setCreatedInfo(null)} className="text-green-600 hover:text-green-800">âœ•</button>
           </div>
         </div>
       )}
@@ -167,7 +167,7 @@ export default function SuperAdminTenantsPage() {
                       </span>
                     </div>
                     <p className="text-xs text-brand-gray mt-0.5">
-                      {t.admin_email} · /{t.slug} · {t.max_professionals} profesionales max
+                      {t.admin_email} Â· /{t.slug} Â· {t.max_professionals} profesionales max
                     </p>
                   </div>
                 </div>
@@ -189,7 +189,7 @@ export default function SuperAdminTenantsPage() {
                     onClick={() => switchTenant(t.id, t.name)}
                     className="mt-1 px-3 py-1.5 bg-brand-blue text-white text-xs font-medium rounded-lg hover:bg-brand-blue/90 transition-colors"
                   >
-                    Entrar →
+                    Entrar â†’
                   </button>
                 </div>
               </div>
@@ -203,7 +203,7 @@ export default function SuperAdminTenantsPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-brand-dark mb-1">Nueva Empresa</h2>
-            <p className="text-sm text-brand-gray mb-5">Se creara un admin con contrase�a temporal y se le enviara email</p>
+            <p className="text-sm text-brand-gray mb-5">Se creara un admin con contraseña temporal y se le enviara email</p>
 
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -260,10 +260,10 @@ export default function SuperAdminTenantsPage() {
                   <label className="text-xs font-medium text-brand-gray block mb-1">Plan</label>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { key: "basic", label: "Basic", desc: "1 prof · $8.900/mes" },
-                      { key: "starter", label: "Starter", desc: "3 prof · $29.990/mes" },
-                      { key: "pro", label: "Pro", desc: "8 prof · $49.990/mes" },
-                      { key: "enterprise", label: "Enterprise", desc: "Ilimitado · $189.990/mes" },
+                      { key: "basic", label: "Basic", desc: "1 prof Â· $8.900/mes" },
+                      { key: "starter", label: "Starter", desc: "3 prof Â· $29.990/mes" },
+                      { key: "pro", label: "Pro", desc: "8 prof Â· $49.990/mes" },
+                      { key: "enterprise", label: "Enterprise", desc: "Ilimitado Â· $189.990/mes" },
                     ].map((p) => (
                       <button key={p.key} type="button" onClick={() => setForm({ ...form, plan: p.key })}
                         className={`p-3 rounded-xl border-2 text-left transition-all ${form.plan === p.key ? "border-brand-blue bg-brand-blue/5" : "border-gray-200 hover:border-gray-300"}`}>
@@ -276,7 +276,7 @@ export default function SuperAdminTenantsPage() {
               </div>
 
               <div className="bg-blue-50 rounded-xl p-3 text-xs text-brand-blue">
-                Se generara una contrase�a temporal y se enviara por email al admin. Trial de 15 dias incluido.
+                Se generara una contraseña temporal y se enviara por email al admin. Trial de 15 dias incluido.
               </div>
 
               <div className="flex gap-2 pt-2">

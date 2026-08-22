@@ -3,7 +3,7 @@ import Link from "next/link";
 export default function TerminosPage() {
   return (
     <div className="min-h-screen bg-white p-6 md:p-12 max-w-3xl mx-auto">
-      <Link href="/landing" className="text-brand-blue text-sm hover:underline">← Volver</Link>
+      <Link href="/landing" className="text-brand-blue text-sm hover:underline">â† Volver</Link>
       <h1 className="text-2xl font-bold text-brand-dark mt-6 mb-4">Terminos y Condiciones</h1>
       <p className="text-sm text-brand-gray mb-6">Ultima actualizacion: Agosto 2026</p>
 
@@ -15,7 +15,7 @@ export default function TerminosPage() {
         <p>re-booking es una plataforma de gestion de negocios que permite la administracion de citas, clientes, pagos, inventario y equipo de trabajo. El servicio se ofrece bajo diferentes planes con distintas funcionalidades.</p>
 
         <h2 className="text-lg font-bold">3. Registro y Cuenta</h2>
-        <p>Para utilizar el servicio debes crear una cuenta proporcionando informacion veraz y actualizada. Eres responsable de mantener la confidencialidad de tu contrase�a y de todas las actividades que ocurran bajo tu cuenta.</p>
+        <p>Para utilizar el servicio debes crear una cuenta proporcionando informacion veraz y actualizada. Eres responsable de mantener la confidencialidad de tu contraseña y de todas las actividades que ocurran bajo tu cuenta.</p>
 
         <h2 className="text-lg font-bold">4. Planes y Pagos</h2>
         <p>El servicio ofrece un periodo de prueba gratuito de 14 dias. Al finalizar el periodo de prueba, deberas seleccionar un plan pago para continuar utilizando el servicio. Los precios pueden ser modificados con previo aviso de 30 dias.</p>
