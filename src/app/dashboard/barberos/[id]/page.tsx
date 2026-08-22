@@ -352,7 +352,7 @@ export default function EditProfessionalPage() {
           <label className="block text-xs text-gray-500 mb-1">Especialidades (separar con coma)</label>
           <input type="text" value={(data as any).specialties?.join(", ") || ""}
             onChange={(e) => setData({ ...data, specialties: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) } as any)}
-            placeholder="Degradado, Barba, Diseno, Color"
+            placeholder="Degradado, Barba, Diseño, Color"
             className="w-full border rounded-xl px-3 py-2.5 text-sm" />
         </div>
         <div className="grid grid-cols-2 gap-3">

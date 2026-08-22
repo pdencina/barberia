@@ -9,7 +9,9 @@ export function PushNotificationPrompt() {
   useEffect(() => {
     if ("Notification" in window && "serviceWorker" in navigator) {
       setPermission(Notification.permission);
-      if (Notification.permission === "default") {
+      // Only show if not previously dismissed and permission is default
+      const dismissed = localStorage.getItem("push-prompt-dismissed");
+      if (Notification.permission === "default" && !dismissed) {
         // Show prompt after 3 seconds
         const timer = setTimeout(() => setShow(true), 3000);
         return () => clearTimeout(timer);
@@ -51,7 +53,7 @@ export function PushNotificationPrompt() {
       <p className="font-medium text-gray-900 text-sm mb-1">Activar notificaciones?</p>
       <p className="text-xs text-gray-500 mb-3">Recibe alertas cuando un cliente agenda una cita.</p>
       <div className="flex gap-2">
-        <button onClick={() => setShow(false)}
+        <button onClick={() => { setShow(false); localStorage.setItem("push-prompt-dismissed", "true"); }}
           className="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50">Ahora no</button>
         <button onClick={subscribe}
           className="px-3 py-1.5 text-xs bg-blue-600 text-white rounded-lg hover:bg-blue-700">Activar</button>

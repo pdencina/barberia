@@ -103,7 +103,7 @@ export default function LoginPage() {
 
           <div className="space-y-1.5">
             <label htmlFor="password" className="text-xs font-medium text-brand-gray">
-              Contrasena
+              Contraseña
             </label>
             <div className="relative">
               <input
@@ -157,7 +157,7 @@ export default function LoginPage() {
           <div className="text-center pt-1">
             <button type="button" onClick={() => { setShowForgot(true); setForgotEmail(email); }}
               className="text-xs text-brand-gray hover:text-brand-blue transition-colors">
-              Olvidaste tu contrasena?
+              Olvidaste tu contraseña?
             </button>
           </div>
         </form>
@@ -197,7 +197,7 @@ export default function LoginPage() {
               <div className="text-center py-4">
                 <div className="text-4xl mb-3">📧</div>
                 <h3 className="font-bold text-brand-dark">Revisa tu email</h3>
-                <p className="text-sm text-brand-gray mt-2">Si la cuenta existe, recibiras un link para restablecer tu contrasena.</p>
+                <p className="text-sm text-brand-gray mt-2">Si la cuenta existe, recibiras un link para restablecer tu contraseña.</p>
                 <button onClick={() => { setShowForgot(false); setForgotSent(false); }}
                   className="mt-4 px-6 py-2 bg-brand-blue text-white rounded-xl text-sm font-medium">
                   Entendido
@@ -205,7 +205,7 @@ export default function LoginPage() {
               </div>
             ) : (
               <form onSubmit={handleForgot}>
-                <h3 className="font-bold text-brand-dark text-lg">Recuperar contrasena</h3>
+                <h3 className="font-bold text-brand-dark text-lg">Recuperar contraseña</h3>
                 <p className="text-sm text-brand-gray mt-1 mb-4">Ingresa tu email y te enviaremos un link.</p>
                 <input
                   type="email"

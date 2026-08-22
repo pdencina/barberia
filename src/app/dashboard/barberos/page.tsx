@@ -192,7 +192,7 @@ export default function BarberosPage() {
                   className="w-full border rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Contrasena</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Contraseña</label>
                 <input type="password" required value={formData.password}
                   onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2" />

@@ -56,7 +56,7 @@ export default function RecordatoriosPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">Recordatorios</h1>
-          <p className="text-gray-500 text-sm">Citas de manana - notifica a tus clientes</p>
+          <p className="text-gray-500 text-sm">Citas de mañana - notifica a tus clientes</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -91,13 +91,13 @@ export default function RecordatoriosPage() {
       {/* Tomorrow's appointments */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-4 border-b">
-          <h2 className="font-bold text-gray-800">Citas de Manana ({links.length})</h2>
+          <h2 className="font-bold text-gray-800">Citas de Mañana ({links.length})</h2>
         </div>
         {loading ? (
           <Spinner />
         ) : links.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
-            <p className="text-lg">No hay citas agendadas para manana</p>
+            <p className="text-lg">No hay citas agendadas para mañana</p>
           </div>
         ) : (
           <div className="divide-y">

@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   let query = supabase
     .from("profiles")
     .select("id, name, email, phone, avatar_url, role")
-    .in("role", ["barber", "receptionist"])
+    .in("role", ["barber", "receptionist", "admin"])
     .eq("active", true)
     .order("name");
 
@@ -57,9 +57,17 @@ export async function POST(req: NextRequest) {
 
   // Update phone and tenant in profile
   if (authData.user) {
+    // Resolve tenant_id: prefer param, fallback to session
+    let resolvedTenantId = tenantId;
+    if (!resolvedTenantId) {
+      const { getCurrentTenantId } = await import("@/lib/supabase/server");
+      resolvedTenantId = await getCurrentTenantId();
+      if (resolvedTenantId === "ALL") resolvedTenantId = null; // super_admin without override
+    }
+
     const updates: any = { role: userRole };
     if (phone) updates.phone = phone;
-    if (tenantId) updates.tenant_id = tenantId;
+    if (resolvedTenantId) updates.tenant_id = resolvedTenantId;
     await adminSupabase
       .from("profiles")
       .update(updates)

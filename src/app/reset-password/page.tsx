@@ -28,12 +28,12 @@ export default function ResetPasswordPage() {
     setError("");
 
     if (password.length < 6) {
-      setError("La contrasena debe tener al menos 6 caracteres");
+      setError("La contraseña debe tener al menos 6 caracteres");
       return;
     }
 
     if (password !== confirmPassword) {
-      setError("Las contrasenas no coinciden");
+      setError("Las contraseñas no coinciden");
       return;
     }
 
@@ -42,7 +42,7 @@ export default function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setError("Error al actualizar contrasena. El link puede haber expirado.");
+      setError("Error al actualizar contraseña. El link puede haber expirado.");
       setLoading(false);
     } else {
       setSuccess(true);
@@ -55,7 +55,7 @@ export default function ResetPasswordPage() {
       <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
         <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl p-8 text-center">
           <img src="/oti/oti-web-160.png" alt="Oti" className="w-20 h-20 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-brand-dark">Contrasena actualizada</h2>
+          <h2 className="text-xl font-bold text-brand-dark">contraseña actualizada</h2>
           <p className="text-sm text-brand-gray mt-2">Redirigiendo al login...</p>
         </div>
       </div>
@@ -67,13 +67,13 @@ export default function ResetPasswordPage() {
       <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl shadow-blue-900/5 p-6 md:p-8">
         <div className="text-center mb-6">
           <img src="/logo-horizontal.png" alt="re-booking" className="h-10 w-auto mx-auto mb-3" />
-          <h2 className="text-lg font-bold text-brand-dark">Nueva contrasena</h2>
-          <p className="text-xs text-brand-gray mt-1">Ingresa tu nueva contrasena</p>
+          <h2 className="text-lg font-bold text-brand-dark">Nueva contraseña</h2>
+          <p className="text-xs text-brand-gray mt-1">Ingresa tu nueva contraseña</p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-brand-gray">Nueva contrasena</label>
+            <label className="text-xs font-medium text-brand-gray">Nueva contraseña</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -93,7 +93,7 @@ export default function ResetPasswordPage() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-medium text-brand-gray">Confirmar contrasena</label>
+            <label className="text-xs font-medium text-brand-gray">Confirmar contraseña</label>
             <input
               type={showPassword ? "text" : "password"}
               value={confirmPassword}
@@ -115,7 +115,7 @@ export default function ResetPasswordPage() {
                 </svg>
                 Actualizando...
               </>
-            ) : "Actualizar contrasena"}
+            ) : "Actualizar contraseña"}
           </button>
 
           <div className="text-center">

@@ -15,7 +15,7 @@ export default function TerminosPage() {
         <p>re-booking es una plataforma de gestion de negocios que permite la administracion de citas, clientes, pagos, inventario y equipo de trabajo. El servicio se ofrece bajo diferentes planes con distintas funcionalidades.</p>
 
         <h2 className="text-lg font-bold">3. Registro y Cuenta</h2>
-        <p>Para utilizar el servicio debes crear una cuenta proporcionando informacion veraz y actualizada. Eres responsable de mantener la confidencialidad de tu contrasena y de todas las actividades que ocurran bajo tu cuenta.</p>
+        <p>Para utilizar el servicio debes crear una cuenta proporcionando informacion veraz y actualizada. Eres responsable de mantener la confidencialidad de tu contraseña y de todas las actividades que ocurran bajo tu cuenta.</p>
 
         <h2 className="text-lg font-bold">4. Planes y Pagos</h2>
         <p>El servicio ofrece un periodo de prueba gratuito de 14 dias. Al finalizar el periodo de prueba, deberas seleccionar un plan pago para continuar utilizando el servicio. Los precios pueden ser modificados con previo aviso de 30 dias.</p>

@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { data } = await supabase
+  const { searchParams } = new URL(req.url);
+  let tenantId = searchParams.get("tenantId");
+  if (!tenantId) tenantId = await getCurrentTenantId();
+
+  let query = supabase
     .from("branches")
     .select("*")
     .eq("active", true)
     .order("name");
 
+  if (tenantId && tenantId !== "ALL") {
+    query = query.eq("tenant_id", tenantId);
+  }
+
+  const { data } = await query;
   return NextResponse.json(data || []);
 }
 

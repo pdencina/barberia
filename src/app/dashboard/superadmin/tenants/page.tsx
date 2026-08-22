@@ -127,7 +127,7 @@ export default function SuperAdminTenantsPage() {
               <p className="font-bold text-green-800">Empresa creada! Credenciales enviadas por email.</p>
               <div className="mt-2 text-sm text-green-700 space-y-1">
                 <p><strong>Email:</strong> {createdInfo.email}</p>
-                <p><strong>Contrasena temporal:</strong> <code className="bg-green-200 px-2 py-0.5 rounded">{createdInfo.password}</code></p>
+                <p><strong>contraseña temporal:</strong> <code className="bg-green-200 px-2 py-0.5 rounded">{createdInfo.password}</code></p>
                 <p><strong>URL:</strong> {appUrl}/login</p>
               </div>
             </div>
@@ -203,7 +203,7 @@ export default function SuperAdminTenantsPage() {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowCreate(false)}>
           <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-lg font-bold text-brand-dark mb-1">Nueva Empresa</h2>
-            <p className="text-sm text-brand-gray mb-5">Se creara un admin con contrasena temporal y se le enviara email</p>
+            <p className="text-sm text-brand-gray mb-5">Se creara un admin con contraseña temporal y se le enviara email</p>
 
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="grid grid-cols-2 gap-3">
@@ -276,7 +276,7 @@ export default function SuperAdminTenantsPage() {
               </div>
 
               <div className="bg-blue-50 rounded-xl p-3 text-xs text-brand-blue">
-                Se generara una contrasena temporal y se enviara por email al admin. Trial de 15 dias incluido.
+                Se generara una contraseña temporal y se enviara por email al admin. Trial de 15 dias incluido.
               </div>
 
               <div className="flex gap-2 pt-2">
