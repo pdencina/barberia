@@ -1,20 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 export default function DepositSuccessPage() {
-  const searchParams = useSearchParams();
-  const paymentId = searchParams.get("payment_id");
-  const [confirmed, setConfirmed] = useState(false);
-
-  useEffect(() => {
-    // The webhook will handle the actual confirmation
-    // This page is just a visual confirmation for the client
-    if (paymentId) setConfirmed(true);
-  }, [paymentId]);
-
   return (
     <div className="min-h-screen bg-brand-light flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center">
