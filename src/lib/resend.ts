@@ -75,7 +75,7 @@ export async function sendReceipt(params: SendReceiptParams) {
       <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Boleta N:</strong> ${transactionId.slice(-8).toUpperCase()}</p>
       <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Fecha:</strong> ${new Date(date).toLocaleDateString("es-CL")}</p>
       <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Cliente:</strong> ${clientName}</p>
-      <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Barbero:</strong> ${barberName}</p>
+      <p style="margin: 4px 0; font-size: 14px; color: #ccc;"><strong style="color: #fff;">Profesional:</strong> ${barberName}</p>
     </div>
 
     <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
@@ -165,7 +165,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
     <div style="background: #1a1a1a; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
       <table style="width: 100%; color: #ccc; font-size: 14px;">
         <tr><td style="padding: 8px 0; color: #888;">Servicio</td><td style="padding: 8px 0; color: #fff; font-weight: bold;">${serviceName}</td></tr>
-        <tr><td style="padding: 8px 0; color: #888;">Barbero</td><td style="padding: 8px 0; color: #fff;">${barberName}</td></tr>
+        <tr><td style="padding: 8px 0; color: #888;">Profesional</td><td style="padding: 8px 0; color: #fff;">${barberName}</td></tr>
         <tr><td style="padding: 8px 0; color: #888;">Fecha</td><td style="padding: 8px 0; color: #fff;">${dateStr}</td></tr>
         <tr><td style="padding: 8px 0; color: #888;">Hora</td><td style="padding: 8px 0; color: #fff; font-weight: bold; font-size: 18px;">${timeStr}</td></tr>
         <tr><td style="padding: 8px 0; color: #888;">Duracion</td><td style="padding: 8px 0; color: #fff;">${duration} minutos</td></tr>
@@ -308,7 +308,7 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
       <p style="color: #ccc; font-size: 14px; margin: 0 0 16px;">${dateStr}</p>
       <div style="border-top: 1px solid #333; padding-top: 16px;">
         <p style="color: #888; font-size: 13px; margin: 4px 0;">Servicio: <strong style="color: #fff;">${serviceName}</strong></p>
-        <p style="color: #888; font-size: 13px; margin: 4px 0;">Barbero: <strong style="color: #fff;">${barberName}</strong></p>
+        <p style="color: #888; font-size: 13px; margin: 4px 0;">Profesional: <strong style="color: #fff;">${barberName}</strong></p>
       </div>
     </div>
 
