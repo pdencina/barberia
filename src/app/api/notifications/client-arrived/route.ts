@@ -21,7 +21,24 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Cita sin profesional asignado" }, { status: 400 });
   }
 
-  // Store notification in DB
+  // Send real push notification to barber
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://re-booking.cl";
+    await fetch(`${baseUrl}/api/push/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: appt.barber_id,
+        title: "Tu cliente llego!",
+        body: `${clientName} esta esperando.`,
+        url: "/dashboard/mi-agenda",
+      }),
+    });
+  } catch (e) {
+    console.error("Error sending push:", e);
+  }
+
+  // Store notification in audit log
   await supabase.from("audit_log").insert({
     action: "client_arrived",
     entity_type: "appointment",
@@ -31,10 +48,6 @@ export async function POST(req: NextRequest) {
     user_name: barberName,
     metadata: { clientName, appointmentId, barberName },
   });
-
-  // TODO: Send push notification to barber's device
-  // TODO: Send WhatsApp notification if configured
-  // For now, the notification appears in the barber's dashboard/standby
 
   return NextResponse.json({ success: true, notified: barberName });
 }

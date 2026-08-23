@@ -5,13 +5,18 @@ self.addEventListener("push", (event) => {
 
   const options = {
     body: data.body || "Nueva notificacion de re-booking",
-    icon: "/icon-white-512.png",
-    badge: "/icon-512.png",
+    icon: data.icon || "/logo-icon.png",
+    badge: data.badge || "/logo-icon.png",
     vibrate: [200, 100, 200],
-    tag: data.tag || "default",
+    tag: data.tag || "re-booking-" + Date.now(),
+    renotify: true,
     data: {
       url: data.url || "/dashboard",
     },
+    actions: [
+      { action: "open", title: "Ver" },
+      { action: "close", title: "Cerrar" },
+    ],
   };
 
   event.waitUntil(
@@ -21,6 +26,25 @@ self.addEventListener("push", (event) => {
 
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
+
+  if (event.action === "close") return;
+
   const url = event.notification.data?.url || "/dashboard";
-  event.waitUntil(clients.openWindow(url));
+  event.waitUntil(
+    clients.matchAll({ type: "window", includeUncontrolled: true }).then((clientList) => {
+      // Focus existing window if open
+      for (const client of clientList) {
+        if (client.url.includes("re-booking") && "focus" in client) {
+          client.navigate(url);
+          return client.focus();
+        }
+      }
+      // Otherwise open new window
+      return clients.openWindow(url);
+    })
+  );
 });
+
+// Cache strategy for offline support
+self.addEventListener("install", () => self.skipWaiting());
+self.addEventListener("activate", () => self.clients.claim());

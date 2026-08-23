@@ -1,41 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import webPush from "web-push";
+import webpush from "web-push";
 
+// Configure web-push with VAPID keys
+const vapidPublicKey = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY || "";
+const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY || "";
+const vapidEmail = process.env.VAPID_EMAIL || "mailto:admin@re-booking.cl";
+
+if (vapidPublicKey && vapidPrivateKey) {
+  webpush.setVapidDetails(vapidEmail, vapidPublicKey, vapidPrivateKey);
+}
+
+/**
+ * POST: Send push notification to a specific user
+ * Body: { userId, title, body, icon?, url? }
+ */
 export async function POST(req: NextRequest) {
-  const vapidPublic = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-  const vapidPrivate = process.env.VAPID_PRIVATE_KEY;
+  const supabase = createAdminSupabase();
+  const { userId, title, body: notifBody, icon, url } = await req.json();
 
-  if (!vapidPublic || !vapidPrivate) {
-    // VAPID not configured - skip silently (don't break booking flow)
-    return NextResponse.json({ sent: 0, skipped: true });
+  if (!userId || !title) {
+    return NextResponse.json({ error: "userId and title required" }, { status: 400 });
   }
 
-  webPush.setVapidDetails(
-    "mailto:no-reply@rebooking.cl",
-    vapidPublic,
-    vapidPrivate
-  );
+  if (!vapidPublicKey || !vapidPrivateKey) {
+    return NextResponse.json({ error: "VAPID keys not configured" }, { status: 500 });
+  }
 
-  const supabase = createAdminSupabase();
-  const body = await req.json();
-  const { title, body: messageBody, url, tag } = body;
-
-  // Get all subscriptions
+  // Get all push subscriptions for this user
   const { data: subscriptions } = await supabase
     .from("push_subscriptions")
-    .select("endpoint, p256dh, auth");
+    .select("endpoint, p256dh, auth")
+    .eq("user_id", userId);
 
   if (!subscriptions || subscriptions.length === 0) {
-    return NextResponse.json({ sent: 0 });
+    return NextResponse.json({ error: "User has no push subscriptions", sent: 0 });
   }
 
-  const payload = JSON.stringify({ title, body: messageBody, url, tag });
+  const payload = JSON.stringify({
+    title,
+    body: notifBody || "",
+    icon: icon || "/logo-icon.png",
+    badge: "/logo-icon.png",
+    url: url || "/dashboard",
+  });
+
   let sent = 0;
+  let failed = 0;
 
   for (const sub of subscriptions) {
     try {
-      await webPush.sendNotification(
+      await webpush.sendNotification(
         {
           endpoint: sub.endpoint,
           keys: { p256dh: sub.p256dh, auth: sub.auth },
@@ -44,12 +59,13 @@ export async function POST(req: NextRequest) {
       );
       sent++;
     } catch (err: any) {
-      // Remove invalid subscriptions (410 Gone)
+      failed++;
+      // If subscription expired, remove it
       if (err.statusCode === 410 || err.statusCode === 404) {
         await supabase.from("push_subscriptions").delete().eq("endpoint", sub.endpoint);
       }
     }
   }
 
-  return NextResponse.json({ sent });
+  return NextResponse.json({ success: true, sent, failed });
 }
