@@ -196,7 +196,9 @@ export default function ConfiguracionPage() {
   };
 
   const bookingUrl = typeof window !== "undefined"
-    ? `${window.location.origin}/booking`
+    ? tenantSlug
+      ? `${window.location.origin}/b/${tenantSlug}`
+      : `${window.location.origin}/booking`
     : "re-booking.cl/booking";
 
   const copyLink = () => {

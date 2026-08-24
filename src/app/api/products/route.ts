@@ -30,11 +30,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { name, description, sku, price, cost, stock, min_stock } = body;
+  const { name, description, sku, price, cost, stock, min_stock, tenantId } = body;
+
+  // Resolve tenant
+  let resolvedTenantId = tenantId;
+  if (!resolvedTenantId) {
+    resolvedTenantId = await getCurrentTenantId();
+    if (resolvedTenantId === "ALL") resolvedTenantId = null;
+  }
 
   const { data, error } = await supabase
     .from("products")
-    .insert({ name, description, sku, price, cost, stock, min_stock: min_stock || 5 })
+    .insert({ name, description, sku, price, cost, stock, min_stock: min_stock || 5, tenant_id: resolvedTenantId })
     .select()
     .single();
 

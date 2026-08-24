@@ -132,7 +132,8 @@ export default function CalendarioPage() {
 
   const fetchAppointments = async () => {
     setLoading(true);
-    const res = await fetch(`/api/appointments?date=${date}`);
+    const params = tenant?.id ? `&tenantId=${tenant.id}` : "";
+    const res = await fetch(`/api/appointments?date=${date}${params}`);
     const data = await res.json();
     setAppointments(Array.isArray(data) ? data : []);
 

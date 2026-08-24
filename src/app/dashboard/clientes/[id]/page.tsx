@@ -271,7 +271,7 @@ export default function ClienteDetailPage() {
       <div className="bg-white rounded-lg shadow">
         <div className="p-4 border-b flex items-center justify-between">
           <div>
-            <h3 className="font-bold text-gray-800">Fotos de Cortes</h3>
+            <h3 className="font-bold text-gray-800">Fotos de Trabajos</h3>
             <p className="text-xs text-gray-400">Referencia visual del estilo del cliente</p>
           </div>
           <label className={`px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 cursor-pointer ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
@@ -283,7 +283,7 @@ export default function ClienteDetailPage() {
           {photos.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-gray-400 text-4xl mb-2">📸</p>
-              <p className="text-gray-400 text-sm">Sin fotos de cortes</p>
+              <p className="text-gray-400 text-sm">Sin fotos de trabajos</p>
               <p className="text-gray-400 text-xs">Sube una foto despues de cada atencion para tener referencia</p>
             </div>
           ) : (

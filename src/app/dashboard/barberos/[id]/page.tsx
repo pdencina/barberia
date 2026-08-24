@@ -60,6 +60,12 @@ export default function EditProfessionalPage() {
         rental_deductions: data.rental_deductions,
         rental_notes: data.rental_notes,
         personal_pin: data.personal_pin,
+        slot_duration: (data as any).slot_duration,
+        bio: (data as any).bio,
+        specialties: (data as any).specialties,
+        intro_video_url: (data as any).intro_video_url,
+        years_experience: (data as any).years_experience,
+        also_attends_clients: (data as any).also_attends_clients,
       }),
     });
     setSaving(false);
@@ -216,6 +222,11 @@ export default function EditProfessionalPage() {
               <option value="45">45 min</option>
               <option value="60">60 min</option>
               <option value="90">90 min</option>
+              <option value="120">120 min (2h)</option>
+              <option value="180">180 min (3h)</option>
+              <option value="240">240 min (4h)</option>
+              <option value="360">360 min (6h)</option>
+              <option value="480">480 min (8h)</option>
             </select>
             <p className="text-[10px] text-gray-400 mt-1">Intervalo entre citas disponibles en la agenda online</p>
           </div>
@@ -364,14 +375,14 @@ export default function EditProfessionalPage() {
           <label className="block text-xs text-gray-500 mb-1">Bio / Descripcion corta</label>
           <textarea value={(data as any).bio || ""} rows={2}
             onChange={(e) => setData({ ...data, bio: e.target.value } as any)}
-            placeholder="Ej: Especialista en degradados y disenos con navaja. 5 años de experiencia."
+            placeholder="Ej: Especialista en uñas, colorimetría, degradados. 5 años de experiencia."
             className="w-full border rounded-xl px-3 py-2.5 text-sm" />
         </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Especialidades (separar con coma)</label>
           <input type="text" value={(data as any).specialties?.join(", ") || ""}
             onChange={(e) => setData({ ...data, specialties: e.target.value.split(",").map((s: string) => s.trim()).filter(Boolean) } as any)}
-            placeholder="Degradado, Barba, Diseño, Color"
+            placeholder="Ej: Uñas, Color, Degradado, Diseño"
             className="w-full border rounded-xl px-3 py-2.5 text-sm" />
         </div>
         <div className="grid grid-cols-2 gap-3">
