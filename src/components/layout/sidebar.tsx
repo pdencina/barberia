@@ -32,14 +32,14 @@ const sections: NavSection[] = [
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, minRole: "admin" },
       { name: "Caja", href: "/dashboard/caja", icon: Wallet, minRole: "admin" },
-      { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart, minRole: "admin" },
+      { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart, minRole: "receptionist" },
       { name: "Standby", href: "/dashboard/standby", icon: Zap, minRole: "barber" },
     ],
   },
   {
     title: "Clientes",
     items: [
-      { name: "Clientes", href: "/dashboard/clientes", icon: Users, minRole: "barber" },
+      { name: "Clientes", href: "/dashboard/clientes", icon: Users, minRole: "receptionist" },
       { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star, minRole: "admin" },
       { name: "Retencion", href: "/dashboard/retencion", icon: Heart, minRole: "admin" },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: Users, minRole: "admin" },
@@ -50,9 +50,9 @@ const sections: NavSection[] = [
     title: "Agenda",
     items: [
       { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck, minRole: "barber" },
-      { name: "Agenda", href: "/dashboard/agenda", icon: Calendar, minRole: "admin" },
-      { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays, minRole: "barber" },
-      { name: "Recepcion", href: "/dashboard/recepcion", icon: Tablet, minRole: "admin" },
+      { name: "Agenda", href: "/dashboard/agenda", icon: Calendar, minRole: "receptionist" },
+      { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays, minRole: "receptionist" },
+      { name: "Recepcion", href: "/dashboard/recepcion", icon: Tablet, minRole: "receptionist" },
       { name: "Recordatorios", href: "/dashboard/recordatorios", icon: Bell, minRole: "admin" },
     ],
   },
