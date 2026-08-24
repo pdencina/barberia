@@ -156,7 +156,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
   <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
     <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0F8B8D; padding-bottom: 20px;">
-      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic;">re-booking</h1>
+      <img src="https://re-booking.cl/logo-horizontal.png" alt="re-booking" style="height: 40px; margin-bottom: 10px;" />
       <p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Cita Confirmada</p>
     </div>
 
@@ -175,14 +175,13 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 
     <div style="background: #0F8B8D22; border: 1px solid #0F8B8D44; border-radius: 8px; padding: 12px; margin-bottom: 20px;">
       <p style="color: #0F8B8D; font-size: 13px; margin: 0; text-align: center;">
-        ${appointmentId ? `<a href="${process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app"}/cancel/${appointmentId}" style="color: #0F8B8D; text-decoration: underline;">Cancelar o modificar cita</a> · ` : ""}Contacto: <strong>9 4266 6172</strong>
+        ${appointmentId ? `<a href="https://re-booking.cl/cancel/${appointmentId}" style="color: #0F8B8D; text-decoration: underline;">Cancelar o modificar cita</a> · ` : ""}Contacto: <strong>9 4266 6172</strong>
       </p>
     </div>
 
     <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333;">
       <p style="color: #888; font-size: 13px; margin: 4px 0;">Te esperamos!</p>
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">re-booking | rebooking.cl</p>
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">rebooking.cl</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">re-booking | <a href="https://re-booking.cl" style="color: #0F8B8D;">re-booking.cl</a></p>
     </div>
   </div>
 </body>
