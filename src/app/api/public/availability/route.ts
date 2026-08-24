@@ -38,12 +38,24 @@ export async function GET(req: NextRequest) {
     breakStart = barberSchedule.break_start || null;
     breakEnd = barberSchedule.break_end || null;
   } else {
-    // Fallback to global business hours
-    const { data: hoursData } = await supabase
+    // Fallback to tenant's business hours
+    // Get barber's tenant
+    const { data: barberTenant } = await supabase
+      .from("profiles")
+      .select("tenant_id")
+      .eq("id", barberId)
+      .single();
+
+    let hoursQuery = supabase
       .from("business_hours")
       .select("open_time, close_time, is_closed")
-      .eq("day_of_week", dayOfWeek)
-      .single();
+      .eq("day_of_week", dayOfWeek);
+
+    if (barberTenant?.tenant_id) {
+      hoursQuery = hoursQuery.eq("tenant_id", barberTenant.tenant_id);
+    }
+
+    const { data: hoursData } = await hoursQuery.single();
 
     if (hoursData?.is_closed) {
       return NextResponse.json({ slots: [], date, barberId, closed: true });

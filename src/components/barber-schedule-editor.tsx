@@ -24,8 +24,14 @@ export function BarberScheduleEditor({ barberId, showToast }: { barberId: string
   }, [barberId]);
 
   const updateDay = (dayIndex: number, field: string, value: any) => {
-    setSchedule(schedule.map((d) =>
+    setSchedule((prev) => prev.map((d) =>
       d.day_of_week === dayIndex ? { ...d, [field]: value } : d
+    ));
+  };
+
+  const updateDayMultiple = (dayIndex: number, updates: Record<string, any>) => {
+    setSchedule((prev) => prev.map((d) =>
+      d.day_of_week === dayIndex ? { ...d, ...updates } : d
     ));
   };
 
@@ -62,11 +68,9 @@ export function BarberScheduleEditor({ barberId, showToast }: { barberId: string
               {/* Break */}
               <button onClick={() => {
                 if (day.break_start) {
-                  updateDay(day.day_of_week, "break_start", null);
-                  updateDay(day.day_of_week, "break_end", null);
+                  updateDayMultiple(day.day_of_week, { break_start: null, break_end: null });
                 } else {
-                  updateDay(day.day_of_week, "break_start", "13:00");
-                  updateDay(day.day_of_week, "break_end", "14:00");
+                  updateDayMultiple(day.day_of_week, { break_start: "13:00", break_end: "14:00" });
                 }
               }}
                 className={`text-[10px] px-2 py-1 rounded-lg ${day.break_start ? "bg-orange-100 text-orange-600" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}>

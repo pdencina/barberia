@@ -79,6 +79,7 @@ export default function ConfiguracionPage() {
 
       if (profile?.tenant_id) {
         setTenantId(profile.tenant_id);
+        const currentTenantId = profile.tenant_id;
         const { data: tenant } = await supabase
           .from("tenants")
           .select("name, slug, address, phone")
@@ -123,11 +124,14 @@ export default function ConfiguracionPage() {
       }
     }
 
-    // Fetch business hours
-    const { data: hoursData } = await supabase
+    // Fetch business hours for this tenant
+    const hoursFilter = tenantId || null;
+    let hoursQuery = supabase
       .from("business_hours")
       .select("day_of_week, open_time, close_time, is_closed")
       .order("day_of_week");
+    if (hoursFilter) hoursQuery = hoursQuery.eq("tenant_id", hoursFilter);
+    const { data: hoursData } = await hoursQuery;
 
     if (hoursData && hoursData.length > 0) {
       setHours(hoursData.map((h) => ({
@@ -163,11 +167,12 @@ export default function ConfiguracionPage() {
       await supabase
         .from("business_hours")
         .upsert({
+          tenant_id: tenantId,
           day_of_week: day.day_of_week,
           open_time: day.open_time,
           close_time: day.close_time,
           is_closed: day.is_closed,
-        }, { onConflict: "day_of_week" });
+        }, { onConflict: "tenant_id,day_of_week" });
     }
 
     // Save tenant data

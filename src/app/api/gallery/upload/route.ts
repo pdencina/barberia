@@ -26,7 +26,11 @@ export async function POST(req: NextRequest) {
     });
 
   if (error) {
-    return NextResponse.json({ error: `Upload failed: ${error.message}` }, { status: 500 });
+    console.error("Gallery upload error:", error);
+    if (error.message.includes("not found") || error.message.includes("Bucket")) {
+      return NextResponse.json({ error: "El bucket de galeria no existe. Crea un bucket 'gallery' en Supabase Storage." }, { status: 500 });
+    }
+    return NextResponse.json({ error: `Error subiendo: ${error.message}` }, { status: 500 });
   }
 
   // Get public URL
