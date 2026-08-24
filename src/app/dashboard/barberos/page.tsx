@@ -22,6 +22,16 @@ export default function BarberosPage() {
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
 
+  // Get tenant ID (from context or localStorage override for super_admin)
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return null;
+  };
+
   const fetchBarbers = async () => {
     setLoading(true);
     try {
@@ -42,7 +52,7 @@ export default function BarberosPage() {
     const res = await fetch("/api/barberos", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...formData, tenantId: tenant?.id }),
+      body: JSON.stringify({ ...formData, tenantId: getActiveTenantId() }),
     });
     const data = await res.json();
     if (!res.ok) {
