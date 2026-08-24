@@ -24,6 +24,7 @@ interface Product {
 interface Client {
   id: string;
   name: string;
+  phone?: string;
 }
 
 interface Barber {
@@ -493,17 +494,28 @@ export default function POSPage() {
                 type="text"
                 placeholder="Cliente..."
                 value={clientSearch}
-                onChange={(e) => {
-                  setClientSearch(e.target.value);
+                onChange={async (e) => {
+                  const val = e.target.value;
+                  setClientSearch(val);
                   setSelectedClient("");
+                  // Server-side search when 2+ chars typed
+                  if (val.length >= 2) {
+                    const t = getActiveTenantId();
+                    const searchParams = new URLSearchParams();
+                    if (t) searchParams.set("tenantId", t);
+                    searchParams.set("search", val);
+                    searchParams.set("limit", "10");
+                    const res = await fetch(`/api/clients?${searchParams.toString()}`);
+                    const data = await res.json();
+                    setClients(data.clients || []);
+                  }
                 }}
                 className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs"
               />
-              {clientSearch && !selectedClient && (
+              {clientSearch.length >= 2 && !selectedClient && clients.length > 0 && (
                 <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg max-h-32 overflow-y-auto">
                   {clients
-                    .filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase()))
-                    .slice(0, 5)
+                    .slice(0, 8)
                     .map((c) => (
                       <button key={c.id} onClick={async () => {
                         setSelectedClient(c.id); setClientSearch(c.name);
@@ -512,7 +524,7 @@ export default function POSPage() {
                         setClientPoints(data?.client?.loyalty_points || data?.loyalty_points || 0);
                       }}
                         className="w-full text-left px-3 py-2 text-xs hover:bg-gray-100">
-                        {c.name}
+                        {c.name} {c.phone ? `· ${c.phone}` : ""}
                       </button>
                     ))}
                 </div>
