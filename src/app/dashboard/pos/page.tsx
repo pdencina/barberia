@@ -76,14 +76,24 @@ export default function POSPage() {
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
 
+  // Get tenant ID (from context or localStorage override for super_admin)
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
+
   useEffect(() => {
     if (tenantLoading) return;
-    const t = tenant?.id || "";
+    const t = getActiveTenantId();
     const params = t ? `?tenantId=${t}` : "";
     Promise.all([
       fetch(`/api/services${params}`).then((r) => r.json()).catch(() => []),
       fetch(`/api/products${params}`).then((r) => r.json()).catch(() => []),
-      fetch(`/api/clients${params}&limit=5000`).then((r) => r.json()).catch(() => ({ clients: [] })),
+      fetch(`/api/clients${params ? params + "&" : "?"}limit=5000`).then((r) => r.json()).catch(() => ({ clients: [] })),
       fetch(`/api/barberos${params}`).then((r) => r.json()).catch(() => []),
     ]).then(([servicesData, productsData, clientsData, barbersData]) => {
       setServices(Array.isArray(servicesData) ? servicesData : []);
