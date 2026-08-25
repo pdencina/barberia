@@ -114,24 +114,34 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
   const supabase = createClient();
   const { isAtLeast, loading: authLoading, role: userAuthRole } = useAuth();
 
-  // Filter sections based on role
-  // Receptionist only sees specific items, not all barber+ items
-  const RECEPTIONIST_ALLOWED = [
-    "/dashboard/pos", "/dashboard/clientes", "/dashboard/calendario",
-    "/dashboard/agenda", "/dashboard/recepcion", "/dashboard/standby",
-  ];
+  // Use the server-provided role (reliable) over client-side auth (unreliable on Vercel)
+  const effectiveRole = userRole || userAuthRole || "barber";
 
-  const filteredSections = authLoading
+  // Define what each role can see (explicit whitelist)
+  const ROLE_MENU_ACCESS: Record<string, string[]> = {
+    receptionist: [
+      "/dashboard/pos", "/dashboard/clientes", "/dashboard/calendario",
+      "/dashboard/agenda", "/dashboard/recepcion", "/dashboard/standby",
+    ],
+    barber: [
+      "/dashboard/standby", "/dashboard/mi-agenda", "/dashboard/calendario",
+      "/dashboard/clientes", "/dashboard/comisiones", "/dashboard/mi-billetera",
+    ],
+  };
+
+  const filteredSections = authLoading && !userRole
     ? sections.map((s) => ({ ...s, items: s.items.slice(0, 1) })).slice(0, 2)
     : sections
         .map((section) => ({
           ...section,
-          items: section.items.map((item) => ({
-            ...item,
-            locked: userAuthRole === "receptionist"
-              ? !RECEPTIONIST_ALLOWED.includes(item.href)
-              : !isAtLeast(item.minRole),
-          })),
+          items: section.items.map((item) => {
+            // If role has explicit whitelist, use it
+            const whitelist = ROLE_MENU_ACCESS[effectiveRole];
+            const locked = whitelist
+              ? !whitelist.includes(item.href)
+              : !isAtLeast(item.minRole);
+            return { ...item, locked };
+          }),
         }))
         .filter((section) => section.items.some((item) => !(item as any).locked));
 
