@@ -10,11 +10,11 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminSupabase();
 
-  // Check if user exists
+  // Check if user exists (case-insensitive)
   const { data: profile } = await supabase
     .from("profiles")
     .select("id")
-    .eq("email", email)
+    .ilike("email", email)
     .single();
 
   // Always return success (don't reveal if email exists)
@@ -29,10 +29,8 @@ export async function POST(req: NextRequest) {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   );
 
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app";
-
   await authClient.auth.resetPasswordForEmail(email, {
-    redirectTo: `${appUrl}/reset-password`,
+    redirectTo: "https://re-booking.cl/reset-password",
   });
 
   return NextResponse.json({ success: true });
