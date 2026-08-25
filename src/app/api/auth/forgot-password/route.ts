@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   // Check if user exists (case-insensitive)
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("id, name")
     .ilike("email", email)
     .single();
 
@@ -22,16 +22,59 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
-  // Use Supabase Auth to send reset email
-  const { createClient } = await import("@supabase/supabase-js");
-  const authClient = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
-
-  await authClient.auth.resetPasswordForEmail(email, {
-    redirectTo: "https://re-booking.cl/reset-password",
+  // Generate a password reset link using Supabase Admin API
+  const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+    type: "recovery",
+    email,
+    options: {
+      redirectTo: "https://re-booking.cl/reset-password",
+    },
   });
+
+  if (linkError || !linkData) {
+    console.error("Error generating reset link:", linkError);
+    return NextResponse.json({ success: true }); // Don't reveal error to user
+  }
+
+  // Send the reset email using Resend (reliable)
+  try {
+    const { Resend } = await import("resend");
+    const resend = new Resend(process.env.RESEND_API_KEY);
+
+    const resetUrl = linkData.properties?.action_link || `https://re-booking.cl/reset-password`;
+
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
+      to: email,
+      subject: "Recupera tu contraseña | re-booking",
+      html: `
+<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
+  <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
+    <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0F8B8D; padding-bottom: 20px;">
+      <img src="https://re-booking.cl/logo-horizontal.png" alt="re-booking" style="height: 40px; margin-bottom: 10px;" />
+      <p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Recuperar Contraseña</p>
+    </div>
+    <p style="color: #ccc; font-size: 16px; margin-bottom: 20px;">Hola <strong style="color: #fff;">${profile.name || "Usuario"}</strong>,</p>
+    <p style="color: #888; font-size: 14px; margin-bottom: 30px;">Recibimos una solicitud para restablecer tu contraseña. Haz click en el boton para crear una nueva:</p>
+    <div style="text-align: center; margin-bottom: 30px;">
+      <a href="${resetUrl}" style="display: inline-block; background: #0F8B8D; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;">
+        Restablecer contraseña
+      </a>
+    </div>
+    <p style="color: #555; font-size: 12px; text-align: center;">Si no solicitaste esto, ignora este correo. El link expira en 1 hora.</p>
+    <div style="text-align: center; padding-top: 20px; border-top: 1px solid #333; margin-top: 20px;">
+      <p style="color: #555; font-size: 11px;">re-booking | <a href="https://re-booking.cl" style="color: #0F8B8D;">re-booking.cl</a></p>
+    </div>
+  </div>
+</body>
+</html>`,
+    });
+  } catch (e) {
+    console.error("Error sending reset email:", e);
+  }
 
   return NextResponse.json({ success: true });
 }
