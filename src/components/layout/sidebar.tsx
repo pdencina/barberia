@@ -115,7 +115,12 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
   const { isAtLeast, loading: authLoading, role: userAuthRole } = useAuth();
 
   // Filter sections based on role
-  // Show all items but mark locked ones for upsell
+  // Receptionist only sees specific items, not all barber+ items
+  const RECEPTIONIST_ALLOWED = [
+    "/dashboard/pos", "/dashboard/clientes", "/dashboard/calendario",
+    "/dashboard/agenda", "/dashboard/recepcion", "/dashboard/standby",
+  ];
+
   const filteredSections = authLoading
     ? sections.map((s) => ({ ...s, items: s.items.slice(0, 1) })).slice(0, 2)
     : sections
@@ -123,7 +128,9 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
           ...section,
           items: section.items.map((item) => ({
             ...item,
-            locked: !isAtLeast(item.minRole),
+            locked: userAuthRole === "receptionist"
+              ? !RECEPTIONIST_ALLOWED.includes(item.href)
+              : !isAtLeast(item.minRole),
           })),
         }))
         .filter((section) => section.items.some((item) => !(item as any).locked));
