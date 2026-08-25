@@ -143,7 +143,14 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
             return { ...item, locked };
           }),
         }))
-        .filter((section) => section.items.some((item) => !(item as any).locked));
+        // For receptionist/barber: completely remove locked items (don't show as PRO)
+        .map((section) => ({
+          ...section,
+          items: ROLE_MENU_ACCESS[effectiveRole]
+            ? section.items.filter((item) => !(item as any).locked)
+            : section.items,
+        }))
+        .filter((section) => section.items.length > 0);
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
