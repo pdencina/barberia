@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
 
   if (linkError || !linkData) {
     console.error("Error generating reset link:", linkError);
-    return NextResponse.json({ success: true }); // Don't reveal error to user
+    return NextResponse.json({ success: true, debug: "generateLink failed", error: linkError?.message });
   }
 
   // Send the reset email using Resend (reliable)
@@ -42,6 +42,7 @@ export async function POST(req: NextRequest) {
     const resend = new Resend(process.env.RESEND_API_KEY);
 
     const resetUrl = linkData.properties?.action_link || `https://re-booking.cl/reset-password`;
+    console.log("Reset URL generated:", resetUrl);
 
     await resend.emails.send({
       from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
@@ -72,9 +73,10 @@ export async function POST(req: NextRequest) {
 </body>
 </html>`,
     });
-  } catch (e) {
+  } catch (e: any) {
     console.error("Error sending reset email:", e);
+    return NextResponse.json({ success: false, debug: "resend failed", error: e.message });
   }
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, debug: "email sent" });
 }
