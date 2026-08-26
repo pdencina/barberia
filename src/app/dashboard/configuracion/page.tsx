@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
@@ -45,7 +45,7 @@ export default function ConfiguracionPage() {
   interface Terminal { id: string; name: string; device_id: string; terminal_type: string; active: boolean; }
   const [terminals, setTerminals] = useState<Terminal[]>([]);
   const [showAddTerminal, setShowAddTerminal] = useState(false);
-  const [newTerminal, setNewTerminal] = useState({ name: "", device_id: "", terminal_type: "all" });
+  const [newTerminal, setNewTerminal] = useState({ name: "", device_id: "", terminal_type: "all", access_token: "" });
 
   // Deposit/abono settings
   const [depositEnabled, setDepositEnabled] = useState(false);
@@ -390,7 +390,7 @@ export default function ConfiguracionPage() {
               className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono"
             />
             <p className="text-[10px] text-brand-gray mt-1">
-              Obtenlo en <a href="https://www.mercadopago.cl/developers/panel/app" target="_blank" rel="noopener noreferrer" className="text-brand-blue underline">mercadopago.cl/developers</a> → Tu aplicacion → Credenciales de produccion
+              Obtenlo en <a href="https://www.mercadopago.cl/developers/panel/app" target="_blank" rel="noopener noreferrer" className="text-brand-blue underline">mercadopago.cl/developers</a> â†’ Tu aplicacion â†’ Credenciales de produccion
             </p>
           </div>
 
@@ -508,8 +508,18 @@ export default function ConfiguracionPage() {
                   <option value="products">Solo Productos (afecto IVA)</option>
                 </select>
               </div>
+              <div>
+                <label className="block text-[10px] text-brand-gray mb-1">Access Token (opcional, si tiene cuenta propia)</label>
+                <input
+                  type="password"
+                  value={newTerminal.access_token}
+                  onChange={(e) => setNewTerminal({ ...newTerminal, access_token: e.target.value })}
+                  placeholder="Dejar vacio para usar el token global"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
+                />
+              </div>
               <div className="flex gap-2">
-                <button onClick={() => { setShowAddTerminal(false); setNewTerminal({ name: "", device_id: "", terminal_type: "all" }); }}
+                <button onClick={() => { setShowAddTerminal(false); setNewTerminal({ name: "", device_id: "", terminal_type: "all", access_token: "" }); }}
                   className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-brand-gray hover:bg-gray-50">
                   Cancelar
                 </button>
@@ -527,7 +537,7 @@ export default function ConfiguracionPage() {
                     if (data.id) {
                       setTerminals((prev) => [...prev, data]);
                       setShowAddTerminal(false);
-                      setNewTerminal({ name: "", device_id: "", terminal_type: "all" });
+                      setNewTerminal({ name: "", device_id: "", terminal_type: "all", access_token: "" });
                       showToast("Terminal agregado", "success");
                     } else {
                       showToast(data.error || "Error", "error");
