@@ -122,6 +122,8 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
     receptionist: [
       "/dashboard/pos", "/dashboard/clientes", "/dashboard/calendario",
       "/dashboard/agenda", "/dashboard/recepcion", "/dashboard/standby",
+      "/dashboard/fidelidad", "/dashboard/retencion", "/dashboard/whatsapp",
+      "/dashboard/boletas", "/dashboard/cupones", "/dashboard/configuracion",
     ],
     barber: [
       "/dashboard/standby", "/dashboard/mi-agenda", "/dashboard/calendario",
