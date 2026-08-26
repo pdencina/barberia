@@ -68,10 +68,20 @@ export async function POST(req: NextRequest) {
     const updates: any = { role: userRole };
     if (phone) updates.phone = phone;
     if (resolvedTenantId) updates.tenant_id = resolvedTenantId;
+
+    // Use upsert: if trigger already created the profile, update it.
+    // If not, create it with all the data.
     await adminSupabase
       .from("profiles")
-      .update(updates)
-      .eq("id", authData.user.id);
+      .upsert({
+        id: authData.user.id,
+        name,
+        email,
+        role: userRole,
+        phone: phone || null,
+        tenant_id: resolvedTenantId || null,
+        active: true,
+      }, { onConflict: "id" });
   }
 
   // Send welcome email with credentials
