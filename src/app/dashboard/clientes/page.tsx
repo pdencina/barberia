@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
+import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -35,6 +36,8 @@ export default function ClientesPage() {
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
+  const { role } = useAuth();
+  const isAdmin = role === "admin" || role === "super_admin";
 
   const fetchClients = async (query: string, p: number = page) => {
     setLoading(true);
@@ -176,7 +179,7 @@ export default function ClientesPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Clientes</h1>
-        <div className="flex gap-2">
+        {isAdmin && <div className="flex gap-2">
           <label className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm cursor-pointer">
             Importar CSV/Excel
             <input type="file" accept=".csv,.xlsx,.xls" className="hidden" onChange={async (e) => {
@@ -288,7 +291,7 @@ export default function ClientesPage() {
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700 text-sm">
             Nuevo
           </button>
-        </div>
+        </div>}
       </div>
 
       <input type="text" placeholder="Buscar por nombre, email o telefono..."
