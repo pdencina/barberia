@@ -361,9 +361,19 @@ export default function CalendarioPage() {
   };
 
   const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
-  const filteredClients = clientSearch
-    ? clients.filter((c) => c.name.toLowerCase().includes(clientSearch.toLowerCase())).slice(0, 5)
-    : [];
+  const [filteredClients, setFilteredClients] = useState<Client[]>([]);
+
+  const searchClients = async (query: string) => {
+    if (query.length < 2) { setFilteredClients([]); return; }
+    const t = tenant?.id || "";
+    const params = new URLSearchParams();
+    if (t) params.set("tenantId", t);
+    params.set("search", query);
+    params.set("limit", "8");
+    const res = await fetch(`/api/clients?${params.toString()}`);
+    const data = await res.json();
+    setFilteredClients(data.clients || []);
+  };
 
   return (
     <div className="p-4 md:p-6 space-y-4 animate-fade-in">
@@ -747,10 +757,10 @@ export default function CalendarioPage() {
                       <span>Cliente</span>
                     </div>
                     <input type="text" value={clientSearch}
-                      onChange={(e) => { setClientSearch(e.target.value); setSelectedClient(""); }}
+                      onChange={(e) => { setClientSearch(e.target.value); setSelectedClient(""); searchClients(e.target.value); }}
                       placeholder="Buscar cliente..."
                       className="w-full border rounded-xl px-3 py-2.5 text-sm" />
-                    {clientSearch && !selectedClient && filteredClients.length > 0 && (
+                    {clientSearch.length >= 2 && !selectedClient && filteredClients.length > 0 && (
                       <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-32 overflow-y-auto">
                         {filteredClients.map((c) => (
                           <button key={c.id} onClick={() => { setSelectedClient(c.id); setClientSearch(c.name); }}
