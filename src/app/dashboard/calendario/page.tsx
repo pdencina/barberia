@@ -53,6 +53,16 @@ export default function CalendarioPage() {
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
 
+  // Get tenant ID (from context or localStorage override)
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
+
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
   const [apptDetails, setApptDetails] = useState<any>(null);
   const [apptTab, setApptTab] = useState<"detalles" | "historial">("detalles");
@@ -318,6 +328,7 @@ export default function CalendarioPage() {
           endTime: endISO,
           serviceIds: [selectedService],
           notes: eventNotes || undefined,
+          tenantId: tenant?.id || getActiveTenantId(),
         }),
       });
       

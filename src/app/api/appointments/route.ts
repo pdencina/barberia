@@ -34,7 +34,15 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { clientId, barberId, date, startTime, endTime: customEndTime, serviceIds, notes } = body;
+  const { clientId, barberId, date, startTime, endTime: customEndTime, serviceIds, notes, tenantId } = body;
+
+  // Resolve tenant_id
+  let resolvedTenantId = tenantId;
+  if (!resolvedTenantId) {
+    // Get from barber's profile
+    const { data: barberProfile } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
+    resolvedTenantId = barberProfile?.tenant_id || null;
+  }
 
   // Get services to calculate duration (if no custom end time)
   const { data: services } = await supabase
@@ -78,6 +86,7 @@ export async function POST(req: NextRequest) {
       start_time: start.toISOString(),
       end_time: end.toISOString(),
       notes,
+      tenant_id: resolvedTenantId,
     })
     .select()
     .single();
