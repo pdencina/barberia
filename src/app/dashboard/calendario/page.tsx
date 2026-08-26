@@ -135,7 +135,8 @@ export default function CalendarioPage() {
     const params = tenant?.id ? `&tenantId=${tenant.id}` : "";
     const res = await fetch(`/api/appointments?date=${date}${params}`);
     const data = await res.json();
-    setAppointments(Array.isArray(data) ? data : []);
+    // Filter out cancelled and no_show appointments
+    setAppointments(Array.isArray(data) ? data.filter((a: any) => !["cancelled", "no_show"].includes(a.status)) : []);
 
     // Fetch blocks for all barbers on this date
     const month = date.slice(0, 7); // YYYY-MM
@@ -217,7 +218,9 @@ export default function CalendarioPage() {
     });
     setShowPopup(true);
     setPopupTab("service");
-    setSelectedService("");
+    // Auto-select the shortest service
+    const shortest = services.length > 0 ? services.reduce((min, s) => s.duration < min.duration ? s : min, services[0]) : null;
+    setSelectedService(shortest?.id || "");
     setSelectedClient("");
     setClientSearch("");
     setEventName("");
@@ -658,7 +661,8 @@ export default function CalendarioPage() {
             setPopupPosition("right");
             setShowPopup(true);
             setPopupTab("service");
-            setSelectedService("");
+            const shortest = services.length > 0 ? services.reduce((min, s) => s.duration < min.duration ? s : min, services[0]) : null;
+            setSelectedService(shortest?.id || "");
             setSelectedClient("");
             setClientSearch("");
             setEventName("");
