@@ -123,7 +123,7 @@ export default function CalendarioPage() {
   // Fetch data
   useEffect(() => {
     if (tenantLoading) return;
-    const t = tenant?.id || "";
+    const t = getActiveTenantId();
     const params = t ? `?tenantId=${t}` : "";
     Promise.all([
       fetch(`/api/barberos${params}`).then((r) => r.json()),
@@ -133,31 +133,55 @@ export default function CalendarioPage() {
       setBarbers(Array.isArray(b) ? b : []);
       setServices(Array.isArray(s) ? s : []);
       setClients(Array.isArray(c?.clients) ? c.clients : Array.isArray(c) ? c : []);
+    }).catch(() => {
+      setBarbers([]);
+      setServices([]);
+      setClients([]);
     });
   }, [tenant?.id, tenantLoading]);
 
+  // Fetch appointments once tenant context is resolved — do NOT gate on barbers,
+  // otherwise a barber with an empty/slow barbers list would spin forever.
   useEffect(() => {
-    if (barbers.length > 0) fetchAppointments();
-  }, [date, barbers]);
+    if (tenantLoading) return;
+    fetchAppointments();
+  }, [date, tenantLoading, tenant?.id]);
 
   const fetchAppointments = async () => {
     setLoading(true);
-    const params = tenant?.id ? `&tenantId=${tenant.id}` : "";
-    const res = await fetch(`/api/appointments?date=${date}${params}`);
-    const data = await res.json();
-    // Filter out cancelled and no_show appointments
-    setAppointments(Array.isArray(data) ? data.filter((a: any) => !["cancelled", "no_show"].includes(a.status)) : []);
-
-    // Fetch blocks for all barbers on this date
-    const month = date.slice(0, 7); // YYYY-MM
-    const blocksPromises = barbers.map((b) =>
-      fetch(`/api/barber/blocks?barberId=${b.id}&month=${month}`).then((r) => r.json())
-    );
-    const allBlocks = (await Promise.all(blocksPromises)).flat();
-    // Filter to current date
-    setBlocks(allBlocks.filter((bl: any) => bl.date === date));
-    setLoading(false);
+    try {
+      const t = getActiveTenantId();
+      const params = t ? `&tenantId=${t}` : "";
+      const res = await fetch(`/api/appointments?date=${date}${params}`);
+      const data = await res.json();
+      // Filter out cancelled and no_show appointments
+      setAppointments(Array.isArray(data) ? data.filter((a: any) => !["cancelled", "no_show"].includes(a.status)) : []);
+    } catch {
+      setAppointments([]);
+    } finally {
+      setLoading(false);
+    }
+    // Also refresh blocks
+    setBlocksRefresh((n) => n + 1);
   };
+
+  // Fetch blocks whenever the barber list, date, or refresh trigger changes
+  const [blocksRefresh, setBlocksRefresh] = useState(0);
+  useEffect(() => {
+    if (barbers.length === 0) { setBlocks([]); return; }
+    let cancelled = false;
+    const month = date.slice(0, 7); // YYYY-MM
+    Promise.all(
+      barbers.map((b) =>
+        fetch(`/api/barber/blocks?barberId=${b.id}&month=${month}`).then((r) => r.json()).catch(() => [])
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const allBlocks = results.flat();
+      setBlocks(allBlocks.filter((bl: any) => bl.date === date));
+    });
+    return () => { cancelled = true; };
+  }, [barbers, date, blocksRefresh]);
 
   // Navigation
   const changeDate = (delta: number) => {
