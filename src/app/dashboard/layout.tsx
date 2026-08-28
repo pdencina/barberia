@@ -57,7 +57,7 @@ export default async function DashboardLayout({
               {children}
             </ErrorBoundary>
             <PushNotificationPrompt />
-            <QuickActions />
+            <QuickActions userRole={profile?.role || "admin"} />
             <CommandPalette />
           </main>
         </div>

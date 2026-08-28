@@ -2,16 +2,19 @@
 
 import { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
-import { Copy } from "lucide-react";
+import { Copy, Camera } from "lucide-react";
 
 export default function MiPerfilPage() {
   const { user } = useAuth();
+  const { tenant } = useTenant();
   const { showToast } = useToast();
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
 
   useEffect(() => {
     if (!user?.id) return;
@@ -20,6 +23,29 @@ export default function MiPerfilPage() {
       .then((d) => { setData(d); setLoading(false); })
       .catch(() => setLoading(false));
   }, [user?.id]);
+
+  const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user?.id) return;
+    setUploadingAvatar(true);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch(`/api/barberos/${user.id}/avatar`, { method: "POST", body: form });
+      if (res.ok) {
+        const result = await res.json();
+        setData((prev: any) => ({ ...prev, avatar_url: result.url }));
+        showToast("Foto actualizada", "success");
+      } else {
+        showToast("Error al subir foto", "error");
+      }
+    } catch {
+      showToast("Error al subir foto", "error");
+    } finally {
+      setUploadingAvatar(false);
+      e.target.value = "";
+    }
+  };
 
   const handleSave = async () => {
     if (!user?.id || !data) return;
@@ -41,7 +67,14 @@ export default function MiPerfilPage() {
   if (loading) return <Spinner />;
   if (!data) return <p className="p-6 text-brand-gray">No se pudo cargar tu perfil.</p>;
 
-  const bookingLink = `${typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl"}/booking?profesional=${data.name?.toLowerCase().replace(/\s+/g, "-")}`;
+  // Build the personal booking link. The public /booking page matches ?profesional=<name-slug>
+  // against each barber's name, and needs ?tenant=<slug> to load the right salon's team.
+  const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
+  const profesionalSlug = (data.name || "").toLowerCase().trim().replace(/\s+/g, "-");
+  const tenantSlug = tenant?.slug || "";
+  const bookingLink = profesionalSlug
+    ? `${origin}/booking?${tenantSlug ? `tenant=${tenantSlug}&` : ""}profesional=${profesionalSlug}`
+    : `${origin}/booking${tenantSlug ? `?tenant=${tenantSlug}` : ""}`;
 
   return (
     <div className="p-4 md:p-6 max-w-2xl space-y-6 animate-fade-in">
@@ -50,16 +83,28 @@ export default function MiPerfilPage() {
       {/* Basic info */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <div className="flex items-center gap-4">
-          {data.avatar_url ? (
-            <img src={data.avatar_url} alt={data.name} className="w-16 h-16 rounded-full object-cover" />
-          ) : (
-            <div className="w-16 h-16 rounded-full bg-brand-blue/10 flex items-center justify-center text-xl font-bold text-brand-blue">
-              {data.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+          <label className="relative group cursor-pointer flex-shrink-0">
+            {data.avatar_url ? (
+              <img src={data.avatar_url} alt={data.name} className="w-16 h-16 rounded-full object-cover border-2 border-brand-blue/20" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-brand-blue/10 flex items-center justify-center text-xl font-bold text-brand-blue">
+                {data.name?.split(" ").map((n: string) => n[0]).join("").slice(0, 2)}
+              </div>
+            )}
+            <div className="absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <Camera className="w-5 h-5 text-white" />
             </div>
-          )}
+            {uploadingAvatar && (
+              <div className="absolute inset-0 rounded-full bg-black/50 flex items-center justify-center">
+                <span className="text-[9px] text-white font-medium">Subiendo...</span>
+              </div>
+            )}
+            <input type="file" accept="image/*" onChange={uploadAvatar} className="hidden" disabled={uploadingAvatar} />
+          </label>
           <div>
             <h2 className="text-lg font-bold text-brand-dark">{data.name}</h2>
             <p className="text-sm text-brand-gray">{data.email}</p>
+            <p className="text-[11px] text-brand-gray mt-0.5">Toca la foto para cambiarla</p>
           </div>
         </div>
 

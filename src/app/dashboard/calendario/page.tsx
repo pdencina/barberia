@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { useTenant } from "@/lib/tenant-context";
+import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/toast";
 
 interface Barber { id: string; name: string; }
@@ -52,6 +53,7 @@ export default function CalendarioPage() {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
+  const { user } = useAuth();
 
   // Get tenant ID (from context or localStorage override)
   const getActiveTenantId = () => {
@@ -65,16 +67,22 @@ export default function CalendarioPage() {
 
   // Columns to render: use the fetched barbers list; if it's empty (e.g. a barber
   // session where /api/barberos returned nothing) fall back to the barbers present
-  // in today's appointments so the professional can still see and act on their citas.
-  const displayBarbers: Barber[] = barbers.length > 0
-    ? barbers
-    : Array.from(
-        new Map(
-          appointments
-            .filter((a) => a.barber_id && a.barber?.name)
-            .map((a) => [a.barber_id, { id: a.barber_id, name: a.barber!.name }])
-        ).values()
-      );
+  // in today's appointments, and finally to the logged-in professional themselves,
+  // so a barber with no citas yet still has a column to reserve on.
+  const computeDisplayBarbers = (): Barber[] => {
+    if (barbers.length > 0) return barbers;
+    const fromAppts = Array.from(
+      new Map(
+        appointments
+          .filter((a) => a.barber_id && a.barber?.name)
+          .map((a) => [a.barber_id, { id: a.barber_id, name: a.barber!.name }])
+      ).values()
+    );
+    if (fromAppts.length > 0) return fromAppts;
+    if (user?.id) return [{ id: user.id, name: user.name || "Yo" }];
+    return [];
+  };
+  const displayBarbers: Barber[] = computeDisplayBarbers();
 
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
   const [apptDetails, setApptDetails] = useState<any>(null);
@@ -275,6 +283,36 @@ export default function CalendarioPage() {
     setDragging(false);
   };
 
+  // Open the creation popup explicitly (used by the "Agendar" button — reliable on mobile
+  // where drag-to-create requires an awkward long-press).
+  const openCreatePopup = (barberId: string, startTime: string, endTime: string) => {
+    const barber = displayBarbers.find((b) => b.id === barberId);
+    setPopupPosition("right");
+    setPopupData({ barberId, startTime, endTime, barberName: barber?.name || "" });
+    setShowPopup(true);
+    setPopupTab("service");
+    const shortest = services.length > 0 ? services.reduce((min, s) => s.duration < min.duration ? s : min, services[0]) : null;
+    setSelectedService(shortest?.id || "");
+    setSelectedClient("");
+    setClientSearch("");
+    setEventName("");
+    setEventNotes("");
+  };
+
+  // Default barber for the "Agendar" button: the logged-in professional if they're in the
+  // column list, otherwise the first available column.
+  const defaultAgendarBarberId = (): string => {
+    if (user?.id && displayBarbers.some((b) => b.id === user.id)) return user.id;
+    return displayBarbers[0]?.id || "";
+  };
+
+  const handleAgendarClick = () => {
+    const barberId = defaultAgendarBarberId();
+    if (!barberId) { showToast("No hay profesionales disponibles", "error"); return; }
+    // Default to 10:00–10:45 (a typical slot); user can adjust in the popup.
+    openCreatePopup(barberId, "10:00", "10:45");
+  };
+
   // Touch handlers for mobile drag-to-create (long-press to activate)
   const touchRef = useRef<{ barberId: string; startY: number; startX: number; el: HTMLElement; activated: boolean } | null>(null);
   const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -431,17 +469,21 @@ export default function CalendarioPage() {
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-3">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Calendario</h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => changeDate(-1)} className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">←</button>
           <button onClick={() => setDate(new Date().toISOString().split("T")[0])} className={`px-3 py-2 rounded-lg text-sm font-medium ${isToday ? "bg-blue-600 text-white" : "bg-gray-100"}`}>Hoy</button>
           <button onClick={() => changeDate(1)} className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">→</button>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border rounded-lg px-3 py-2 text-sm ml-2" />
+          <button onClick={handleAgendarClick}
+            className="px-4 py-2 bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90 text-sm font-medium flex items-center gap-1">
+            <span className="text-base leading-none">+</span> Agendar
+          </button>
         </div>
       </div>
 
       <p className="text-center text-sm text-gray-600 font-medium">
         {new Date(date + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
-        <span className="text-gray-400 ml-2">· Click y arrastra para agendar</span>
+        <span className="text-gray-400 ml-2">· Toca "Agendar" o arrastra sobre el horario</span>
       </p>
 
       {loading ? <Spinner /> : (
@@ -951,15 +993,26 @@ export default function CalendarioPage() {
                     </div>
 
                     {/* Actions */}
-                    <div className="flex gap-2 pt-3 border-t">
-                      <button onClick={() => setEditingApptTime(true)}
-                        className="flex-1 py-2 border border-gray-200 rounded-xl text-xs text-brand-gray hover:bg-gray-50 font-medium">
-                        Editar hora
-                      </button>
-                      <button onClick={() => updateApptStatus("cancelled")}
-                        className="flex-1 py-2 border border-red-200 rounded-xl text-xs text-red-500 hover:bg-red-50 font-medium">
-                        Cancelar cita
-                      </button>
+                    <div className="pt-3 border-t space-y-2">
+                      {apptDetails.client?.id && (
+                        <button onClick={() => { window.location.href = `/dashboard/clientes/${apptDetails.client.id}`; }}
+                          className="w-full py-2 bg-brand-blue/10 text-brand-blue rounded-xl text-xs font-medium hover:bg-brand-blue/20 flex items-center justify-center gap-1.5">
+                          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                          Ver ficha de cliente
+                        </button>
+                      )}
+                      <div className="flex gap-2">
+                        <button onClick={() => setEditingApptTime(true)}
+                          className="flex-1 py-2 border border-gray-200 rounded-xl text-xs text-brand-gray hover:bg-gray-50 font-medium">
+                          Editar hora
+                        </button>
+                        <button onClick={() => updateApptStatus("cancelled")}
+                          className="flex-1 py-2 border border-red-200 rounded-xl text-xs text-red-500 hover:bg-red-50 font-medium">
+                          Cancelar cita
+                        </button>
+                      </div>
                     </div>
 
                     {/* Edit time/date form */}

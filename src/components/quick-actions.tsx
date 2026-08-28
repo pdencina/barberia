@@ -3,16 +3,21 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-export function QuickActions() {
+export function QuickActions({ userRole }: { userRole?: string }) {
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
-  const actions = [
-    { label: "Nueva Venta", href: "/dashboard/pos", icon: "🛒", color: "bg-green-500" },
-    { label: "Agendar Cita", href: "/dashboard/agenda", icon: "📅", color: "bg-blue-500" },
-    { label: "Nuevo Cliente", href: "/dashboard/clientes", icon: "👤", color: "bg-purple-500" },
-    { label: "Abrir Caja", href: "/dashboard/caja", icon: "💰", color: "bg-yellow-500" },
+  const isBarber = userRole === "barber";
+
+  const allActions = [
+    { label: "Nueva Venta", href: "/dashboard/pos", icon: "🛒", color: "bg-green-500", barberAllowed: false },
+    { label: "Agendar Cita", href: "/dashboard/calendario", icon: "📅", color: "bg-blue-500", barberAllowed: true },
+    { label: "Nuevo Cliente", href: "/dashboard/clientes", icon: "👤", color: "bg-purple-500", barberAllowed: true },
+    { label: "Abrir Caja", href: "/dashboard/caja", icon: "💰", color: "bg-yellow-500", barberAllowed: false },
   ];
+
+  // Barbers only get non-POS/non-caja actions
+  const actions = isBarber ? allActions.filter((a) => a.barberAllowed) : allActions;
 
   return (
     <div className="fixed bottom-6 right-6 z-50 lg:hidden">
