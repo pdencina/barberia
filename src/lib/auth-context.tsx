@@ -70,7 +70,9 @@ export function AuthProvider({ children, serverRole, serverUserId, serverEmail, 
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) {
-          setUser(null);
+          // Client-side session may be unavailable on Vercel even for a valid user.
+          // Do NOT wipe the server-provided user in that case — keep it as the truth.
+          if (!serverRole || !serverUserId) setUser(null);
           setLoading(false);
           return;
         }
@@ -86,17 +88,20 @@ export function AuthProvider({ children, serverRole, serverUserId, serverEmail, 
             id: profile.id,
             name: profile.name,
             email: profile.email,
-            role: (profile.role as Role) || "admin",
+            // Trust the DB role; if somehow missing, fall back to the server-provided
+            // role rather than blindly assuming admin (which would over-expose actions).
+            role: (profile.role as Role) || (serverRole as Role) || "barber",
             avatar_url: profile.avatar_url,
             work_mode: profile.work_mode,
           });
         } else {
-          // No profile found - default to admin (server already validated session)
+          // No profile row found. Preserve the server-provided role instead of
+          // defaulting to admin, so barbers never get admin-only actions.
           setUser({
             id: session.user.id,
-            name: session.user.email?.split("@")[0] || "Usuario",
+            name: serverName || session.user.email?.split("@")[0] || "Usuario",
             email: session.user.email || "",
-            role: "admin",
+            role: (serverRole as Role) || "barber",
             avatar_url: null,
             work_mode: null,
           });
