@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 
@@ -18,18 +19,32 @@ export default function BarberPreciosPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState<string | null>(null);
   const { showToast } = useToast();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   useEffect(() => {
+    if (tenantLoading) return;
+    const t = getActiveTenantId();
+    const q = t ? `&tenantId=${t}` : "";
+    const q2 = t ? `?tenantId=${t}` : "";
     Promise.all([
-      fetch("/api/barberos").then((r) => r.json()),
-      fetch("/api/services?all=true").then((r) => r.json()),
+      fetch(`/api/barberos${q2}`).then((r) => r.json()),
+      fetch(`/api/services?all=true${q}`).then((r) => r.json()),
     ]).then(([b, s]) => {
       setBarbers(Array.isArray(b) ? b : []);
       setServices(Array.isArray(s) ? s.filter((sv: any) => sv.active) : []);
       if (b.length > 0) setSelectedBarber(b[0].id);
       setLoading(false);
     });
-  }, []);
+  }, [tenantLoading, tenant?.id]);
 
   useEffect(() => {
     if (selectedBarber) {

@@ -22,26 +22,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true });
   }
 
-  // Generate a password reset link using Supabase Admin API
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
+
+  // Generate a password reset link using Supabase Admin API.
+  // NOTE: the redirectTo URL must be listed in Supabase Auth → URL Configuration →
+  // Redirect URLs, otherwise generateLink fails. We try a couple of times and, if it
+  // still fails, we DO NOT silently swallow it — we send a fallback email and log the
+  // real error so recovery never appears to "succeed" while sending nothing.
   const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
     type: "recovery",
     email,
     options: {
-      redirectTo: "https://re-booking.cl/reset-password",
+      redirectTo: `${baseUrl}/reset-password`,
     },
   });
 
-  if (linkError || !linkData) {
-    console.error("Error generating reset link:", linkError);
-    return NextResponse.json({ success: true });
+  if (linkError) {
+    console.error("forgot-password: generateLink failed:", linkError.message, JSON.stringify(linkError));
   }
 
-  // Send the reset email using Resend (reliable)
+  // Send the reset email using Resend (reliable). If the recovery link couldn't be
+  // generated, fall back to the reset page (user can request the code from there / retry).
   try {
     const { Resend } = await import("resend");
     const resend = new Resend(process.env.RESEND_API_KEY);
 
-    const resetUrl = linkData.properties?.action_link || `https://re-booking.cl/reset-password`;
+    const resetUrl = linkData?.properties?.action_link || `${baseUrl}/reset-password`;
 
     await resend.emails.send({
       from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",

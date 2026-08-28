@@ -35,7 +35,9 @@ export default function BarberosPage() {
   const fetchBarbers = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/barberos");
+      const t = getActiveTenantId();
+      const q = t ? `?tenantId=${t}` : "";
+      const res = await fetch(`/api/barberos${q}`);
       const data = await res.json();
       setBarbers(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -45,7 +47,10 @@ export default function BarberosPage() {
     }
   };
 
-  useEffect(() => { fetchBarbers(); }, []);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchBarbers();
+  }, [tenantLoading, tenant?.id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

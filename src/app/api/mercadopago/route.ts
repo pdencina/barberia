@@ -59,94 +59,109 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Barbero no encontrado" }, { status: 404 });
   }
 
-  const accessToken = (barber.work_mode === "rental" && barber.mp_access_token)
-    ? barber.mp_access_token
-    : null;
+  // A MercadoPago device_id can ONLY be charged with the access_token of the SAME
+  // MP account it's registered in. So device_id and access_token MUST always come from
+  // the same source — never mix a device from one source with a token from another,
+  // or the terminal wakes up but the charge is rejected ("pago rechazado").
+  //
+  // Resolution order (each source provides BOTH device + the token to use with it):
+  //   1. Barber's personal (rental) terminal
+  //   2. Tenant multi-terminal matching the cart type (mp_terminals)
+  //   3. Tenant multi-terminal "all" type
+  //   4. Any active tenant multi-terminal
+  //   5. Legacy tenant_settings single device
+  //   6. Env vars (backwards compatibility)
+  // For mp_terminals rows without their own access_token, we pair the device with the
+  // tenant's global token (they belong to the same MP account by definition).
+  let finalToken: string | null = null;
+  let finalDeviceId: string | null = null;
+  const tenantId = barber.tenant_id;
 
-  const deviceId = (barber.work_mode === "rental" && barber.mp_device_id)
-    ? barber.mp_device_id
-    : null;
+  // Tenant global token (used to back terminals that don't carry their own token)
+  let tenantGlobalToken: string | null = null;
+  if (tenantId) {
+    const { data: tenantSettings } = await supabase
+      .from("tenant_settings")
+      .select("mp_access_token")
+      .eq("tenant_id", tenantId)
+      .single();
+    tenantGlobalToken = tenantSettings?.mp_access_token || null;
+  }
 
-  // If barber doesn't have personal terminal, use tenant's configured terminal
-  let finalToken = accessToken;
-  let finalDeviceId = deviceId;
+  // 1. Barber's personal terminal (device + token from the barber row)
+  if (barber.work_mode === "rental" && barber.mp_access_token && barber.mp_device_id) {
+    finalToken = barber.mp_access_token;
+    finalDeviceId = barber.mp_device_id;
+  }
 
-  if (!finalToken || !finalDeviceId) {
-    // Read from tenant_settings (self-service config)
-    const tenantId = barber.tenant_id;
+  // Helper: pick a terminal row and pair its device with the correct token
+  const useTerminal = (t: { device_id: string | null; access_token: string | null } | null) => {
+    if (!t?.device_id) return false;
+    finalDeviceId = t.device_id;
+    // Use the terminal's own token if present, otherwise the tenant global token.
+    finalToken = t.access_token || tenantGlobalToken;
+    return !!finalToken;
+  };
 
-    if (tenantId) {
-      // First: check multi-terminal table for the best match
-      const terminalType = cartType === "products" ? "products" : cartType === "services" ? "services" : null;
+  if (!finalDeviceId && tenantId) {
+    const terminalType = cartType === "products" ? "products" : cartType === "services" ? "services" : null;
 
-      if (terminalType) {
-        // Look for a terminal matching the cart type
-        const { data: typedTerminal } = await supabase
-          .from("mp_terminals")
-          .select("device_id, access_token")
-          .eq("tenant_id", tenantId)
-          .eq("terminal_type", terminalType)
-          .eq("active", true)
-          .limit(1)
-          .single();
-
-        if (typedTerminal) {
-          if (!finalDeviceId) finalDeviceId = typedTerminal.device_id;
-          if (!finalToken && typedTerminal.access_token) finalToken = typedTerminal.access_token;
-        }
-      }
-
-      // If no typed terminal found, look for "all" type
-      if (!finalDeviceId) {
-        const { data: allTerminal } = await supabase
-          .from("mp_terminals")
-          .select("device_id, access_token")
-          .eq("tenant_id", tenantId)
-          .eq("terminal_type", "all")
-          .eq("active", true)
-          .limit(1)
-          .single();
-
-        if (allTerminal) {
-          if (!finalDeviceId) finalDeviceId = allTerminal.device_id;
-          if (!finalToken && allTerminal.access_token) finalToken = allTerminal.access_token;
-        }
-      }
-
-      // If still no device, use any active terminal
-      if (!finalDeviceId) {
-        const { data: anyTerminal } = await supabase
-          .from("mp_terminals")
-          .select("device_id, access_token")
-          .eq("tenant_id", tenantId)
-          .eq("active", true)
-          .limit(1)
-          .single();
-
-        if (anyTerminal) {
-          if (!finalDeviceId) finalDeviceId = anyTerminal.device_id;
-          if (!finalToken && anyTerminal.access_token) finalToken = anyTerminal.access_token;
-        }
-      }
-
-      // Fallback: tenant_settings single device (legacy)
-      if (!finalToken || !finalDeviceId) {
-        const { data: tenantSettings } = await supabase
-          .from("tenant_settings")
-          .select("mp_access_token, mp_device_id")
-          .eq("tenant_id", tenantId)
-          .single();
-
-        if (tenantSettings) {
-          if (!finalToken) finalToken = tenantSettings.mp_access_token || null;
-          if (!finalDeviceId) finalDeviceId = tenantSettings.mp_device_id || null;
-        }
-      }
+    // 2. Terminal matching the cart type
+    if (terminalType) {
+      const { data: typedTerminal } = await supabase
+        .from("mp_terminals")
+        .select("device_id, access_token")
+        .eq("tenant_id", tenantId)
+        .eq("terminal_type", terminalType)
+        .eq("active", true)
+        .limit(1)
+        .single();
+      useTerminal(typedTerminal);
     }
 
-    // Last fallback: env vars (for backwards compatibility)
-    if (!finalToken) finalToken = process.env.MP_ACCESS_TOKEN || null;
-    if (!finalDeviceId) finalDeviceId = process.env.MP_DEVICE_ID || null;
+    // 3. "all" type terminal
+    if (!finalDeviceId) {
+      const { data: allTerminal } = await supabase
+        .from("mp_terminals")
+        .select("device_id, access_token")
+        .eq("tenant_id", tenantId)
+        .eq("terminal_type", "all")
+        .eq("active", true)
+        .limit(1)
+        .single();
+      useTerminal(allTerminal);
+    }
+
+    // 4. Any active terminal
+    if (!finalDeviceId) {
+      const { data: anyTerminal } = await supabase
+        .from("mp_terminals")
+        .select("device_id, access_token")
+        .eq("tenant_id", tenantId)
+        .eq("active", true)
+        .limit(1)
+        .single();
+      useTerminal(anyTerminal);
+    }
+
+    // 5. Legacy tenant_settings single device (device + global token, same account)
+    if (!finalDeviceId) {
+      const { data: legacy } = await supabase
+        .from("tenant_settings")
+        .select("mp_access_token, mp_device_id")
+        .eq("tenant_id", tenantId)
+        .single();
+      if (legacy?.mp_device_id) {
+        finalDeviceId = legacy.mp_device_id;
+        finalToken = legacy.mp_access_token || tenantGlobalToken;
+      }
+    }
+  }
+
+  // 6. Env vars (both from the same env account)
+  if (!finalDeviceId && process.env.MP_DEVICE_ID) {
+    finalDeviceId = process.env.MP_DEVICE_ID;
+    finalToken = process.env.MP_ACCESS_TOKEN || null;
   }
 
   if (!finalToken) {
@@ -158,11 +173,14 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    // Cancel any pending orders first (avoid "already queued" error)
+    // Cancel any pending orders for THIS device first (avoid "already queued" error).
+    // Scoped to this device_id so we never touch other terminals'/tenants' pending
+    // orders (which were created with a different account's token).
     const { data: pendingOrders } = await supabase
       .from("mp_payment_intents")
       .select("mp_payment_id")
       .eq("status", "pending")
+      .eq("device_id", finalDeviceId)
       .order("created_at", { ascending: false })
       .limit(3);
 

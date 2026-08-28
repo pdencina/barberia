@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface GalleryImage {
@@ -29,14 +30,28 @@ export default function GaleriaPage() {
   const [selectedService, setSelectedService] = useState("");
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   const fetchData = async () => {
     setLoading(true);
-    const params = filterBarber ? `?barberId=${filterBarber}` : "";
+    const t = getActiveTenantId();
+    const gParams = new URLSearchParams();
+    if (filterBarber) gParams.set("barberId", filterBarber);
+    if (t) gParams.set("tenantId", t);
+    const q = t ? `?tenantId=${t}` : "";
     const [imgRes, barbRes, svcRes] = await Promise.all([
-      fetch(`/api/gallery${params}`),
-      fetch("/api/barberos"),
-      fetch("/api/services"),
+      fetch(`/api/gallery${gParams.toString() ? `?${gParams.toString()}` : ""}`),
+      fetch(`/api/barberos${q}`),
+      fetch(`/api/services${q}`),
     ]);
     setImages(await imgRes.json());
     setBarbers(await barbRes.json());
@@ -44,7 +59,10 @@ export default function GaleriaPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [filterBarber]);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchData();
+  }, [filterBarber, tenantLoading, tenant?.id]);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

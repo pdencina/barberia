@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
@@ -73,9 +74,22 @@ export default function MiAgendaPage() {
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { user, isAtLeast } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   useEffect(() => {
-    fetch("/api/barberos").then((r) => r.json()).then((data) => {
+    if (tenantLoading) return;
+    const t = getActiveTenantId();
+    const q = t ? `?tenantId=${t}` : "";
+    fetch(`/api/barberos${q}`).then((r) => r.json()).then((data) => {
       const list = Array.isArray(data) ? data : [];
       setBarbers(list);
       if (user?.role === "barber" && user?.id) {
@@ -84,10 +98,10 @@ export default function MiAgendaPage() {
         setSelectedBarber(list[0].id);
       }
     });
-    fetch("/api/services").then((r) => r.json()).then((data) => {
+    fetch(`/api/services${q}`).then((r) => r.json()).then((data) => {
       setServices(Array.isArray(data) ? data : []);
     });
-  }, [user]);
+  }, [user, tenantLoading, tenant?.id]);
 
   const fetchData = async () => {
     if (!selectedBarber) return;

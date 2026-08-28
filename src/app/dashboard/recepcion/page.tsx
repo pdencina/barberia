@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Appointment {
@@ -40,12 +41,25 @@ export default function RecepcionPage() {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { tenant, loading: tenantLoading } = useTenant();
 
   const today = new Date().toISOString().split("T")[0];
 
+  // Resolve tenant from context or localStorage override (reliable on Vercel).
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
+
   const fetchAppointments = async () => {
     try {
-      const res = await fetch(`/api/appointments?date=${today}`);
+      const t = getActiveTenantId();
+      const params = t ? `&tenantId=${t}` : "";
+      const res = await fetch(`/api/appointments?date=${today}${params}`);
       const data = await res.json();
       setAppointments(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -56,6 +70,7 @@ export default function RecepcionPage() {
   };
 
   useEffect(() => {
+    if (tenantLoading) return;
     fetchAppointments();
 
     // Clock update every second
@@ -78,7 +93,8 @@ export default function RecepcionPage() {
       clearInterval(refreshInterval);
       supabase.removeChannel(channel);
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
 
   const updateStatus = async (id: string, status: string) => {
     if (status === "cancelled") {

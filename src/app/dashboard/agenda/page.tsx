@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Appointment {
@@ -54,11 +55,24 @@ export default function AgendaPage() {
   });
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  // Resolve tenant from context or localStorage override (reliable on Vercel).
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   const fetchAppointments = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/appointments?date=${date}`);
+      const t = getActiveTenantId();
+      const params = t ? `&tenantId=${t}` : "";
+      const res = await fetch(`/api/appointments?date=${date}${params}`);
       const data = await res.json();
       setAppointments(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -69,18 +83,24 @@ export default function AgendaPage() {
   };
 
   useEffect(() => {
+    if (tenantLoading) return;
+    const t = getActiveTenantId();
+    const q = t ? `?tenantId=${t}` : "";
     Promise.all([
-      fetch("/api/barberos").then((r) => r.json()).catch(() => []),
-      fetch("/api/clients").then((r) => r.json()).catch(() => ({ clients: [] })),
-      fetch("/api/services").then((r) => r.json()).catch(() => []),
+      fetch(`/api/barberos${q}`).then((r) => r.json()).catch(() => []),
+      fetch(`/api/clients${q}`).then((r) => r.json()).catch(() => ({ clients: [] })),
+      fetch(`/api/services${q}`).then((r) => r.json()).catch(() => []),
     ]).then(([b, c, s]) => {
       setBarbers(Array.isArray(b) ? b : []);
       setClients(Array.isArray(c?.clients) ? c.clients : Array.isArray(c) ? c : []);
       setServices(Array.isArray(s) ? s : []);
     });
-  }, []);
+  }, [tenantLoading, tenant?.id]);
 
-  useEffect(() => { fetchAppointments(); }, [date]);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchAppointments();
+  }, [date, tenantLoading, tenant?.id]);
 
   const filteredAppointments = barberFilter
     ? appointments.filter((a: any) => a.barber_id === barberFilter)
@@ -133,6 +153,7 @@ export default function AgendaPage() {
         startTime: `${date}T${formData.time}:00`,
         serviceIds: formData.services,
         notes: formData.notes,
+        tenantId: getActiveTenantId() || undefined,
       }),
     });
     showToast("Cita agendada exitosamente", "success");
