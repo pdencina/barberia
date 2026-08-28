@@ -17,6 +17,9 @@ interface AuthContextType {
   user: UserProfile | null;
   loading: boolean;
   role: Role | null;
+  // Reliable role from the server render (never overwritten by the flaky client-side
+  // session fetch on Vercel). Prefer this for security-sensitive UI gating.
+  effectiveRole: Role | null;
   canAccess: (pathname: string) => boolean;
   hasPermission: (feature: string) => boolean;
   isAtLeast: (minRole: Role) => boolean;
@@ -34,6 +37,7 @@ const AuthContext = createContext<AuthContextType>({
   user: null,
   loading: true,
   role: null,
+  effectiveRole: null,
   canAccess: () => false,
   hasPermission: () => false,
   isAtLeast: () => false,
@@ -124,6 +128,10 @@ export function AuthProvider({ children, serverRole, serverUserId, serverEmail, 
 
   const role = user?.role || null;
 
+  // Server role is fixed for the session and is the reliable source of truth for gating.
+  // Fall back to the client-resolved role only when no server role was provided.
+  const effectiveRole: Role | null = (serverRole as Role) || role;
+
   const canAccess = (pathname: string): boolean => {
     if (!role) return false;
     return canAccessRoute(role, pathname);
@@ -140,7 +148,7 @@ export function AuthProvider({ children, serverRole, serverUserId, serverEmail, 
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, role, canAccess, hasPermission, isAtLeast }}>
+    <AuthContext.Provider value={{ user, loading, role, effectiveRole, canAccess, hasPermission, isAtLeast }}>
       {children}
     </AuthContext.Provider>
   );

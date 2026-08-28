@@ -36,11 +36,13 @@ export default function ClientesPage() {
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
-  const { role } = useAuth();
-  const isAdmin = role === "admin" || role === "super_admin";
+  const { role, effectiveRole } = useAuth();
+  // Use effectiveRole (server-provided, reliable on Vercel) for security-sensitive gating.
+  const gateRole = effectiveRole || role;
+  const isAdmin = gateRole === "admin" || gateRole === "super_admin";
   // Import/Export is a security-sensitive bulk operation: never available to barbers.
   // Allowed for admin, super_admin and receptionist only.
-  const canImportExport = role === "admin" || role === "super_admin" || role === "receptionist";
+  const canImportExport = gateRole === "admin" || gateRole === "super_admin" || gateRole === "receptionist";
 
   const fetchClients = async (query: string, p: number = page) => {
     setLoading(true);
