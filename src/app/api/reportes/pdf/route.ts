@@ -1,12 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
+
+// Reads from the DB and must never be prerendered/baked at build time.
+export const dynamic = "force-dynamic";
 
 // Generates an HTML report that can be printed/saved as PDF
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
   const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
   const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
+
+  // Scope every query to the caller's business. "ALL" means super_admin (no filter).
+  const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
+
+  // Report header must reflect the caller's own business, not a hardcoded salon.
+  let businessName = "re-booking";
+  let businessAddress = "";
+  if (tenantId && tenantId !== "ALL") {
+    const { data: tenantRow } = await supabase
+      .from("tenants")
+      .select("name, address")
+      .eq("id", tenantId)
+      .single();
+    if (tenantRow?.name) businessName = tenantRow.name;
+    if (tenantRow?.address) businessAddress = tenantRow.address;
+  }
 
   const startDate = new Date(year, month - 1, 1).toISOString();
   const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
@@ -15,31 +36,31 @@ export async function GET(req: NextRequest) {
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
   // Fetch data
-  const { data: incomeTx } = await supabase
+  const { data: incomeTx } = await scoped(supabase
     .from("transactions")
     .select("total, payment_method, barber_id")
     .eq("type", "income").eq("status", "completed")
-    .gte("created_at", startDate).lte("created_at", endDate);
+    .gte("created_at", startDate).lte("created_at", endDate));
 
-  const { data: expenseTx } = await supabase
+  const { data: expenseTx } = await scoped(supabase
     .from("transactions")
     .select("total")
     .eq("type", "expense").eq("status", "completed")
-    .gte("created_at", startDate).lte("created_at", endDate);
+    .gte("created_at", startDate).lte("created_at", endDate));
 
-  const { count: appointmentsCompleted } = await supabase
+  const { count: appointmentsCompleted } = await scoped(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("status", "completed")
-    .gte("date", startDate.split("T")[0]).lte("date", endDate.split("T")[0]);
+    .gte("date", startDate.split("T")[0]).lte("date", endDate.split("T")[0]));
 
-  const { count: newClients } = await supabase
+  const { count: newClients } = await scoped(supabase
     .from("clients")
     .select("id", { count: "exact", head: true })
-    .gte("created_at", startDate).lte("created_at", endDate);
+    .gte("created_at", startDate).lte("created_at", endDate));
 
-  const totalIncome = (incomeTx || []).reduce((s, t) => s + Number(t.total), 0);
-  const totalExpenses = (expenseTx || []).reduce((s, t) => s + Number(t.total), 0);
+  const totalIncome = (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
+  const totalExpenses = (expenseTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
   const netProfit = totalIncome - totalExpenses;
 
   // Income by payment method
@@ -114,12 +135,11 @@ export async function GET(req: NextRequest) {
 
   <div class="header">
     <div>
-      <span class="brand">Estudio+Levels</span>
+      <span class="brand">${businessName}</span>
       <p class="period">${monthNames[month-1]} ${year} · Cierre Mensual</p>
     </div>
     <div style="text-align: right; font-size: 12px; color: #888;">
-      <p>1889 Juan de Dios Malebran</p>
-      <p>Puente Alto, Chile</p>
+      ${businessAddress ? `<p>${businessAddress}</p>` : ""}
       <p>Generado: ${new Date().toLocaleDateString("es-CL")}</p>
     </div>
   </div>
@@ -164,7 +184,7 @@ export async function GET(req: NextRequest) {
       <thead><tr><th>Barbero</th><th class="text-right">Ventas</th><th class="text-right">Total</th></tr></thead>
       <tbody>
         ${Object.entries(barberMap).map(([id, total]) => `
-          <tr><td>${barberNames[id] || "Desconocido"}</td><td class="text-right">${(incomeTx || []).filter(t => t.barber_id === id).length}</td><td class="text-right">${fmt(total)}</td></tr>
+          <tr><td>${barberNames[id] || "Desconocido"}</td><td class="text-right">${(incomeTx || []).filter((t: any) => t.barber_id === id).length}</td><td class="text-right">${fmt(total)}</td></tr>
         `).join("")}
       </tbody>
     </table>
@@ -183,8 +203,8 @@ export async function GET(req: NextRequest) {
   </div>
 
   <div class="footer">
-    <p>re-booking · Cierre Mensual ${monthNames[month-1]} ${year}</p>
-    <p>Documento generado automaticamente · rebooking.cl</p>
+    <p>${businessName} · Cierre Mensual ${monthNames[month-1]} ${year}</p>
+    <p>Documento generado automaticamente · re-booking.cl</p>
   </div>
 </body>
 </html>`;

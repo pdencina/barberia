@@ -1,16 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 // Avoid build-time prerendering: this reads from the DB and must not be baked/stale.
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { data } = await supabase
+  const tenantId = await getTenantFromRequest(req);
+
+  let query = supabase
     .from("invoices")
     .select("*, uploaded_by_profile:profiles!invoices_uploaded_by_fkey(name)")
     .order("created_at", { ascending: false })
     .limit(50);
+
+  // Invoices are financial documents: never show one business's invoices to another.
+  if (tenantId && tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
+
+  const { data } = await query;
 
   return NextResponse.json(data || []);
 }
@@ -26,6 +34,19 @@ export async function POST(req: NextRequest) {
 
   if (!file || !description) {
     return NextResponse.json({ error: "Archivo y descripcion requeridos" }, { status: 400 });
+  }
+
+  // Resolve the business so the invoice isn't saved orphaned (invisible in the list).
+  let tenantId: string | null = (formData.get("tenantId") as string) || null;
+  if (!tenantId) {
+    const resolved = await getTenantFromRequest(req);
+    tenantId = resolved && resolved !== "ALL" ? resolved : null;
+  }
+  if (!tenantId) {
+    return NextResponse.json(
+      { error: "No se pudo determinar el negocio para la boleta." },
+      { status: 400 }
+    );
   }
 
   // Upload to Supabase Storage
@@ -53,6 +74,7 @@ export async function POST(req: NextRequest) {
       amount: amount ? parseInt(amount) : null,
       file_url: publicUrl,
       file_name: file.name,
+      tenant_id: tenantId,
     })
     .select()
     .single();
