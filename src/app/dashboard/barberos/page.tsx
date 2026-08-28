@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
@@ -21,6 +22,7 @@ export default function BarberosPage() {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "", role: "barber" });
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
+  const router = useRouter();
 
   // Get tenant ID (from context or localStorage override for super_admin)
   const getActiveTenantId = () => {
@@ -145,7 +147,7 @@ export default function BarberosPage() {
               <tr><td colSpan={4} className="p-4 text-center text-gray-500">No hay profesionales</td></tr>
             ) : barbers.map((b) => (
               <tr key={b.id} className="hover:bg-gray-50">
-                <td className="p-4 font-medium text-blue-600 cursor-pointer" onClick={() => window.location.href = `/dashboard/barberos/${b.id}`}>
+                <td className="p-4 font-medium text-blue-600 cursor-pointer" onClick={() => router.push(`/dashboard/barberos/${b.id}`)}>
                   <div className="flex items-center gap-3">
                     {b.avatar_url ? (
                       <img src={b.avatar_url} alt={b.name} className="w-8 h-8 rounded-full object-cover" />

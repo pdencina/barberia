@@ -22,22 +22,14 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  // Single query: profile + tenant name via join (was two sequential round-trips).
   const { data: profile } = await createAdminSupabase()
     .from("profiles")
-    .select("name, role, tenant_id")
+    .select("name, role, tenant_id, tenant:tenants(name)")
     .eq("id", user.id)
     .single();
 
-  // Fetch tenant name for sidebar display
-  let tenantName = "";
-  if (profile?.tenant_id) {
-    const { data: tenant } = await supabase
-      .from("tenants")
-      .select("name")
-      .eq("id", profile.tenant_id)
-      .single();
-    tenantName = tenant?.name || "";
-  }
+  const tenantName = (profile?.tenant as any)?.name || "";
 
   return (
     <ToastWrapper>
