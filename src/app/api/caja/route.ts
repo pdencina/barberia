@@ -1,30 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 // GET: Current day's cash register status + transactions
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
 
-  // Get register for this date
-  const { data: register } = await supabase
+  // Get register for this date, scoped to the caller's business. Without this, two
+  // businesses opening a register on the same day would collide (see migration 053).
+  let registerQuery = supabase
     .from("cash_register")
     .select("*, opened_by_profile:profiles!cash_register_opened_by_fkey(name), closed_by_profile:profiles!cash_register_closed_by_fkey(name)")
-    .eq("date", date)
-    .single();
+    .eq("date", date);
+  if (tenantId && tenantId !== "ALL") registerQuery = registerQuery.eq("tenant_id", tenantId);
+  const { data: register } = await registerQuery.maybeSingle();
 
   // Get today's cash transactions
   const dayStart = `${date}T00:00:00`;
   const dayEnd = `${date}T23:59:59`;
 
-  const { data: transactions } = await supabase
+  let txQuery = supabase
     .from("transactions")
     .select("id, type, total, payment_method, notes, created_at")
     .eq("status", "completed")
     .gte("created_at", dayStart)
     .lte("created_at", dayEnd)
     .order("created_at", { ascending: true });
+  if (tenantId && tenantId !== "ALL") txQuery = txQuery.eq("tenant_id", tenantId);
+  const { data: transactions } = await txQuery;
 
   // Calculate cash movements
   const cashIncome = (transactions || [])
@@ -71,16 +77,28 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { openingAmount, userId } = body;
+  const { openingAmount, userId, tenantId: bodyTenantId } = body;
+
+  // Resolve tenant: prefer explicit param, fallback to session.
+  let tenantId: string | null = bodyTenantId || null;
+  if (!tenantId) {
+    const resolved = await getTenantFromRequest(req);
+    tenantId = resolved && resolved !== "ALL" ? resolved : null;
+  }
+  if (!tenantId) {
+    return NextResponse.json({ error: "No se pudo determinar el negocio para abrir la caja." }, { status: 400 });
+  }
 
   const today = new Date().toISOString().split("T")[0];
 
-  // Check if already open
+  // Check if THIS business already opened a register today (was checking globally,
+  // which blocked every other business from opening theirs — see migration 053).
   const { data: existing } = await supabase
     .from("cash_register")
     .select("id")
     .eq("date", today)
-    .single();
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
 
   if (existing) {
     return NextResponse.json({ error: "La caja de hoy ya fue abierta" }, { status: 409 });
@@ -93,6 +111,7 @@ export async function POST(req: NextRequest) {
       opening_amount: openingAmount || 0,
       opened_by: userId || null,
       status: "open",
+      tenant_id: tenantId,
     })
     .select()
     .single();
@@ -105,23 +124,34 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { closingAmount, userId, notes } = body;
+  const { closingAmount, userId, notes, tenantId: bodyTenantId } = body;
+
+  // Resolve tenant: prefer explicit param, fallback to session.
+  let tenantId: string | null = bodyTenantId || null;
+  if (!tenantId) {
+    const resolved = await getTenantFromRequest(req);
+    tenantId = resolved && resolved !== "ALL" ? resolved : null;
+  }
+  if (!tenantId) {
+    return NextResponse.json({ error: "No se pudo determinar el negocio para cerrar la caja." }, { status: 400 });
+  }
 
   const today = new Date().toISOString().split("T")[0];
 
-  // Get current register
+  // Get THIS business's open register for today.
   const { data: register } = await supabase
     .from("cash_register")
     .select("*")
     .eq("date", today)
     .eq("status", "open")
-    .single();
+    .eq("tenant_id", tenantId)
+    .maybeSingle();
 
   if (!register) {
     return NextResponse.json({ error: "No hay caja abierta para hoy" }, { status: 404 });
   }
 
-  // Calculate expected
+  // Calculate expected — only THIS business's transactions.
   const dayStart = `${today}T00:00:00`;
   const dayEnd = `${today}T23:59:59`;
 
@@ -129,6 +159,7 @@ export async function PATCH(req: NextRequest) {
     .from("transactions")
     .select("type, total, payment_method")
     .eq("status", "completed")
+    .eq("tenant_id", tenantId)
     .gte("created_at", dayStart)
     .lte("created_at", dayEnd);
 

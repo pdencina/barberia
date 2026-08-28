@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 
@@ -26,17 +27,31 @@ export default function StandbyPage() {
 
   // Cash register
   const [cashInRegister, setCashInRegister] = useState(0);
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   useEffect(() => {
-    fetch("/api/services").then((r) => r.json()).then((d) => {
+    if (tenantLoading) return;
+    const t = getActiveTenantId();
+    const q = t ? `?tenantId=${t}` : "";
+    fetch(`/api/services${q}`).then((r) => r.json()).then((d) => {
       setServices(Array.isArray(d) ? d : []);
       setLoading(false);
     });
     // Get today's cash
-    fetch("/api/caja").then((r) => r.json()).then((d) => {
+    fetch(`/api/caja${q}`).then((r) => r.json()).then((d) => {
       if (d.summary) setCashInRegister(d.summary.expectedCash || 0);
     });
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
 
   // Verify PIN
   const verifyPin = async () => {

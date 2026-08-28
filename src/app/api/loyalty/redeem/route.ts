@@ -11,10 +11,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "clientId y rewardId requeridos" }, { status: 400 });
   }
 
-  // Get client balance
+  // Get client balance (also read tenant_id, needed to tag the coupon this creates below)
   const { data: client } = await supabase
     .from("clients")
-    .select("id, name, loyalty_points")
+    .select("id, name, loyalty_points, tenant_id")
     .eq("id", clientId)
     .single();
 
@@ -52,7 +52,8 @@ export async function POST(req: NextRequest) {
     .update({ loyalty_points: newBalance })
     .eq("id", clientId);
 
-  // Create a coupon for the client to use
+  // Create a coupon for the client to use (tagged with the client's business, otherwise
+  // it's invisible in that salon's coupon list — same orphan-row class of bug as products).
   const couponCode = `FIDELIDAD-${client.name.split(" ")[0].toUpperCase()}-${Date.now().toString(36).toUpperCase()}`;
   await supabase.from("coupons").insert({
     code: couponCode,
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
     discount_value: reward.discount_value || 0,
     max_uses: 1,
     valid_until: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(), // 30 days
+    tenant_id: (client as any).tenant_id || null,
   });
 
   return NextResponse.json({

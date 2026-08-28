@@ -11,12 +11,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "clientId y amount requeridos" }, { status: 400 });
   }
 
-  // Get config
-  const { data: config } = await supabase
-    .from("loyalty_config")
-    .select("points_per_clp")
-    .eq("active", true)
+  // Get the client's business so we use THAT business's points-per-CLP config,
+  // not an arbitrary one (loyalty_config has one row per business).
+  const { data: clientRow } = await supabase
+    .from("clients")
+    .select("tenant_id")
+    .eq("id", clientId)
     .single();
+
+  let configQuery = supabase.from("loyalty_config").select("points_per_clp").eq("active", true);
+  if (clientRow?.tenant_id) configQuery = configQuery.eq("tenant_id", clientRow.tenant_id);
+  const { data: config } = await configQuery.maybeSingle();
 
   const pointsPerClp = config?.points_per_clp || 1000;
   const pointsEarned = Math.floor(amount / pointsPerClp);

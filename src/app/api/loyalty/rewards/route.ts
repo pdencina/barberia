@@ -1,10 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 // POST: Create a reward
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { name, points_required, discount_value, description } = await req.json();
+  const body = await req.json();
+  const { name, points_required, discount_value, description } = body;
+
+  // Resolve tenant: prefer explicit param, fallback to session.
+  let tenantId: string | null = body.tenantId || null;
+  if (!tenantId) {
+    const resolved = await getTenantFromRequest(req);
+    tenantId = resolved && resolved !== "ALL" ? resolved : null;
+  }
+  if (!tenantId) {
+    return NextResponse.json({ error: "No se pudo determinar el negocio para la recompensa." }, { status: 400 });
+  }
 
   const { data, error } = await supabase
     .from("loyalty_rewards")
@@ -14,6 +26,7 @@ export async function POST(req: NextRequest) {
       discount_value: discount_value || 0,
       description: description || name,
       active: true,
+      tenant_id: tenantId,
     })
     .select()
     .single();

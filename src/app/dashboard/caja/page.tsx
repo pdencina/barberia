@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 
@@ -41,14 +42,25 @@ export default function CajaPage() {
   const [closingNotes, setClosingNotes] = useState("");
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { tenant, loading: tenantLoading } = useTenant();
   const [showReopenModal, setShowReopenModal] = useState(false);
   const [reopenPin, setReopenPin] = useState("");
   const [reopenError, setReopenError] = useState("");
   const [reopening, setReopening] = useState(false);
 
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
+
   const fetchData = async () => {
     setLoading(true);
-    const res = await fetch("/api/caja");
+    const t = getActiveTenantId();
+    const res = await fetch(`/api/caja${t ? `?tenantId=${t}` : ""}`);
     setData(await res.json());
     setLoading(false);
   };
@@ -87,13 +99,17 @@ export default function CajaPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
 
   const openRegister = async () => {
     const res = await fetch("/api/caja", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ openingAmount: parseInt(openingAmount) || 0 }),
+      body: JSON.stringify({ openingAmount: parseInt(openingAmount) || 0, tenantId: getActiveTenantId() || undefined }),
     });
     if (res.ok) {
       showToast("Caja abierta", "success");
@@ -125,6 +141,7 @@ export default function CajaPage() {
       body: JSON.stringify({
         closingAmount: parseInt(closingAmount),
         notes: closingNotes || null,
+        tenantId: getActiveTenantId() || undefined,
       }),
     });
 

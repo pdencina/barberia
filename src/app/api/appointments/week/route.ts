@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
   const startDate = searchParams.get("start"); // YYYY-MM-DD (Monday)
 
@@ -13,7 +15,7 @@ export async function GET(req: NextRequest) {
   const end = new Date(start);
   end.setDate(end.getDate() + 7);
 
-  const { data } = await supabase
+  let query = supabase
     .from("appointments")
     .select(`
       id, date, start_time, end_time, status, barber_id,
@@ -25,6 +27,10 @@ export async function GET(req: NextRequest) {
     .lt("date", end.toISOString().split("T")[0])
     .in("status", ["scheduled", "confirmed", "in_progress", "completed"])
     .order("start_time", { ascending: true });
+
+  if (tenantId && tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
+
+  const { data } = await query;
 
   return NextResponse.json(data || []);
 }

@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 
@@ -37,20 +38,35 @@ export default function ArriendoPage() {
   const [editNotes, setEditNotes] = useState("");
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { tenant, loading: tenantLoading } = useTenant();
   const [showAdjustModal, setShowAdjustModal] = useState(false);
   const [adjustForm, setAdjustForm] = useState({ barberId: "", amount: "", type: "addition", reason: "", pin: "" });
   const [adjusting, setAdjusting] = useState(false);
 
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
+
   const fetchData = async () => {
     setLoading(true);
-    const res = await fetch(`/api/arriendo?month=${month}&year=${year}`);
+    const t = getActiveTenantId();
+    const res = await fetch(`/api/arriendo?month=${month}&year=${year}${t ? `&tenantId=${t}` : ""}`);
     const data = await res.json();
     setProfessionals(data.professionals || []);
     setTotals(data.totals || { totalGross: 0, totalNet: 0, totalProfessionals: 0 });
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [month, year]);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, year, tenantLoading, tenant?.id]);
 
   const changeMonth = (delta: number) => {
     let m = month + delta, y = year;

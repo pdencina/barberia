@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 
@@ -38,10 +39,21 @@ export default function FidelidadPage() {
   const [selectedReward, setSelectedReward] = useState("");
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   const fetchData = async () => {
     setLoading(true);
-    const res = await fetch("/api/loyalty");
+    const t = getActiveTenantId();
+    const res = await fetch(`/api/loyalty${t ? `?tenantId=${t}` : ""}`);
     const data = await res.json();
     setRewards(data.rewards || []);
     setTopClients(data.topClients || []);
@@ -49,17 +61,22 @@ export default function FidelidadPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
 
   const lookupClient = async () => {
     if (!searchClient) return;
-    // Search by name in clients
-    const res = await fetch(`/api/clients?search=${encodeURIComponent(searchClient)}`);
+    const t = getActiveTenantId();
+    // Search by name in clients (scoped to this business)
+    const res = await fetch(`/api/clients?search=${encodeURIComponent(searchClient)}${t ? `&tenantId=${t}` : ""}`);
     const data = await res.json();
     const clients = data.clients || data || [];
     if (clients.length > 0) {
       const clientId = clients[0].id;
-      const loyaltyRes = await fetch(`/api/loyalty?clientId=${clientId}`);
+      const loyaltyRes = await fetch(`/api/loyalty?clientId=${clientId}${t ? `&tenantId=${t}` : ""}`);
       const loyaltyData = await loyaltyRes.json();
       setClientData(loyaltyData.client);
     } else {
@@ -189,7 +206,7 @@ export default function FidelidadPage() {
                 await fetch("/api/loyalty/rewards", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ name, points_required: parseInt(points), discount_value: parseInt(discount || "0"), description: name }),
+                  body: JSON.stringify({ name, points_required: parseInt(points), discount_value: parseInt(discount || "0"), description: name, tenantId: getActiveTenantId() || undefined }),
                 });
                 showToast("Recompensa creada", "success");
                 fetchData();

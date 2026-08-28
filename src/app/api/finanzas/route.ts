@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
   const type = searchParams.get("type");
   const from = searchParams.get("from");
@@ -21,6 +23,8 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(100);
 
+  // "ALL" means super_admin (no filter, sees every business).
+  if (tenantId && tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
   if (type && type !== "ALL") query = query.eq("type", type.toLowerCase());
   if (from) query = query.gte("created_at", new Date(from).toISOString());
   if (to) {
@@ -53,7 +57,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { type, description, amount, paymentMethod, notes } = body;
+  const { type, description, amount, paymentMethod, notes, tenantId: bodyTenantId } = body;
+
+  // Resolve tenant: prefer explicit param, fallback to session. Never save a manual
+  // income/expense entry without a business, or it becomes invisible in Finanzas.
+  let resolvedTenantId = bodyTenantId;
+  if (!resolvedTenantId) {
+    const resolved = await getTenantFromRequest(req);
+    resolvedTenantId = resolved && resolved !== "ALL" ? resolved : null;
+  }
+  if (!resolvedTenantId) {
+    return NextResponse.json({ error: "No se pudo determinar el negocio para la transaccion." }, { status: 400 });
+  }
 
   const { data: tx, error: txError } = await supabase
     .from("transactions")
@@ -64,6 +79,7 @@ export async function POST(req: NextRequest) {
       total: amount,
       payment_method: paymentMethod.toLowerCase(),
       notes,
+      tenant_id: resolvedTenantId,
     })
     .select()
     .single();

@@ -1,34 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
-// POST: Track a booking metric event
+// POST: Track a booking metric event. Called from the PUBLIC booking page, so the
+// tenant must be resolved from the body (no session there) rather than the cookie.
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { eventType, barberId, clientId, metadata } = await req.json();
+  const { eventType, barberId, clientId, metadata, tenantId } = await req.json();
 
   await supabase.from("booking_metrics").insert({
     event_type: eventType,
     barber_id: barberId || null,
     client_id: clientId || null,
     metadata: metadata || {},
+    tenant_id: tenantId || null,
   });
 
   return NextResponse.json({ success: true });
 }
 
-// GET: Aggregated metrics
+// GET: Aggregated metrics (scoped to the caller's business)
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get("days") || "30");
 
   const since = new Date();
   since.setDate(since.getDate() - days);
 
-  const { data: metrics } = await supabase
+  let query = supabase
     .from("booking_metrics")
     .select("event_type, barber_id")
     .gte("created_at", since.toISOString());
+  if (tenantId && tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
+  const { data: metrics } = await query;
 
   // Aggregate
   const profileClicks: Record<string, number> = {};

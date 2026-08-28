@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
+  const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
   const { searchParams } = new URL(req.url);
   const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
   const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
@@ -10,41 +13,41 @@ export async function GET(req: NextRequest) {
   const startDate = new Date(year, month - 1, 1).toISOString();
   const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
 
-  // Get all barbers with commission rates
-  const { data: barbers } = await supabase
+  // Get all barbers with commission rates (scoped to the caller's business)
+  const { data: barbers } = await scoped(supabase
     .from("profiles")
     .select("id, name, commission_rate")
     .eq("role", "barber")
     .eq("active", true)
-    .order("name");
+    .order("name"));
 
   // Get income transactions per barber for this month
-  const { data: transactions } = await supabase
+  const { data: transactions } = await scoped(supabase
     .from("transactions")
     .select("barber_id, total")
     .eq("type", "income")
     .eq("status", "completed")
     .not("barber_id", "is", null)
     .gte("created_at", startDate)
-    .lte("created_at", endDate);
+    .lte("created_at", endDate));
 
   // Get already paid commissions
-  const { data: paidCommissions } = await supabase
+  const { data: paidCommissions } = await scoped(supabase
     .from("commissions")
     .select("barber_id, commission_amount, paid")
     .gte("created_at", startDate)
-    .lte("created_at", endDate);
+    .lte("created_at", endDate));
 
   // Calculate per barber
-  const barberStats = (barbers || []).map((barber) => {
-    const barberTx = (transactions || []).filter((t) => t.barber_id === barber.id);
-    const totalSales = barberTx.reduce((sum, t) => sum + Number(t.total), 0);
+  const barberStats = (barbers || []).map((barber: any) => {
+    const barberTx = (transactions || []).filter((t: any) => t.barber_id === barber.id);
+    const totalSales = barberTx.reduce((sum: number, t: any) => sum + Number(t.total), 0);
     const rate = Number(barber.commission_rate) || 40;
     const commissionAmount = Math.round(totalSales * rate / 100);
 
     const paidTotal = (paidCommissions || [])
-      .filter((c) => c.barber_id === barber.id && c.paid)
-      .reduce((sum, c) => sum + Number(c.commission_amount), 0);
+      .filter((c: any) => c.barber_id === barber.id && c.paid)
+      .reduce((sum: number, c: any) => sum + Number(c.commission_amount), 0);
 
     return {
       barberId: barber.id,
@@ -59,10 +62,10 @@ export async function GET(req: NextRequest) {
   });
 
   const totals = {
-    totalSales: barberStats.reduce((s, b) => s + b.totalSales, 0),
-    totalCommissions: barberStats.reduce((s, b) => s + b.commissionAmount, 0),
-    totalPaid: barberStats.reduce((s, b) => s + b.paidAmount, 0),
-    totalPending: barberStats.reduce((s, b) => s + b.pendingAmount, 0),
+    totalSales: barberStats.reduce((s: number, b: any) => s + b.totalSales, 0),
+    totalCommissions: barberStats.reduce((s: number, b: any) => s + b.commissionAmount, 0),
+    totalPaid: barberStats.reduce((s: number, b: any) => s + b.paidAmount, 0),
+    totalPending: barberStats.reduce((s: number, b: any) => s + b.pendingAmount, 0),
   };
 
   return NextResponse.json({ barbers: barberStats, totals, period: { month, year } });
@@ -95,7 +98,7 @@ export async function POST(req: NextRequest) {
   // Get transactions for this barber this month
   const { data: transactions } = await supabase
     .from("transactions")
-    .select("id, total")
+    .select("id, total, tenant_id")
     .eq("type", "income")
     .eq("status", "completed")
     .eq("barber_id", barberId)
@@ -105,13 +108,13 @@ export async function POST(req: NextRequest) {
   // Get barber rate
   const { data: barber } = await supabase
     .from("profiles")
-    .select("commission_rate")
+    .select("commission_rate, tenant_id")
     .eq("id", barberId)
     .single();
 
   const rate = Number(barber?.commission_rate) || 40;
 
-  // Create commission records
+  // Create commission records (tenant_id from the barber's business)
   for (const tx of transactions || []) {
     const commAmount = Math.round(Number(tx.total) * rate / 100);
     await supabase.from("commissions").upsert({
@@ -122,6 +125,7 @@ export async function POST(req: NextRequest) {
       commission_amount: commAmount,
       paid: true,
       paid_at: new Date().toISOString(),
+      tenant_id: barber?.tenant_id || tx.tenant_id || null,
     }, { onConflict: "transaction_id" }).select();
   }
 

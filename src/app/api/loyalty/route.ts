@@ -1,25 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 // GET: Loyalty overview (config, rewards, client lookup)
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
+  const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
   const { searchParams } = new URL(req.url);
   const clientId = searchParams.get("clientId");
 
-  // Get config
-  const { data: config } = await supabase
+  // Get config (scoped to the caller's business — each salon has its own program)
+  const { data: config } = await scoped(supabase
     .from("loyalty_config")
     .select("*")
-    .eq("active", true)
-    .single();
+    .eq("active", true)).maybeSingle();
 
   // Get rewards
-  const { data: rewards } = await supabase
+  const { data: rewards } = await scoped(supabase
     .from("loyalty_rewards")
     .select("*")
     .eq("active", true)
-    .order("points_required", { ascending: true });
+    .order("points_required", { ascending: true }));
 
   // If clientId, get their points history and balance
   let clientData = null;
@@ -41,12 +43,12 @@ export async function GET(req: NextRequest) {
   }
 
   // Top clients by points
-  const { data: topClients } = await supabase
+  const { data: topClients } = await scoped(supabase
     .from("clients")
     .select("id, name, loyalty_points")
     .gt("loyalty_points", 0)
     .order("loyalty_points", { ascending: false })
-    .limit(10);
+    .limit(10));
 
   return NextResponse.json({
     config: config || { points_per_clp: 1000 },

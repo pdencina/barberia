@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status"); // pending, approved, all
 
@@ -16,6 +18,7 @@ export async function GET(req: NextRequest) {
     .order("created_at", { ascending: false })
     .limit(50);
 
+  if (tenantId && tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
   if (status && status !== "all") {
     query = query.eq("status", status);
   }
@@ -28,7 +31,19 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { productId, type, quantity, notes, barberId, requireApproval } = body;
+  const { productId, type, quantity, notes, barberId, requireApproval, tenantId: bodyTenantId } = body;
+
+  // Resolve tenant from the product itself (a movement always belongs to the product's
+  // business), falling back to the explicit param / session.
+  let tenantId: string | null = bodyTenantId || null;
+  if (!tenantId && productId) {
+    const { data: prod } = await supabase.from("products").select("tenant_id").eq("id", productId).single();
+    tenantId = prod?.tenant_id || null;
+  }
+  if (!tenantId) {
+    const resolved = await getTenantFromRequest(req);
+    tenantId = resolved && resolved !== "ALL" ? resolved : null;
+  }
 
   const needsApproval = requireApproval !== false && type !== "out_sale";
 
@@ -42,6 +57,7 @@ export async function POST(req: NextRequest) {
       notes,
       barber_id: barberId || null,
       status: needsApproval ? "pending" : "approved",
+      tenant_id: tenantId,
     })
     .select()
     .single();

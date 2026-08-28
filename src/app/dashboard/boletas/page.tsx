@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Transaction {
@@ -22,11 +23,22 @@ export default function BoletasPage() {
   const [sending, setSending] = useState<Record<string, boolean>>({});
   const [searchFilter, setSearchFilter] = useState("");
   const { showToast } = useToast();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/finanzas?type=income");
+      const t = getActiveTenantId();
+      const res = await fetch(`/api/finanzas?type=income${t ? `&tenantId=${t}` : ""}`);
       const data = await res.json();
       setTransactions(data.transactions || []);
     } catch (err) {
@@ -36,7 +48,11 @@ export default function BoletasPage() {
     }
   };
 
-  useEffect(() => { fetchTransactions(); }, []);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
 
   const sendReceipt = async (transactionId: string) => {
     const email = emails[transactionId];

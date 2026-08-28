@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Transaction {
@@ -39,6 +40,16 @@ export default function FinanzasPage() {
     notes: "",
   });
   const { showToast } = useToast();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   const fetchTransactions = async () => {
     setLoading(true);
@@ -46,6 +57,8 @@ export default function FinanzasPage() {
     if (filter !== "all") params.set("type", filter);
     if (dateFrom) params.set("from", dateFrom);
     if (dateTo) params.set("to", dateTo);
+    const t = getActiveTenantId();
+    if (t) params.set("tenantId", t);
     try {
       const res = await fetch(`/api/finanzas?${params.toString()}`);
       const data = await res.json();
@@ -58,8 +71,10 @@ export default function FinanzasPage() {
   };
 
   useEffect(() => {
+    if (tenantLoading) return;
     fetchTransactions();
-  }, [filter, dateFrom, dateTo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filter, dateFrom, dateTo, tenantLoading, tenant?.id]);
 
   const totalIncome = transactions
     .filter((t) => t.type === "income")
@@ -81,6 +96,7 @@ export default function FinanzasPage() {
           amount: parseFloat(formData.amount),
           paymentMethod: formData.paymentMethod,
           notes: formData.notes,
+          tenantId: getActiveTenantId() || undefined,
         }),
       });
       showToast("Transaccion registrada", "success");
