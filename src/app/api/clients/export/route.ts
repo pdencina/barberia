@@ -1,26 +1,16 @@
 import { NextResponse } from "next/server";
-import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 
 export async function GET() {
   const admin = createAdminSupabase();
 
-  // Authenticate the caller and enforce role + tenant scope. Exporting the full client
-  // list is a sensitive bulk operation: barbers/clients must never be able to do it, and
-  // the export must be scoped to the caller's own tenant (no cross-tenant leak).
-  const authClient = createServerSupabase();
-  const { data: { user } } = await authClient.auth.getUser();
-  if (!user) {
+  // Exporting the full client list is sensitive: only admin/super_admin, scoped to the
+  // caller's own tenant (no cross-tenant leak). Never barbers or receptionists.
+  const { userId, role, tenantId } = await getCurrentUserRoleAndTenant();
+  if (!userId) {
     return new NextResponse("No autorizado", { status: 401 });
   }
-
-  const { data: profile } = await admin
-    .from("profiles")
-    .select("role, tenant_id")
-    .eq("id", user.id)
-    .single();
-
-  const role = profile?.role;
-  if (!role || !["admin", "super_admin", "receptionist"].includes(role)) {
+  if (!role || !["admin", "super_admin"].includes(role)) {
     return new NextResponse("No tienes permisos para exportar clientes", { status: 403 });
   }
 
@@ -31,10 +21,10 @@ export async function GET() {
 
   // Non super_admin is scoped to their own tenant.
   if (role !== "super_admin") {
-    if (!profile?.tenant_id) {
+    if (!tenantId) {
       return new NextResponse("Sin negocio asignado", { status: 403 });
     }
-    query = query.eq("tenant_id", profile.tenant_id);
+    query = query.eq("tenant_id", tenantId);
   }
 
   const { data: clients } = await query;

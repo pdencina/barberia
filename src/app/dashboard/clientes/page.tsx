@@ -40,9 +40,9 @@ export default function ClientesPage() {
   // Use effectiveRole (server-provided, reliable on Vercel) for security-sensitive gating.
   const gateRole = effectiveRole || role;
   const isAdmin = gateRole === "admin" || gateRole === "super_admin";
-  // Import/Export is a security-sensitive bulk operation: never available to barbers.
-  // Allowed for admin, super_admin and receptionist only.
-  const canImportExport = gateRole === "admin" || gateRole === "super_admin" || gateRole === "receptionist";
+  // Import/Export is a security-sensitive bulk operation: only owners/admins.
+  // NOT available to barbers NOR receptionists.
+  const canImportExport = gateRole === "admin" || gateRole === "super_admin";
 
   const fetchClients = async (query: string, p: number = page) => {
     setLoading(true);

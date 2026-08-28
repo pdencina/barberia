@@ -42,6 +42,38 @@ export function createAdminSupabase() {
   );
 }
 
+// Resolve the current caller's role + tenant for server-side authorization checks.
+// Uses getUser() (validated) and falls back to getSession(). Returns nulls if unknown.
+export async function getCurrentUserRoleAndTenant(): Promise<{
+  userId: string | null;
+  role: string | null;
+  tenantId: string | null;
+}> {
+  try {
+    const supabase = createServerSupabase();
+    let userId: string | null = null;
+
+    const { data: userData } = await supabase.auth.getUser();
+    userId = userData.user?.id || null;
+    if (!userId) {
+      const { data: sessionData } = await supabase.auth.getSession();
+      userId = sessionData.session?.user?.id || null;
+    }
+    if (!userId) return { userId: null, role: null, tenantId: null };
+
+    const admin = createAdminSupabase();
+    const { data: profile } = await admin
+      .from("profiles")
+      .select("role, tenant_id")
+      .eq("id", userId)
+      .single();
+
+    return { userId, role: profile?.role || null, tenantId: profile?.tenant_id || null };
+  } catch {
+    return { userId: null, role: null, tenantId: null };
+  }
+}
+
 // Get the current user's tenant_id from the session
 // Returns: tenant_id string, "ALL" for super_admin, or null if can't determine
 export async function getCurrentTenantId(): Promise<string | null> {
