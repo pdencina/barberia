@@ -11,7 +11,10 @@ export async function GET(req: NextRequest) {
 
   const startDate = new Date(year, month - 1, 1).toISOString();
   const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
-  const tf = (q: any) => tenantId ? q.eq("tenant_id", tenantId) : q;
+  // "ALL" means super_admin (no filter, sees every business). Only apply the filter
+  // when there's a real tenant id, otherwise .eq("tenant_id","ALL") matches nothing
+  // and every card shows $0 for super_admin.
+  const tf = (q: any) => (tenantId && tenantId !== "ALL") ? q.eq("tenant_id", tenantId) : q;
 
   // Income transactions
   const { data: incomeTx } = await tf(supabase
