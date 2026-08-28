@@ -54,8 +54,11 @@ export default function CalendarioPage() {
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
-  const { user } = useAuth();
+  const { user, effectiveRole } = useAuth();
   const router = useRouter();
+
+  // A barber should only see their own agenda, not the whole team's.
+  const isBarber = (effectiveRole || user?.role) === "barber";
 
   // Get tenant ID (from context or localStorage override)
   const getActiveTenantId = () => {
@@ -67,11 +70,17 @@ export default function CalendarioPage() {
     return "";
   };
 
-  // Columns to render: use the fetched barbers list; if it's empty (e.g. a barber
-  // session where /api/barberos returned nothing) fall back to the barbers present
-  // in today's appointments, and finally to the logged-in professional themselves,
-  // so a barber with no citas yet still has a column to reserve on.
+  // Columns to render.
+  // - Barbers see ONLY their own column (their own agenda).
+  // - Admins/receptionists see the whole team.
+  // Falls back to today's appointment barbers, then to the logged-in user, so there's
+  // always at least one column to act on.
   const computeDisplayBarbers = (): Barber[] => {
+    // Barber: restrict to themselves. Prefer their row from the fetched list (correct name).
+    if (isBarber && user?.id) {
+      const self = barbers.find((b) => b.id === user.id);
+      return [self || { id: user.id, name: user.name || "Yo" }];
+    }
     if (barbers.length > 0) return barbers;
     const fromAppts = Array.from(
       new Map(
@@ -165,17 +174,24 @@ export default function CalendarioPage() {
 
   // Fetch appointments once tenant context is resolved — do NOT gate on barbers,
   // otherwise a barber with an empty/slow barbers list would spin forever.
+  // Re-run when the barber identity resolves so the barberId scope is applied.
   useEffect(() => {
     if (tenantLoading) return;
     fetchAppointments();
-  }, [date, tenantLoading, tenant?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [date, tenantLoading, tenant?.id, isBarber, user?.id]);
 
   const fetchAppointments = async () => {
     setLoading(true);
     try {
       const t = getActiveTenantId();
-      const params = t ? `&tenantId=${t}` : "";
-      const res = await fetch(`/api/appointments?date=${date}${params}`);
+      const params = new URLSearchParams();
+      params.set("date", date);
+      if (t) params.set("tenantId", t);
+      // A barber only fetches their own appointments (don't ship the whole team's data
+      // to their browser).
+      if (isBarber && user?.id) params.set("barberId", user.id);
+      const res = await fetch(`/api/appointments?${params.toString()}`);
       const data = await res.json();
       // Filter out cancelled and no_show appointments
       setAppointments(Array.isArray(data) ? data.filter((a: any) => !["cancelled", "no_show"].includes(a.status)) : []);
