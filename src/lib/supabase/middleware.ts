@@ -38,14 +38,16 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // Use getSession() here (reads the auth cookie locally, no network round-trip) instead
-  // of getUser() (which calls Supabase Auth servers on EVERY navigation and is the main
-  // cause of slow page transitions). The dashboard layout still calls getUser() server-side
-  // to fully validate the session, so this only affects the fast redirect decision.
+  // IMPORTANT: use getUser() here, NOT getSession().
+  // getUser() validates the token against Supabase Auth and refreshes it when needed.
+  // getSession() only reads the local cookie and cannot refresh — in a PWA / on token
+  // refresh it can intermittently report "no session" for a logged-in user, causing the
+  // middleware to bounce /dashboard -> /login -> /dashboard (ERR_TOO_MANY_REDIRECTS).
+  // Calling getUser() also refreshes the auth cookie on the response, keeping sessions alive.
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
-  const isAuthed = !!session?.user;
+    data: { user },
+  } = await supabase.auth.getUser();
+  const isAuthed = !!user;
 
   // Redirect to login if not authenticated and trying to access dashboard
   if (!isAuthed && request.nextUrl.pathname.startsWith("/dashboard")) {
