@@ -63,6 +63,19 @@ export default function CalendarioPage() {
     return "";
   };
 
+  // Columns to render: use the fetched barbers list; if it's empty (e.g. a barber
+  // session where /api/barberos returned nothing) fall back to the barbers present
+  // in today's appointments so the professional can still see and act on their citas.
+  const displayBarbers: Barber[] = barbers.length > 0
+    ? barbers
+    : Array.from(
+        new Map(
+          appointments
+            .filter((a) => a.barber_id && a.barber?.name)
+            .map((a) => [a.barber_id, { id: a.barber_id, name: a.barber!.name }])
+        ).values()
+      );
+
   const [selectedApptId, setSelectedApptId] = useState<string | null>(null);
   const [apptDetails, setApptDetails] = useState<any>(null);
   const [apptTab, setApptTab] = useState<"detalles" | "historial">("detalles");
@@ -237,11 +250,11 @@ export default function CalendarioPage() {
 
     const startTime = yToTime(minY);
     const endTime = yToTime(maxY);
-    const barber = barbers.find((b) => b.id === dragBarberId);
+    const barber = displayBarbers.find((b) => b.id === dragBarberId);
 
     // Calculate popup position: if barber is in the right half, show popup on left
-    const barberIndex = barbers.findIndex((b) => b.id === dragBarberId);
-    const isRightSide = barberIndex >= barbers.length / 2;
+    const barberIndex = displayBarbers.findIndex((b) => b.id === dragBarberId);
+    const isRightSide = barberIndex >= displayBarbers.length / 2;
     setPopupPosition(isRightSide ? "left" : "right");
 
     setPopupData({
@@ -437,7 +450,7 @@ export default function CalendarioPage() {
             {/* Barber headers */}
             <div className="flex border-b border-gray-200 sticky top-0 bg-white z-10">
               <div className="w-14 flex-shrink-0 border-r border-gray-100" />
-              {barbers.map((barber, i) => {
+              {displayBarbers.map((barber, i) => {
                 const color = barberColors[i % barberColors.length];
                 return (
                   <div key={barber.id} className="flex-1 p-2 text-center border-r border-gray-100 min-w-[120px]">
@@ -462,7 +475,7 @@ export default function CalendarioPage() {
               </div>
 
               {/* Barber columns */}
-              {barbers.map((barber, bi) => {
+              {displayBarbers.map((barber, bi) => {
                 const barberAppts = appointments.filter((a: any) => a.barber_id === barber.id);
                 const color = barberColors[bi % barberColors.length];
                 const isDragTarget = dragging && dragBarberId === barber.id;
@@ -763,12 +776,12 @@ export default function CalendarioPage() {
                 <select
                   value={popupData.barberId}
                   onChange={(e) => {
-                    const b = barbers.find((br) => br.id === e.target.value);
+                    const b = displayBarbers.find((br) => br.id === e.target.value);
                     setPopupData({ ...popupData, barberId: e.target.value, barberName: b?.name || "" });
                   }}
                   className="border rounded-lg px-2 py-1 text-sm font-medium text-gray-900"
                 >
-                  {barbers.map((b) => (
+                  {displayBarbers.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}
                 </select>
