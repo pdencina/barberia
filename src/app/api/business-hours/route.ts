@@ -3,6 +3,9 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 
 const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
+// Avoid build-time prerendering: this reads from the DB and must not be baked/stale.
+export const dynamic = "force-dynamic";
+
 // GET: Get all business hours
 export async function GET() {
   const supabase = createAdminSupabase();

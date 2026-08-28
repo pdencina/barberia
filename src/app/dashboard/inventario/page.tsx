@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Product {
@@ -47,14 +48,28 @@ export default function InventarioPage() {
   const [pendingMovements, setPendingMovements] = useState<Movement[]>([]);
   const [adminPin, setAdminPin] = useState("");
   const { showToast } = useToast();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  // Resolve the active business (context or super_admin override). Products MUST be
+  // created with a tenant_id, otherwise they're invisible everywhere (POS included).
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   const fetchData = async () => {
     setLoading(true);
     try {
+      const t = getActiveTenantId();
+      const q = t ? `?tenantId=${t}` : "";
       const [productsRes, movementsRes, pendingRes] = await Promise.all([
-        fetch("/api/products"),
-        fetch("/api/inventario/movements?status=approved"),
-        fetch("/api/inventario/movements?status=pending"),
+        fetch(`/api/products${q}`),
+        fetch(`/api/inventario/movements?status=approved${t ? `&tenantId=${t}` : ""}`),
+        fetch(`/api/inventario/movements?status=pending${t ? `&tenantId=${t}` : ""}`),
       ]);
       const prodData = await productsRes.json();
       const movData = await movementsRes.json();
@@ -69,12 +84,17 @@ export default function InventarioPage() {
     }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
 
   const lowStockProducts = products.filter((p) => p.stock <= p.min_stock);
 
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault();
+    const activeTenantId = getActiveTenantId();
     const payload = {
       name: productForm.name,
       sku: productForm.sku || null,
@@ -83,6 +103,7 @@ export default function InventarioPage() {
       price: parseFloat(productForm.price),
       stock: parseInt(productForm.stock),
       min_stock: parseInt(productForm.min_stock),
+      tenantId: activeTenantId || undefined,
     };
 
     if (editingProductId) {
@@ -93,11 +114,21 @@ export default function InventarioPage() {
       });
       showToast("Producto actualizado", "success");
     } else {
-      await fetch("/api/products", {
+      // Never create a product without a business, or it becomes invisible in the POS.
+      if (!activeTenantId) {
+        showToast("No se pudo identificar el negocio. Recarga la pagina e intenta de nuevo.", "error");
+        return;
+      }
+      const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || "Error al crear producto", "error");
+        return;
+      }
       showToast("Producto creado", "success");
     }
     setShowProductModal(false);

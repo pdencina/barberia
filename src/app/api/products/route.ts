@@ -39,6 +39,15 @@ export async function POST(req: NextRequest) {
     if (resolvedTenantId === "ALL") resolvedTenantId = null;
   }
 
+  // A product without a tenant_id is invisible everywhere (the GET filters by tenant),
+  // which looks like "the product wasn't created". Fail loudly instead of saving an orphan.
+  if (!resolvedTenantId) {
+    return NextResponse.json(
+      { error: "No se pudo determinar el negocio para el producto. Recarga la pagina e intenta de nuevo." },
+      { status: 400 }
+    );
+  }
+
   const { data, error } = await supabase
     .from("products")
     .insert({ name, description, sku, price, cost, stock, min_stock: min_stock || 5, tenant_id: resolvedTenantId })

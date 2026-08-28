@@ -1,6 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
+// This handler takes no request params, so Next would try to prerender it at build time
+// (baking stale numbers into the response and hanging the build without DB credentials).
+// Reports must always be computed fresh.
+export const dynamic = "force-dynamic";
+
 // GET: Monthly comparison - last 6 months of income/expenses
 export async function GET() {
   const supabase = createAdminSupabase();

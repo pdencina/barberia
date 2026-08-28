@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
+// Avoid build-time prerendering: this reads from the DB and must not be baked/stale.
+export const dynamic = "force-dynamic";
+
 export async function GET() {
   const supabase = createAdminSupabase();
   const { data } = await supabase
