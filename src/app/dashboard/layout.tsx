@@ -34,7 +34,7 @@ export default async function DashboardLayout({
   return (
     <ToastWrapper>
       <AuthWrapper
-        serverRole={profile?.role || "admin"}
+        serverRole={profile?.role || "barber"}
         serverUserId={user.id}
         serverEmail={user.email || ""}
         serverName={profile?.name || user.email || ""}
@@ -49,7 +49,7 @@ export default async function DashboardLayout({
               {children}
             </ErrorBoundary>
             <PushNotificationPrompt />
-            <QuickActions userRole={profile?.role || "admin"} />
+            <QuickActions userRole={profile?.role || "barber"} />
             <CommandPalette />
           </main>
         </div>

@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     // Use upsert: if trigger already created the profile, update it.
     // If not, create it with all the data.
-    await adminSupabase
+    const { error: profileError } = await adminSupabase
       .from("profiles")
       .upsert({
         id: authData.user.id,
@@ -82,6 +82,17 @@ export async function POST(req: NextRequest) {
         tenant_id: resolvedTenantId || null,
         active: true,
       }, { onConflict: "id" });
+
+    // If the profile couldn't be created, we'd be left with an orphaned auth user
+    // (can log in but has no role/tenant → treated wrong by the app). Roll back the
+    // auth user and report the real error instead of returning a false success.
+    if (profileError) {
+      await adminSupabase.auth.admin.deleteUser(authData.user.id).catch(() => {});
+      return NextResponse.json(
+        { error: `No se pudo crear el perfil del profesional: ${profileError.message}` },
+        { status: 500 }
+      );
+    }
   }
 
   // Send welcome email with credentials
