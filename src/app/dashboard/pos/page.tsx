@@ -67,6 +67,9 @@ export default function POSPage() {
   const [processing, setProcessing] = useState(false);
   const [mpPaymentStatus, setMpPaymentStatus] = useState<"idle" | "waiting" | "approved" | "rejected">("idle");
   const [mpPaymentIntentId, setMpPaymentIntentId] = useState("");
+  const [splitChargeProgress, setSplitChargeProgress] = useState("");
+  const [currentChargeAmount, setCurrentChargeAmount] = useState(0);
+  const [cancelCurrentCharge, setCancelCurrentCharge] = useState<(() => void) | null>(null);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successAmount, setSuccessAmount] = useState(0);
   const [showPinModal, setShowPinModal] = useState(false);
@@ -197,78 +200,138 @@ export default function POSPage() {
     showToast(`Descuento autorizado por ${data.adminName}`, "success");
   };
 
+  // Charge a single amount on the MP terminal and wait for the result.
+  // Used for a normal card payment AND for each card portion of a split payment
+  // (a physical terminal can only charge one amount at a time).
+  const chargeCardAmount = (amount: number, description: string): Promise<boolean> => {
+    setMpPaymentStatus("waiting");
+    setCurrentChargeAmount(amount);
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      const finish = (ok: boolean) => {
+        if (settled) return;
+        settled = true;
+        setCancelCurrentCharge(null);
+        resolve(ok);
+      };
+      (async () => {
+        try {
+          // Determine cart type for multi-terminal routing
+          const hasServices = cart.some((c) => c.type === "service");
+          const hasProducts = cart.some((c) => c.type === "product");
+          const cartType = hasServices && hasProducts ? "mixed" : hasServices ? "services" : "products";
+
+          const mpRes = await fetch("/api/mercadopago", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              barberId: selectedBarber,
+              amount,
+              description: description || cart.map((c) => c.name).join(", ").slice(0, 50) || "Venta re-booking",
+              externalReference: `pos-${Date.now()}`,
+              cartType,
+            }),
+          });
+          const mpData = await mpRes.json();
+
+          if (!mpRes.ok || !mpData.paymentIntentId) {
+            setMpPaymentStatus("rejected");
+            setTimeout(() => setMpPaymentStatus("idle"), 3000);
+            finish(false);
+            return;
+          }
+
+          setMpPaymentIntentId(mpData.paymentIntentId);
+
+          // Poll for payment status every 3s, resolve the promise on a final state.
+          const pollInterval = setInterval(async () => {
+            const statusRes = await fetch(`/api/mercadopago/status?id=${mpData.paymentIntentId}&barberId=${selectedBarber}`);
+            const statusData = await statusRes.json();
+
+            if (statusData.status === "approved") {
+              clearInterval(pollInterval);
+              clearTimeout(timeoutHandle);
+              setMpPaymentStatus("approved");
+              setTimeout(() => setMpPaymentStatus("idle"), 1200);
+              finish(true);
+            } else if (statusData.status === "cancelled" || statusData.status === "rejected") {
+              clearInterval(pollInterval);
+              clearTimeout(timeoutHandle);
+              setMpPaymentStatus("rejected");
+              setTimeout(() => setMpPaymentStatus("idle"), 3000);
+              finish(false);
+            }
+          }, 3000);
+
+          // Timeout after 2 minutes
+          const timeoutHandle = setTimeout(() => {
+            clearInterval(pollInterval);
+            setMpPaymentStatus("rejected");
+            setTimeout(() => setMpPaymentStatus("idle"), 3000);
+            finish(false);
+          }, 120000);
+
+          // Let the user cancel this specific charge (used by the modal's Cancel button)
+          setCancelCurrentCharge(() => () => {
+            clearInterval(pollInterval);
+            clearTimeout(timeoutHandle);
+            fetch("/api/mercadopago/cancel", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ orderId: mpData.paymentIntentId }),
+            });
+            setMpPaymentStatus("idle");
+            setMpPaymentIntentId("");
+            finish(false);
+          });
+        } catch (err) {
+          setMpPaymentStatus("rejected");
+          setTimeout(() => setMpPaymentStatus("idle"), 3000);
+          finish(false);
+        }
+      })();
+    });
+  };
+
   const handleCheckout = async () => {
     // Validate based on mode
     if (!selectedBarber || cart.length === 0) return;
+
     if (splitMode) {
       const splitTotal = splitPayments.reduce((s, p) => s + (parseInt(p.amount) || 0), 0);
       if (splitTotal !== total) return;
-    } else {
-      if (!paymentMethod) return;
+
+      // Charge every card portion (debit or credit) on the MP terminal, one at a time.
+      // This was the missing piece: a split payment never touched the terminal at all,
+      // so a debit portion in a split never activated the machine.
+      const cardSplits = splitPayments
+        .map((p, idx) => ({ ...p, idx }))
+        .filter((p) => (p.method === "debit_card" || p.method === "credit_card") && parseInt(p.amount) > 0);
+
+      for (let i = 0; i < cardSplits.length; i++) {
+        const sp = cardSplits[i];
+        const amount = parseInt(sp.amount);
+        const methodLabel = sp.method === "debit_card" ? "Debito" : "Credito";
+        setSplitChargeProgress(`Cobrando ${methodLabel} ${formatCurrency(amount)} (${i + 1} de ${cardSplits.length})`);
+
+        const approved = await chargeCardAmount(amount, `${methodLabel} - pago dividido`);
+        if (!approved) {
+          setSplitChargeProgress("");
+          return; // Abort: don't record the sale, cashier can retry the failed portion
+        }
+      }
+      setSplitChargeProgress("");
+      await processCheckout();
+      return;
     }
 
-    const isCardPayment = !splitMode && (paymentMethod === "debit_card" || paymentMethod === "credit_card");
+    if (!paymentMethod) return;
 
-    // If card payment → send to MP machine first, wait for approval
+    const isCardPayment = paymentMethod === "debit_card" || paymentMethod === "credit_card";
+
     if (isCardPayment) {
-      setMpPaymentStatus("waiting");
-      try {
-        // Determine cart type for multi-terminal routing
-        const hasServices = cart.some((c) => c.type === "service");
-        const hasProducts = cart.some((c) => c.type === "product");
-        const cartType = hasServices && hasProducts ? "mixed" : hasServices ? "services" : "products";
-
-        const mpRes = await fetch("/api/mercadopago", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            barberId: selectedBarber,
-            amount: total,
-            description: cart.map((c) => c.name).join(", ").slice(0, 50) || "Venta re-booking",
-            externalReference: `pos-${Date.now()}`,
-            cartType,
-          }),
-        });
-        const mpData = await mpRes.json();
-
-        if (!mpRes.ok || !mpData.paymentIntentId) {
-          setMpPaymentStatus("rejected");
-          setTimeout(() => setMpPaymentStatus("idle"), 3000);
-          return;
-        }
-
-        setMpPaymentIntentId(mpData.paymentIntentId);
-
-        // Poll for payment status
-        const pollInterval = setInterval(async () => {
-          const statusRes = await fetch(`/api/mercadopago/status?id=${mpData.paymentIntentId}&barberId=${selectedBarber}`);
-          const statusData = await statusRes.json();
-
-          if (statusData.status === "approved") {
-            clearInterval(pollInterval);
-            setMpPaymentStatus("approved");
-            // Wait 1.5s showing green, then process checkout
-            setTimeout(() => processCheckout(), 1500);
-          } else if (statusData.status === "cancelled" || statusData.status === "rejected") {
-            clearInterval(pollInterval);
-            setMpPaymentStatus("rejected");
-            setTimeout(() => setMpPaymentStatus("idle"), 3000);
-          }
-        }, 3000); // Check every 3 seconds
-
-        // Timeout after 2 minutes
-        setTimeout(() => {
-          clearInterval(pollInterval);
-          if (mpPaymentStatus === "waiting") {
-            setMpPaymentStatus("rejected");
-            setTimeout(() => setMpPaymentStatus("idle"), 3000);
-          }
-        }, 120000);
-
-      } catch (err) {
-        setMpPaymentStatus("rejected");
-        setTimeout(() => setMpPaymentStatus("idle"), 3000);
-      }
+      const approved = await chargeCardAmount(total, cart.map((c) => c.name).join(", ").slice(0, 50));
+      if (approved) await processCheckout();
       return;
     }
 
@@ -313,6 +376,7 @@ export default function POSPage() {
         setTip(0);
         setMpPaymentStatus("idle");
         setMpPaymentIntentId("");
+        setSplitChargeProgress("");
         setSuccessAmount(total);
         setShowSuccessModal(true);
         setTimeout(() => setShowSuccessModal(false), 4000);
@@ -753,12 +817,17 @@ export default function POSPage() {
             )}
           </div>
 
-          {/* MP Terminal indicator */}
-          {!splitMode && (paymentMethod === "debit_card" || paymentMethod === "credit_card") && selectedBarber && (
+          {/* MP Terminal indicator — shows for a single card payment AND for a split
+              payment that includes a debit/credit portion (each portion is charged on
+              the terminal, one at a time, before the sale is recorded). */}
+          {selectedBarber && (
+            (!splitMode && (paymentMethod === "debit_card" || paymentMethod === "credit_card")) ||
+            (splitMode && splitPayments.some((p) => (p.method === "debit_card" || p.method === "credit_card") && parseInt(p.amount) > 0))
+          ) && (
             <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
               <span className="text-blue-600 text-sm">💳</span>
               <span className="text-xs text-blue-700 flex-1">
-                Terminal MP se activara al cobrar
+                {splitChargeProgress || "Terminal MP se activara al cobrar"}
               </span>
               <button
                 onClick={async () => {
@@ -779,14 +848,14 @@ export default function POSPage() {
           <button
             onClick={handleCheckout}
             disabled={
-              !selectedBarber || cart.length === 0 || processing ||
+              !selectedBarber || cart.length === 0 || processing || mpPaymentStatus === "waiting" ||
               (splitMode
                 ? splitPayments.reduce((s, p) => s + (parseInt(p.amount) || 0), 0) !== total
                 : !paymentMethod)
             }
             className="w-full py-3 bg-green-600 text-white rounded-lg font-bold hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            {processing ? "Procesando..." : "Cobrar"}
+            {processing ? "Procesando..." : mpPaymentStatus === "waiting" ? "Esperando pago en maquina..." : "Cobrar"}
           </button>
         </div>
       </div>
@@ -927,19 +996,9 @@ export default function POSPage() {
                 </div>
                 <h3 className="text-lg font-bold text-brand-dark">Esperando pago...</h3>
                 <p className="text-sm text-brand-gray mt-2">Pasa la tarjeta en la maquina Point</p>
-                <p className="text-xs text-brand-gray mt-4">Monto: <strong className="text-brand-dark">{formatCurrency(total)}</strong></p>
-                <button onClick={async () => {
-                  // Cancel the order in MP
-                  if (mpPaymentIntentId) {
-                    fetch("/api/mercadopago/cancel", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      body: JSON.stringify({ orderId: mpPaymentIntentId }),
-                    });
-                  }
-                  setMpPaymentStatus("idle");
-                  setMpPaymentIntentId("");
-                }}
+                <p className="text-xs text-brand-gray mt-4">Monto: <strong className="text-brand-dark">{formatCurrency(currentChargeAmount || total)}</strong></p>
+                {splitChargeProgress && <p className="text-xs text-blue-600 mt-1">{splitChargeProgress}</p>}
+                <button onClick={() => { cancelCurrentCharge?.(); }}
                   className="mt-6 text-xs text-brand-gray hover:text-red-500">Cancelar</button>
               </>
             )}

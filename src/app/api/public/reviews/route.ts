@@ -84,49 +84,85 @@ export async function GET() {
   return NextResponse.json(barberStats);
 }
 
-// POST: Submit a review
+// POST: Submit a review.
+// The link in the receipt email is /review/{id}, where {id} can be EITHER an
+// appointment id (booking flow) OR a transaction id (most POS walk-in sales have no
+// appointment at all). We try appointments first, then fall back to transactions,
+// so both kinds of links work instead of failing with "Cita no encontrada".
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { appointmentId, rating, comment } = body;
+  const id = appointmentId; // param name kept for compatibility with the existing page
 
-  if (!appointmentId || !rating || rating < 1 || rating > 5) {
+  if (!id || !rating || rating < 1 || rating > 5) {
     return NextResponse.json({ error: "Datos invalidos" }, { status: 400 });
   }
 
-  // Get appointment details
+  let clientId: string | null = null;
+  let barberId: string | null = null;
+  let matchedAppointmentId: string | null = null;
+  let matchedTransactionId: string | null = null;
+
+  // Try as an appointment first
   const { data: appointment } = await supabase
     .from("appointments")
     .select("id, client_id, barber_id, status")
-    .eq("id", appointmentId)
-    .single();
+    .eq("id", id)
+    .maybeSingle();
 
-  if (!appointment) {
-    return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
+  if (appointment) {
+    if (appointment.status !== "completed") {
+      return NextResponse.json({ error: "Solo puedes calificar citas completadas" }, { status: 400 });
+    }
+    clientId = appointment.client_id;
+    barberId = appointment.barber_id;
+    matchedAppointmentId = appointment.id;
+  } else {
+    // Fall back to a transaction (POS sale without an appointment)
+    const { data: transaction } = await supabase
+      .from("transactions")
+      .select("id, client_id, barber_id, status")
+      .eq("id", id)
+      .maybeSingle();
+
+    if (!transaction) {
+      return NextResponse.json({ error: "No encontramos tu cita o compra para calificar" }, { status: 404 });
+    }
+    if (transaction.status !== "completed") {
+      return NextResponse.json({ error: "Solo puedes calificar compras completadas" }, { status: 400 });
+    }
+    if (!transaction.client_id) {
+      return NextResponse.json({ error: "Esta compra no tiene un cliente asociado" }, { status: 400 });
+    }
+    clientId = transaction.client_id;
+    barberId = transaction.barber_id;
+    matchedTransactionId = transaction.id;
   }
 
-  if (appointment.status !== "completed") {
-    return NextResponse.json({ error: "Solo puedes calificar citas completadas" }, { status: 400 });
+  if (!barberId) {
+    return NextResponse.json({ error: "No hay un profesional asociado para calificar" }, { status: 400 });
   }
 
   // Check if already reviewed
   const { data: existing } = await supabase
     .from("reviews")
     .select("id")
-    .eq("appointment_id", appointmentId)
-    .single();
+    .eq(matchedAppointmentId ? "appointment_id" : "transaction_id", id)
+    .maybeSingle();
 
   if (existing) {
-    return NextResponse.json({ error: "Esta cita ya fue calificada" }, { status: 409 });
+    return NextResponse.json({ error: "Esto ya fue calificado" }, { status: 409 });
   }
 
   // Create review
   const { data, error } = await supabase
     .from("reviews")
     .insert({
-      appointment_id: appointmentId,
-      client_id: appointment.client_id,
-      barber_id: appointment.barber_id,
+      appointment_id: matchedAppointmentId,
+      transaction_id: matchedTransactionId,
+      client_id: clientId,
+      barber_id: barberId,
       rating,
       comment: comment || null,
     })

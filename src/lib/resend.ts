@@ -67,7 +67,7 @@ export async function sendReceipt(params: SendReceiptParams) {
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
   <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
     <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0F8B8D; padding-bottom: 20px;">
-      <h1 style="color: #fff; margin: 0; font-size: 28px; font-weight: 900; font-style: italic; letter-spacing: 1px;">re-booking</h1>
+      <img src="https://re-booking.cl/logo-horizontal-white.png" alt="re-booking" style="height: 32px; margin-bottom: 10px;" />
       <p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Gestiona. Reserva. Repite el exito.</p>
     </div>
 
@@ -102,7 +102,7 @@ export async function sendReceipt(params: SendReceiptParams) {
         Califica tu atencion ★
       </a>
       <p style="color: #888; font-size: 13px; margin: 4px 0;">Gracias por tu preferencia!</p>
-      <p style="color: #555; font-size: 11px; margin: 4px 0;">re-booking | rebooking.cl</p>
+      <p style="color: #555; font-size: 11px; margin: 4px 0;">re-booking | re-booking.cl</p>
     </div>
   </div>
 </body>
@@ -110,7 +110,7 @@ export async function sendReceipt(params: SendReceiptParams) {
 
   const resend = getResendClient();
   const { data, error } = await resend.emails.send({
-    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
     subject: `Boleta re-booking - ${new Date(date).toLocaleDateString("es-CL")}`,
     html,
