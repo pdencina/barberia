@@ -33,7 +33,11 @@ export async function POST(req: NextRequest) {
       subtotal: Math.abs(amount),
       discount: 0,
       total: Math.abs(amount),
-      payment_method: "adjustment",
+      // "adjustment" is NOT a valid payment_method (enum only allows cash, debit_card,
+      // credit_card, transfer, mixed) — this was the exact cause of the error. There's
+      // no real payment method for a manual adjustment, so we use "cash" and rely on
+      // the [AJUSTE MANUAL] tag in notes to make it clear this wasn't an actual cash sale.
+      payment_method: "cash",
       barber_id: barberId,
       notes: `[AJUSTE MANUAL] ${reason} — por ${admin.name}`,
     })
