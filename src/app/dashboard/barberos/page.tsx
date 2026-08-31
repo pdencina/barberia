@@ -13,10 +13,13 @@ interface Barber {
   phone: string;
   avatar_url: string | null;
   role?: string;
+  active?: boolean;
 }
 
 export default function BarberosPage() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
+  const [inactiveBarbers, setInactiveBarbers] = useState<Barber[]>([]);
+  const [showInactive, setShowInactive] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "", role: "barber" });
@@ -38,10 +41,14 @@ export default function BarberosPage() {
     setLoading(true);
     try {
       const t = getActiveTenantId();
-      const q = t ? `?tenantId=${t}` : "";
-      const res = await fetch(`/api/barberos${q}`);
+      const params = new URLSearchParams();
+      if (t) params.set("tenantId", t);
+      params.set("includeInactive", "true");
+      const res = await fetch(`/api/barberos?${params.toString()}`);
       const data = await res.json();
-      setBarbers(Array.isArray(data) ? data : []);
+      const all: Barber[] = Array.isArray(data) ? data : [];
+      setBarbers(all.filter((b: any) => b.active !== false));
+      setInactiveBarbers(all.filter((b: any) => b.active === false));
     } catch (err) {
       console.error("Error fetching barbers:", err);
     } finally {
@@ -167,7 +174,10 @@ export default function BarberosPage() {
                 <td className="p-4 text-right">
                   <button onClick={async (e) => {
                     e.stopPropagation();
-                    if (!confirm(`Desactivar a "${b.name}"? Ya no aparecera en agenda ni booking.`)) return;
+                    // This only deactivates (hides from agenda/booking) — it does NOT
+                    // free up the email. Use "Eliminar definitivamente" in the
+                    // inactive list below for that.
+                    if (!confirm(`Desactivar a "${b.name}"? Ya no aparecera en agenda ni booking. Su cuenta y correo seguiran existiendo; si quieres liberar el correo, luego usa "Eliminar definitivamente" en la lista de inactivos.`)) return;
                     await fetch(`/api/barberos/${b.id}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
@@ -176,7 +186,7 @@ export default function BarberosPage() {
                     showToast("Profesional desactivado", "success");
                     fetchBarbers();
                   }} className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
-                    Eliminar
+                    Desactivar
                   </button>
                 </td>
               </tr>
@@ -184,6 +194,60 @@ export default function BarberosPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Deactivated professionals: still exist in the system (their email stays
+          taken) until purged for real. This is where "no puedo crear a Enzo porque ya
+          existe una cuenta con ese email" gets solved — reactivate them, or purge them
+          for good if they were only a test/duplicate. */}
+      {inactiveBarbers.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+          <button onClick={() => setShowInactive(!showInactive)}
+            className="w-full flex items-center justify-between p-4 text-left">
+            <span className="text-sm font-medium text-gray-600">
+              Profesionales desactivados ({inactiveBarbers.length})
+            </span>
+            <span className="text-xs text-gray-400">{showInactive ? "Ocultar ▲" : "Mostrar ▼"}</span>
+          </button>
+          {showInactive && (
+            <div className="border-t divide-y">
+              {inactiveBarbers.map((b) => (
+                <div key={b.id} className="flex items-center justify-between p-4 gap-3">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-500 truncate">{b.name}</p>
+                    <p className="text-xs text-gray-400 truncate">{b.email || "-"}</p>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    <button onClick={async () => {
+                      await fetch(`/api/barberos/${b.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ active: true }),
+                      });
+                      showToast("Profesional reactivado", "success");
+                      fetchBarbers();
+                    }} className="px-3 py-1 text-xs border border-green-200 text-green-700 rounded-lg hover:bg-green-50">
+                      Reactivar
+                    </button>
+                    <button onClick={async () => {
+                      if (!confirm(`Eliminar DEFINITIVAMENTE a "${b.name}" (${b.email})? Esto libera su correo para poder reusarlo. Solo se puede si no tiene citas, ventas ni comisiones registradas. Esta accion no se puede deshacer.`)) return;
+                      const res = await fetch(`/api/barberos/${b.id}`, { method: "DELETE" });
+                      const data = await res.json();
+                      if (res.ok) {
+                        showToast(`Eliminado. El correo ${data.purgedEmail} ya esta libre.`, "success");
+                        fetchBarbers();
+                      } else {
+                        showToast(data.error || "No se pudo eliminar", "error");
+                      }
+                    }} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700">
+                      Eliminar definitivamente
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">

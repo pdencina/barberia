@@ -12,12 +12,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([]);
   }
 
+  // includeInactive=true lets the team management page show deactivated professionals
+  // too, so they can be reactivated or permanently purged (they're invisible otherwise).
+  const includeInactive = searchParams.get("includeInactive") === "true";
+
   let query = supabase
     .from("profiles")
-    .select("id, name, email, phone, avatar_url, role")
+    .select("id, name, email, phone, avatar_url, role, active")
     .in("role", ["barber", "receptionist", "admin"])
-    .eq("active", true)
     .order("name");
+
+  if (!includeInactive) {
+    query = query.eq("active", true);
+  }
 
   if (tenantId !== "ALL") {
     query = query.eq("tenant_id", tenantId);
