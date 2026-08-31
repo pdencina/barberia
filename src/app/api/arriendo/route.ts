@@ -90,7 +90,14 @@ export async function GET(req: NextRequest) {
     const dailyRate = Number(prof.rental_daily_rate) || 29000;
     const grossAmount = daysWorked * dailyRate;
     const deductions = existing ? Number(existing.deductions) : Number(prof.rental_deductions) || 0;
-    const productBonus = Math.round((productBonusByBarber[prof.id] || 0) * 0.1); // 10% de productos vendidos como bono
+    // If a record already exists for this month, respect its stored product_bonus
+    // (same pattern as "deductions" above) instead of always overwriting it with a
+    // fresh auto-calculation. Without this, any manual correction to the bonus (e.g.
+    // via the "Ajustar" panel or a PIN adjustment) gets silently discarded on the next
+    // load, because it would keep recalculating from live product sales every time.
+    const productBonus = existing && existing.product_bonus !== null && existing.product_bonus !== undefined
+      ? Number(existing.product_bonus)
+      : Math.round((productBonusByBarber[prof.id] || 0) * 0.1); // 10% de productos vendidos como bono
     const netAmount = grossAmount - deductions + productBonus;
 
     return {

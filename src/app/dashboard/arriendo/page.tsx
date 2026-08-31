@@ -35,6 +35,7 @@ export default function ArriendoPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editDays, setEditDays] = useState("");
   const [editDeductions, setEditDeductions] = useState("");
+  const [editProductBonus, setEditProductBonus] = useState("");
   const [editNotes, setEditNotes] = useState("");
   const { showToast } = useToast();
   const { confirm } = useConfirm();
@@ -83,8 +84,11 @@ export default function ArriendoPage() {
         barberId: prof.id,
         month, year,
         daysWorked: parseInt(editDays) || prof.daysWorked,
-        deductions: parseInt(editDeductions) || prof.deductions,
-        productBonus: prof.productBonus,
+        // Deductions and bonus both default to 0 (not the previous value) when the
+        // field is cleared, so you can actually zero one out instead of it silently
+        // falling back to the old amount.
+        deductions: editDeductions === "" ? prof.deductions : parseInt(editDeductions) || 0,
+        productBonus: editProductBonus === "" ? prof.productBonus : parseInt(editProductBonus) || 0,
         notes: editNotes || prof.notes,
       }),
     });
@@ -178,6 +182,7 @@ export default function ArriendoPage() {
                       setEditingId(editingId === prof.id ? null : prof.id);
                       setEditDays(String(prof.daysWorked));
                       setEditDeductions(String(prof.deductions));
+                      setEditProductBonus(String(prof.productBonus));
                       setEditNotes(prof.notes || "");
                     }} className="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50">
                       {editingId === prof.id ? "Cancelar" : "Ajustar"}
@@ -217,7 +222,7 @@ export default function ArriendoPage() {
               {/* Edit form */}
               {editingId === prof.id && (
                 <div className="mt-4 pt-4 border-t space-y-3">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
                       <label className="block text-xs text-gray-500 mb-1">Días trabajados</label>
                       <input type="number" min="0" max="31" value={editDays}
@@ -225,9 +230,15 @@ export default function ArriendoPage() {
                         className="w-full border rounded-xl px-3 py-2 text-sm" />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 mb-1">Descuentos ($)</label>
+                      <label className="block text-xs text-red-500 mb-1">Descuentos ($) — resta</label>
                       <input type="number" min="0" value={editDeductions}
                         onChange={(e) => setEditDeductions(e.target.value)}
+                        className="w-full border rounded-xl px-3 py-2 text-sm" />
+                    </div>
+                    <div>
+                      <label className="block text-xs text-green-600 mb-1">Bono productos ($) — suma</label>
+                      <input type="number" min="0" value={editProductBonus}
+                        onChange={(e) => setEditProductBonus(e.target.value)}
                         className="w-full border rounded-xl px-3 py-2 text-sm" />
                     </div>
                     <div>
@@ -302,10 +313,10 @@ export default function ArriendoPage() {
                     showToast("Completa todos los campos", "error"); return;
                   }
                   setAdjusting(true);
-                  const res = await fetch("/api/comisiones/adjust", {
+                  const res = await fetch("/api/arriendo/adjust", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ barberId: adjustForm.barberId, amount: parseInt(adjustForm.amount), type: adjustForm.type, reason: adjustForm.reason, pin: adjustForm.pin }),
+                    body: JSON.stringify({ barberId: adjustForm.barberId, month, year, amount: parseInt(adjustForm.amount), type: adjustForm.type, reason: adjustForm.reason, pin: adjustForm.pin }),
                   });
                   const data = await res.json();
                   setAdjusting(false);
