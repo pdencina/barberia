@@ -9,6 +9,7 @@ interface Service {
   description: string | null;
   price: number;
   duration: number;
+  imageUrl?: string | null;
 }
 
 interface Barber {
@@ -284,18 +285,22 @@ export default function BookingPage() {
                         : "border-gray-200 hover:border-brand-blue hover:bg-blue-50/50"
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${
                         isSelected ? "border-brand-blue bg-brand-blue" : "border-gray-300"
                       }`}>
                         {isSelected && <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                       </div>
-                      <div>
+                      {/* Visual reference photo (e.g. an example of "perfilado de barba") */}
+                      {s.imageUrl && (
+                        <img src={s.imageUrl} alt={s.name} className="w-12 h-12 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div className="min-w-0">
                         <p className="font-medium text-brand-dark">{s.name}</p>
                         <p className="text-sm text-brand-gray">{s.duration} min{s.description ? ` · ${s.description}` : ""}</p>
                       </div>
                     </div>
-                    <p className="text-brand-blue font-bold text-lg">{formatCurrency(Number(s.price))}</p>
+                    <p className="text-brand-blue font-bold text-lg flex-shrink-0 ml-2">{formatCurrency(Number(s.price))}</p>
                   </button>
                 );
               })}

@@ -231,7 +231,25 @@ export default function ConfiguracionPage() {
 
   const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (!file || !tenantId) return;
+    if (!file) return;
+    // Silent no-op was the exact bug reported ("aparece la opcion pero no sube el
+    // archivo"): if tenantId hadn't resolved yet (e.g. clicked right as the page
+    // loaded), this used to return with zero feedback. Now it tells the user why.
+    if (!tenantId) {
+      showToast("Espera un momento a que cargue la pagina y vuelve a intentar.", "error");
+      e.target.value = "";
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      showToast("El archivo debe ser una imagen (jpg, png, etc.)", "error");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(`La imagen pesa ${(file.size / 1024 / 1024).toFixed(1)}MB, el maximo es 5MB.`, "error");
+      e.target.value = "";
+      return;
+    }
     setUploadingLogo(true);
     const form = new FormData();
     form.append("file", file);

@@ -142,6 +142,13 @@ export default function CalendarioPage() {
   const [popupTab, setPopupTab] = useState<"service" | "event">("service");
   const [popupData, setPopupData] = useState({ barberId: "", startTime: "", endTime: "", barberName: "" });
   const [dropIndicator, setDropIndicator] = useState<{ barberId: string; y: number } | null>(null);
+  // Moving an EXISTING appointment via touch (long-press + drag), mirrors the native
+  // HTML5 drag used on desktop (draggable/onDragStart/onDrop), which has no touch
+  // equivalent at all — that's the actual reason "mover la cita" didn't work on
+  // tablet/celular.
+  const [movingApptId, setMovingApptId] = useState<string | null>(null);
+  const moveTouchRef = useRef<{ apptId: string; startClientX: number; startClientY: number; activated: boolean } | null>(null);
+  const moveLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
   // Popup form
   const [selectedService, setSelectedService] = useState("");
@@ -345,6 +352,23 @@ export default function CalendarioPage() {
     if (!el) return;
 
     const onTouchMove = (e: TouchEvent) => {
+      // Moving an EXISTING appointment (long-press activated in handleApptTouchStart).
+      // Find which barber column is under the finger right now, since the cita can be
+      // dropped on a different barber too, just like the desktop native drag.
+      if (moveTouchRef.current?.activated) {
+        e.preventDefault();
+        e.stopPropagation();
+        const touch = e.touches[0];
+        const target = document.elementFromPoint(touch.clientX, touch.clientY);
+        const column = target?.closest("[data-barber-column]") as HTMLElement | null;
+        if (column) {
+          const barberId = column.dataset.barberColumn!;
+          const rect = column.getBoundingClientRect();
+          setDropIndicator({ barberId, y: Math.max(0, touch.clientY - rect.top) });
+        }
+        return;
+      }
+
       if (!touchRef.current) return;
 
       const touch = e.touches[0];
@@ -454,6 +478,85 @@ export default function CalendarioPage() {
     setCreating(false);
     setShowPopup(false);
     await fetchAppointments();
+  };
+
+  // Move an EXISTING appointment to a new barber/time slot. Shared by the desktop
+  // native HTML5 drag (onDrop) and the touch long-press-drag below, so both paths stay
+  // in sync. Preserves the appointment's real duration instead of assuming a fixed
+  // 45min block, and surfaces a toast if the server rejects the move.
+  const moveAppointmentTo = async (apptId: string, barberId: string, y: number) => {
+    const appt = appointments.find((a: any) => a.id === apptId);
+    const sm = appt?.start_time?.match(/(\d{2}):(\d{2})/);
+    const em = appt?.end_time?.match(/(\d{2}):(\d{2})/);
+    const durationMin = sm && em
+      ? (parseInt(em[1]) * 60 + parseInt(em[2])) - (parseInt(sm[1]) * 60 + parseInt(sm[2]))
+      : 45;
+
+    const newTime = yToTime(y);
+    const [h, m] = newTime.split(":").map(Number);
+    const startMin = h * 60 + m;
+    const endMin = startMin + Math.max(durationMin, 15);
+    const endH = Math.floor(endMin / 60);
+    const endM = endMin % 60;
+    const newStartISO = `${date}T${newTime}:00`;
+    const newEndISO = `${date}T${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}:00`;
+
+    const res = await fetch(`/api/appointments/${apptId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ barber_id: barberId, start_time: newStartISO, end_time: newEndISO }),
+    });
+
+    if (res.ok) {
+      showToast("Cita movida", "success");
+    } else {
+      showToast("No se pudo mover la cita", "error");
+    }
+    await fetchAppointments();
+  };
+
+  // Touch drag-to-move for an existing appointment (long-press to activate, mirrors the
+  // desktop native drag). Native HTML5 draggable has no touch equivalent, which is why
+  // moving a cita after creating it didn't work at all on tablet/celular.
+  const handleApptTouchStart = (e: React.TouchEvent, apptId: string) => {
+    e.stopPropagation();
+    const touch = e.touches[0];
+    moveTouchRef.current = { apptId, startClientX: touch.clientX, startClientY: touch.clientY, activated: false };
+    moveLongPressTimer.current = setTimeout(() => {
+      if (!moveTouchRef.current) return;
+      moveTouchRef.current.activated = true;
+      setMovingApptId(apptId);
+      if (navigator.vibrate) navigator.vibrate(30);
+    }, 400);
+  };
+
+  // Cancel the long-press-to-move if the finger moves too much before it activates
+  // (that's a normal scroll gesture, not an intent to move the cita).
+  const handleApptTouchMoveEarly = (e: React.TouchEvent) => {
+    const ref = moveTouchRef.current;
+    if (!ref || ref.activated) return;
+    const touch = e.touches[0];
+    const dx = Math.abs(touch.clientX - ref.startClientX);
+    const dy = Math.abs(touch.clientY - ref.startClientY);
+    if (dx > 10 || dy > 15) {
+      if (moveLongPressTimer.current) clearTimeout(moveLongPressTimer.current);
+      moveTouchRef.current = null;
+    }
+  };
+
+  const handleApptTouchEnd = async (e: React.TouchEvent) => {
+    e.stopPropagation();
+    if (moveLongPressTimer.current) clearTimeout(moveLongPressTimer.current);
+    const ref = moveTouchRef.current;
+    moveTouchRef.current = null;
+    setMovingApptId(null);
+    if (!ref || !ref.activated) return;
+    // Prevent the tap-to-open-details click from firing right after a drag-move.
+    e.preventDefault();
+    const indicator = dropIndicator;
+    setDropIndicator(null);
+    if (!indicator) return;
+    await moveAppointmentTo(ref.apptId, indicator.barberId, indicator.y);
   };
 
   // Appointment block position - parse UTC time directly (avoid timezone shift)
@@ -574,6 +677,7 @@ export default function CalendarioPage() {
                 return (
                   <div
                     key={barber.id}
+                    data-barber-column={barber.id}
                     className="flex-1 relative border-r border-gray-50 min-w-[120px] select-none"
                     onMouseDown={(e) => handleMouseDown(e, barber.id)}
                     onMouseMove={handleMouseMove}
@@ -593,26 +697,7 @@ export default function CalendarioPage() {
                       if (!appointmentId) return;
                       const rect = e.currentTarget.getBoundingClientRect();
                       const y = e.clientY - rect.top;
-                      const newTime = yToTime(y);
-                      const newStartISO = `${date}T${newTime}:00`;
-                      // Assume 45min duration for moved appointment
-                      const [h, m] = newTime.split(":").map(Number);
-                      const endMin = h * 60 + m + 45;
-                      const endH = Math.floor(endMin / 60);
-                      const endM = endMin % 60;
-                      const newEndISO = `${date}T${endH.toString().padStart(2, "0")}:${endM.toString().padStart(2, "0")}:00`;
-
-                      await fetch(`/api/appointments/${appointmentId}`, {
-                        method: "PATCH",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          barber_id: barber.id,
-                          start_time: newStartISO,
-                          end_time: newEndISO,
-                        }),
-                      });
-                      showToast("Cita movida", "success");
-                      await fetchAppointments();
+                      await moveAppointmentTo(appointmentId, barber.id, y);
                     }}
                   >
                     {/* Hour grid lines */}
@@ -682,11 +767,14 @@ export default function CalendarioPage() {
                           e.dataTransfer.setData("appointmentId", appt.id);
                           e.dataTransfer.effectAllowed = "move";
                         }}
+                        onTouchStart={(e) => handleApptTouchStart(e, appt.id)}
+                        onTouchMove={handleApptTouchMoveEarly}
+                        onTouchEnd={handleApptTouchEnd}
                         onClick={(e) => {
                           e.stopPropagation();
                           openApptDetails(appt.id);
                         }}
-                        className={`absolute left-1 right-1 rounded-md border-l-[3px] ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10 group`}
+                        className={`absolute left-1 right-1 rounded-md border-l-[3px] ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10 group ${movingApptId === appt.id ? "opacity-40 ring-2 ring-blue-500" : ""}`}
                         style={getBlockStyle(appt)}
                       >
                         <p className="text-[11px] font-bold truncate">{appt.client?.name || "Cliente"}</p>

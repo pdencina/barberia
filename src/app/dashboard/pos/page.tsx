@@ -150,8 +150,14 @@ export default function POSPage() {
   };
 
   const subtotal = cart.reduce((sum, c) => sum + Number(c.price) * c.quantity, 0);
-  const [tip, setTip] = useState(0);
-  const total = subtotal - discount + tip;
+  // Tip is NOT part of the amount charged from the POS anymore. The card terminal
+  // itself asks the client for a tip when they pay with debit/credit, and that tip is
+  // only recorded here afterwards (informational) — never bundled into "total" or sent
+  // to MercadoPago as part of the charge. See tipAmount / tip modal below.
+  const total = subtotal - discount;
+  const [showTipModal, setShowTipModal] = useState(false);
+  const [tipInput, setTipInput] = useState("");
+  const [lastTransactionId, setLastTransactionId] = useState<string | null>(null);
 
   const applyCoupon = async () => {
     setCouponError("");
@@ -364,6 +370,13 @@ export default function POSPage() {
       });
       if (res.ok) {
         const result = await res.json();
+        // Was any part of this sale paid by card? The terminal asks for a tip itself
+        // when that happens, so we ask the cashier to record it afterwards — we never
+        // charge the tip ourselves, only log what the client added on the machine.
+        const hadCardPayment = splitMode
+          ? splitPayments.some((p) => (p.method === "debit_card" || p.method === "credit_card") && parseInt(p.amount) > 0)
+          : (paymentMethod === "debit_card" || paymentMethod === "credit_card");
+
         setCart([]);
         setDiscount(0);
         setCouponCode("");
@@ -373,19 +386,43 @@ export default function POSPage() {
         setSelectedClient("");
         setClientPoints(0);
         setRedeemedPoints(0);
-        setTip(0);
         setMpPaymentStatus("idle");
         setMpPaymentIntentId("");
         setSplitChargeProgress("");
         setSuccessAmount(total);
-        setShowSuccessModal(true);
-        setTimeout(() => setShowSuccessModal(false), 4000);
+
+        if (hadCardPayment && result.transactionId) {
+          setLastTransactionId(result.transactionId);
+          setTipInput("");
+          setShowTipModal(true);
+        } else {
+          setShowSuccessModal(true);
+          setTimeout(() => setShowSuccessModal(false), 4000);
+        }
       }
     } catch (err) {
       console.error("Error en checkout:", err);
     } finally {
       setProcessing(false);
     }
+  };
+
+  const recordTip = async (amount: number) => {
+    if (lastTransactionId && amount > 0) {
+      try {
+        await fetch(`/api/pos/checkout/tip`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ transactionId: lastTransactionId, tipAmount: amount }),
+        });
+      } catch (e) {
+        console.error("Error registrando propina:", e);
+      }
+    }
+    setShowTipModal(false);
+    setLastTransactionId(null);
+    setShowSuccessModal(true);
+    setTimeout(() => setShowSuccessModal(false), 4000);
   };
 
   return (
@@ -718,26 +755,12 @@ export default function POSPage() {
                 <span>-{formatCurrency(discount)}</span>
               </div>
             )}
-            {/* Tip / Propina */}
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-gray-600">Propina</span>
-              <div className="flex items-center gap-1">
-                {[0, 1000, 2000, 5000].map((t) => (
-                  <button key={t} onClick={() => setTip(t)}
-                    className={`px-2 py-0.5 rounded text-[10px] font-medium ${tip === t ? "bg-brand-blue text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                    {t === 0 ? "Sin" : `$${(t/1000).toFixed(0)}K`}
-                  </button>
-                ))}
-                <input type="number" min="0" step="500" value={tip || ""}
-                  onChange={(e) => setTip(parseInt(e.target.value) || 0)}
-                  placeholder="$"
-                  className="w-16 border rounded px-1.5 py-0.5 text-xs text-right" />
-              </div>
-            </div>
             <div className="flex justify-between font-bold text-lg pt-1 border-t">
               <span>Total</span>
               <span>{formatCurrency(total)}</span>
             </div>
+            {/* Tip is asked on the terminal itself, after the card payment. See the
+                "Cliente agrego propina?" step in the success flow below. */}
           </div>
 
           {/* Payment Methods */}
@@ -939,6 +962,35 @@ export default function POSPage() {
           </div>
         </div>
       )}
+      {/* Tip modal — shown AFTER a card payment is approved, since the client adds the
+          tip on the terminal itself. This is purely informational: nothing is charged
+          again from here, we just record what the client added on the machine. */}
+      {showTipModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
+            <div className="text-3xl mb-3">💳</div>
+            <h3 className="text-lg font-bold text-brand-dark">Cliente agrego propina?</h3>
+            <p className="text-sm text-brand-gray mt-1 mb-4">Preguntale al cliente si agrego propina en la maquina. Esto solo se registra, no se cobra de nuevo.</p>
+            <div className="flex items-center justify-center gap-1 mb-3">
+              {[0, 1000, 2000, 5000].map((t) => (
+                <button key={t} onClick={() => setTipInput(t ? String(t) : "")}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-medium ${(parseInt(tipInput) || 0) === t ? "bg-brand-blue text-white" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  {t === 0 ? "Sin propina" : `$${(t/1000).toFixed(0)}K`}
+                </button>
+              ))}
+            </div>
+            <input type="number" min="0" step="500" value={tipInput}
+              onChange={(e) => setTipInput(e.target.value)}
+              placeholder="Otro monto ($)"
+              className="w-full border rounded-xl px-3 py-2.5 text-sm text-center mb-4" />
+            <button onClick={() => recordTip(parseInt(tipInput) || 0)}
+              className="w-full py-2.5 bg-brand-blue text-white rounded-xl font-medium hover:bg-brand-blue/90">
+              {parseInt(tipInput) > 0 ? `Registrar propina de ${formatCurrency(parseInt(tipInput))}` : "Continuar sin propina"}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Success Celebration Modal */}
       {showSuccessModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowSuccessModal(false)}>

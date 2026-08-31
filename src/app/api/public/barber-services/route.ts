@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
   // Get active services filtered by tenant
   let servicesQuery = supabase
     .from("services")
-    .select("id, name, description, price, duration, sort_order")
+    .select("id, name, description, price, duration, sort_order, image_url")
     .eq("active", true)
     .order("sort_order");
 
@@ -63,6 +63,7 @@ export async function GET(req: NextRequest) {
         price: custom?.custom_price ? Number(custom.custom_price) : Number(s.price),
         duration: custom?.custom_duration || s.duration,
         hasCustomPrice: !!custom?.custom_price,
+        imageUrl: s.image_url || null,
       };
     });
 

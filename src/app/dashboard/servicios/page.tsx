@@ -16,6 +16,7 @@ interface Service {
   duration: number;
   active: boolean;
   sort_order: number;
+  image_url?: string | null;
 }
 
 export default function ServiciosPage() {
@@ -24,6 +25,7 @@ export default function ServiciosPage() {
   const [showModal, setShowModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [form, setForm] = useState({ name: "", description: "", price: "", duration: "", category: "" });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
@@ -68,6 +70,51 @@ export default function ServiciosPage() {
       category: (s as any).category || "",
     });
     setShowModal(true);
+  };
+
+  // Reference photo shown to clients while choosing this service in the public
+  // booking flow (e.g. an example of "perfilado de barba"). Only available once the
+  // service already exists, since the upload is keyed by service id.
+  const uploadServicePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !editingService) return;
+    if (!file.type.startsWith("image/")) {
+      showToast("El archivo debe ser una imagen", "error");
+      e.target.value = "";
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast(`La imagen pesa ${(file.size / 1024 / 1024).toFixed(1)}MB, el maximo es 5MB.`, "error");
+      e.target.value = "";
+      return;
+    }
+    setUploadingPhoto(true);
+    const form = new FormData();
+    form.append("file", file);
+    try {
+      const res = await fetch(`/api/services/${editingService.id}/photo`, { method: "POST", body: form });
+      const result = await res.json();
+      if (res.ok) {
+        setEditingService({ ...editingService, image_url: result.url });
+        showToast("Foto actualizada", "success");
+        fetchServices();
+      } else {
+        showToast(result.error || "Error al subir la foto", "error");
+      }
+    } catch {
+      showToast("Error al subir la foto", "error");
+    } finally {
+      setUploadingPhoto(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeServicePhoto = async () => {
+    if (!editingService) return;
+    await fetch(`/api/services/${editingService.id}/photo`, { method: "DELETE" });
+    setEditingService({ ...editingService, image_url: null });
+    showToast("Foto eliminada", "success");
+    fetchServices();
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -363,6 +410,40 @@ export default function ServiciosPage() {
                   placeholder="Ej: Cortes, Barba, Especiales, Nicolas"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               </div>
+
+              {/* Reference photo: shown to clients while choosing services in the
+                  public booking page (e.g. an example of "perfilado de barba"). */}
+              {editingService ? (
+                <div>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Foto de referencia (opcional)</label>
+                  <div className="flex items-center gap-3">
+                    <label className="relative group cursor-pointer flex-shrink-0">
+                      {editingService.image_url ? (
+                        <img src={editingService.image_url} alt={editingService.name} className="w-14 h-14 rounded-xl object-cover border border-gray-200" />
+                      ) : (
+                        <div className="w-14 h-14 rounded-xl bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center text-gray-300 text-xs">
+                          Foto
+                        </div>
+                      )}
+                      {uploadingPhoto && (
+                        <div className="absolute inset-0 rounded-xl bg-black/50 flex items-center justify-center">
+                          <span className="text-[8px] text-white font-medium">Subiendo...</span>
+                        </div>
+                      )}
+                      <input type="file" accept="image/*" onChange={uploadServicePhoto} className="hidden" disabled={uploadingPhoto} />
+                    </label>
+                    <div className="text-xs text-brand-gray">
+                      <p>Ej: una foto de un perfilado de barba, para que el cliente sepa que va a recibir.</p>
+                      {editingService.image_url && (
+                        <button type="button" onClick={removeServicePhoto} className="text-red-500 hover:underline mt-1">Quitar foto</button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-xs text-brand-gray italic">Podras agregar una foto de referencia despues de crear el servicio.</p>
+              )}
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-brand-gray mb-1">Precio ($)</label>
