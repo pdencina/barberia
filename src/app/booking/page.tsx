@@ -46,6 +46,7 @@ export default function BookingPage() {
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
   const [businessName, setBusinessName] = useState("");
+  const [businessLogoUrl, setBusinessLogoUrl] = useState<string | null>(null);
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(30);
   const [depositMessage, setDepositMessage] = useState("");
@@ -55,6 +56,7 @@ export default function BookingPage() {
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
 
   const [closedDays, setClosedDays] = useState<number[]>([]);
+  const [closedDaysLoaded, setClosedDaysLoaded] = useState(false);
 
   useEffect(() => {
     // Get tenant slug from URL params
@@ -67,6 +69,7 @@ export default function BookingPage() {
     if (tenantSlug) {
       fetch(`/api/public/business-info?slug=${tenantSlug}`).then((r) => r.json()).then((data) => {
         if (data.name) setBusinessName(data.name);
+        if (data.logo_url) setBusinessLogoUrl(data.logo_url);
         // Fetch deposit settings for this tenant
         if (data.id) {
           fetch(`/api/settings/deposit?tenantId=${data.id}`).then((r) => r.json()).then((dep) => {
@@ -93,7 +96,7 @@ export default function BookingPage() {
     });
     fetch("/api/business-hours").then((r) => r.json()).then((hours: any[]) => {
       setClosedDays(hours.filter((h) => h.is_closed).map((h) => h.day_of_week));
-    });
+    }).finally(() => setClosedDaysLoaded(true));
   }, []);
 
   // Load services when barber is selected (with custom prices)
@@ -105,12 +108,20 @@ export default function BookingPage() {
     }
   }, [selectedBarber]);
 
-  // Set default date to tomorrow
+  // Default to TODAY (not tomorrow). If today happens to be a day the business is
+  // closed, fall back to the next open day. Runs once closedDays has loaded so we
+  // don't default into a closed day by mistake.
   useEffect(() => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setSelectedDate(tomorrow.toISOString().split("T")[0]);
-  }, []);
+    if (!closedDaysLoaded || selectedDate) return; // wait for real data, don't override a user pick
+    let d = new Date();
+    for (let i = 0; i < 14; i++) {
+      if (!closedDays.includes(d.getDay())) {
+        setSelectedDate(d.toISOString().split("T")[0]);
+        return;
+      }
+      d.setDate(d.getDate() + 1);
+    }
+  }, [closedDaysLoaded, closedDays]);
 
   // Fetch slots when barber or date changes
   useEffect(() => {
@@ -204,7 +215,11 @@ export default function BookingPage() {
       <div className="border-b border-gray-100 py-4 px-6 flex items-center justify-between bg-white">
         <div className="flex-1" />
         <div className="text-center">
-          <img src="/logo-horizontal.png" alt="re-booking" className="h-10 mx-auto" />
+          {businessLogoUrl ? (
+            <img src={businessLogoUrl} alt={businessName || "Logo"} className="h-12 mx-auto object-contain" />
+          ) : (
+            <img src="/logo-horizontal.png" alt="re-booking" className="h-10 mx-auto" />
+          )}
           <p className="text-xs text-brand-blue uppercase tracking-widest mt-2 font-medium">
             {businessName || "Agendar Hora"}
           </p>

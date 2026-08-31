@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/utils";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Barber { id: string; name: string; }
 interface Service { id: string; name: string; price: number; duration: number; }
@@ -53,6 +54,7 @@ export default function CalendarioPage() {
   const [blocks, setBlocks] = useState<Array<{ id: string; barber_id: string; date: string; all_day: boolean; start_time: string | null; end_time: string | null; reason: string | null }>>([]);
   const [loading, setLoading] = useState(true);
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
   const { user, effectiveRole } = useAuth();
   const router = useRouter();
@@ -148,6 +150,7 @@ export default function CalendarioPage() {
   const [eventNotes, setEventNotes] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [creating, setCreating] = useState(false);
+  const [creatingClient, setCreatingClient] = useState(false);
   const [popupPosition, setPopupPosition] = useState<"left" | "right">("right");
 
   const gridRef = useRef<HTMLDivElement>(null);
@@ -470,6 +473,34 @@ export default function CalendarioPage() {
   const hours = Array.from({ length: END_HOUR - START_HOUR + 1 }, (_, i) => START_HOUR + i);
   const [filteredClients, setFilteredClients] = useState<Client[]>([]);
 
+  // Create a client right from the appointment popup, so a receptionist/professional
+  // never has to abandon the calendar to go to Clientes and lose the in-progress cita.
+  const createClientInline = async () => {
+    const name = clientSearch.trim();
+    if (!name) return;
+    setCreatingClient(true);
+    try {
+      const res = await fetch("/api/clients", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name, tenantId: getActiveTenantId() || undefined }),
+      });
+      const data = await res.json();
+      if (res.ok && data.id) {
+        setSelectedClient(data.id);
+        setClientSearch(data.name);
+        setFilteredClients([]);
+        showToast("Cliente creado", "success");
+      } else {
+        showToast(data.error || "Error al crear cliente", "error");
+      }
+    } catch {
+      showToast("Error al crear cliente", "error");
+    } finally {
+      setCreatingClient(false);
+    }
+  };
+
   const searchClients = async (query: string) => {
     if (query.length < 2) { setFilteredClients([]); return; }
     const t = tenant?.id || "";
@@ -725,19 +756,29 @@ export default function CalendarioPage() {
                             showToast(`Bloqueo: ${block.reason || "Sin motivo"}`, "info");
                           }}
                         >
-                          <p className="text-[10px] font-medium text-gray-600 truncate">🚫 {block.reason || "Bloqueo"}</p>
+                          <p className="text-[10px] font-medium text-gray-600 truncate pr-4">🚫 {block.reason || "Bloqueo"}</p>
                           {!block.all_day && block.start_time && block.end_time && (
                             <p className="text-[9px] text-gray-500">{block.start_time?.slice(0,5)} – {block.end_time?.slice(0,5)}</p>
                           )}
                           {block.all_day && <p className="text-[9px] text-gray-500">Todo el dia</p>}
+                          {/* Always visible (not hover-only) — hover doesn't exist on
+                              touch devices, so this was effectively unreachable on
+                              mobile/tablet, which is how this app is mostly used. */}
                           <button
                             onClick={async (e) => {
                               e.stopPropagation();
+                              const ok = await confirm({
+                                title: "Eliminar bloqueo",
+                                message: `Eliminar el bloqueo "${block.reason || "Sin motivo"}"?`,
+                                confirmText: "Eliminar",
+                                variant: "danger",
+                              });
+                              if (!ok) return;
                               await fetch(`/api/barber/blocks?id=${block.id}`, { method: "DELETE" });
                               showToast("Bloqueo eliminado", "success");
                               await fetchAppointments();
                             }}
-                            className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white rounded-full text-[8px] opacity-0 group-hover:opacity-100 flex items-center justify-center"
+                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm"
                           >✕</button>
                         </div>
                       );
@@ -872,12 +913,18 @@ export default function CalendarioPage() {
                       onChange={(e) => { setClientSearch(e.target.value); setSelectedClient(""); searchClients(e.target.value); }}
                       placeholder="Buscar cliente..."
                       className="w-full border rounded-xl px-3 py-2.5 text-sm" />
-                    {clientSearch.length >= 2 && !selectedClient && filteredClients.length > 0 && (
-                      <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-32 overflow-y-auto">
+                    {clientSearch.length >= 2 && !selectedClient && (
+                      <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                         {filteredClients.map((c) => (
                           <button key={c.id} onClick={() => { setSelectedClient(c.id); setClientSearch(c.name); }}
                             className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">{c.name}</button>
                         ))}
+                        {/* Create the client right here instead of leaving the calendar. */}
+                        <button onClick={createClientInline} disabled={creatingClient}
+                          className="w-full text-left px-3 py-2 text-sm text-brand-blue font-medium hover:bg-brand-blue/5 border-t border-gray-100 flex items-center gap-1.5 disabled:opacity-50">
+                          <span className="text-base leading-none">+</span>
+                          {creatingClient ? "Creando..." : `Crear cliente nuevo: "${clientSearch}"`}
+                        </button>
                       </div>
                     )}
                   </div>

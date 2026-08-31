@@ -104,9 +104,18 @@ interface SidebarProps {
   userName: string;
   userRole: string;
   tenantName?: string;
+  // True when the business has only 1 active team member (a solo/independent
+  // professional). Hides menu items that only make sense with a team, like
+  // Recepcion, Lista de Espera and Arriendo.
+  isSoloBusiness?: boolean;
 }
 
-export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
+// Routes that assume there's a team to manage — meaningless for a solo professional
+// running their own account (nothing to "receive" clients for, no other professional
+// to redirect a waitlist to, no chair rental to charge to anyone but themselves).
+const SOLO_BUSINESS_HIDDEN_ROUTES = ["/dashboard/recepcion", "/dashboard/waitlist", "/dashboard/arriendo"];
+
+export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
@@ -152,6 +161,13 @@ export function Sidebar({ userName, userRole, tenantName }: SidebarProps) {
           ...section,
           items: ROLE_MENU_ACCESS[effectiveRole]
             ? section.items.filter((item) => !(item as any).locked)
+            : section.items,
+        }))
+        // Solo/independent professional: remove team-only items entirely
+        .map((section) => ({
+          ...section,
+          items: isSoloBusiness
+            ? section.items.filter((item) => !SOLO_BUSINESS_HIDDEN_ROUTES.includes(item.href))
             : section.items,
         }))
         .filter((section) => section.items.length > 0);

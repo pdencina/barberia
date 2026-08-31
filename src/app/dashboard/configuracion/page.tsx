@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
-import { Copy, ExternalLink, Globe, Clock, Building2, CreditCard } from "lucide-react";
+import { useTenant } from "@/lib/tenant-context";
+import { Copy, ExternalLink, Globe, Clock, Building2, CreditCard, Image as ImageIcon, Lock } from "lucide-react";
 
 const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
@@ -17,6 +18,11 @@ interface DaySchedule {
 export default function ConfiguracionPage() {
   const supabase = createClient();
   const { showToast } = useToast();
+  // Reliable tenant source (server-provided, same pattern used everywhere else in the
+  // app). The old code below re-resolved the tenant via a client-side auth.getUser()
+  // call, which is the unreliable-on-Vercel pattern that made the booking link fall
+  // back to the generic /booking URL for some accounts (e.g. recepcion).
+  const { tenant, loading: tenantCtxLoading } = useTenant();
 
   const [businessData, setBusinessData] = useState({
     name: "",
@@ -29,6 +35,15 @@ export default function ConfiguracionPage() {
   const [saving, setSaving] = useState(false);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+
+  // Change password (self-service, avoids the destructive "Enviar credenciales" flow)
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [changingPassword, setChangingPassword] = useState(false);
+  const [passwordError, setPasswordError] = useState("");
 
   // MercadoPago state
   const [mpToken, setMpToken] = useState("");
@@ -62,42 +77,53 @@ export default function ConfiguracionPage() {
   }
 
   useEffect(() => {
+    if (tenantCtxLoading) return;
     fetchData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantCtxLoading, tenant?.id]);
 
   const fetchData = async () => {
     setLoading(true);
 
-    // Fetch tenant info
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("tenant_id")
-        .eq("id", user.id)
+    // Resolve the tenant: prefer the reliable server-provided context; fall back to
+    // resolving it from the client session only if the context has no tenant yet
+    // (e.g. super_admin without an override).
+    let resolvedTenantId = tenant?.id || null;
+    if (!resolvedTenantId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("tenant_id")
+          .eq("id", user.id)
+          .single();
+        resolvedTenantId = profile?.tenant_id || null;
+      }
+    }
+
+    if (resolvedTenantId) {
+      setTenantId(resolvedTenantId);
+      const currentTenantId = resolvedTenantId;
+      const { data: tenantRow } = await supabase
+        .from("tenants")
+        .select("name, slug, address, phone, logo_url")
+        .eq("id", resolvedTenantId)
         .single();
 
-      if (profile?.tenant_id) {
-        setTenantId(profile.tenant_id);
-        const currentTenantId = profile.tenant_id;
-        const { data: tenant } = await supabase
-          .from("tenants")
-          .select("name, slug, address, phone")
-          .eq("id", profile.tenant_id)
-          .single();
+      if (tenantRow) {
+        setBusinessData({
+          name: tenantRow.name || "",
+          address: tenantRow.address || "",
+          phone: tenantRow.phone || "",
+          website: "",
+        });
+        setTenantSlug(tenantRow.slug || null);
+        setLogoUrl((tenantRow as any).logo_url || null);
+      }
 
-        if (tenant) {
-          setBusinessData({
-            name: tenant.name || "",
-            address: tenant.address || "",
-            phone: tenant.phone || "",
-            website: "",
-          });
-          setTenantSlug(tenant.slug || null);
-        }
-
+      {
         // Fetch MP settings
-        const mpRes = await fetch(`/api/settings/mercadopago?tenantId=${profile.tenant_id}`);
+        const mpRes = await fetch(`/api/settings/mercadopago?tenantId=${resolvedTenantId}`);
         const mpData = await mpRes.json();
         if (mpData) {
           setMpToken(mpData.mp_access_token || "");
@@ -108,12 +134,12 @@ export default function ConfiguracionPage() {
         }
 
         // Fetch terminals
-        const termRes = await fetch(`/api/settings/mercadopago/terminals?tenantId=${profile.tenant_id}`);
+        const termRes = await fetch(`/api/settings/mercadopago/terminals?tenantId=${resolvedTenantId}`);
         const termData = await termRes.json();
         if (Array.isArray(termData)) setTerminals(termData);
 
         // Fetch deposit settings
-        const depRes = await fetch(`/api/settings/deposit?tenantId=${profile.tenant_id}`);
+        const depRes = await fetch(`/api/settings/deposit?tenantId=${resolvedTenantId}`);
         const depData = await depRes.json();
         if (depData) {
           setDepositEnabled(depData.deposit_enabled || false);
@@ -124,8 +150,9 @@ export default function ConfiguracionPage() {
       }
     }
 
-    // Fetch business hours for this tenant
-    const hoursFilter = tenantId || null;
+    // Fetch business hours for this tenant (use the resolved value directly, not the
+    // tenantId state — setState above may not have flushed yet within this function).
+    const hoursFilter = resolvedTenantId || null;
     let hoursQuery = supabase
       .from("business_hours")
       .select("day_of_week, open_time, close_time, is_closed")
@@ -175,25 +202,16 @@ export default function ConfiguracionPage() {
         }, { onConflict: "tenant_id,day_of_week" });
     }
 
-    // Save tenant data
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: profile } = await supabase
-        .from("profiles")
-        .select("tenant_id")
-        .eq("id", user.id)
-        .single();
-
-      if (profile?.tenant_id) {
-        await supabase
-          .from("tenants")
-          .update({
-            name: businessData.name,
-            address: businessData.address,
-            phone: businessData.phone,
-          })
-          .eq("id", profile.tenant_id);
-      }
+    // Save tenant data (tenantId is already resolved reliably by fetchData)
+    if (tenantId) {
+      await supabase
+        .from("tenants")
+        .update({
+          name: businessData.name,
+          address: businessData.address,
+          phone: businessData.phone,
+        })
+        .eq("id", tenantId);
     }
 
     setSaving(false);
@@ -209,6 +227,92 @@ export default function ConfiguracionPage() {
   const copyLink = () => {
     navigator.clipboard.writeText(bookingUrl);
     showToast("Link copiado!", "success");
+  };
+
+  const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !tenantId) return;
+    setUploadingLogo(true);
+    const form = new FormData();
+    form.append("file", file);
+    form.append("tenantId", tenantId);
+    try {
+      const res = await fetch("/api/settings/logo", { method: "POST", body: form });
+      const result = await res.json();
+      if (res.ok) {
+        setLogoUrl(result.url);
+        showToast("Logo actualizado", "success");
+      } else {
+        showToast(result.error || "Error al subir logo", "error");
+      }
+    } catch {
+      showToast("Error al subir logo", "error");
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = "";
+    }
+  };
+
+  const removeLogo = async () => {
+    if (!tenantId) return;
+    await fetch(`/api/settings/logo?tenantId=${tenantId}`, { method: "DELETE" });
+    setLogoUrl(null);
+    showToast("Logo eliminado", "success");
+  };
+
+  const handleChangePassword = async () => {
+    setPasswordError("");
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Completa los 3 campos");
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordError("La nueva contraseña debe tener al menos 6 caracteres");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("Las contraseñas nuevas no coinciden");
+      return;
+    }
+
+    setChangingPassword(true);
+
+    // Verify the current password by re-authenticating (updateUser alone would accept
+    // any new password without checking the current one, since the session is already
+    // active — we need this extra check so a stranger at an unlocked computer can't
+    // just change the password without knowing it).
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) {
+      setPasswordError("No se pudo verificar tu sesion. Vuelve a iniciar sesion.");
+      setChangingPassword(false);
+      return;
+    }
+
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email,
+      password: currentPassword,
+    });
+
+    if (signInError) {
+      setPasswordError("La contraseña actual no es correcta");
+      setChangingPassword(false);
+      return;
+    }
+
+    const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+
+    setChangingPassword(false);
+
+    if (updateError) {
+      setPasswordError(updateError.message || "Error al cambiar la contraseña");
+      return;
+    }
+
+    setCurrentPassword("");
+    setNewPassword("");
+    setConfirmPassword("");
+    showToast("Contraseña actualizada", "success");
   };
 
   if (loading) {
@@ -257,6 +361,37 @@ export default function ConfiguracionPage() {
           <Building2 className="w-5 h-5 text-brand-gray" />
           <h2 className="font-bold text-brand-dark">Datos del Negocio</h2>
         </div>
+
+        {/* Logo del negocio: se muestra en la reserva online y en las boletas por correo
+            en vez del logo generico de re-booking. */}
+        <div className="flex items-center gap-4">
+          <label className="relative group cursor-pointer flex-shrink-0">
+            {logoUrl ? (
+              <img src={logoUrl} alt="Logo del negocio" className="w-16 h-16 rounded-xl object-contain border border-gray-200 bg-white" />
+            ) : (
+              <div className="w-16 h-16 rounded-xl bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center">
+                <ImageIcon className="w-6 h-6 text-gray-300" />
+              </div>
+            )}
+            <div className="absolute inset-0 rounded-xl bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+              <ImageIcon className="w-5 h-5 text-white" />
+            </div>
+            {uploadingLogo && (
+              <div className="absolute inset-0 rounded-xl bg-black/50 flex items-center justify-center">
+                <span className="text-[8px] text-white font-medium text-center">Subiendo...</span>
+              </div>
+            )}
+            <input type="file" accept="image/*" onChange={uploadLogo} className="hidden" disabled={uploadingLogo} />
+          </label>
+          <div>
+            <p className="text-sm font-medium text-brand-dark">Logo del negocio</p>
+            <p className="text-xs text-brand-gray">Toca la imagen para subir tu logo. Se mostrara en la reserva online y en las boletas por correo.</p>
+            {logoUrl && (
+              <button onClick={removeLogo} className="text-xs text-red-500 hover:underline mt-1">Quitar logo</button>
+            )}
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-xs font-medium text-brand-gray mb-1">Nombre</label>
@@ -642,6 +777,45 @@ export default function ConfiguracionPage() {
             </button>
           </div>
         )}
+      </div>
+
+      {/* Privacidad: cambiar contraseña */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <Lock className="w-5 h-5 text-brand-gray" />
+          <div>
+            <h2 className="font-bold text-brand-dark">Privacidad</h2>
+            <p className="text-xs text-brand-gray">Cambia tu contraseña sin depender de un administrador</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Contraseña actual</label>
+            <input type="password" value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Nueva contraseña</label>
+            <input type="password" value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Confirmar nueva contraseña</label>
+            <input type="password" value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+        </div>
+
+        {passwordError && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{passwordError}</p>}
+
+        <button onClick={handleChangePassword} disabled={changingPassword}
+          className="px-6 py-2.5 bg-brand-dark text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors">
+          {changingPassword ? "Cambiando..." : "Cambiar contraseña"}
+        </button>
       </div>
 
       {/* Save */}

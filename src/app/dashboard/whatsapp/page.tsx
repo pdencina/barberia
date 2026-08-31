@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 
 interface Client {
   id: string;
@@ -20,6 +21,11 @@ export default function WhatsAppBroadcastPage() {
   const [copied, setCopied] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
   const { showToast } = useToast();
+  const { tenant } = useTenant();
+
+  // Business-specific booking link (re-booking.cl/b/slug), same pattern used everywhere
+  // else in the app. Falls back to the generic booking page if the slug isn't loaded yet.
+  const bookingLink = tenant?.slug ? `https://re-booking.cl/b/${tenant.slug}` : "https://re-booking.cl/booking";
 
   useEffect(() => {
     fetch("/api/whatsapp/contacts")
@@ -114,13 +120,13 @@ export default function WhatsAppBroadcastPage() {
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder="Ej: Hola! Te recordamos que puedes agendar tu proximo corte en nuestro link: rebooking.cl/booking"
+          placeholder={`Ej: Hola! Te recordamos que puedes agendar tu proximo corte en nuestro link: ${bookingLink}`}
           rows={4}
           className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-brand-dark placeholder:text-brand-gray resize-none focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
         />
         <div className="flex gap-2 flex-wrap">
           {[
-            { label: "Link booking", text: "https://re-booking.cl/booking" },
+            { label: "Link booking", text: bookingLink },
             { label: "Saludo", text: "Hola! " },
             { label: "Cupon", text: "\n\nUsa tu cupon: VUELVE10" },
           ].map((t) => (

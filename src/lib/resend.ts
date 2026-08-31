@@ -24,6 +24,9 @@ interface SendReceiptParams {
   paymentMethod: string;
   date: Date;
   barberName: string;
+  // Business's own logo (tenants.logo_url). Falls back to the generic re-booking
+  // logo when the salon hasn't uploaded one.
+  businessLogoUrl?: string | null;
 }
 
 export async function sendReceipt(params: SendReceiptParams) {
@@ -38,6 +41,7 @@ export async function sendReceipt(params: SendReceiptParams) {
     paymentMethod,
     date,
     barberName,
+    businessLogoUrl,
   } = params;
 
   const paymentLabel: Record<string, string> = {
@@ -67,8 +71,8 @@ export async function sendReceipt(params: SendReceiptParams) {
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
   <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
     <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0F8B8D; padding-bottom: 20px;">
-      <img src="https://re-booking.cl/logo-horizontal-white.png" alt="re-booking" style="height: 32px; margin-bottom: 10px;" />
-      <p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Gestiona. Reserva. Repite el exito.</p>
+      <img src="${businessLogoUrl || "https://re-booking.cl/logo-horizontal-white.png"}" alt="Boleta" style="height: ${businessLogoUrl ? "48px" : "32px"}; max-width: 240px; object-fit: contain; margin-bottom: 10px;" />
+      ${!businessLogoUrl ? `<p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Gestiona. Reserva. Repite el exito.</p>` : ""}
     </div>
 
     <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 20px;">

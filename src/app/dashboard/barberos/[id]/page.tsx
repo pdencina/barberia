@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { BarberScheduleEditor } from "@/components/barber-schedule-editor";
@@ -34,6 +35,7 @@ export default function EditProfessionalPage() {
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
 
   useEffect(() => {
     fetch(`/api/barberos/${params.id}`)
@@ -185,6 +187,16 @@ export default function EditProfessionalPage() {
               <button
                 onClick={async () => {
                   if (!data.email) { showToast("No tiene email", "error"); return; }
+                  // This generates a BRAND NEW random password and overwrites the current
+                  // one — it will invalidate whatever password the professional is using
+                  // right now. Confirm explicitly so this is never triggered by accident.
+                  const ok = await confirm({
+                    title: "Enviar credenciales",
+                    message: `Esto va a generar una contraseña nueva para ${data.name} y anulara la que esta usando ahora. Se le enviara por correo a ${data.email}. Continuar?`,
+                    confirmText: "Si, generar nueva",
+                    variant: "warning",
+                  });
+                  if (!ok) return;
                   const res = await fetch("/api/barberos/resend-credentials", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },

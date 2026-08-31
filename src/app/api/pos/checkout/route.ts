@@ -195,9 +195,19 @@ export async function POST(req: NextRequest) {
         const { sendReceipt } = await import("@/lib/resend");
         const { data: barber } = await supabase
           .from("profiles")
-          .select("name")
+          .select("name, tenant_id")
           .eq("id", barberId)
           .single();
+
+        let businessLogoUrl: string | null = null;
+        if (barber?.tenant_id) {
+          const { data: tenantRow } = await supabase
+            .from("tenants")
+            .select("logo_url")
+            .eq("id", barber.tenant_id)
+            .single();
+          businessLogoUrl = tenantRow?.logo_url || null;
+        }
 
         await sendReceipt({
           to: client.email,
@@ -215,6 +225,7 @@ export async function POST(req: NextRequest) {
           paymentMethod: primaryMethod,
           date: new Date(),
           barberName: barber?.name || "Tu profesional",
+          businessLogoUrl,
         });
 
         await supabase

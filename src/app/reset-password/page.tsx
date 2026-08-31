@@ -11,16 +11,62 @@ export default function ResetPasswordPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  // Whether we detected a usable recovery link. null = still checking.
+  const [linkValid, setLinkValid] = useState<boolean | null>(null);
+  const [resendEmail, setResendEmail] = useState("");
+  const [resendSent, setResendSent] = useState(false);
+  const [resending, setResending] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
-  // Supabase will set the session from the URL hash automatically
   useEffect(() => {
-    supabase.auth.onAuthStateChange((event) => {
-      if (event === "PASSWORD_RECOVERY") {
-        // User arrived via reset link - session is set
+    // Supabase redirects here with either:
+    //  - #access_token=...&type=recovery  → link is valid, session gets set automatically
+    //  - #error=access_denied&error_code=otp_expired&... → link expired or already used
+    // The previous version ignored the error case entirely: it let the user fill out
+    // the whole form and only failed at the very end with a generic message, which was
+    // confusing. Now we detect it immediately and explain clearly what happened.
+    const hash = window.location.hash;
+    if (hash.includes("error=")) {
+      const params = new URLSearchParams(hash.replace("#", ""));
+      const code = params.get("error_code");
+      if (code === "otp_expired") {
+        setError("Este link ya expiro o ya fue usado. Pide uno nuevo abajo.");
+      } else {
+        setError(params.get("error_description")?.replace(/\+/g, " ") || "Este link no es valido. Pide uno nuevo abajo.");
+      }
+      setLinkValid(false);
+      return;
+    }
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY" && session) {
+        setLinkValid(true);
       }
     });
+
+    // If Supabase already had time to process the hash before this component mounted,
+    // there may already be a session — check directly instead of waiting forever.
+    supabase.auth.getSession().then(({ data }) => {
+      if (data.session) setLinkValid(true);
+    });
+
+    // Give the SDK a few seconds to process the URL hash; if nothing happened by then,
+    // treat the link as unusable instead of leaving the user staring at a blank state.
+    const timeout = setTimeout(() => {
+      setLinkValid((current) => {
+        if (current === null) {
+          setError("No pudimos validar tu link de recuperacion. Pide uno nuevo abajo.");
+          return false;
+        }
+        return current;
+      });
+    }, 4000);
+
+    return () => {
+      subscription.unsubscribe();
+      clearTimeout(timeout);
+    };
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -42,12 +88,25 @@ export default function ResetPasswordPage() {
     const { error } = await supabase.auth.updateUser({ password });
 
     if (error) {
-      setError("Error al actualizar contraseña. El link puede haber expirado.");
+      setError("Error al actualizar contraseña. El link puede haber expirado. Pide uno nuevo abajo.");
+      setLinkValid(false);
       setLoading(false);
     } else {
       setSuccess(true);
       setTimeout(() => router.push("/login"), 2000);
     }
+  };
+
+  const handleResend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResending(true);
+    await fetch("/api/auth/forgot-password", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: resendEmail }),
+    });
+    setResendSent(true);
+    setResending(false);
   };
 
   if (success) {
@@ -57,6 +116,50 @@ export default function ResetPasswordPage() {
           <img src="/oti/oti-web-160.png" alt="Oti" className="w-20 h-20 mx-auto mb-4" />
           <h2 className="text-xl font-bold text-brand-dark">contraseña actualizada</h2>
           <p className="text-sm text-brand-gray mt-2">Redirigiendo al login...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Link expired, already used, or invalid: offer to send a new one right here
+  // instead of a dead-end error (this was the exact case Nico ran into).
+  if (linkValid === false) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
+        <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl shadow-blue-900/5 p-6 md:p-8">
+          <div className="text-center mb-6">
+            <img src="/logo-horizontal.png" alt="re-booking" className="h-10 w-auto mx-auto mb-3" />
+            <h2 className="text-lg font-bold text-brand-dark">Link no valido</h2>
+            <p className="text-xs text-brand-gray mt-1">{error || "Este link ya expiro o ya fue usado."}</p>
+          </div>
+
+          {resendSent ? (
+            <div className="text-center py-4">
+              <div className="text-4xl mb-3">📧</div>
+              <p className="text-sm text-brand-gray">Si la cuenta existe, te llegara un link nuevo. Puede tardar un minuto.</p>
+              <a href="/login" className="inline-block mt-4 text-xs text-brand-blue hover:underline">Volver al login</a>
+            </div>
+          ) : (
+            <form onSubmit={handleResend} className="space-y-3">
+              <label className="text-xs font-medium text-brand-gray">Tu email</label>
+              <input
+                type="email"
+                value={resendEmail}
+                onChange={(e) => setResendEmail(e.target.value)}
+                placeholder="tu@email.com"
+                required
+                autoFocus
+                className="w-full h-11 rounded-xl border border-gray-200 bg-brand-light/50 px-4 text-sm text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent"
+              />
+              <button type="submit" disabled={resending}
+                className="w-full h-11 rounded-xl bg-brand-blue text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-70">
+                {resending ? "Enviando..." : "Enviar link nuevo"}
+              </button>
+              <div className="text-center">
+                <a href="/login" className="text-xs text-brand-gray hover:text-brand-blue">Volver al login</a>
+              </div>
+            </form>
+          )}
         </div>
       </div>
     );
