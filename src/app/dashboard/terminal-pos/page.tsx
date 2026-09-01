@@ -20,11 +20,15 @@ interface RentalTerminal { id: string; name: string; hasToken: boolean; deviceId
 
 export default function TerminalPosPage() {
   const { showToast } = useToast();
-  const { tenant, loading: tenantLoading } = useTenant();
+  const { tenant, loading: tenantLoading, switchTenant } = useTenant();
   const supabase = createClient();
 
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  // A super_admin account isn't tied to a single business (tenant_id is empty), so
+  // there's no tenant to configure terminals for until they pick one. Without this the
+  // page sat on "Cargando..." forever and every button answered "espera a que cargue".
+  const [availableTenants, setAvailableTenants] = useState<Array<{ id: string; name: string }>>([]);
 
   // Which provider the POS actually charges to.
   const [cardProvider, setCardProvider] = useState<"mercadopago" | "tuu">("mercadopago");
@@ -82,7 +86,21 @@ export default function TerminalPosPage() {
       }
     }
     setTenantId(id);
-    if (!id) { setLoading(false); return; }
+
+    if (!id) {
+      // No business resolved. For a super_admin that's expected (their account spans
+      // all businesses), so offer an explicit picker instead of a dead page.
+      try {
+        const res = await fetch("/api/superadmin/tenants");
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setAvailableTenants(data.map((t: any) => ({ id: t.id, name: t.name })));
+        }
+      } catch {}
+      setLoading(false);
+      return;
+    }
+
     fetchAll(id);
   };
 
@@ -255,6 +273,53 @@ export default function TerminalPosPage() {
     );
   }
 
+  // No business selected yet (typical for a super_admin account, which isn't tied to
+  // one business). The terminals are configured per business, so ask which one first
+  // instead of showing empty forms that can't save.
+  if (!tenantId) {
+    return (
+      <div className="p-4 md:p-6 space-y-4 animate-fade-in max-w-3xl">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Terminal POS</h1>
+          <p className="text-sm text-brand-gray">Configura la maquina de cobro con tarjeta que usa el Punto de Venta</p>
+        </div>
+
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+          <div>
+            <h2 className="font-bold text-brand-dark">Elige el negocio</h2>
+            <p className="text-xs text-brand-gray">
+              Tu cuenta administra varios negocios, y cada uno tiene sus propias maquinas de cobro.
+              Selecciona con cual quieres trabajar.
+            </p>
+          </div>
+
+          {availableTenants.length > 0 ? (
+            <div className="space-y-2">
+              {availableTenants.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => switchTenant(t.id, t.name)}
+                  className="w-full flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200 hover:border-brand-blue hover:bg-brand-blue/5 transition-colors text-left"
+                >
+                  <div className="w-9 h-9 rounded-xl bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold text-xs flex-shrink-0">
+                    {t.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="flex-1 text-sm font-medium text-brand-dark truncate">{t.name}</span>
+                  <span className="text-xs text-brand-blue font-medium">Configurar →</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <p className="text-sm text-brand-gray">No se pudieron cargar los negocios</p>
+              <p className="text-[10px] text-brand-gray mt-1">Recarga la pagina o entra a un negocio desde Empresas</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in max-w-3xl">
       <div>
@@ -317,7 +382,7 @@ export default function TerminalPosPage() {
             disabled={mpSaving || !mpToken || !tenantId}
             className="w-full py-2.5 bg-blue-600 text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {mpSaving ? "Guardando..." : !tenantId ? "Cargando..." : "Guardar Token"}
+            {mpSaving ? "Guardando..." : "Guardar Token"}
           </button>
 
           <div className="border-t border-gray-100 pt-4">
@@ -471,7 +536,7 @@ export default function TerminalPosPage() {
             disabled={tuuSaving || !tuuApiKey || !tenantId}
             className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
           >
-            {tuuSaving ? "Guardando..." : !tenantId ? "Cargando..." : "Guardar API Key"}
+            {tuuSaving ? "Guardando..." : "Guardar API Key"}
           </button>
 
           <div className="border-t border-gray-100 pt-4">
