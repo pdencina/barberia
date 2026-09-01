@@ -1,17 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 // GET: List rental barbers (with own MP terminal) for a tenant.
 // IMPORTANT: this used to have no tenant filter at all, so any admin fetching this
 // endpoint got every rental barber across every tenant in the whole app — a real
 // cross-tenant data leak (this app has multiple businesses, e.g. Estudio Levels and
-// Saray Business). Now scoped by tenantId, required.
+// Saray Business). Now scoped and authorized server-side.
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  const tenantId = searchParams.get("tenantId");
+  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
-  if (!tenantId) {
+  if (!tenantId || tenantId === "ALL") {
     return NextResponse.json({ terminals: [] });
   }
 

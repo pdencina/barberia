@@ -35,6 +35,9 @@ export default function LoginPage() {
     setLoading(true);
 
     // Clear any existing session first
+    // Also drop any leftover super_admin tenant override from a previous session in
+    // this browser, so the incoming user never inherits another business's context.
+    try { localStorage.removeItem("tenant_override"); } catch {}
     await supabase.auth.signOut();
 
     const { error, data: authData } = await supabase.auth.signInWithPassword({

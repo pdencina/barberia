@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 // POST: Upload a business logo, saved on tenants.logo_url.
 // Used to show the salon's own branding on the public booking page and on receipt
@@ -21,7 +21,10 @@ export async function POST(req: NextRequest) {
   }
 
   const file = formData.get("file") as File | null;
-  const tenantId = formData.get("tenantId") as string;
+  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
+  // Otherwise one business could overwrite another business's logo.
+  const { tenantId: resolved } = await resolveTenantForRequest(formData.get("tenantId") as string | null);
+  const tenantId = resolved && resolved !== "ALL" ? resolved : "";
 
   if (!file) {
     return NextResponse.json({ error: "No se recibio ningun archivo" }, { status: 400 });
@@ -89,9 +92,10 @@ export async function POST(req: NextRequest) {
 export async function DELETE(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  const tenantId = searchParams.get("tenantId");
+  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
-  if (!tenantId) {
+  if (!tenantId || tenantId === "ALL") {
     return NextResponse.json({ error: "tenantId requerido" }, { status: 400 });
   }
 

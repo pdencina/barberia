@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  let tenantId = searchParams.get("tenantId");
-  if (!tenantId) tenantId = await getCurrentTenantId();
+  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
   // If no tenant, return empty (except super_admin)
   if (!tenantId) {

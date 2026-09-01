@@ -74,6 +74,42 @@ export async function getCurrentUserRoleAndTenant(): Promise<{
   }
 }
 
+// Authorize a client-supplied tenantId before using it in a query.
+//
+// SECURITY: API routes used to take `?tenantId=` straight from the browser and query
+// with it, with no check that the caller belongs to that business. That let any signed-in
+// user read another business's clients, services, sales and settings just by changing
+// the id — and it's what actually caused the leak where an Estudio Levels admin saw
+// Saray Business clients and services (a stale super_admin tenant override left in
+// localStorage kept sending the other business's id, and the API answered happily).
+//
+// Rules:
+//   - super_admin: may target any business (that's the whole point of the role), or
+//     "ALL" when no specific one is requested.
+//   - everyone else: the requested id is IGNORED and replaced by the caller's own
+//     tenant. Fail-safe by design — a wrong/stale id can never widen access, it just
+//     returns the caller's own data.
+export async function resolveTenantForRequest(
+  requestedTenantId?: string | null
+): Promise<{ tenantId: string | null; role: string | null; denied: boolean }> {
+  const { userId, role, tenantId: callerTenantId } = await getCurrentUserRoleAndTenant();
+
+  if (!userId) return { tenantId: null, role: null, denied: true };
+
+  if (role === "super_admin") {
+    return { tenantId: requestedTenantId || "ALL", role, denied: false };
+  }
+
+  const denied = !!requestedTenantId && requestedTenantId !== callerTenantId;
+  if (denied) {
+    console.warn(
+      `[tenant-guard] ${role} ${userId} requested tenant ${requestedTenantId} but belongs to ${callerTenantId}. Forcing own tenant.`
+    );
+  }
+
+  return { tenantId: callerTenantId, role, denied };
+}
+
 // Get the current user's tenant_id from the session
 // Returns: tenant_id string, "ALL" for super_admin, or null if can't determine
 export async function getCurrentTenantId(): Promise<string | null> {

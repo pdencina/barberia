@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -9,11 +9,8 @@ export async function GET(req: NextRequest) {
   const limit = parseInt(searchParams.get("limit") || "50");
   const offset = (page - 1) * limit;
 
-  // Get tenant: prefer query param from frontend, fallback to session
-  let tenantId = searchParams.get("tenantId");
-  if (!tenantId) {
-    tenantId = await getCurrentTenantId();
-  }
+  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
   // If no tenant can be determined, return empty (security: never show all data)
   // EXCEPT: super_admin ("ALL") can see everything

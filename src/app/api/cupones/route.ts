@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  let tenantId = searchParams.get("tenantId");
-  if (!tenantId) tenantId = await getCurrentTenantId();
+  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
+
+  // No tenant resolved = return nothing. This used to fall through and return EVERY
+  // tenant's coupons unfiltered.
+  if (!tenantId) return NextResponse.json([]);
 
   let query = supabase
     .from("coupons")
     .select("*")
     .order("created_at", { ascending: false });
 
-  if (tenantId && tenantId !== "ALL") {
+  if (tenantId !== "ALL") {
     query = query.eq("tenant_id", tenantId);
   }
 

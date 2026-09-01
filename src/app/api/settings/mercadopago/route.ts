@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 // GET: Fetch MP settings for current tenant
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  const tenantId = searchParams.get("tenantId");
+  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
-  if (!tenantId) {
+  if (!tenantId || tenantId === "ALL") {
     return NextResponse.json({ error: "tenantId required" }, { status: 400 });
   }
 

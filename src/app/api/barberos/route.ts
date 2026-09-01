@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabase, createAdminSupabase, getCurrentTenantId } from "@/lib/supabase/server";
+import { createServerSupabase, createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   // Use admin client to bypass RLS - barbers list is internal data
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  const tenantId = searchParams.get("tenantId") || await getCurrentTenantId();
+  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
   // If no tenant, return empty (except super_admin)
   if (!tenantId) {

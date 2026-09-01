@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { useAuth } from "@/lib/auth-context";
 import { setTenantId as setGlobalTenantId } from "@/lib/api-fetch";
 
+
 interface TenantInfo {
   id: string;
   name: string;
@@ -42,6 +43,15 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
   const [planFeatures, setPlanFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const { effectiveRole } = useAuth();
+
+  // Only a super_admin may view the app "as" another business. The override lives in
+  // localStorage, which survives logout — so if a super_admin switched to business A
+  // and later someone logged into a regular admin account in the SAME browser, that
+  // stale override kept pointing the whole app at business A. That's exactly how an
+  // Estudio Levels admin ended up seeing Saray Business clients and services.
+  // Now the override is ignored (and cleaned up) for anyone who isn't super_admin.
+  const isSuperAdmin = effectiveRole === "super_admin";
 
   // Read override from localStorage synchronously on init
   const getInitialOverride = (): string | null => {
@@ -59,8 +69,19 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
   const [overrideTenantId, setOverrideTenantId] = useState<string | null>(getInitialOverride);
   const [isOverriding, setIsOverriding] = useState(!!getInitialOverride());
 
-  // Determine which tenant to load: override > server-provided
-  const activeTenantId = overrideTenantId || serverTenantId;
+  // Drop any override left behind by a previous (super_admin) session in this browser.
+  useEffect(() => {
+    if (!effectiveRole || isSuperAdmin) return;
+    if (typeof window === "undefined") return;
+    if (localStorage.getItem("tenant_override")) {
+      localStorage.removeItem("tenant_override");
+      setOverrideTenantId(null);
+      setIsOverriding(false);
+    }
+  }, [effectiveRole, isSuperAdmin]);
+
+  // Determine which tenant to load: override (super_admin only) > server-provided
+  const activeTenantId = (isSuperAdmin ? overrideTenantId : null) || serverTenantId;
 
   useEffect(() => {
     if (!activeTenantId) {
@@ -114,7 +135,7 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
   };
 
   return (
-    <TenantContext.Provider value={{ tenant, loading, isTrialExpired, daysLeft, hasPlanFeature, isOverriding, switchTenant, exitTenant }}>
+    <TenantContext.Provider value={{ tenant, loading, isTrialExpired, daysLeft, hasPlanFeature, isOverriding: isOverriding && isSuperAdmin, switchTenant, exitTenant }}>
       {children}
     </TenantContext.Provider>
   );
