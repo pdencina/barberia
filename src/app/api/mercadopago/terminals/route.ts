@@ -1,13 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
-// GET: List all rental barbers with their terminal config
-export async function GET() {
+// GET: List rental barbers (with own MP terminal) for a tenant.
+// IMPORTANT: this used to have no tenant filter at all, so any admin fetching this
+// endpoint got every rental barber across every tenant in the whole app — a real
+// cross-tenant data leak (this app has multiple businesses, e.g. Estudio Levels and
+// Saray Business). Now scoped by tenantId, required.
+export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const { searchParams } = new URL(req.url);
+  const tenantId = searchParams.get("tenantId");
+
+  if (!tenantId) {
+    return NextResponse.json({ terminals: [] });
+  }
 
   const { data: barbers } = await supabase
     .from("profiles")
     .select("id, name, work_mode, mp_access_token, mp_device_id, mp_external_id")
+    .eq("tenant_id", tenantId)
     .eq("role", "barber")
     .eq("active", true)
     .eq("work_mode", "rental")

@@ -63,7 +63,7 @@ const sections: NavSection[] = [
       { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap, minRole: "barber" },
       { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: Wallet, minRole: "barber" },
       { name: "Arriendo", href: "/dashboard/arriendo", icon: Zap, minRole: "admin" },
-      { name: "MercadoPago", href: "/dashboard/mercadopago", icon: CreditCard, minRole: "admin" },
+      { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin" },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3, minRole: "admin" },
       { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin" },
       { name: "Facturas", href: "/dashboard/facturas", icon: Receipt, minRole: "admin" },
