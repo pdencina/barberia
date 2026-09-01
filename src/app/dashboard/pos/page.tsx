@@ -77,6 +77,10 @@ export default function POSPage() {
   const [pinError, setPinError] = useState("");
   const [manualDiscountAmount, setManualDiscountAmount] = useState("");
   const [manualDiscountType, setManualDiscountType] = useState<"fixed" | "percent">("fixed");
+  // Which terminal provider handles card charges for this tenant. Defaults to
+  // "mercadopago" (existing behavior for every tenant that hasn't configured TUU),
+  // set from tenant_settings.card_payment_provider — see Configuracion -> TUU.
+  const [cardProvider, setCardProvider] = useState<"mercadopago" | "tuu">("mercadopago");
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
 
@@ -99,11 +103,13 @@ export default function POSPage() {
       fetch(`/api/products${params}`).then((r) => r.json()).catch(() => []),
       fetch(`/api/clients${params ? params + "&" : "?"}limit=5000`).then((r) => r.json()).catch(() => ({ clients: [] })),
       fetch(`/api/barberos${params}`).then((r) => r.json()).catch(() => []),
-    ]).then(([servicesData, productsData, clientsData, barbersData]) => {
+      t ? fetch(`/api/settings/tuu?tenantId=${t}`).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
+    ]).then(([servicesData, productsData, clientsData, barbersData, tuuSettings]) => {
       setServices(Array.isArray(servicesData) ? servicesData : []);
       setProducts(Array.isArray(productsData) ? productsData : []);
       setClients(Array.isArray(clientsData?.clients) ? clientsData.clients : Array.isArray(clientsData) ? clientsData : []);
       setBarbers(Array.isArray(barbersData) ? barbersData : []);
+      if (tuuSettings?.card_payment_provider === "tuu") setCardProvider("tuu");
     });
   }, [tenant?.id, tenantLoading]);
 
@@ -206,10 +212,13 @@ export default function POSPage() {
     showToast(`Descuento autorizado por ${data.adminName}`, "success");
   };
 
-  // Charge a single amount on the MP terminal and wait for the result.
+  // Charge a single amount on the card terminal and wait for the result.
   // Used for a normal card payment AND for each card portion of a split payment
   // (a physical terminal can only charge one amount at a time).
-  const chargeCardAmount = (amount: number, description: string): Promise<boolean> => {
+  // Dispatches to MercadoPago or TUU depending on cardProvider (tenant setting) —
+  // the rest of the app (handleCheckout, the payment modal) doesn't need to know
+  // which provider is active, it just awaits true/false like before.
+  const chargeCardAmount = (amount: number, description: string, cardMethod: "debit_card" | "credit_card" = "debit_card"): Promise<boolean> => {
     setMpPaymentStatus("waiting");
     setCurrentChargeAmount(amount);
     return new Promise<boolean>((resolve) => {
@@ -227,7 +236,11 @@ export default function POSPage() {
           const hasProducts = cart.some((c) => c.type === "product");
           const cartType = hasServices && hasProducts ? "mixed" : hasServices ? "services" : "products";
 
-          const mpRes = await fetch("/api/mercadopago", {
+          const createUrl = cardProvider === "tuu" ? "/api/tuu" : "/api/mercadopago";
+          const statusUrl = cardProvider === "tuu" ? "/api/tuu/status" : "/api/mercadopago/status";
+          const cancelUrl = cardProvider === "tuu" ? "/api/tuu/cancel" : "/api/mercadopago/cancel";
+
+          const chargeRes = await fetch(createUrl, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -236,22 +249,24 @@ export default function POSPage() {
               description: description || cart.map((c) => c.name).join(", ").slice(0, 50) || "Venta re-booking",
               externalReference: `pos-${Date.now()}`,
               cartType,
+              cardMethod, // only used by TUU (paymentMethod: credito/debito); ignored by MP
             }),
           });
-          const mpData = await mpRes.json();
+          const chargeData = await chargeRes.json();
 
-          if (!mpRes.ok || !mpData.paymentIntentId) {
+          if (!chargeRes.ok || !chargeData.paymentIntentId) {
+            showToast(chargeData.error || "Error al iniciar el cobro", "error");
             setMpPaymentStatus("rejected");
             setTimeout(() => setMpPaymentStatus("idle"), 3000);
             finish(false);
             return;
           }
 
-          setMpPaymentIntentId(mpData.paymentIntentId);
+          setMpPaymentIntentId(chargeData.paymentIntentId);
 
           // Poll for payment status every 3s, resolve the promise on a final state.
           const pollInterval = setInterval(async () => {
-            const statusRes = await fetch(`/api/mercadopago/status?id=${mpData.paymentIntentId}&barberId=${selectedBarber}`);
+            const statusRes = await fetch(`${statusUrl}?id=${chargeData.paymentIntentId}&barberId=${selectedBarber}`);
             const statusData = await statusRes.json();
 
             if (statusData.status === "approved") {
@@ -277,15 +292,19 @@ export default function POSPage() {
             finish(false);
           }, 120000);
 
-          // Let the user cancel this specific charge (used by the modal's Cancel button)
+          // Let the user cancel this specific charge (used by the modal's Cancel button).
+          // NOTE: for TUU this only stops OUR polling — TUU's public API has no
+          // documented way to cancel a request already sent to the terminal, so the
+          // physical POS may keep waiting for a card until cancelled on the machine.
           setCancelCurrentCharge(() => () => {
             clearInterval(pollInterval);
             clearTimeout(timeoutHandle);
-            fetch("/api/mercadopago/cancel", {
+            fetch(cancelUrl, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ orderId: mpData.paymentIntentId }),
+              body: JSON.stringify(cardProvider === "tuu" ? { idempotencyKey: chargeData.paymentIntentId } : { orderId: chargeData.paymentIntentId }),
             });
+            if (cardProvider === "tuu") showToast("Si la maquina TUU sigue esperando la tarjeta, cancelalo tambien ahi", "info");
             setMpPaymentStatus("idle");
             setMpPaymentIntentId("");
             finish(false);
@@ -320,7 +339,7 @@ export default function POSPage() {
         const methodLabel = sp.method === "debit_card" ? "Debito" : "Credito";
         setSplitChargeProgress(`Cobrando ${methodLabel} ${formatCurrency(amount)} (${i + 1} de ${cardSplits.length})`);
 
-        const approved = await chargeCardAmount(amount, `${methodLabel} - pago dividido`);
+        const approved = await chargeCardAmount(amount, `${methodLabel} - pago dividido`, sp.method as "debit_card" | "credit_card");
         if (!approved) {
           setSplitChargeProgress("");
           return; // Abort: don't record the sale, cashier can retry the failed portion
@@ -336,7 +355,7 @@ export default function POSPage() {
     const isCardPayment = paymentMethod === "debit_card" || paymentMethod === "credit_card";
 
     if (isCardPayment) {
-      const approved = await chargeCardAmount(total, cart.map((c) => c.name).join(", ").slice(0, 50));
+      const approved = await chargeCardAmount(total, cart.map((c) => c.name).join(", ").slice(0, 50), paymentMethod as "debit_card" | "credit_card");
       if (approved) await processCheckout();
       return;
     }
@@ -850,16 +869,16 @@ export default function POSPage() {
             <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
               <span className="text-blue-600 text-sm">💳</span>
               <span className="text-xs text-blue-700 flex-1">
-                {splitChargeProgress || "Terminal MP se activara al cobrar"}
+                {splitChargeProgress || `Terminal ${cardProvider === "tuu" ? "TUU" : "MP"} se activara al cobrar`}
               </span>
               <button
                 onClick={async () => {
-                  await fetch("/api/mercadopago/cancel", {
+                  await fetch(cardProvider === "tuu" ? "/api/tuu/cancel" : "/api/mercadopago/cancel", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ barberId: selectedBarber, cancelAll: true }),
                   });
-                  showToast("Cola MP limpiada", "success");
+                  showToast("Cola limpiada", "success");
                 }}
                 className="text-[10px] px-2 py-1 bg-white border border-blue-300 text-blue-700 rounded hover:bg-blue-100"
               >

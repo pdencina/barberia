@@ -62,6 +62,17 @@ export default function ConfiguracionPage() {
   const [showAddTerminal, setShowAddTerminal] = useState(false);
   const [newTerminal, setNewTerminal] = useState({ name: "", device_id: "", terminal_type: "all", access_token: "" });
 
+  // TUU (Haulmer) state — second card terminal provider, parallel to MercadoPago.
+  // https://developers.tuu.cl/docs/pago-remoto
+  interface TuuTerminal { id: string; name: string; device_serial: string; terminal_type: string; active: boolean; }
+  const [cardProvider, setCardProvider] = useState<"mercadopago" | "tuu">("mercadopago");
+  const [tuuApiKey, setTuuApiKey] = useState("");
+  const [tuuConfigured, setTuuConfigured] = useState(false);
+  const [tuuSaving, setTuuSaving] = useState(false);
+  const [tuuTerminals, setTuuTerminals] = useState<TuuTerminal[]>([]);
+  const [showAddTuuTerminal, setShowAddTuuTerminal] = useState(false);
+  const [newTuuTerminal, setNewTuuTerminal] = useState({ name: "", device_serial: "", terminal_type: "all" });
+
   // Deposit/abono settings
   const [depositEnabled, setDepositEnabled] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(30);
@@ -137,6 +148,18 @@ export default function ConfiguracionPage() {
         const termRes = await fetch(`/api/settings/mercadopago/terminals?tenantId=${resolvedTenantId}`);
         const termData = await termRes.json();
         if (Array.isArray(termData)) setTerminals(termData);
+
+        // Fetch TUU settings + terminals
+        const tuuRes = await fetch(`/api/settings/tuu?tenantId=${resolvedTenantId}`);
+        const tuuData = await tuuRes.json();
+        if (tuuData) {
+          setTuuApiKey(tuuData.tuu_api_key || "");
+          setTuuConfigured(tuuData.tuu_configured || false);
+          setCardProvider(tuuData.card_payment_provider === "tuu" ? "tuu" : "mercadopago");
+        }
+        const tuuTermRes = await fetch(`/api/settings/tuu/terminals?tenantId=${resolvedTenantId}`);
+        const tuuTermData = await tuuTermRes.json();
+        if (Array.isArray(tuuTermData)) setTuuTerminals(tuuTermData);
 
         // Fetch deposit settings
         const depRes = await fetch(`/api/settings/deposit?tenantId=${resolvedTenantId}`);
@@ -698,6 +721,226 @@ export default function ConfiguracionPage() {
                   }}
                   disabled={!newTerminal.name || !newTerminal.device_id}
                   className="flex-1 py-2 bg-brand-blue text-white rounded-lg text-sm font-medium hover:bg-brand-blue/90 disabled:opacity-50"
+                >
+                  Agregar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* TUU (Haulmer) Config — second card terminal provider, parallel to MercadoPago.
+          Only one provider is active at a time per tenant (card_payment_provider),
+          switching here changes which one the POS charges to; it never affects tenants
+          that leave this untouched (default stays "mercadopago"). */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+        <div className="flex items-center gap-2">
+          <CreditCard className="w-5 h-5 text-indigo-500" />
+          <div>
+            <h2 className="font-bold text-brand-dark">TUU (Haulmer)</h2>
+            <p className="text-xs text-brand-gray">Configura tu maquina TUU para recibir pagos desde el POS</p>
+          </div>
+          {(tuuConfigured || tuuTerminals.length > 0) && (
+            <span className="ml-auto px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-full">CONECTADO</span>
+          )}
+        </div>
+
+        <div className="space-y-4">
+          {/* Active provider selector */}
+          <div>
+            <label className="block text-xs font-medium text-brand-gray mb-1">Maquina que usa el POS para cobrar con tarjeta</label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={async () => {
+                  if (!tenantId) return;
+                  setCardProvider("mercadopago");
+                  await fetch("/api/settings/tuu", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tenantId, card_payment_provider: "mercadopago" }),
+                  });
+                  showToast("El POS ahora cobra con MercadoPago", "success");
+                }}
+                className={`py-2 rounded-xl text-sm font-medium border ${cardProvider === "mercadopago" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-brand-gray border-gray-200 hover:bg-gray-50"}`}
+              >
+                MercadoPago
+              </button>
+              <button
+                onClick={async () => {
+                  if (!tenantId) return;
+                  if (!tuuConfigured && tuuTerminals.length === 0) {
+                    showToast("Primero guarda tu API Key y agrega una terminal TUU", "error");
+                    return;
+                  }
+                  setCardProvider("tuu");
+                  await fetch("/api/settings/tuu", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tenantId, card_payment_provider: "tuu" }),
+                  });
+                  showToast("El POS ahora cobra con TUU", "success");
+                }}
+                className={`py-2 rounded-xl text-sm font-medium border ${cardProvider === "tuu" ? "bg-indigo-600 text-white border-indigo-600" : "bg-white text-brand-gray border-gray-200 hover:bg-gray-50"}`}
+              >
+                TUU
+              </button>
+            </div>
+          </div>
+
+          {/* API Key */}
+          <div>
+            <label className="block text-xs font-medium text-brand-gray mb-1">API Key</label>
+            <input
+              type="password"
+              value={tuuApiKey}
+              onChange={(e) => setTuuApiKey(e.target.value)}
+              placeholder="Clave de tu comercio"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm font-mono"
+            />
+            <p className="text-[10px] text-brand-gray mt-1">
+              Obtenla en tu Espacio de Trabajo (Workspace) TUU, sección Pagos → Configuración → API. Es unica por comercio, no por maquina.
+            </p>
+          </div>
+
+          <button
+            onClick={async () => {
+              if (!tenantId) return;
+              setTuuSaving(true);
+              await fetch("/api/settings/tuu", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ tenantId, tuu_api_key: tuuApiKey }),
+              });
+              setTuuSaving(false);
+              setTuuConfigured(true);
+              showToast("API Key guardada", "success");
+            }}
+            disabled={tuuSaving || !tuuApiKey}
+            className="w-full py-2.5 bg-indigo-600 text-white rounded-xl text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+          >
+            {tuuSaving ? "Guardando..." : "Guardar API Key"}
+          </button>
+
+          {/* Terminals Section */}
+          <div className="border-t border-gray-100 pt-4">
+            <div className="flex items-center justify-between mb-3">
+              <div>
+                <p className="text-sm font-medium text-brand-dark">Terminales TUU</p>
+                <p className="text-[10px] text-brand-gray">Numero de serie (SN) impreso en la etiqueta de la maquina</p>
+              </div>
+              <button
+                onClick={() => setShowAddTuuTerminal(true)}
+                className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 font-medium"
+              >
+                + Anadir terminal
+              </button>
+            </div>
+
+            {tuuTerminals.length > 0 ? (
+              <div className="space-y-2">
+                {tuuTerminals.map((t) => (
+                  <div key={t.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                    <div className="w-8 h-8 bg-indigo-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <CreditCard className="w-4 h-4 text-indigo-600" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-brand-dark truncate">{t.name}</p>
+                      <p className="text-[10px] font-mono text-brand-gray truncate">{t.device_serial}</p>
+                    </div>
+                    <span className={`px-2 py-0.5 text-[10px] font-bold rounded-full flex-shrink-0 ${
+                      t.terminal_type === "services" ? "bg-purple-100 text-purple-700" :
+                      t.terminal_type === "products" ? "bg-orange-100 text-orange-700" :
+                      "bg-gray-100 text-gray-600"
+                    }`}>
+                      {t.terminal_type === "services" ? "SERVICIOS" :
+                       t.terminal_type === "products" ? "PRODUCTOS" : "TODO"}
+                    </span>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Eliminar terminal "${t.name}"?`)) return;
+                        await fetch(`/api/settings/tuu/terminals?id=${t.id}`, { method: "DELETE" });
+                        setTuuTerminals((prev) => prev.filter((x) => x.id !== t.id));
+                        showToast("Terminal eliminado", "success");
+                      }}
+                      className="text-red-400 hover:text-red-600 text-xs flex-shrink-0"
+                    >
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+                <p className="text-sm text-brand-gray">No hay terminales configurados</p>
+                <p className="text-[10px] text-brand-gray mt-1">Agrega la maquina para empezar a cobrar con TUU</p>
+              </div>
+            )}
+          </div>
+
+          {showAddTuuTerminal && (
+            <div className="border border-indigo-200 bg-indigo-50 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-medium text-brand-dark">Nueva terminal TUU</p>
+              <div>
+                <label className="block text-[10px] text-brand-gray mb-1">Nombre</label>
+                <input
+                  type="text"
+                  value={newTuuTerminal.name}
+                  onChange={(e) => setNewTuuTerminal({ ...newTuuTerminal, name: e.target.value })}
+                  placeholder="Ej: Maquina Recepcion"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] text-brand-gray mb-1">Numero de serie (SN)</label>
+                <input
+                  type="text"
+                  value={newTuuTerminal.device_serial}
+                  onChange={(e) => setNewTuuTerminal({ ...newTuuTerminal, device_serial: e.target.value })}
+                  placeholder="Ej: 6010B232571510771"
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
+                />
+                <p className="text-[10px] text-brand-gray mt-1">Esta impreso bajo "SN:" en la etiqueta detras de la maquina, junto al codigo QR de ayuda.</p>
+              </div>
+              <div>
+                <label className="block text-[10px] text-brand-gray mb-1">Tipo de cobro</label>
+                <select
+                  value={newTuuTerminal.terminal_type}
+                  onChange={(e) => setNewTuuTerminal({ ...newTuuTerminal, terminal_type: e.target.value })}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                >
+                  <option value="all">Todo (servicios + productos)</option>
+                  <option value="services">Solo Servicios (exento IVA)</option>
+                  <option value="products">Solo Productos (afecto IVA)</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setShowAddTuuTerminal(false); setNewTuuTerminal({ name: "", device_serial: "", terminal_type: "all" }); }}
+                  className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-brand-gray hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!tenantId || !newTuuTerminal.name || !newTuuTerminal.device_serial) {
+                      showToast("Completa nombre y numero de serie", "error"); return;
+                    }
+                    const res = await fetch("/api/settings/tuu/terminals", {
+                      method: "POST",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({ tenantId, ...newTuuTerminal }),
+                    });
+                    const data = await res.json();
+                    if (data.id) {
+                      setTuuTerminals((prev) => [...prev, data]);
+                      setShowAddTuuTerminal(false);
+                      setNewTuuTerminal({ name: "", device_serial: "", terminal_type: "all" });
+                      showToast("Terminal agregado", "success");
+                    } else {
+                      showToast(data.error || "Error", "error");
+                    }
+                  }}
+                  disabled={!newTuuTerminal.name || !newTuuTerminal.device_serial}
+                  className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50"
                 >
                   Agregar
                 </button>
