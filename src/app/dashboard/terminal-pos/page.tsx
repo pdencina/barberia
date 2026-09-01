@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { CreditCard } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
+import { createClient } from "@/lib/supabase/client";
 
 // Terminal POS — single place to configure whichever card terminal the POS charges
 // to. Before this page existed, the same job was split across two disconnected
@@ -20,6 +21,7 @@ interface RentalTerminal { id: string; name: string; hasToken: boolean; deviceId
 export default function TerminalPosPage() {
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
+  const supabase = createClient();
 
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,12 +55,36 @@ export default function TerminalPosPage() {
 
   useEffect(() => {
     if (tenantLoading) return;
-    const id = tenant?.id || null;
+    resolveTenantAndFetch();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant?.id, tenantLoading]);
+
+  // Resolve the tenant the same way the rest of the dashboard does: the reliable
+  // server-provided context first, then a super_admin's manual tenant override
+  // (localStorage, set by the tenant switcher), then finally a direct lookup from the
+  // logged-in user's profile. Without this fallback chain, a super_admin viewing this
+  // page got stuck on tenantId = null forever — every button showed "espera a que
+  // cargue" and the terminals never loaded (they were never gone, the page just never
+  // asked for them).
+  const resolveTenantAndFetch = async () => {
+    let id = tenant?.id || null;
+    if (!id) {
+      try {
+        const stored = localStorage.getItem("tenant_override");
+        if (stored) id = JSON.parse(stored).tenantId || null;
+      } catch {}
+    }
+    if (!id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
+        id = profile?.tenant_id || null;
+      }
+    }
     setTenantId(id);
     if (!id) { setLoading(false); return; }
     fetchAll(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenant?.id, tenantLoading]);
+  };
 
   const fetchAll = async (id: string) => {
     setLoading(true);
