@@ -71,6 +71,11 @@ export default function POSPage() {
   // never silently discarded (that exact bug lost a real charge once).
   const [mpPaymentStatus, setMpPaymentStatus] = useState<"idle" | "waiting" | "approved" | "rejected" | "unconfirmed">("idle");
   const [confirmUnclearCharge, setConfirmUnclearCharge] = useState<((approved: boolean) => void) | null>(null);
+  // Lets the cashier force an immediate re-check while the "Esperando pago" modal is
+  // open, instead of waiting out the 2-minute poll — for the reported case where the
+  // machine already charged but the signal hadn't reached re-booking yet.
+  const [recheckCharge, setRecheckCharge] = useState<(() => void) | null>(null);
+  const [rechecking, setRechecking] = useState(false);
   const [mpPaymentIntentId, setMpPaymentIntentId] = useState("");
   const [splitChargeProgress, setSplitChargeProgress] = useState("");
   const [currentChargeAmount, setCurrentChargeAmount] = useState(0);
@@ -232,6 +237,7 @@ export default function POSPage() {
         if (settled) return;
         settled = true;
         setCancelCurrentCharge(null);
+        setRecheckCharge(null);
         resolve(ok);
       };
       (async () => {
@@ -283,25 +289,42 @@ export default function POSPage() {
             }
           };
 
-          const pollInterval = setInterval(async () => {
-            const status = await checkStatus();
-
+          // Shared resolver so both the automatic poll and the manual "Ya pagó /
+          // Reconsultar" button apply the same result handling.
+          const applyStatus = (status: string): boolean => {
             if (status === "approved") {
               clearInterval(pollInterval);
               clearTimeout(timeoutHandle);
               setMpPaymentStatus("approved");
               setTimeout(() => setMpPaymentStatus("idle"), 1200);
               finish(true);
-            } else if (status === "cancelled" || status === "rejected") {
-              // Only an explicit rejection/cancellation from the provider ends the sale.
+              return true;
+            }
+            if (status === "cancelled" || status === "rejected") {
               clearInterval(pollInterval);
               clearTimeout(timeoutHandle);
               setMpPaymentStatus("rejected");
               setTimeout(() => setMpPaymentStatus("idle"), 3000);
               finish(false);
+              return true;
             }
-            // "pending" | "rate_limited" | "unknown" => keep waiting, never fail here.
+            return false; // "pending" | "rate_limited" | "unknown" => keep waiting
+          };
+
+          const pollInterval = setInterval(async () => {
+            applyStatus(await checkStatus());
           }, pollEveryMs);
+
+          // Manual re-check button on the waiting modal.
+          setRecheckCharge(() => async () => {
+            setRechecking(true);
+            const status = await checkStatus();
+            setRechecking(false);
+            const resolved = applyStatus(status);
+            if (!resolved) {
+              showToast("La maquina aun no confirma el pago. Espera unos segundos y reintenta.", "info");
+            }
+          });
 
           // Time's up. This does NOT mean the payment failed — we simply have no
           // answer. Do one last check, and if it's still unclear, ask the cashier to
@@ -1109,8 +1132,16 @@ export default function POSPage() {
                 <p className="text-sm text-brand-gray mt-2">Pasa la tarjeta en la maquina Point</p>
                 <p className="text-xs text-brand-gray mt-4">Monto: <strong className="text-brand-dark">{formatCurrency(currentChargeAmount || total)}</strong></p>
                 {splitChargeProgress && <p className="text-xs text-blue-600 mt-1">{splitChargeProgress}</p>}
+                <button
+                  onClick={() => recheckCharge?.()}
+                  disabled={rechecking}
+                  className="mt-6 w-full py-2.5 bg-brand-blue text-white rounded-xl text-sm font-bold hover:bg-brand-blue/90 disabled:opacity-50"
+                >
+                  {rechecking ? "Consultando..." : "Ya pago / Reconsultar"}
+                </button>
+                <p className="text-[10px] text-brand-gray mt-2">Si la maquina ya cobro pero aca sigue esperando, toca este boton.</p>
                 <button onClick={() => { cancelCurrentCharge?.(); }}
-                  className="mt-6 text-xs text-brand-gray hover:text-red-500">Cancelar</button>
+                  className="mt-3 text-xs text-brand-gray hover:text-red-500">Cancelar</button>
               </>
             )}
 

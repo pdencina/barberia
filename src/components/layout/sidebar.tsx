@@ -134,6 +134,9 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
       "/dashboard/agenda", "/dashboard/recepcion", "/dashboard/standby",
       "/dashboard/fidelidad", "/dashboard/retencion", "/dashboard/whatsapp",
       "/dashboard/boletas", "/dashboard/cupones", "/dashboard/configuracion",
+      // Nico's request: receptionist also gets Caja, Profesionales (schedules only) and
+      // Inventario (read-only, changes gated behind the admin PIN).
+      "/dashboard/caja", "/dashboard/barberos", "/dashboard/inventario",
     ],
     barber: [
       "/dashboard/standby", "/dashboard/mi-agenda", "/dashboard/calendario",

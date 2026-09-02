@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
+import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Barber {
@@ -25,7 +26,13 @@ export default function BarberosPage() {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", password: "", role: "barber" });
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
+  const { effectiveRole } = useAuth();
   const router = useRouter();
+
+  // A receptionist can open this page, but only to edit each professional's work
+  // schedule. All team-management actions (create, invite, deactivate, delete) are
+  // hidden for them — Nico asked to keep that off the receptionist's plate.
+  const scheduleOnly = effectiveRole === "receptionist";
 
   // Get tenant ID (from context or localStorage override for super_admin)
   const getActiveTenantId = () => {
@@ -111,13 +118,22 @@ export default function BarberosPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Equipo</h1>
-        <button onClick={() => setShowModal(true)}
-          className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
-          Nuevo Miembro
-        </button>
+        {!scheduleOnly && (
+          <button onClick={() => setShowModal(true)}
+            className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
+            Nuevo Miembro
+          </button>
+        )}
       </div>
 
-      {/* Invite Code */}
+      {scheduleOnly && (
+        <p className="text-sm text-brand-gray bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+          Toca un profesional para editar su horario de trabajo.
+        </p>
+      )}
+
+      {/* Invite Code — admin only */}
+      {!scheduleOnly && (
       <div className="bg-gradient-to-r from-brand-blue/5 to-brand-accent/5 rounded-2xl border border-brand-blue/20 p-4 flex flex-col md:flex-row md:items-center gap-3">
         <div className="flex-1">
           <p className="text-sm font-medium text-brand-dark">Codigo de invitacion</p>
@@ -136,6 +152,7 @@ export default function BarberosPage() {
           </button>
         )}
       </div>
+      )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">
         <table className="w-full text-sm">
@@ -172,6 +189,7 @@ export default function BarberosPage() {
                 <td className="p-4">{b.email || "-"}</td>
                 <td className="p-4">{b.phone || "-"}</td>
                 <td className="p-4 text-right">
+                  {!scheduleOnly && (
                   <button onClick={async (e) => {
                     e.stopPropagation();
                     // This only deactivates (hides from agenda/booking) — it does NOT
@@ -188,6 +206,7 @@ export default function BarberosPage() {
                   }} className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
                     Desactivar
                   </button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -199,7 +218,7 @@ export default function BarberosPage() {
           taken) until purged for real. This is where "no puedo crear a Enzo porque ya
           existe una cuenta con ese email" gets solved — reactivate them, or purge them
           for good if they were only a test/duplicate. */}
-      {inactiveBarbers.length > 0 && (
+      {!scheduleOnly && inactiveBarbers.length > 0 && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
           <button onClick={() => setShowInactive(!showInactive)}
             className="w-full flex items-center justify-between p-4 text-left">

@@ -82,9 +82,18 @@ export const ROLE_PERMISSIONS: Record<Role, Permission> = {
       "/dashboard/recepcion",
       "/dashboard/agenda",
       "/dashboard/standby",
+      "/dashboard/caja",
+      "/dashboard/barberos",
+      "/dashboard/inventario",
     ],
     features: [
       "pos", "calendar_all", "clients_all", "standby", "reception",
+      "cash_register",
+      // Limited variants for a receptionist: they can open Profesionales but only to
+      // edit work schedules (everything else on that screen is hidden), and Inventario
+      // is read-only unless they enter the admin PIN to change something.
+      "professionals_schedule_only",
+      "inventory_view_locked",
     ],
   },
 };

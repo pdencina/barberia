@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { Copy, ExternalLink, Globe, Clock, Building2, Image as ImageIcon, Lock } from "lucide-react";
+import { compressImage } from "@/lib/image-compress";
 
 const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
@@ -89,7 +90,7 @@ export default function ConfiguracionPage() {
       const currentTenantId = resolvedTenantId;
       const { data: tenantRow } = await supabase
         .from("tenants")
-        .select("name, slug, address, phone, logo_url")
+        .select("name, slug, address, phone, logo_url, website")
         .eq("id", resolvedTenantId)
         .single();
 
@@ -98,7 +99,7 @@ export default function ConfiguracionPage() {
           name: tenantRow.name || "",
           address: tenantRow.address || "",
           phone: tenantRow.phone || "",
-          website: "",
+          website: (tenantRow as any).website || "",
         });
         setTenantSlug(tenantRow.slug || null);
         setLogoUrl((tenantRow as any).logo_url || null);
@@ -154,35 +155,39 @@ export default function ConfiguracionPage() {
   };
 
   const handleSave = async () => {
+    if (!tenantId) {
+      showToast("Espera un momento a que cargue la pagina y vuelve a intentar.", "error");
+      return;
+    }
     setSaving(true);
-
-    // Save business hours
-    for (const day of hours) {
-      await supabase
-        .from("business_hours")
-        .upsert({
-          tenant_id: tenantId,
-          day_of_week: day.day_of_week,
-          open_time: day.open_time,
-          close_time: day.close_time,
-          is_closed: day.is_closed,
-        }, { onConflict: "tenant_id,day_of_week" });
+    // Save through the server (admin client) instead of the browser Supabase client,
+    // which hung silently on Vercel and left this button stuck on "Guardando...".
+    try {
+      const res = await fetch("/api/settings/business", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tenantId,
+          business: {
+            name: businessData.name,
+            address: businessData.address,
+            phone: businessData.phone,
+            website: businessData.website,
+          },
+          hours,
+        }),
+      });
+      const result = await res.json();
+      if (res.ok) {
+        showToast("Configuracion guardada", "success");
+      } else {
+        showToast(result.error || "No se pudo guardar", "error");
+      }
+    } catch {
+      showToast("No se pudo guardar. Revisa tu conexion.", "error");
+    } finally {
+      setSaving(false);
     }
-
-    // Save tenant data (tenantId is already resolved reliably by fetchData)
-    if (tenantId) {
-      await supabase
-        .from("tenants")
-        .update({
-          name: businessData.name,
-          address: businessData.address,
-          phone: businessData.phone,
-        })
-        .eq("id", tenantId);
-    }
-
-    setSaving(false);
-    showToast("Configuracion guardada", "success");
   };
 
   const bookingUrl = typeof window !== "undefined"
@@ -197,8 +202,8 @@ export default function ConfiguracionPage() {
   };
 
   const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const original = e.target.files?.[0];
+    if (!original) return;
     // Silent no-op was the exact bug reported ("aparece la opcion pero no sube el
     // archivo"): if tenantId hadn't resolved yet (e.g. clicked right as the page
     // loaded), this used to return with zero feedback. Now it tells the user why.
@@ -207,17 +212,23 @@ export default function ConfiguracionPage() {
       e.target.value = "";
       return;
     }
-    if (!file.type.startsWith("image/")) {
-      showToast("El archivo debe ser una imagen (jpg, png, etc.)", "error");
-      e.target.value = "";
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast(`La imagen pesa ${(file.size / 1024 / 1024).toFixed(1)}MB, el maximo es 5MB.`, "error");
+    if (!original.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif)$/i.test(original.name)) {
+      showToast("El archivo debe ser una imagen (JPG, PNG, WEBP)", "error");
       e.target.value = "";
       return;
     }
     setUploadingLogo(true);
+    // Compress large photos in the browser (and normalize JPG/PNG/WEBP) so the upload
+    // is always a small, valid image instead of failing on a heavy or odd-format file.
+    let file: File;
+    try {
+      file = await compressImage(original, { maxBytes: 5 * 1024 * 1024 });
+    } catch (err: any) {
+      showToast(err.message || "No se pudo procesar la imagen", "error");
+      setUploadingLogo(false);
+      e.target.value = "";
+      return;
+    }
     const form = new FormData();
     form.append("file", file);
     form.append("tenantId", tenantId);

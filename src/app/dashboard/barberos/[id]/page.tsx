@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { BarberScheduleEditor } from "@/components/barber-schedule-editor";
 import { BarberServicesEditor } from "@/components/barber-services-editor";
+import { useAuth } from "@/lib/auth-context";
 
 interface Professional {
   id: string;
@@ -36,6 +37,11 @@ export default function EditProfessionalPage() {
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  const { effectiveRole } = useAuth();
+  // A receptionist opening a professional only manages their work schedule; everything
+  // else on this screen (personal data, work mode, PIN, services, presentation) is
+  // hidden.
+  const scheduleOnly = effectiveRole === "receptionist";
 
   useEffect(() => {
     fetch(`/api/barberos/${params.id}`)
@@ -113,6 +119,21 @@ export default function EditProfessionalPage() {
 
   if (loading) return <Spinner />;
   if (!data) return <p className="p-6 text-center text-gray-500">Profesional no encontrado</p>;
+
+  // Receptionist view: only name + work schedule, nothing else.
+  if (scheduleOnly) {
+    return (
+      <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6 animate-fade-in">
+        <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-blue-600">← Volver</button>
+        <h1 className="text-xl font-bold text-gray-900">{data.name}</h1>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+          <h2 className="font-bold text-gray-800">Horario de Trabajo</h2>
+          <p className="text-xs text-gray-400">Define dias y horas. Esto determina disponibilidad en la agenda online.</p>
+          <BarberScheduleEditor barberId={params.id as string} showToast={showToast} />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6 animate-fade-in">

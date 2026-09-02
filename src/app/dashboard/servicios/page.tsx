@@ -6,6 +6,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
+import { compressImage } from "@/lib/image-compress";
 import { GripVertical } from "lucide-react";
 
 interface Service {
@@ -76,19 +77,25 @@ export default function ServiciosPage() {
   // booking flow (e.g. an example of "perfilado de barba"). Only available once the
   // service already exists, since the upload is keyed by service id.
   const uploadServicePhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !editingService) return;
-    if (!file.type.startsWith("image/")) {
-      showToast("El archivo debe ser una imagen", "error");
-      e.target.value = "";
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      showToast(`La imagen pesa ${(file.size / 1024 / 1024).toFixed(1)}MB, el maximo es 5MB.`, "error");
+    const original = e.target.files?.[0];
+    if (!original || !editingService) return;
+    if (!original.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif)$/i.test(original.name)) {
+      showToast("El archivo debe ser una imagen (JPG, PNG, WEBP)", "error");
       e.target.value = "";
       return;
     }
     setUploadingPhoto(true);
+    // Compress big phone photos (15-40MB) down to a small JPEG in the browser instead
+    // of rejecting them, and normalize the format so JPG/PNG/WEBP all work uniformly.
+    let file: File;
+    try {
+      file = await compressImage(original, { maxBytes: 5 * 1024 * 1024 });
+    } catch (err: any) {
+      showToast(err.message || "No se pudo procesar la imagen", "error");
+      setUploadingPhoto(false);
+      e.target.value = "";
+      return;
+    }
     const form = new FormData();
     form.append("file", file);
     try {

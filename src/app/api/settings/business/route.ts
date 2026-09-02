@@ -1,0 +1,59 @@
+import { NextRequest, NextResponse } from "next/server";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
+
+// POST: Save business profile (name/phone/address) and weekly business hours.
+//
+// This used to be done straight from the browser with the client Supabase
+// (supabase.from("tenants").update(...)). On Vercel the client session is sometimes
+// unavailable even for a valid user, so those writes hung with no error handling — the
+// "Guardar" button stayed stuck on "Guardando..." forever. Doing it here with the
+// service-role admin client (same pattern as every other reliable write in the app)
+// makes it deterministic, and the tenant is authorized server-side so a receptionist
+// can't edit another business.
+export async function POST(req: NextRequest) {
+  const supabase = createAdminSupabase();
+  const body = await req.json().catch(() => ({}));
+  const { business, hours } = body;
+
+  const { tenantId } = await resolveTenantForRequest(body.tenantId);
+  if (!tenantId || tenantId === "ALL") {
+    return NextResponse.json({ error: "No se pudo determinar el negocio" }, { status: 400 });
+  }
+
+  if (business) {
+    const { error } = await supabase
+      .from("tenants")
+      .update({
+        name: business.name,
+        address: business.address,
+        phone: business.phone,
+        website: business.website ?? null,
+      })
+      .eq("id", tenantId);
+    if (error) {
+      return NextResponse.json({ error: `No se pudieron guardar los datos: ${error.message}` }, { status: 500 });
+    }
+  }
+
+  if (Array.isArray(hours)) {
+    for (const day of hours) {
+      const { error } = await supabase
+        .from("business_hours")
+        .upsert(
+          {
+            tenant_id: tenantId,
+            day_of_week: day.day_of_week,
+            open_time: day.open_time,
+            close_time: day.close_time,
+            is_closed: day.is_closed,
+          },
+          { onConflict: "tenant_id,day_of_week" }
+        );
+      if (error) {
+        return NextResponse.json({ error: `No se pudieron guardar los horarios: ${error.message}` }, { status: 500 });
+      }
+    }
+  }
+
+  return NextResponse.json({ success: true });
+}

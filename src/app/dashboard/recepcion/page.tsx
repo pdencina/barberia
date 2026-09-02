@@ -45,6 +45,16 @@ export default function RecepcionPage() {
 
   const today = new Date().toISOString().split("T")[0];
 
+  // Appointment times are stored as Chile local time WITHOUT a timezone (e.g.
+  // "2026-09-01T15:00:00"). Feeding that to `new Date(...).toLocaleTimeString` made the
+  // browser re-apply an offset and show 12:00 instead of 15:00 (the -3h shift Nico
+  // reported). Read the HH:MM straight from the string instead, same approach the
+  // calendar already uses.
+  const formatApptTime = (isoLike: string): string => {
+    const m = isoLike?.match(/T(\d{2}):(\d{2})/);
+    return m ? `${m[1]}:${m[2]}` : "";
+  };
+
   // Resolve tenant from context or localStorage override (reliable on Vercel).
   const getActiveTenantId = () => {
     if (tenant?.id) return tenant.id;
@@ -193,7 +203,7 @@ export default function RecepcionPage() {
                 {upcoming.map((a: any) => (
                   <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
                     <div className="flex justify-between items-start">
-                      <span className="text-lg font-bold text-indigo-600">{new Date(a.start_time).toLocaleTimeString("es-CL", {hour: "2-digit", minute: "2-digit"})}</span>
+                      <span className="text-lg font-bold text-indigo-600">{formatApptTime(a.start_time)}</span>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[a.status] || ""}`}>
                         {statusLabels[a.status] || a.status}
                       </span>

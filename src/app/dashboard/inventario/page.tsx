@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
+import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Product {
@@ -49,6 +50,44 @@ export default function InventarioPage() {
   const [adminPin, setAdminPin] = useState("");
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
+  const { effectiveRole } = useAuth();
+
+  // Receptionist: inventory is read-only. Any change (create/edit/delete product,
+  // register movement) must be unlocked with the admin PIN first. An admin/owner sees
+  // it unlocked as before.
+  const pinLocked = effectiveRole === "receptionist";
+  const [unlocked, setUnlocked] = useState(false);
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const [unlockPinInput, setUnlockPinInput] = useState("");
+  const [pendingAction, setPendingAction] = useState<null | (() => void)>(null);
+  const canEdit = !pinLocked || unlocked;
+
+  // Ask for the admin PIN before running a mutating action, unless already unlocked.
+  const guard = (action: () => void) => {
+    if (canEdit) { action(); return; }
+    setPendingAction(() => action);
+    setUnlockPinInput("");
+    setShowUnlockModal(true);
+  };
+
+  const verifyUnlockPin = async () => {
+    const res = await fetch("/api/pos/verify-pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: unlockPinInput }),
+    });
+    const data = await res.json();
+    if (!data.valid) {
+      showToast(data.error || "PIN incorrecto", "error");
+      return;
+    }
+    setUnlocked(true);
+    setShowUnlockModal(false);
+    showToast("Desbloqueado por el administrador", "success");
+    const action = pendingAction;
+    setPendingAction(null);
+    if (action) action();
+  };
 
   // Resolve the active business (context or super_admin override). Products MUST be
   // created with a tenant_id, otherwise they're invisible everywhere (POS included).
@@ -165,15 +204,20 @@ export default function InventarioPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Inventario</h1>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {pinLocked && !unlocked && (
+            <span className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1">
+              Solo lectura · pide PIN para editar
+            </span>
+          )}
           <button
-            onClick={() => setShowMovementModal(true)}
+            onClick={() => guard(() => setShowMovementModal(true))}
             className="bg-gray-800 text-white px-4 py-2 rounded-lg hover:bg-gray-900"
           >
             Registrar Movimiento
           </button>
           <button
-            onClick={() => { setEditingProductId(null); setProductForm({ name: "", sku: "", barcode: "", cost: "", price: "", stock: "", min_stock: "" }); setShowProductModal(true); }}
+            onClick={() => guard(() => { setEditingProductId(null); setProductForm({ name: "", sku: "", barcode: "", cost: "", price: "", stock: "", min_stock: "" }); setShowProductModal(true); })}
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700"
           >
             Nuevo Producto
@@ -233,14 +277,14 @@ export default function InventarioPage() {
                 </td>
                 <td className="p-4 text-center">
                   <div className="flex gap-1 justify-center">
-                    <button onClick={() => {
+                    <button onClick={() => guard(() => {
                       setProductForm({ name: p.name, sku: p.sku || "", barcode: (p as any).barcode || "", cost: String(p.cost), price: String(p.price), stock: String(p.stock), min_stock: String(p.min_stock) });
                       setEditingProductId(p.id);
                       setShowProductModal(true);
-                    }} className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-100">
+                    })} className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-100">
                       Editar
                     </button>
-                    <button onClick={async () => {
+                    <button onClick={() => guard(async () => {
                       if (!confirm(`Eliminar "${p.name}"?`)) return;
                       await fetch(`/api/products/${p.id}`, {
                         method: "PATCH",
@@ -249,7 +293,7 @@ export default function InventarioPage() {
                       });
                       showToast("Producto eliminado", "success");
                       fetchData();
-                    }} className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                    })} className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
                       Eliminar
                     </button>
                   </div>
@@ -440,6 +484,33 @@ export default function InventarioPage() {
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Guardar</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Admin PIN unlock modal (receptionist trying to modify inventory) */}
+      {showUnlockModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-modal flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-xs shadow-xl animate-scale-in text-center">
+            <h2 className="text-lg font-bold mb-1">PIN de administrador</h2>
+            <p className="text-xs text-brand-gray mb-4">Ingresa el PIN del administrador para modificar el inventario.</p>
+            <input
+              type="password"
+              inputMode="numeric"
+              value={unlockPinInput}
+              onChange={(e) => setUnlockPinInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") verifyUnlockPin(); }}
+              placeholder="••••"
+              maxLength={6}
+              autoFocus
+              className="w-full border rounded-xl px-3 py-2.5 text-center text-lg tracking-widest mb-4"
+            />
+            <div className="flex gap-2">
+              <button onClick={() => { setShowUnlockModal(false); setPendingAction(null); }}
+                className="flex-1 py-2 border rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+              <button onClick={verifyUnlockPin} disabled={!unlockPinInput}
+                className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm hover:bg-indigo-700 disabled:opacity-50">Desbloquear</button>
+            </div>
           </div>
         </div>
       )}
