@@ -97,6 +97,66 @@ export default function ArriendoPage() {
     fetchData();
   };
 
+  // Generate a proper printable receipt for the rental charge instead of the cashier
+  // sending an informal screenshot. Opens a clean print window that can be saved as PDF
+  // (the browser's "Guardar como PDF" in the print dialog) or printed. No extra
+  // libraries needed, works on tablet and desktop.
+  const printReceipt = (prof: RentalProfessional) => {
+    const businessName = tenant?.name || "re-booking";
+    const period = `${monthNames[month - 1]} ${year}`;
+    const issued = new Date().toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
+    const money = (n: number) =>
+      new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n || 0);
+
+    const w = window.open("", "_blank", "width=420,height=640");
+    if (!w) {
+      showToast("Permite las ventanas emergentes para generar el recibo", "error");
+      return;
+    }
+    w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8" />
+      <title>Recibo arriendo ${prof.name} - ${period}</title>
+      <style>
+        * { font-family: -apple-system, Segoe UI, Roboto, sans-serif; box-sizing: border-box; }
+        body { margin: 0; padding: 24px; color: #1a1a1a; }
+        .head { text-align: center; border-bottom: 2px solid #0F8B8D; padding-bottom: 12px; margin-bottom: 16px; }
+        .head h1 { margin: 0; font-size: 20px; }
+        .head p { margin: 4px 0 0; font-size: 12px; color: #666; }
+        .badge { display: inline-block; margin-top: 8px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #0F8B8D; font-weight: 700; }
+        .row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; border-bottom: 1px solid #eee; }
+        .row.total { border-bottom: none; border-top: 2px solid #1a1a1a; margin-top: 8px; padding-top: 12px; font-size: 18px; font-weight: 800; }
+        .muted { color: #888; }
+        .neg { color: #c0392b; }
+        .pos { color: #1e8449; }
+        .meta { font-size: 12px; color: #666; margin-bottom: 16px; }
+        .sign { margin-top: 48px; display: flex; justify-content: space-between; gap: 24px; }
+        .sign div { flex: 1; border-top: 1px solid #999; padding-top: 6px; text-align: center; font-size: 11px; color: #666; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+      <div class="head">
+        <h1>${businessName}</h1>
+        <span class="badge">Recibo de Arriendo de Estacion</span>
+      </div>
+      <div class="meta">
+        <div><strong>Profesional:</strong> ${prof.name}</div>
+        <div><strong>Periodo:</strong> ${period}</div>
+        <div><strong>Fecha de emision:</strong> ${issued}</div>
+        ${prof.notes ? `<div><strong>Notas:</strong> ${prof.notes}</div>` : ""}
+      </div>
+      <div class="row"><span class="muted">Dias trabajados</span><span>${prof.daysWorked}</span></div>
+      <div class="row"><span class="muted">Valor por dia</span><span>${money(prof.dailyRate)}</span></div>
+      <div class="row"><span>Bruto</span><span>${money(prof.grossAmount)}</span></div>
+      <div class="row"><span class="neg">Descuentos</span><span class="neg">- ${money(prof.deductions)}</span></div>
+      <div class="row"><span class="pos">Bono productos</span><span class="pos">+ ${money(prof.productBonus)}</span></div>
+      <div class="row total"><span>Total a pagar</span><span>${money(prof.netAmount)}</span></div>
+      <div class="sign">
+        <div>${prof.name}</div>
+        <div>${businessName}</div>
+      </div>
+      <script>window.onload = function(){ window.print(); }</script>
+      </body></html>`);
+    w.document.close();
+  };
+
   const markPaid = async (prof: RentalProfessional) => {
     const ok = await confirm({
       title: "Marcar como pagado",
@@ -175,7 +235,13 @@ export default function ArriendoPage() {
                   </p>
                 </div>
                 {prof.paid ? (
-                  <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Cobrado</span>
+                  <div className="flex items-center gap-2">
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs font-medium">Cobrado</span>
+                    <button onClick={() => printReceipt(prof)}
+                      className="px-3 py-1.5 text-xs border border-brand-blue text-brand-blue rounded-lg hover:bg-brand-blue/5">
+                      Recibo
+                    </button>
+                  </div>
                 ) : (
                   <div className="flex gap-2">
                     <button onClick={() => {
@@ -186,6 +252,10 @@ export default function ArriendoPage() {
                       setEditNotes(prof.notes || "");
                     }} className="px-3 py-1.5 text-xs border rounded-lg hover:bg-gray-50">
                       {editingId === prof.id ? "Cancelar" : "Ajustar"}
+                    </button>
+                    <button onClick={() => printReceipt(prof)}
+                      className="px-3 py-1.5 text-xs border border-brand-blue text-brand-blue rounded-lg hover:bg-brand-blue/5">
+                      Recibo
                     </button>
                     <button onClick={() => markPaid(prof)}
                       className="px-3 py-1.5 text-xs bg-orange-600 text-white rounded-lg hover:bg-orange-700">

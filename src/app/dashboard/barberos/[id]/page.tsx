@@ -74,6 +74,7 @@ export default function EditProfessionalPage() {
         intro_video_url: (data as any).intro_video_url,
         years_experience: (data as any).years_experience,
         also_attends_clients: (data as any).also_attends_clients,
+        instagram: (data as any).instagram,
       }),
     });
     setSaving(false);
@@ -82,6 +83,24 @@ export default function EditProfessionalPage() {
     } else {
       showToast("Error al guardar", "error");
     }
+  };
+
+  // Save only the basic presentation fields (bio + instagram). Used by the receptionist
+  // view, which can't touch anything else. The photo is saved separately by its own
+  // upload endpoint the moment it's picked, so it's not part of this.
+  const saveBasic = async () => {
+    if (!data) return;
+    setSaving(true);
+    const res = await fetch(`/api/barberos/${params.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        bio: (data as any).bio,
+        instagram: (data as any).instagram,
+      }),
+    });
+    setSaving(false);
+    showToast(res.ok ? "Datos actualizados" : "Error al guardar", res.ok ? "success" : "error");
   };
 
   const uploadAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -120,12 +139,62 @@ export default function EditProfessionalPage() {
   if (loading) return <Spinner />;
   if (!data) return <p className="p-6 text-center text-gray-500">Profesional no encontrado</p>;
 
-  // Receptionist view: only name + work schedule, nothing else.
+  // Receptionist view: basic presentation data (photo, Instagram, bio) + work
+  // schedule. Everything else (work mode, rates, PIN, email/phone, delete) stays hidden.
   if (scheduleOnly) {
     return (
       <div className="p-4 md:p-6 max-w-2xl mx-auto space-y-6 animate-fade-in">
         <button onClick={() => router.back()} className="text-sm text-gray-500 hover:text-blue-600">← Volver</button>
-        <h1 className="text-xl font-bold text-gray-900">{data.name}</h1>
+
+        {/* Photo + name */}
+        <div className="flex items-center gap-4">
+          <div className="relative group">
+            {data.avatar_url ? (
+              <img src={data.avatar_url} alt={data.name} className="w-16 h-16 rounded-full object-cover border-2 border-indigo-200" />
+            ) : (
+              <div className="w-16 h-16 rounded-full bg-indigo-100 flex items-center justify-center text-xl font-bold text-indigo-600">
+                {data.name?.[0] || "?"}
+              </div>
+            )}
+            <label className={`absolute inset-0 rounded-full bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer ${uploadingAvatar ? "opacity-100" : ""}`}>
+              <span className="text-white text-xs font-medium">{uploadingAvatar ? "..." : "📷"}</span>
+              <input type="file" accept="image/*" onChange={uploadAvatar} className="hidden" disabled={uploadingAvatar} />
+            </label>
+            {data.avatar_url && (
+              <button onClick={removeAvatar}
+                className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">✕</button>
+            )}
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">{data.name}</h1>
+            <p className="text-xs text-gray-400">Toca la foto para cambiarla</p>
+          </div>
+        </div>
+
+        {/* Basic presentation (photo already handled above) */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+          <h2 className="font-bold text-gray-800">Datos basicos</h2>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Instagram</label>
+            <input type="text" value={(data as any).instagram || ""}
+              onChange={(e) => setData({ ...data, instagram: e.target.value } as any)}
+              placeholder="@usuario o link"
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Descripcion</label>
+            <textarea value={(data as any).bio || ""} rows={3}
+              onChange={(e) => setData({ ...data, bio: e.target.value } as any)}
+              placeholder="Ej: Especialista en cortes clasicos y barba. 5 años de experiencia."
+              className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+          </div>
+          <button onClick={saveBasic} disabled={saving}
+            className="w-full py-2.5 bg-brand-blue text-white rounded-xl font-bold hover:opacity-90 disabled:opacity-50">
+            {saving ? "Guardando..." : "Guardar datos"}
+          </button>
+        </div>
+
+        {/* Work schedule */}
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
           <h2 className="font-bold text-gray-800">Horario de Trabajo</h2>
           <p className="text-xs text-gray-400">Define dias y horas. Esto determina disponibilidad en la agenda online.</p>
@@ -404,6 +473,13 @@ export default function EditProfessionalPage() {
       {/* Presentacion (visible en booking) */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Presentacion (visible en booking)</h2>
+        <div>
+          <label className="block text-xs text-gray-500 mb-1">Instagram</label>
+          <input type="text" value={(data as any).instagram || ""}
+            onChange={(e) => setData({ ...data, instagram: e.target.value } as any)}
+            placeholder="@usuario o link"
+            className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+        </div>
         <div>
           <label className="block text-xs text-gray-500 mb-1">Bio / Descripcion corta</label>
           <textarea value={(data as any).bio || ""} rows={2}

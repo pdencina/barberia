@@ -354,12 +354,12 @@ export default function LandingPage() {
 
           <AnimatedSection delay={0.2}>
             <div className="relative rounded-3xl overflow-hidden bg-brand-dark shadow-2xl aspect-video">
-              {/* Oti animado. Autoplay silenciado + loop para que se vea como una
-                  animacion viva sin que el usuario tenga que apretar play; playsInline
-                  evita que iOS lo abra en pantalla completa; controls queda disponible
-                  por si alguien quiere pausarlo. */}
+              {/* Oti animado. object-contain (no object-cover) para que se vea COMPLETO
+                  sin recortarle la cabeza/cuerpo; el fondo oscuro rellena las bandas.
+                  Autoplay silenciado + loop para que parezca una animacion viva;
+                  playsInline evita que iOS lo abra en pantalla completa. */}
               <video
-                className="w-full h-full object-cover"
+                className="w-full h-full object-contain"
                 autoPlay
                 muted
                 loop

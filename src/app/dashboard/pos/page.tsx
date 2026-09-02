@@ -598,9 +598,13 @@ export default function POSPage() {
           />
         </div>
 
-        {/* Product/Service grid */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-          {filteredItems.map((item) => {
+        {/* Product/Service grid. For services with categories and no active filter,
+            render them grouped under a category heading so the cashier can visually
+            separate e.g. Nicolas's services from the rest and find the right price fast
+            (Nico's request). Otherwise (products, or a specific category filter, or a
+            search) fall back to a single flat grid. */}
+        {(() => {
+          const renderCard = (item: Service | Product) => {
             const inCart = cart.find((c) => c.id === item.id && c.type === (activeTab === "services" ? "service" : "product"));
             return (
               <button
@@ -610,7 +614,6 @@ export default function POSPage() {
                   inCart ? "border-brand-blue shadow-md shadow-brand-blue/10" : "border-gray-100 hover:border-brand-blue/50 hover:shadow-md"
                 }`}
               >
-                {/* Type badge */}
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center mb-3 ${
                   activeTab === "services" ? "bg-blue-50 text-brand-blue" : "bg-orange-50 text-orange-500"
                 }`}>
@@ -631,8 +634,6 @@ export default function POSPage() {
                     ? `${(item as Service).duration} min`
                     : `Stock: ${(item as Product).stock}`}
                 </p>
-
-                {/* Quantity badge if in cart */}
                 {inCart && (
                   <div className="absolute -top-2 -right-2 w-6 h-6 bg-brand-blue text-white rounded-full flex items-center justify-center text-xs font-bold shadow-md">
                     {inCart.quantity}
@@ -640,8 +641,49 @@ export default function POSPage() {
                 )}
               </button>
             );
-          })}
-        </div>
+          };
+
+          const grouped =
+            activeTab === "services" &&
+            categoryFilter === "all" &&
+            !search.trim() &&
+            serviceCategories.length > 0;
+
+          if (!grouped) {
+            return (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                {filteredItems.map(renderCard)}
+              </div>
+            );
+          }
+
+          // Build ordered groups: each named category, then "Sin categoria" at the end.
+          const services = filteredItems as Service[];
+          const groups: Array<{ label: string; items: Service[] }> = [];
+          for (const cat of serviceCategories) {
+            const items = services.filter((s) => s.category === cat);
+            if (items.length) groups.push({ label: cat, items });
+          }
+          const uncategorized = services.filter((s) => !s.category);
+          if (uncategorized.length) groups.push({ label: "Sin categoria", items: uncategorized });
+
+          return (
+            <div className="space-y-5">
+              {groups.map((g) => (
+                <div key={g.label}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <h3 className="text-xs font-bold text-brand-dark uppercase tracking-wide">{g.label}</h3>
+                    <span className="text-[10px] text-brand-gray bg-gray-100 rounded-full px-2 py-0.5">{g.items.length}</span>
+                    <div className="flex-1 h-px bg-gray-100" />
+                  </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {g.items.map(renderCard)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Right: Cart */}
