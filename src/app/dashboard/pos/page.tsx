@@ -65,7 +65,12 @@ export default function POSPage() {
     { method: "cash", amount: "" },
   ]);
   const [processing, setProcessing] = useState(false);
-  const [mpPaymentStatus, setMpPaymentStatus] = useState<"idle" | "waiting" | "approved" | "rejected">("idle");
+  // "unconfirmed" = we could not get a final answer from the terminal (timeout, rate
+  // limit, network). It is NOT a rejection: the machine may well have charged the
+  // client. The cashier is asked to look at the terminal and confirm, so a paid sale is
+  // never silently discarded (that exact bug lost a real charge once).
+  const [mpPaymentStatus, setMpPaymentStatus] = useState<"idle" | "waiting" | "approved" | "rejected" | "unconfirmed">("idle");
+  const [confirmUnclearCharge, setConfirmUnclearCharge] = useState<((approved: boolean) => void) | null>(null);
   const [mpPaymentIntentId, setMpPaymentIntentId] = useState("");
   const [splitChargeProgress, setSplitChargeProgress] = useState("");
   const [currentChargeAmount, setCurrentChargeAmount] = useState(0);
@@ -264,32 +269,67 @@ export default function POSPage() {
 
           setMpPaymentIntentId(chargeData.paymentIntentId);
 
-          // Poll for payment status every 3s, resolve the promise on a final state.
-          const pollInterval = setInterval(async () => {
-            const statusRes = await fetch(`${statusUrl}?id=${chargeData.paymentIntentId}&barberId=${selectedBarber}`);
-            const statusData = await statusRes.json();
+          // TUU documents a request quota (~1 per minute per terminal, error 429), so
+          // polling it as fast as MercadoPago just produces rate-limit errors.
+          const pollEveryMs = cardProvider === "tuu" ? 6000 : 3000;
 
-            if (statusData.status === "approved") {
+          const checkStatus = async (): Promise<string> => {
+            try {
+              const statusRes = await fetch(`${statusUrl}?id=${chargeData.paymentIntentId}&barberId=${selectedBarber}`);
+              const statusData = await statusRes.json();
+              return statusData?.status || "unknown";
+            } catch {
+              return "unknown";
+            }
+          };
+
+          const pollInterval = setInterval(async () => {
+            const status = await checkStatus();
+
+            if (status === "approved") {
               clearInterval(pollInterval);
               clearTimeout(timeoutHandle);
               setMpPaymentStatus("approved");
               setTimeout(() => setMpPaymentStatus("idle"), 1200);
               finish(true);
-            } else if (statusData.status === "cancelled" || statusData.status === "rejected") {
+            } else if (status === "cancelled" || status === "rejected") {
+              // Only an explicit rejection/cancellation from the provider ends the sale.
               clearInterval(pollInterval);
               clearTimeout(timeoutHandle);
               setMpPaymentStatus("rejected");
               setTimeout(() => setMpPaymentStatus("idle"), 3000);
               finish(false);
             }
-          }, 3000);
+            // "pending" | "rate_limited" | "unknown" => keep waiting, never fail here.
+          }, pollEveryMs);
 
-          // Timeout after 2 minutes
-          const timeoutHandle = setTimeout(() => {
+          // Time's up. This does NOT mean the payment failed — we simply have no
+          // answer. Do one last check, and if it's still unclear, ask the cashier to
+          // read the terminal instead of throwing away a possibly-charged sale.
+          const timeoutHandle = setTimeout(async () => {
             clearInterval(pollInterval);
-            setMpPaymentStatus("rejected");
-            setTimeout(() => setMpPaymentStatus("idle"), 3000);
-            finish(false);
+
+            const finalStatus = await checkStatus();
+            if (finalStatus === "approved") {
+              setMpPaymentStatus("approved");
+              setTimeout(() => setMpPaymentStatus("idle"), 1200);
+              finish(true);
+              return;
+            }
+            if (finalStatus === "cancelled" || finalStatus === "rejected") {
+              setMpPaymentStatus("rejected");
+              setTimeout(() => setMpPaymentStatus("idle"), 3000);
+              finish(false);
+              return;
+            }
+
+            setMpPaymentStatus("unconfirmed");
+            setConfirmUnclearCharge(() => (approved: boolean) => {
+              setConfirmUnclearCharge(null);
+              setMpPaymentStatus(approved ? "approved" : "idle");
+              if (approved) setTimeout(() => setMpPaymentStatus("idle"), 1200);
+              finish(approved);
+            });
           }, 120000);
 
           // Let the user cancel this specific charge (used by the modal's Cancel button).
@@ -1083,6 +1123,39 @@ export default function POSPage() {
                 </div>
                 <h3 className="text-lg font-bold text-green-700">Pago aprobado!</h3>
                 <p className="text-sm text-brand-gray mt-2">Procesando venta...</p>
+              </>
+            )}
+
+            {/* No final answer from the terminal (timeout / rate limit / network).
+                The charge may have gone through, so ask instead of discarding it. */}
+            {mpPaymentStatus === "unconfirmed" && (
+              <>
+                <div className="w-20 h-20 mx-auto mb-5 bg-amber-100 rounded-full flex items-center justify-center">
+                  <svg className="w-10 h-10 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-2.032-1.5-2.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-amber-700">No pudimos confirmar el pago</h3>
+                <p className="text-sm text-brand-gray mt-2">
+                  Revisa la pantalla de la maquina. <strong>Puede que si haya cobrado.</strong>
+                </p>
+                <p className="text-xs text-brand-gray mt-3">
+                  Monto: <strong className="text-brand-dark">{formatCurrency(currentChargeAmount || total)}</strong>
+                </p>
+                <div className="mt-5 space-y-2">
+                  <button
+                    onClick={() => confirmUnclearCharge?.(true)}
+                    className="w-full py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700"
+                  >
+                    La maquina SI cobro — registrar venta
+                  </button>
+                  <button
+                    onClick={() => confirmUnclearCharge?.(false)}
+                    className="w-full py-2.5 border border-gray-200 text-brand-gray rounded-xl text-sm font-medium hover:bg-gray-50"
+                  >
+                    No cobro — no registrar
+                  </button>
+                </div>
               </>
             )}
 
