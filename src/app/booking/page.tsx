@@ -117,7 +117,9 @@ export default function BookingPage() {
     let d = new Date();
     for (let i = 0; i < 14; i++) {
       if (!closedDays.includes(d.getDay())) {
-        setSelectedDate(d.toISOString().split("T")[0]);
+        // Local date string, not UTC (toISOString shifted "today" to tomorrow in the
+        // evening in Chile, which is exactly the "no aparece el dia actual" report).
+        setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
         return;
       }
       d.setDate(d.getDate() + 1);
@@ -201,13 +203,18 @@ export default function BookingPage() {
   };
 
   // Generate date options (next 14 days, excluding past)
+  // Use a LOCAL date string (not toISOString, which is UTC): in Chile that shifted the
+  // day forward in the evening, so "today" disappeared from the picker and the first
+  // selectable day looked like tomorrow. Format the date in local time instead.
+  const toLocalDateStr = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const dateOptions: string[] = [];
   for (let i = 0; i < 14; i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
     // Skip closed days
     if (closedDays.includes(d.getDay())) continue;
-    dateOptions.push(d.toISOString().split("T")[0]);
+    dateOptions.push(toLocalDateStr(d));
   }
 
   return (
@@ -648,7 +655,14 @@ export default function BookingPage() {
         {/* Step 5: Confirmation */}
         {step === "confirmed" && (
           <div className="text-center py-12">
-            <img src="/oti/oti-web-160.png" alt="Confirmado!" className="w-24 h-24 mx-auto mb-4 drop-shadow-lg" />
+            {/* Show the business's own logo on the confirmation when it has one, so an
+                independent professional (e.g. Saray) doesn't see the re-booking mascot
+                on their booking flow. Falls back to the mascot for tenants with no logo. */}
+            {businessLogoUrl ? (
+              <img src={businessLogoUrl} alt={businessName || "Logo"} className="h-20 mx-auto mb-4 object-contain drop-shadow-lg" />
+            ) : (
+              <img src="/oti/oti-web-160.png" alt="Confirmado!" className="w-24 h-24 mx-auto mb-4 drop-shadow-lg" />
+            )}
             <h2 className="text-3xl font-bold mb-3">Cita Confirmada!</h2>
             <p className="text-brand-gray mb-6">Tu cita ha sido agendada exitosamente</p>
 
