@@ -353,26 +353,22 @@ export default function LandingPage() {
           </AnimatedSection>
 
           <AnimatedSection delay={0.2}>
-            <div className="relative rounded-3xl overflow-hidden bg-brand-dark shadow-2xl aspect-video group cursor-pointer">
-              {/* Video placeholder - replace src with actual video URL */}
-              <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-brand-dark to-[#0F8B8D]/80">
-                <img src="/oti/oti-transparent-128.png" alt="Oti" className="absolute bottom-4 right-8 w-24 h-24 opacity-30" />
-                <div className="text-center relative z-10">
-                  <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.95 }}
-                    className="w-20 h-20 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center mx-auto mb-4 border-2 border-white/30 group-hover:bg-white/30 transition-colors">
-                    <svg className="w-8 h-8 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
-                      <path d="M8 5v14l11-7z"/>
-                    </svg>
-                  </motion.div>
-                  <p className="text-white font-medium text-lg">Ver demo de re-booking</p>
-                  <p className="text-white/60 text-sm mt-1">2 minutos · Sin compromiso</p>
-                </div>
-              </div>
-              {/* Uncomment when video is ready:
-              <video className="w-full h-full object-cover" poster="/video-poster.jpg" controls>
-                <source src="/demo-rebooking.mp4" type="video/mp4" />
+            <div className="relative rounded-3xl overflow-hidden bg-brand-dark shadow-2xl aspect-video">
+              {/* Oti animado. Autoplay silenciado + loop para que se vea como una
+                  animacion viva sin que el usuario tenga que apretar play; playsInline
+                  evita que iOS lo abra en pantalla completa; controls queda disponible
+                  por si alguien quiere pausarlo. */}
+              <video
+                className="w-full h-full object-cover"
+                autoPlay
+                muted
+                loop
+                playsInline
+                controls
+                poster="/oti/oti-og-1200x630.png"
+              >
+                <source src="/video_oti/oti-animado.mp4" type="video/mp4" />
               </video>
-              */}
             </div>
           </AnimatedSection>
 
