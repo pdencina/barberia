@@ -23,7 +23,7 @@ export default function ConfiguracionPage() {
   // app). The old code below re-resolved the tenant via a client-side auth.getUser()
   // call, which is the unreliable-on-Vercel pattern that made the booking link fall
   // back to the generic /booking URL for some accounts (e.g. recepcion).
-  const { tenant, loading: tenantCtxLoading } = useTenant();
+  const { tenant, loading: tenantCtxLoading, switchTenant } = useTenant();
 
   const [businessData, setBusinessData] = useState({
     name: "",
@@ -36,6 +36,9 @@ export default function ConfiguracionPage() {
   const [saving, setSaving] = useState(false);
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  // For a super_admin (no own tenant): let them pick which business to configure,
+  // instead of failing with "No se pudo identificar el negocio".
+  const [availableTenants, setAvailableTenants] = useState<Array<{ id: string; name: string }>>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
@@ -82,8 +85,14 @@ export default function ConfiguracionPage() {
     if (!id) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
-        id = profile?.tenant_id || null;
+        // Wrapped defensively: this lookup was returning 500 (recursive RLS on
+        // profiles, fixed in migration 060). A failure here must not crash the page.
+        try {
+          const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
+          id = profile?.tenant_id || null;
+        } catch {
+          id = null;
+        }
       }
     }
     if (id && id !== tenantId) setTenantId(id);
@@ -94,6 +103,18 @@ export default function ConfiguracionPage() {
     setLoading(true);
 
     const resolvedTenantId = await resolveTenantId();
+
+    // No business resolved (typical for a super_admin, whose account isn't tied to one).
+    // Offer a picker instead of failing every action with "No se pudo identificar".
+    if (!resolvedTenantId) {
+      try {
+        const res = await fetch("/api/superadmin/tenants");
+        const list = await res.json();
+        if (Array.isArray(list)) setAvailableTenants(list.map((t: any) => ({ id: t.id, name: t.name })));
+      } catch {}
+      setLoading(false);
+      return;
+    }
 
     if (resolvedTenantId) {
       setTenantId(resolvedTenantId);
@@ -325,6 +346,41 @@ export default function ConfiguracionPage() {
     return (
       <div className="p-6 flex items-center justify-center min-h-[60vh]">
         <div className="w-6 h-6 border-2 border-brand-blue/20 border-t-brand-blue rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  // No business active (super_admin without a selected tenant). Ask which one to
+  // configure instead of showing forms that can't identify the business.
+  if (!tenantId) {
+    return (
+      <div className="p-4 md:p-6 space-y-4 animate-fade-in max-w-3xl">
+        <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Configuracion</h1>
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+          <div>
+            <h2 className="font-bold text-brand-dark">Elige el negocio</h2>
+            <p className="text-xs text-brand-gray">Tu cuenta administra varios negocios. Selecciona cual quieres configurar.</p>
+          </div>
+          {availableTenants.length > 0 ? (
+            <div className="space-y-2">
+              {availableTenants.map((t) => (
+                <button key={t.id} onClick={() => switchTenant(t.id, t.name)}
+                  className="w-full flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200 hover:border-brand-blue hover:bg-brand-blue/5 transition-colors text-left">
+                  <div className="w-9 h-9 rounded-xl bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold text-xs flex-shrink-0">
+                    {t.name.slice(0, 2).toUpperCase()}
+                  </div>
+                  <span className="flex-1 text-sm font-medium text-brand-dark truncate">{t.name}</span>
+                  <span className="text-xs text-brand-blue font-medium">Configurar →</span>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-6 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <p className="text-sm text-brand-gray">No se pudieron cargar los negocios</p>
+              <p className="text-[10px] text-brand-gray mt-1">Recarga la pagina o entra a un negocio desde Empresas</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   }

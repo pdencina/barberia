@@ -1,0 +1,16 @@
+-- Fix infinite-recursion RLS on `profiles`.
+--
+-- The policy `profiles_admin_all` (migration 001) was defined as:
+--   FOR ALL TO authenticated USING (EXISTS (SELECT 1 FROM profiles WHERE id = auth.uid() AND role = 'admin'))
+-- Evaluating access to `profiles` runs a SELECT on `profiles`, which re-triggers the
+-- same policy -> infinite recursion -> Postgres aborts the query with a 500. This is
+-- exactly what broke the client-side `profiles?select=tenant_id&id=eq.<uid>` lookup
+-- (seen returning 500 in the browser network tab), which in turn made Configuracion
+-- report "No se pudo identificar el negocio" and the logo upload fail.
+--
+-- The admin-all policy is redundant anyway:
+--   * profiles_read      -> everyone authenticated can SELECT (USING true)
+--   * profiles_update_own -> a user can UPDATE their own row
+-- and all privileged writes in the app go through the service-role admin client, which
+-- bypasses RLS entirely. So we just drop the recursive policy.
+DROP POLICY IF EXISTS "profiles_admin_all" ON profiles;
