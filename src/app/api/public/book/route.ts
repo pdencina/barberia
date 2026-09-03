@@ -73,11 +73,15 @@ export async function POST(req: NextRequest) {
 
   let clientId: string;
   if (clientEmail) {
-    const { data: existingClient } = await supabase
+    // Reuse an existing client with this email in this business. Was using .single(),
+    // which errored (treated as "not found") when duplicates already existed, so every
+    // booking created another duplicate. limit(1)+maybeSingle reuses the existing one.
+    let dupQuery = supabase
       .from("clients")
       .select("id")
-      .eq("email", clientEmail)
-      .single();
+      .eq("email", clientEmail);
+    if (tenantId) dupQuery = dupQuery.eq("tenant_id", tenantId);
+    const { data: existingClient } = await dupQuery.order("created_at", { ascending: true }).limit(1).maybeSingle();
 
     if (existingClient) {
       clientId = existingClient.id;

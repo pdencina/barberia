@@ -66,31 +66,34 @@ export default function ConfiguracionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantCtxLoading, tenant?.id]);
 
+  // Resolve the tenant on demand: server-provided context first, then the super_admin's
+  // manual override (localStorage), then the user's own profile. Used by fetchData AND
+  // by uploadLogo/save, so those actions never depend on a `tenantId` state that might
+  // not have flushed yet — that stale-null was why the logo upload kept answering
+  // "espera a que cargue la pagina" even after loading.
+  const resolveTenantId = async (): Promise<string | null> => {
+    let id = tenant?.id || null;
+    if (!id) {
+      try {
+        const stored = localStorage.getItem("tenant_override");
+        if (stored) id = JSON.parse(stored).tenantId || null;
+      } catch {}
+    }
+    if (!id) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase.from("profiles").select("tenant_id").eq("id", user.id).single();
+        id = profile?.tenant_id || null;
+      }
+    }
+    if (id && id !== tenantId) setTenantId(id);
+    return id;
+  };
+
   const fetchData = async () => {
     setLoading(true);
 
-    // Resolve the tenant: server-provided context first, then the super_admin's manual
-    // override (localStorage, set by the tenant switcher), then the user's own profile.
-    // The override step was missing, so an admin whose context hadn't resolved yet got
-    // tenantId=null and every upload/save answered "espera a que cargue la pagina".
-    let resolvedTenantId = tenant?.id || null;
-    if (!resolvedTenantId) {
-      try {
-        const stored = localStorage.getItem("tenant_override");
-        if (stored) resolvedTenantId = JSON.parse(stored).tenantId || null;
-      } catch {}
-    }
-    if (!resolvedTenantId) {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: profile } = await supabase
-          .from("profiles")
-          .select("tenant_id")
-          .eq("id", user.id)
-          .single();
-        resolvedTenantId = profile?.tenant_id || null;
-      }
-    }
+    const resolvedTenantId = await resolveTenantId();
 
     if (resolvedTenantId) {
       setTenantId(resolvedTenantId);
@@ -211,16 +214,16 @@ export default function ConfiguracionPage() {
   const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const original = e.target.files?.[0];
     if (!original) return;
-    // Silent no-op was the exact bug reported ("aparece la opcion pero no sube el
-    // archivo"): if tenantId hadn't resolved yet (e.g. clicked right as the page
-    // loaded), this used to return with zero feedback. Now it tells the user why.
-    if (!tenantId) {
-      showToast("Espera un momento a que cargue la pagina y vuelve a intentar.", "error");
+    if (!original.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif)$/i.test(original.name)) {
+      showToast("El archivo debe ser una imagen (JPG, PNG, WEBP)", "error");
       e.target.value = "";
       return;
     }
-    if (!original.type.startsWith("image/") && !/\.(jpe?g|png|webp|heic|heif)$/i.test(original.name)) {
-      showToast("El archivo debe ser una imagen (JPG, PNG, WEBP)", "error");
+    // Resolve the tenant right now instead of trusting the (possibly-null) state, which
+    // was the real cause of the logo upload staying stuck on "espera a que cargue".
+    const activeTenantId = await resolveTenantId();
+    if (!activeTenantId) {
+      showToast("No se pudo identificar el negocio. Recarga la pagina e intenta de nuevo.", "error");
       e.target.value = "";
       return;
     }
@@ -238,7 +241,7 @@ export default function ConfiguracionPage() {
     }
     const form = new FormData();
     form.append("file", file);
-    form.append("tenantId", tenantId);
+    form.append("tenantId", activeTenantId);
     try {
       const res = await fetch("/api/settings/logo", { method: "POST", body: form });
       const result = await res.json();

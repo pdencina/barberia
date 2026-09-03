@@ -64,6 +64,7 @@ export default function BookingPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch");
     const barberSlug = urlParams.get("profesional") || urlParams.get("barber");
+    const barberIdParam = urlParams.get("barberId"); // preferred: unambiguous
     const barberUrl = tenantSlug ? `/api/public/barbers?branch=${tenantSlug}` : "/api/public/barbers";
 
     // Fetch business info if on subdomain
@@ -86,9 +87,16 @@ export default function BookingPage() {
 
     fetch(barberUrl).then((r) => r.json()).then((data) => {
       setBarbers(data);
-      // Auto-select barber if URL has ?barber=slug
-      if (barberSlug && data.length > 0) {
-        const match = data.find((b: any) => b.name.toLowerCase().replace(/\s+/g, "-") === barberSlug);
+      // Auto-select the barber. Prefer the unambiguous ?barberId=<uuid>; fall back to
+      // the old ?profesional=<name-slug> for links already shared out there.
+      if (data.length > 0) {
+        let match = null;
+        if (barberIdParam) {
+          match = data.find((b: any) => b.id === barberIdParam);
+        }
+        if (!match && barberSlug) {
+          match = data.find((b: any) => b.name.toLowerCase().replace(/\s+/g, "-") === barberSlug);
+        }
         if (match) {
           setSelectedBarber(match);
           setStep("service");

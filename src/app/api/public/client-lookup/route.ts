@@ -21,7 +21,12 @@ export async function GET(req: NextRequest) {
     query = query.eq("phone", phone);
   }
 
-  const { data } = await query.single();
+  // Take the first match. Using .single() here silently FAILED whenever more than one
+  // client shared the email — which is exactly the duplicate situation this feature is
+  // supposed to prevent. It returned found:false, the booking created yet another
+  // duplicate, and the loop kept growing. maybeSingle + limit(1) returns the existing
+  // one instead.
+  const { data } = await query.order("created_at", { ascending: true }).limit(1).maybeSingle();
 
   if (data) {
     return NextResponse.json({ found: true, client: data });

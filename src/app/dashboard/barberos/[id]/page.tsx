@@ -9,6 +9,7 @@ import { formatCurrency } from "@/lib/utils";
 import { BarberScheduleEditor } from "@/components/barber-schedule-editor";
 import { BarberServicesEditor } from "@/components/barber-services-editor";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
 
 interface Professional {
   id: string;
@@ -38,6 +39,7 @@ export default function EditProfessionalPage() {
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { effectiveRole } = useAuth();
+  const { tenant } = useTenant();
   // A receptionist opening a professional only manages their work schedule; everything
   // else on this screen (personal data, work mode, PIN, services, presentation) is
   // hidden.
@@ -243,19 +245,31 @@ export default function EditProfessionalPage() {
       <div className="bg-brand-light border border-brand-blue/20 rounded-2xl p-4">
         <p className="text-xs text-brand-gray font-medium mb-1.5">Link de agenda personal</p>
         <div className="flex items-center gap-2">
-          <code className="flex-1 text-sm text-brand-blue bg-white px-3 py-2 rounded-xl border border-gray-200 truncate">
-            {`${typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl"}/booking?profesional=${data.name.toLowerCase().replace(/\s+/g, "-")}`}
-          </code>
-          <button
-            onClick={() => {
-              const link = `${window.location.origin}/booking?profesional=${data.name.toLowerCase().replace(/\s+/g, "-")}`;
-              navigator.clipboard.writeText(link);
-              showToast("Link copiado!", "success");
-            }}
-            className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:opacity-90 flex-shrink-0"
-          >
-            Copiar
-          </button>
+          {/* Link built by barber ID (+ tenant), not by name. The old name-based link
+              (?profesional=nombre-slug) had no tenant, so booking loaded every business's
+              barbers and matched by normalized name — landing on the wrong barber (a
+              Bastian link opened Felipe Mesa). ID is unique and unambiguous. */}
+          {(() => {
+            const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
+            const tenantPart = tenant?.slug ? `tenant=${tenant.slug}&` : "";
+            const bookingLink = `${origin}/booking?${tenantPart}barberId=${data.id}`;
+            return (
+              <>
+                <code className="flex-1 text-sm text-brand-blue bg-white px-3 py-2 rounded-xl border border-gray-200 truncate">
+                  {bookingLink}
+                </code>
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(bookingLink);
+                    showToast("Link copiado!", "success");
+                  }}
+                  className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:opacity-90 flex-shrink-0"
+                >
+                  Copiar
+                </button>
+              </>
+            );
+          })()}
         </div>
         <p className="text-[10px] text-brand-gray mt-2">Comparte este link en Instagram, WhatsApp o redes sociales para que tus clientes agenden directo contigo.</p>
       </div>
