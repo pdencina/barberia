@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 // Reads from the DB and must never be prerendered/baked at build time.
@@ -7,6 +7,12 @@ export const dynamic = "force-dynamic";
 
 // Generates an HTML report that can be printed/saved as PDF
 export async function GET(req: NextRequest) {
+  // Owners/managers only — same gate as the monthly report JSON.
+  const { role } = await getCurrentUserRoleAndTenant();
+  if (role !== "admin" && role !== "super_admin") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
   const supabase = createAdminSupabase();
   const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);

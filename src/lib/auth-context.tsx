@@ -132,19 +132,22 @@ export function AuthProvider({ children, serverRole, serverUserId, serverEmail, 
   // Fall back to the client-resolved role only when no server role was provided.
   const effectiveRole: Role | null = (serverRole as Role) || role;
 
+  // Gate on effectiveRole (server-provided, reliable) rather than the client-resolved
+  // role, which can be stale/unavailable on Vercel. Using the client role here risked
+  // a professional being treated with the wrong permissions.
   const canAccess = (pathname: string): boolean => {
-    if (!role) return false;
-    return canAccessRoute(role, pathname);
+    if (!effectiveRole) return false;
+    return canAccessRoute(effectiveRole, pathname);
   };
 
   const hasPermission = (feature: string): boolean => {
-    if (!role) return false;
-    return hasFeature(role, feature);
+    if (!effectiveRole) return false;
+    return hasFeature(effectiveRole, feature);
   };
 
   const isAtLeast = (minRole: Role): boolean => {
-    if (!role) return false;
-    return ROLE_HIERARCHY[role] >= ROLE_HIERARCHY[minRole];
+    if (!effectiveRole) return false;
+    return ROLE_HIERARCHY[effectiveRole] >= ROLE_HIERARCHY[minRole];
   };
 
   return (

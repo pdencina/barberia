@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 export async function GET(req: NextRequest) {
+  // Business-wide financials: owners/managers only. A professional must never pull the
+  // whole salon's income from here (they were seeing it via the UI before the fix).
+  const { role } = await getCurrentUserRoleAndTenant();
+  if (role !== "admin" && role !== "super_admin") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
   const supabase = createAdminSupabase();
   const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);

@@ -53,12 +53,18 @@ export const ROLE_PERMISSIONS: Record<Role, Permission> = {
     ],
   },
   barber: {
+    // A professional must NOT have the "/dashboard" wildcard: it granted access to the
+    // whole dashboard (global reports, finances, other professionals' income). They
+    // only get their own screens, listed explicitly. Their landing page is their own
+    // agenda, not the business-wide dashboard home.
     routes: [
-      "/dashboard",
+      "/dashboard/mi-agenda",
       "/dashboard/calendario",
       "/dashboard/standby",
       "/dashboard/comisiones",
       "/dashboard/clientes",
+      "/dashboard/mi-billetera",
+      "/dashboard/mi-perfil",
     ],
     features: [
       "calendar_own", "clients_own", "commissions_own", "standby",

@@ -1,7 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest, isManagerLevel } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
+  // The business-wide dashboard (today's sales, new clients, week chart) is for
+  // owners/managers/reception, not for a professional — they have their own agenda.
+  const { ok } = await isManagerLevel();
+  if (!ok) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
 

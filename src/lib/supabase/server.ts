@@ -74,6 +74,16 @@ export async function getCurrentUserRoleAndTenant(): Promise<{
   }
 }
 
+// Server-side role gate for business-wide data (reports, dashboard, finances).
+// Returns true only if the caller is an owner/manager-level role. A professional
+// (barber) or client must never get whole-business figures from these endpoints —
+// blocking it in the UI is not enough, the API itself has to refuse.
+export async function isManagerLevel(): Promise<{ ok: boolean; role: string | null; tenantId: string | null; userId: string | null }> {
+  const { userId, role, tenantId } = await getCurrentUserRoleAndTenant();
+  const ok = role === "admin" || role === "super_admin" || role === "receptionist";
+  return { ok, role, tenantId, userId };
+}
+
 // Authorize a client-supplied tenantId before using it in a query.
 //
 // SECURITY: API routes used to take `?tenantId=` straight from the browser and query

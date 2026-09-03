@@ -23,14 +23,17 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
       return;
     }
 
-    // Logged in but no access to this route → redirect based on role
+    // Logged in but no access to this route → redirect based on role.
     if (!canAccess(pathname)) {
       if (user.role === "client" && pathname.startsWith("/dashboard")) {
         router.replace("/booking");
       } else if (user.role === "barber") {
-        router.replace("/dashboard/calendario");
+        // A professional landing on "/dashboard" (business-wide home) or any
+        // admin-only page gets sent to their own agenda. They no longer have the
+        // "/dashboard" wildcard, so this now correctly fires for them.
+        router.replace("/dashboard/mi-agenda");
       }
-      // admins/super_admins always have access to /dashboard, so no redirect needed
+      // admins/super_admins have the /dashboard wildcard, so no redirect needed
     }
   }, [user, loading, pathname]);
 
