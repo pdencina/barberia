@@ -18,7 +18,9 @@ export async function POST() {
     return NextResponse.json({ error: "No hay caja cerrada para hoy" }, { status: 404 });
   }
 
-  // Reopen: set status back to open, clear closing data
+  // Reopen: set status back to open, clear closing data. The column is `notes` (not
+  // `closing_notes`, which doesn't exist — that's what the "Could not find the
+  // 'closing_notes' column" error was).
   const { error } = await supabase
     .from("cash_register")
     .update({
@@ -27,7 +29,7 @@ export async function POST() {
       closing_amount: null,
       difference: null,
       expected_amount: null,
-      closing_notes: "REABIERTA - " + new Date().toLocaleTimeString("es-CL"),
+      notes: "REABIERTA - " + new Date().toLocaleTimeString("es-CL"),
     })
     .eq("id", register.id);
 
