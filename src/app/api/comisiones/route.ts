@@ -13,12 +13,15 @@ export async function GET(req: NextRequest) {
   const startDate = new Date(year, month - 1, 1).toISOString();
   const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
 
-  // Get all barbers with commission rates (scoped to the caller's business)
+  // Commission-mode barbers only. Rental ("arriendo") professionals pay a fixed chair
+  // fee and don't earn commission, so they must not appear here. work_mode can be null
+  // for older rows — treat null as commission (the default).
   const { data: barbers } = await scoped(supabase
     .from("profiles")
-    .select("id, name, commission_rate")
+    .select("id, name, commission_rate, work_mode")
     .eq("role", "barber")
     .eq("active", true)
+    .or("work_mode.eq.commission,work_mode.is.null")
     .order("name"));
 
   // Get income transactions per barber for this month

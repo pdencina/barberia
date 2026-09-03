@@ -27,6 +27,10 @@ interface CajaData {
     payment_method: string;
     notes: string | null;
     created_at: string;
+    tip_amount?: number;
+    barber_id?: string | null;
+    barberName?: string | null;
+    services?: string;
   }>;
 }
 
@@ -47,6 +51,16 @@ export default function CajaPage() {
   const [reopenPin, setReopenPin] = useState("");
   const [reopenError, setReopenError] = useState("");
   const [reopening, setReopening] = useState(false);
+
+  // Filter the daily movements by professional.
+  const [barberFilter, setBarberFilter] = useState<string>("all");
+
+  // Manual movement (register a sale by hand when a card charge went through but
+  // re-booking didn't record it). Gated by admin PIN.
+  const [showManualModal, setShowManualModal] = useState(false);
+  const [manualForm, setManualForm] = useState({ barberId: "", serviceName: "", amount: "", paymentMethod: "debit_card", tip: "", notes: "", pin: "" });
+  const [manualSaving, setManualSaving] = useState(false);
+  const [barbers, setBarbers] = useState<Array<{ id: string; name: string }>>([]);
 
   const getActiveTenantId = () => {
     if (tenant?.id) return tenant.id;
@@ -102,8 +116,45 @@ export default function CajaPage() {
   useEffect(() => {
     if (tenantLoading) return;
     fetchData();
+    const t = getActiveTenantId();
+    fetch(`/api/barberos${t ? `?tenantId=${t}` : ""}`)
+      .then((r) => r.json())
+      .then((d) => setBarbers(Array.isArray(d) ? d : []))
+      .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantLoading, tenant?.id]);
+
+  const submitManualMovement = async () => {
+    if (!manualForm.serviceName.trim() || !manualForm.amount || manualForm.pin.length < 4) {
+      showToast("Completa servicio, monto y PIN", "error");
+      return;
+    }
+    setManualSaving(true);
+    const res = await fetch("/api/caja/manual-movement", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tenantId: getActiveTenantId(),
+        barberId: manualForm.barberId || null,
+        serviceName: manualForm.serviceName,
+        amount: manualForm.amount,
+        paymentMethod: manualForm.paymentMethod,
+        tip: manualForm.tip,
+        notes: manualForm.notes,
+        pin: manualForm.pin,
+      }),
+    });
+    const data = await res.json();
+    setManualSaving(false);
+    if (res.ok) {
+      showToast("Movimiento registrado", "success");
+      setShowManualModal(false);
+      setManualForm({ barberId: "", serviceName: "", amount: "", paymentMethod: "debit_card", tip: "", notes: "", pin: "" });
+      fetchData();
+    } else {
+      showToast(data.error || "No se pudo registrar", "error");
+    }
+  };
 
   const openRegister = async () => {
     const res = await fetch("/api/caja", {
@@ -324,38 +375,150 @@ export default function CajaPage() {
             </div>
           )}
 
-          {/* Transaction list */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
-            <div className="p-4 border-b">
-              <h3 className="font-bold text-gray-800">Movimientos del Dia ({data.transactions.length})</h3>
-            </div>
-            {data.transactions.length === 0 ? (
-              <p className="p-6 text-center text-gray-400">Sin movimientos</p>
-            ) : (
-              <div className="divide-y max-h-[300px] overflow-y-auto">
-                {data.transactions.map((t) => (
-                  <div key={t.id} className="p-3 flex items-center justify-between text-sm">
-                    <div className="flex items-center gap-3">
-                      <span className={`w-2 h-2 rounded-full ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`} />
-                      <div>
-                        <span className="text-gray-700">{t.notes || (t.type === "income" ? "Venta" : "Gasto")}</span>
-                        <span className="text-xs text-gray-400 ml-2">{paymentLabels[t.payment_method] || t.payment_method}</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-gray-400">
-                        {new Date(t.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
-                      </span>
-                      <span className={`font-medium ${t.type === "income" ? "text-green-600" : "text-red-600"}`}>
-                        {t.type === "income" ? "+" : "-"}{formatCurrency(Number(t.total))}
-                      </span>
-                    </div>
+          {/* Transaction list — full breakdown for daily reconciliation */}
+          {(() => {
+            const filtered = data.transactions.filter((t) =>
+              barberFilter === "all" ? true : (t.barber_id || "none") === barberFilter
+            );
+            // Barbers that actually have movements today, for the filter dropdown.
+            const barbersWithMovements = Array.from(
+              new Map(
+                data.transactions
+                  .filter((t) => t.barberName)
+                  .map((t) => [t.barber_id, t.barberName])
+              ).entries()
+            ) as [string, string][];
+
+            return (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
+                <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
+                  <h3 className="font-bold text-gray-800">Movimientos del Dia ({filtered.length})</h3>
+                  <div className="flex items-center gap-2">
+                    {barbersWithMovements.length > 0 && (
+                      <select value={barberFilter} onChange={(e) => setBarberFilter(e.target.value)}
+                        className="border rounded-lg px-2 py-1.5 text-xs">
+                        <option value="all">Todos los profesionales</option>
+                        {barbersWithMovements.map(([id, name]) => (
+                          <option key={id} value={id}>{name}</option>
+                        ))}
+                      </select>
+                    )}
+                    <button onClick={() => setShowManualModal(true)}
+                      className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 font-medium">
+                      + Registrar movimiento
+                    </button>
                   </div>
-                ))}
+                </div>
+                {filtered.length === 0 ? (
+                  <p className="p-6 text-center text-gray-400">Sin movimientos</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm min-w-[640px]">
+                      <thead className="bg-gray-50 border-b text-left">
+                        <tr>
+                          <th className="p-3 font-medium text-gray-600">Profesional</th>
+                          <th className="p-3 font-medium text-gray-600">Hora</th>
+                          <th className="p-3 font-medium text-gray-600">Servicio</th>
+                          <th className="p-3 font-medium text-gray-600 text-right">Precio</th>
+                          <th className="p-3 font-medium text-gray-600">Metodo</th>
+                          <th className="p-3 font-medium text-gray-600 text-right">Propina</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y">
+                        {filtered.map((t) => (
+                          <tr key={t.id} className="hover:bg-gray-50">
+                            <td className="p-3">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`} />
+                                {t.barberName || <span className="text-gray-400">—</span>}
+                              </div>
+                            </td>
+                            <td className="p-3 text-gray-500">
+                              {new Date(t.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                            </td>
+                            <td className="p-3">{t.services || t.notes || (t.type === "income" ? "Venta" : "Gasto")}</td>
+                            <td className={`p-3 text-right font-medium ${t.type === "income" ? "text-green-600" : "text-red-600"}`}>
+                              {t.type === "income" ? "+" : "-"}{formatCurrency(Number(t.total))}
+                            </td>
+                            <td className="p-3 text-gray-600">{paymentLabels[t.payment_method] || t.payment_method}</td>
+                            <td className="p-3 text-right text-gray-600">{t.tip_amount ? formatCurrency(Number(t.tip_amount)) : "—"}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
               </div>
-            )}
-          </div>
+            );
+          })()}
         </>
+      )}
+
+      {/* Manual movement modal — for a card charge that went through but re-booking
+          didn't record. Requires admin PIN. */}
+      {showManualModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setShowManualModal(false)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-brand-dark mb-1">Registrar movimiento manual</h3>
+            <p className="text-sm text-brand-gray mb-4">Usa esto si la maquina cobro pero la venta no quedo registrada. Requiere PIN de administrador.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Profesional</label>
+                <select value={manualForm.barberId} onChange={(e) => setManualForm({ ...manualForm, barberId: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="">Sin asignar</option>
+                  {barbers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Servicio</label>
+                <input type="text" value={manualForm.serviceName} onChange={(e) => setManualForm({ ...manualForm, serviceName: e.target.value })}
+                  placeholder="Ej: Corte, Corte y barba" className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Precio ($)</label>
+                  <input type="number" min="0" value={manualForm.amount} onChange={(e) => setManualForm({ ...manualForm, amount: e.target.value })}
+                    placeholder="15000" className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Propina ($)</label>
+                  <input type="number" min="0" value={manualForm.tip} onChange={(e) => setManualForm({ ...manualForm, tip: e.target.value })}
+                    placeholder="0" className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Metodo de pago</label>
+                <select value={manualForm.paymentMethod} onChange={(e) => setManualForm({ ...manualForm, paymentMethod: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="debit_card">Debito</option>
+                  <option value="credit_card">Credito</option>
+                  <option value="cash">Efectivo</option>
+                  <option value="transfer">Transferencia</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Notas (opcional)</label>
+                <input type="text" value={manualForm.notes} onChange={(e) => setManualForm({ ...manualForm, notes: e.target.value })}
+                  placeholder="Ej: fallo el pago en maquina, cobrado igual" className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">PIN de administrador</label>
+                <input type="password" inputMode="numeric" maxLength={6} value={manualForm.pin}
+                  onChange={(e) => setManualForm({ ...manualForm, pin: e.target.value.replace(/\D/g, "") })}
+                  placeholder="••••" className="w-full border rounded-lg px-3 py-2 text-center tracking-widest" />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setShowManualModal(false)}
+                  className="flex-1 py-2 border rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+                <button onClick={submitManualMovement} disabled={manualSaving}
+                  className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                  {manualSaving ? "Registrando..." : "Registrar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Reopen Modal */}

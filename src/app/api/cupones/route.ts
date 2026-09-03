@@ -30,6 +30,11 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { code, description, discountType, discountValue, minPurchase, maxUses, validUntil } = body;
 
+  // Scope the new coupon to the caller's business, authorized server-side. Without
+  // this, coupons were created with no tenant and then never showed up in the
+  // (tenant-filtered) list.
+  const { tenantId } = await resolveTenantForRequest(body.tenantId);
+
   const { data, error } = await supabase
     .from("coupons")
     .insert({
@@ -40,6 +45,7 @@ export async function POST(req: NextRequest) {
       min_purchase: minPurchase || null,
       max_uses: maxUses || null,
       valid_until: validUntil ? new Date(validUntil).toISOString() : null,
+      tenant_id: tenantId && tenantId !== "ALL" ? tenantId : null,
     })
     .select()
     .single();

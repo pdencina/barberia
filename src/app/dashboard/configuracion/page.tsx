@@ -69,10 +69,17 @@ export default function ConfiguracionPage() {
   const fetchData = async () => {
     setLoading(true);
 
-    // Resolve the tenant: prefer the reliable server-provided context; fall back to
-    // resolving it from the client session only if the context has no tenant yet
-    // (e.g. super_admin without an override).
+    // Resolve the tenant: server-provided context first, then the super_admin's manual
+    // override (localStorage, set by the tenant switcher), then the user's own profile.
+    // The override step was missing, so an admin whose context hadn't resolved yet got
+    // tenantId=null and every upload/save answered "espera a que cargue la pagina".
     let resolvedTenantId = tenant?.id || null;
+    if (!resolvedTenantId) {
+      try {
+        const stored = localStorage.getItem("tenant_override");
+        if (stored) resolvedTenantId = JSON.parse(stored).tenantId || null;
+      } catch {}
+    }
     if (!resolvedTenantId) {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {

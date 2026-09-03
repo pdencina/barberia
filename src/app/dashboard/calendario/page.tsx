@@ -1147,6 +1147,24 @@ export default function CalendarioPage() {
 
                     {/* Actions */}
                     <div className="pt-3 border-t space-y-2">
+                      {/* Cobrar: jump to the POS with client, barber and services already
+                          loaded, so the cashier doesn't have to search for the client by
+                          hand (avoids name clashes when the shop is full). */}
+                      <button
+                        onClick={() => {
+                          const params = new URLSearchParams();
+                          if (apptDetails.client?.id) params.set("clientId", apptDetails.client.id);
+                          if (apptDetails.barber?.id) params.set("barberId", apptDetails.barber.id);
+                          const svcIds = (apptDetails.services || [])
+                            .map((s: any) => s.service?.id)
+                            .filter(Boolean);
+                          if (svcIds.length) params.set("serviceIds", svcIds.join(","));
+                          router.push(`/dashboard/pos?${params.toString()}`);
+                        }}
+                        className="w-full py-2.5 bg-green-600 text-white rounded-xl text-sm font-bold hover:bg-green-700 flex items-center justify-center gap-1.5"
+                      >
+                        Cobrar
+                      </button>
                       {apptDetails.client?.id && (
                         <button onClick={() => { router.push(`/dashboard/clientes/${apptDetails.client.id}`); }}
                           className="w-full py-2 bg-brand-blue/10 text-brand-blue rounded-xl text-xs font-medium hover:bg-brand-blue/20 flex items-center justify-center gap-1.5">

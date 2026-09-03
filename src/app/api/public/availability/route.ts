@@ -12,8 +12,13 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "barberId and date required" }, { status: 400 });
   }
 
-  // Get day of week (0=Sunday, 1=Monday, etc.)
-  const dayOfWeek = new Date(date + "T12:00:00").getDay();
+  // Get day of week (0=Sunday, 1=Monday, etc.), computed independent of the server's
+  // timezone. Using `new Date(date + "T12:00:00").getDay()` interpreted the date in the
+  // SERVER's timezone (UTC on Vercel), so a Saturday chosen by a Chile user (UTC-3/-4)
+  // could resolve to Friday/Sunday — the "día corrido" bug where the enabled day showed
+  // as blocked and the neighbouring day opened by mistake. Parse the parts and use UTC.
+  const [dyY, dyM, dyD] = date.split("-").map(Number);
+  const dayOfWeek = new Date(Date.UTC(dyY, dyM - 1, dyD)).getUTCDay();
 
   // Try barber's personal schedule first
   const { data: barberSchedule } = await supabase

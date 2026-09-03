@@ -12,29 +12,53 @@ if (vapidPublicKey && vapidPrivateKey) {
 }
 
 /**
- * POST: Send push notification to a specific user
- * Body: { userId, title, body, icon?, url? }
+ * POST: Send a push notification. Recipients can be given three ways (combinable):
+ *   - userId: a single user (original behavior)
+ *   - userIds: an explicit list of users
+ *   - tenantId + roles: everyone in that business with one of those roles
+ * The third form is what lets "new appointment" reach the assigned barber AND the
+ * reception/admins of the business, instead of the old call that passed no userId and
+ * silently failed.
+ * Body: { userId?, userIds?, tenantId?, roles?, title, body, icon?, url?, tag? }
  */
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { userId, title, body: notifBody, icon, url } = await req.json();
+  const { userId, userIds, tenantId, roles, title, body: notifBody, icon, url } = await req.json();
 
-  if (!userId || !title) {
-    return NextResponse.json({ error: "userId and title required" }, { status: 400 });
+  if (!title) {
+    return NextResponse.json({ error: "title required" }, { status: 400 });
   }
 
   if (!vapidPublicKey || !vapidPrivateKey) {
     return NextResponse.json({ error: "VAPID keys not configured" }, { status: 500 });
   }
 
-  // Get all push subscriptions for this user
+  // Build the recipient user id set.
+  const recipientIds = new Set<string>();
+  if (userId) recipientIds.add(userId);
+  if (Array.isArray(userIds)) userIds.forEach((id: string) => id && recipientIds.add(id));
+  if (tenantId && Array.isArray(roles) && roles.length > 0) {
+    const { data: staff } = await supabase
+      .from("profiles")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .in("role", roles)
+      .eq("active", true);
+    (staff || []).forEach((s) => recipientIds.add(s.id));
+  }
+
+  if (recipientIds.size === 0) {
+    return NextResponse.json({ error: "No recipients", sent: 0 });
+  }
+
+  // Get all push subscriptions for these users
   const { data: subscriptions } = await supabase
     .from("push_subscriptions")
     .select("endpoint, p256dh, auth")
-    .eq("user_id", userId);
+    .in("user_id", Array.from(recipientIds));
 
   if (!subscriptions || subscriptions.length === 0) {
-    return NextResponse.json({ error: "User has no push subscriptions", sent: 0 });
+    return NextResponse.json({ error: "No push subscriptions for recipients", sent: 0 });
   }
 
   const payload = JSON.stringify({

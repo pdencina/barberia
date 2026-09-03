@@ -115,11 +115,31 @@ export default function POSPage() {
       fetch(`/api/barberos${params}`).then((r) => r.json()).catch(() => []),
       t ? fetch(`/api/settings/tuu?tenantId=${t}`).then((r) => r.json()).catch(() => null) : Promise.resolve(null),
     ]).then(([servicesData, productsData, clientsData, barbersData, tuuSettings]) => {
-      setServices(Array.isArray(servicesData) ? servicesData : []);
+      const svcList: Service[] = Array.isArray(servicesData) ? servicesData : [];
+      setServices(svcList);
       setProducts(Array.isArray(productsData) ? productsData : []);
       setClients(Array.isArray(clientsData?.clients) ? clientsData.clients : Array.isArray(clientsData) ? clientsData : []);
       setBarbers(Array.isArray(barbersData) ? barbersData : []);
       if (tuuSettings?.card_payment_provider === "tuu") setCardProvider("tuu");
+
+      // Pre-load from the calendar's "Cobrar" button (?clientId=&barberId=&serviceIds=).
+      // Lets the cashier charge an existing appointment without hunting for the client.
+      try {
+        const sp = new URLSearchParams(window.location.search);
+        const preBarber = sp.get("barberId");
+        const preClient = sp.get("clientId");
+        const preServices = sp.get("serviceIds");
+        if (preBarber) setSelectedBarber(preBarber);
+        if (preClient) setSelectedClient(preClient);
+        if (preServices) {
+          const ids = preServices.split(",").filter(Boolean);
+          const preCart = ids
+            .map((id) => svcList.find((s) => s.id === id))
+            .filter(Boolean)
+            .map((s) => ({ id: s!.id, name: s!.name, price: Number(s!.price), quantity: 1, type: "service" as const }));
+          if (preCart.length) setCart(preCart);
+        }
+      } catch {}
     });
   }, [tenant?.id, tenantLoading]);
 

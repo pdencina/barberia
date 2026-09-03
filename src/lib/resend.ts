@@ -71,8 +71,14 @@ export async function sendReceipt(params: SendReceiptParams) {
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
   <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
     <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0F8B8D; padding-bottom: 20px;">
-      <img src="${businessLogoUrl || "https://re-booking.cl/logo-horizontal-white.png"}" alt="Boleta" style="height: ${businessLogoUrl ? "48px" : "32px"}; max-width: 240px; object-fit: contain; margin-bottom: 10px;" />
-      ${!businessLogoUrl ? `<p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Gestiona. Reserva. Repite el exito.</p>` : ""}
+      ${businessLogoUrl
+        // A business's own logo is usually dark (made for light backgrounds), so it
+        // disappeared against this dark email. Put it on a white rounded card so any
+        // logo — light or dark — is readable. The generic re-booking logo is already
+        // white, so it stays directly on the dark header.
+        ? `<div style="display: inline-block; background: #ffffff; padding: 12px 20px; border-radius: 12px; margin-bottom: 10px;"><img src="${businessLogoUrl}" alt="Logo" style="height: 48px; max-width: 220px; object-fit: contain; display: block;" /></div>`
+        : `<img src="https://re-booking.cl/logo-horizontal-white.png" alt="re-booking" style="height: 32px; max-width: 240px; object-fit: contain; margin-bottom: 10px;" />
+      <p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Gestiona. Reserva. Repite el exito.</p>`}
     </div>
 
     <div style="background: #1a1a1a; padding: 15px; border-radius: 8px; margin-bottom: 20px;">

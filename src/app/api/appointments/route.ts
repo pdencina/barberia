@@ -102,5 +102,28 @@ export async function POST(req: NextRequest) {
 
   await supabase.from("appointment_services").insert(serviceInserts);
 
+  // Notify the assigned professional by push that a new appointment was booked for
+  // them (e.g. reception created it). Non-blocking.
+  try {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
+    const [{ data: barber }, { data: client }] = await Promise.all([
+      supabase.from("profiles").select("name").eq("id", barberId).single(),
+      clientId ? supabase.from("clients").select("name").eq("id", clientId).single() : Promise.resolve({ data: null }),
+    ]);
+    await fetch(`${appUrl}/api/push/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        userId: barberId,
+        title: "Nueva Cita Agendada",
+        body: `${client?.name || "Cliente"} - ${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}`,
+        url: "/dashboard/mi-agenda",
+        tag: "new-appointment",
+      }),
+    });
+  } catch (e) {
+    console.error("Error sending push (dashboard booking):", e);
+  }
+
   return NextResponse.json(appointment, { status: 201 });
 }

@@ -389,8 +389,8 @@ export default function EditProfessionalPage() {
           <h2 className="font-bold text-gray-800">Configuración Comisión</h2>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Porcentaje de comisión (%)</label>
-            <input type="number" min="0" max="100" value={data.commission_rate || 40}
-              onChange={(e) => setData({ ...data, commission_rate: parseInt(e.target.value) || 0 })}
+            <input type="number" min="0" max="100" value={data.commission_rate ?? ""}
+              onChange={(e) => setData({ ...data, commission_rate: e.target.value === "" ? (null as any) : parseInt(e.target.value) })}
               className="w-full border rounded-xl px-3 py-2.5 text-sm" />
             <p className="text-xs text-gray-400 mt-1">El profesional recibe este % de cada venta que realice</p>
           </div>
@@ -404,26 +404,26 @@ export default function EditProfessionalPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs text-gray-500 mb-1">Valor día ($)</label>
-              <input type="number" min="0" step="1000" value={data.rental_daily_rate || 29000}
-                onChange={(e) => setData({ ...data, rental_daily_rate: parseInt(e.target.value) || 0 })}
+              <input type="number" min="0" step="1000" value={data.rental_daily_rate ?? ""}
+                onChange={(e) => setData({ ...data, rental_daily_rate: e.target.value === "" ? (null as any) : parseInt(e.target.value) })}
                 className="w-full border rounded-xl px-3 py-2.5 text-sm" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Descuentos fijos (aseo, consumibles)</label>
-              <input type="number" min="0" step="1000" value={data.rental_deductions || 0}
-                onChange={(e) => setData({ ...data, rental_deductions: parseInt(e.target.value) || 0 })}
+              <input type="number" min="0" step="1000" value={data.rental_deductions ?? ""}
+                onChange={(e) => setData({ ...data, rental_deductions: e.target.value === "" ? (null as any) : parseInt(e.target.value) })}
                 className="w-full border rounded-xl px-3 py-2.5 text-sm" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Mínimo días/semana</label>
-              <input type="number" min="1" max="7" value={data.rental_min_days || 5}
-                onChange={(e) => setData({ ...data, rental_min_days: parseInt(e.target.value) || 5 })}
+              <input type="number" min="1" max="7" value={data.rental_min_days ?? ""}
+                onChange={(e) => setData({ ...data, rental_min_days: e.target.value === "" ? (null as any) : parseInt(e.target.value) })}
                 className="w-full border rounded-xl px-3 py-2.5 text-sm" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Máximo días/semana</label>
-              <input type="number" min="1" max="7" value={data.rental_max_days || 6}
-                onChange={(e) => setData({ ...data, rental_max_days: parseInt(e.target.value) || 6 })}
+              <input type="number" min="1" max="7" value={data.rental_max_days ?? ""}
+                onChange={(e) => setData({ ...data, rental_max_days: e.target.value === "" ? (null as any) : parseInt(e.target.value) })}
                 className="w-full border rounded-xl px-3 py-2.5 text-sm" />
             </div>
           </div>

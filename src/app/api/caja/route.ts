@@ -22,15 +22,32 @@ export async function GET(req: NextRequest) {
   const dayStart = `${date}T00:00:00`;
   const dayEnd = `${date}T23:59:59`;
 
+  // Enriched breakdown for the "Movimientos del dia" table: who did it (barber), what
+  // (service/item descriptions), the tip, plus the amount/method/time. This is what
+  // lets the daily cash count be reconciled inside re-booking instead of a side Excel.
   let txQuery = supabase
     .from("transactions")
-    .select("id, type, total, payment_method, notes, created_at")
+    .select("id, type, total, payment_method, notes, created_at, tip_amount, barber_id, barber:profiles(name), items:transaction_items(description)")
     .eq("status", "completed")
     .gte("created_at", dayStart)
     .lte("created_at", dayEnd)
     .order("created_at", { ascending: true });
   if (tenantId && tenantId !== "ALL") txQuery = txQuery.eq("tenant_id", tenantId);
-  const { data: transactions } = await txQuery;
+  const { data: transactionsRaw } = await txQuery;
+
+  // Flatten barber name + join item descriptions into a single "services" string.
+  const transactions = (transactionsRaw || []).map((t: any) => ({
+    id: t.id,
+    type: t.type,
+    total: t.total,
+    payment_method: t.payment_method,
+    notes: t.notes,
+    created_at: t.created_at,
+    tip_amount: t.tip_amount || 0,
+    barber_id: t.barber_id,
+    barberName: t.barber?.name || null,
+    services: Array.isArray(t.items) ? t.items.map((i: any) => i.description).filter(Boolean).join(", ") : "",
+  }));
 
   // Calculate cash movements
   const cashIncome = (transactions || [])

@@ -55,6 +55,11 @@ export default function ServiciosPage() {
     fetchServices();
   }, [tenant?.id, tenantLoading]);
 
+  // Existing categories across current services, for the dropdown suggestions.
+  const existingCategories = Array.from(
+    new Set(services.map((s) => (s as any).category).filter(Boolean))
+  ) as string[];
+
   const openNew = () => {
     setEditingService(null);
     setForm({ name: "", description: "", price: "", duration: "", category: "" });
@@ -412,10 +417,34 @@ export default function ServiciosPage() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-brand-gray mb-1">Categoria (opcional)</label>
-                <input type="text" value={form.category}
+                {/* Dropdown of existing categories + free text. Choosing an existing one
+                    keeps the POS grouping consistent (avoids "Nicolas" vs "nicolas"
+                    becoming two separate groups); you can still type a new one. */}
+                <input type="text" value={form.category} list="service-categories"
                   onChange={(e) => setForm({ ...form, category: e.target.value })}
-                  placeholder="Ej: Cortes, Barba, Especiales, Nicolas"
+                  placeholder="Elige una o escribe una nueva"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+                <datalist id="service-categories">
+                  {existingCategories.map((cat) => (
+                    <option key={cat} value={cat} />
+                  ))}
+                </datalist>
+                {existingCategories.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 mt-2">
+                    {existingCategories.map((cat) => (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setForm({ ...form, category: cat })}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-medium transition-colors ${
+                          form.category === cat ? "bg-brand-blue text-white" : "bg-gray-100 text-brand-gray hover:bg-gray-200"
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Reference photo: shown to clients while choosing services in the

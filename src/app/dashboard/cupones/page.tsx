@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 
 interface Coupon {
@@ -28,11 +30,23 @@ export default function CuponesPage() {
     min_purchase: "", max_uses: "", valid_until: "",
   });
   const { showToast } = useToast();
+  const { tenant, loading: tenantLoading } = useTenant();
+  const { confirm } = useConfirm();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   const fetchCoupons = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/cupones");
+      const t = getActiveTenantId();
+      const res = await fetch(`/api/cupones${t ? `?tenantId=${t}` : ""}`);
       const data = await res.json();
       setCoupons(Array.isArray(data) ? data : []);
     } catch (err) {
@@ -42,7 +56,28 @@ export default function CuponesPage() {
     }
   };
 
-  useEffect(() => { fetchCoupons(); }, []);
+  useEffect(() => {
+    if (tenantLoading) return;
+    fetchCoupons();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
+
+  const deleteCoupon = async (c: Coupon) => {
+    const ok = await confirm({
+      title: "Eliminar cupon",
+      message: `Eliminar el cupon "${c.code}"? Esta accion no se puede deshacer.`,
+      confirmText: "Eliminar",
+      variant: "danger",
+    });
+    if (!ok) return;
+    const res = await fetch(`/api/cupones/${c.id}`, { method: "DELETE" });
+    if (res.ok) {
+      setCoupons((prev) => prev.filter((x) => x.id !== c.id));
+      showToast("Cupon eliminado", "success");
+    } else {
+      showToast("No se pudo eliminar el cupon", "error");
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -65,6 +100,7 @@ export default function CuponesPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          tenantId: getActiveTenantId(),
           code: formData.code,
           description: formData.description,
           discountType: formData.type,
@@ -151,10 +187,16 @@ export default function CuponesPage() {
                   </span>
                 </td>
                 <td className="p-4 text-center">
-                  <button onClick={() => openEdit(c)}
-                    className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-100">
-                    Editar
-                  </button>
+                  <div className="flex gap-2 justify-center">
+                    <button onClick={() => openEdit(c)}
+                      className="px-3 py-1 text-xs border rounded-lg hover:bg-gray-100">
+                      Editar
+                    </button>
+                    <button onClick={() => deleteCoupon(c)}
+                      className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
+                      Eliminar
+                    </button>
+                  </div>
                 </td>
               </tr>
             ))}

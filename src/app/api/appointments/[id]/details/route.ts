@@ -12,7 +12,7 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
       id, date, start_time, end_time, status, notes, created_at,
       client:clients(id, name, email, phone, loyalty_points, created_at),
       barber:profiles(id, name, avatar_url),
-      services:appointment_services(price, service:services(name, duration))
+      services:appointment_services(price, service:services(id, name, duration))
     `)
     .eq("id", params.id)
     .single();

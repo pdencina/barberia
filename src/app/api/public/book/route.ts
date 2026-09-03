@@ -155,13 +155,17 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Send push notification to admin/staff (non-blocking)
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app";
+  // Notify the assigned barber AND the business's reception/admins by push. The old
+  // call passed no recipient, so /api/push/send rejected it and nobody was notified.
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
   try {
     await fetch(`${appUrl}/api/push/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
+        userId: barberId, // the professional who got the appointment
+        tenantId, // + reception/admins of this business
+        roles: ["admin", "receptionist"],
         title: "Nueva Cita Agendada",
         body: `${clientName} - ${serviceNames} con ${barber?.name || "Profesional"} (${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })})`,
         url: "/dashboard/agenda",
