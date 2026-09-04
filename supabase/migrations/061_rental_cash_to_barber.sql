@@ -1,0 +1,15 @@
+-- Rental (chair-rent) professionals keep all their sales. Some of them take their CASH
+-- directly at the end of the day (it never enters the salon's till), while others leave
+-- the cash in the salon and settle it against their monthly rent. This flag distinguishes
+-- the two so the salon's cash count and revenue reports aren't inflated by money that
+-- isn't the salon's.
+--
+--   rental_cash_to_barber = true  -> the barber pockets their cash directly. Their cash
+--                                    sales are EXCLUDED from the salon's expected till
+--                                    and from salon revenue (only their rent fee is the
+--                                    salon's income). e.g. Felipe, Javier.
+--   rental_cash_to_barber = false -> cash stays in the salon till until settled against
+--                                    rent at month end. e.g. Enzo, Gabriel.
+--
+-- Only meaningful for work_mode = 'rental'. Commission barbers are unaffected.
+ALTER TABLE profiles ADD COLUMN IF NOT EXISTS rental_cash_to_barber BOOLEAN NOT NULL DEFAULT false;

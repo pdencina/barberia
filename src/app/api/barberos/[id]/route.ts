@@ -32,7 +32,7 @@ export async function PATCH(
     "rental_max_days", "rental_deductions", "rental_notes",
     "personal_pin", "avatar_url", "bio", "specialties",
     "intro_video_url", "years_experience", "slot_duration",
-    "also_attends_clients", "instagram",
+    "also_attends_clients", "instagram", "rental_cash_to_barber",
   ];
 
   const update: Record<string, any> = {};

@@ -101,6 +101,11 @@ export default function ArriendoPage() {
   // sending an informal screenshot. Opens a clean print window that can be saved as PDF
   // (the browser's "Guardar como PDF" in the print dialog) or printed. No extra
   // libraries needed, works on tablet and desktop.
+  // Build the receipt HTML and DOWNLOAD it as a file (Blob + <a download>). The old
+  // approach used window.open(...,"width=..height=..") + auto window.print(), which on
+  // phones is blocked/closes the page without downloading (Nico's report: works on PC,
+  // closes on mobile). A Blob download works the same on desktop and mobile. The file
+  // has its own "Imprimir / Guardar PDF" button so it can still become a PDF anywhere.
   const printReceipt = (prof: RentalProfessional) => {
     const businessName = tenant?.name || "re-booking";
     const period = `${monthNames[month - 1]} ${year}`;
@@ -108,19 +113,14 @@ export default function ArriendoPage() {
     const money = (n: number) =>
       new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(n || 0);
 
-    const w = window.open("", "_blank", "width=420,height=640");
-    if (!w) {
-      showToast("Permite las ventanas emergentes para generar el recibo", "error");
-      return;
-    }
-    w.document.write(`<!DOCTYPE html><html lang="es"><head><meta charset="utf-8" />
+    const html = `<!DOCTYPE html><html lang="es"><head><meta charset="utf-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>Recibo arriendo ${prof.name} - ${period}</title>
       <style>
         * { font-family: -apple-system, Segoe UI, Roboto, sans-serif; box-sizing: border-box; }
-        body { margin: 0; padding: 24px; color: #1a1a1a; }
+        body { margin: 0; padding: 24px; color: #1a1a1a; max-width: 480px; margin: 0 auto; }
         .head { text-align: center; border-bottom: 2px solid #0F8B8D; padding-bottom: 12px; margin-bottom: 16px; }
         .head h1 { margin: 0; font-size: 20px; }
-        .head p { margin: 4px 0 0; font-size: 12px; color: #666; }
         .badge { display: inline-block; margin-top: 8px; font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: #0F8B8D; font-weight: 700; }
         .row { display: flex; justify-content: space-between; padding: 8px 0; font-size: 14px; border-bottom: 1px solid #eee; }
         .row.total { border-bottom: none; border-top: 2px solid #1a1a1a; margin-top: 8px; padding-top: 12px; font-size: 18px; font-weight: 800; }
@@ -130,7 +130,8 @@ export default function ArriendoPage() {
         .meta { font-size: 12px; color: #666; margin-bottom: 16px; }
         .sign { margin-top: 48px; display: flex; justify-content: space-between; gap: 24px; }
         .sign div { flex: 1; border-top: 1px solid #999; padding-top: 6px; text-align: center; font-size: 11px; color: #666; }
-        @media print { body { padding: 0; } }
+        .print-btn { display: block; width: 100%; margin: 24px 0 0; padding: 12px; background: #0F8B8D; color: #fff; border: none; border-radius: 10px; font-size: 15px; font-weight: 700; cursor: pointer; }
+        @media print { body { padding: 0; } .print-btn { display: none; } }
       </style></head><body>
       <div class="head">
         <h1>${businessName}</h1>
@@ -152,9 +153,24 @@ export default function ArriendoPage() {
         <div>${prof.name}</div>
         <div>${businessName}</div>
       </div>
-      <script>window.onload = function(){ window.print(); }</script>
-      </body></html>`);
-    w.document.close();
+      <button class="print-btn" onclick="window.print()">Imprimir / Guardar PDF</button>
+      </body></html>`;
+
+    try {
+      const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = prof.name.replace(/\s+/g, "-").toLowerCase();
+      a.download = `recibo-arriendo-${safeName}-${monthNames[month - 1].toLowerCase()}-${year}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      showToast("Recibo descargado. Abrelo para imprimir o guardar como PDF.", "success");
+    } catch {
+      showToast("No se pudo generar el recibo", "error");
+    }
   };
 
   const markPaid = async (prof: RentalProfessional) => {

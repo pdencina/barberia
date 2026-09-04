@@ -77,6 +77,7 @@ export default function EditProfessionalPage() {
         years_experience: (data as any).years_experience,
         also_attends_clients: (data as any).also_attends_clients,
         instagram: (data as any).instagram,
+        rental_cash_to_barber: (data as any).rental_cash_to_barber,
       }),
     });
     setSaving(false);
@@ -441,6 +442,24 @@ export default function EditProfessionalPage() {
                 className="w-full border rounded-xl px-3 py-2.5 text-sm" />
             </div>
           </div>
+
+          {/* Cash handling: does this rental barber take their own cash, or does it stay
+              in the salon till until settled against rent? Drives whether their cash
+              sales count toward the salon's daily till and revenue. */}
+          <label className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl cursor-pointer">
+            <input type="checkbox" checked={!!(data as any).rental_cash_to_barber}
+              onChange={(e) => setData({ ...data, rental_cash_to_barber: e.target.checked } as any)}
+              className="w-4 h-4 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
+            <span className="text-sm text-gray-700">
+              <span className="font-medium">El barbero se lleva su efectivo directamente</span>
+              <span className="block text-xs text-gray-500 mt-0.5">
+                Si esta activo, el efectivo de sus ventas NO se cuenta en la caja ni en los
+                ingresos del salon (solo entra el arriendo). Dejalo desactivado si el efectivo
+                queda en la caja y se descuenta del arriendo a fin de mes.
+              </span>
+            </span>
+          </label>
+
           <div>
             <label className="block text-xs text-gray-500 mb-1">Notas / Observaciones</label>
             <textarea value={data.rental_notes || ""} rows={2}

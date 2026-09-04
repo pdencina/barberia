@@ -111,8 +111,9 @@ export default function ReportesPage() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         <div className="bg-gradient-to-br from-green-500 to-green-700 rounded-2xl shadow-lg shadow-green-500/20 p-4 text-white">
-          <p className="text-xs opacity-80">Ingreso Total</p>
+          <p className="text-xs opacity-80">Movimiento Total (bruto)</p>
           <p className="text-xl font-bold">{formatCurrency(data.summary.totalIncome)}</p>
+          <p className="text-[10px] opacity-60">Incluye ventas de arrendatarios</p>
         </div>
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <p className="text-xs text-gray-500">Ingresos Comisión</p>

@@ -67,13 +67,15 @@ export default function MiPerfilPage() {
   if (loading) return <Spinner />;
   if (!data) return <p className="p-6 text-brand-gray">No se pudo cargar tu perfil.</p>;
 
-  // Build the personal booking link. The public /booking page matches ?profesional=<name-slug>
-  // against each barber's name, and needs ?tenant=<slug> to load the right salon's team.
+  // Build the personal booking link using the barber's unique ID (+ tenant), NOT the
+  // name. The old name-based link (?profesional=nombre-slug) had no tenant, so booking
+  // matched by normalized name across every business and opened the wrong barber (a
+  // Bastian link opened the first available barber). ID is unambiguous.
   const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
-  const profesionalSlug = (data.name || "").toLowerCase().trim().replace(/\s+/g, "-");
   const tenantSlug = tenant?.slug || "";
-  const bookingLink = profesionalSlug
-    ? `${origin}/booking?${tenantSlug ? `tenant=${tenantSlug}&` : ""}profesional=${profesionalSlug}`
+  const barberId = data.id || user?.id || "";
+  const bookingLink = barberId
+    ? `${origin}/booking?${tenantSlug ? `tenant=${tenantSlug}&` : ""}barberId=${barberId}`
     : `${origin}/booking${tenantSlug ? `?tenant=${tenantSlug}` : ""}`;
 
   return (

@@ -18,6 +18,7 @@ interface CajaData {
     totalIncome: number;
     totalExpense: number;
     expectedCash: number;
+    rentalCashToBarber?: number;
     transactionCount: number;
   };
   transactions: Array<{
@@ -307,6 +308,21 @@ export default function CajaPage() {
               <p className="text-lg font-bold">{data.summary.transactionCount}</p>
             </div>
           </div>
+
+          {/* Rental barbers' own cash — informational, NOT part of the salon till. */}
+          {!!data.summary.rentalCashToBarber && data.summary.rentalCashToBarber > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-2xl p-4 flex items-center gap-3">
+              <span className="text-xl">💵</span>
+              <div className="flex-1">
+                <p className="text-sm font-medium text-orange-800">
+                  Efectivo de barberos en arriendo: {formatCurrency(data.summary.rentalCashToBarber)}
+                </p>
+                <p className="text-xs text-orange-600">
+                  Este efectivo se lo llevan los barberos directamente. No cuenta en la caja ni en los ingresos del salon.
+                </p>
+              </div>
+            </div>
+          )}
 
           {/* Close register */}
           {data.isOpen && (

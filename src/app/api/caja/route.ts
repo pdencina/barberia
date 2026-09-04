@@ -27,7 +27,7 @@ export async function GET(req: NextRequest) {
   // lets the daily cash count be reconciled inside re-booking instead of a side Excel.
   let txQuery = supabase
     .from("transactions")
-    .select("id, type, total, payment_method, notes, created_at, tip_amount, barber_id, barber:profiles(name), items:transaction_items(description)")
+    .select("id, type, total, payment_method, notes, created_at, tip_amount, barber_id, barber:profiles(name, work_mode, rental_cash_to_barber), items:transaction_items(description)")
     .eq("status", "completed")
     .gte("created_at", dayStart)
     .lte("created_at", dayEnd)
@@ -36,6 +36,8 @@ export async function GET(req: NextRequest) {
   const { data: transactionsRaw } = await txQuery;
 
   // Flatten barber name + join item descriptions into a single "services" string.
+  // `barberTakesCash` = a rental barber who pockets their own cash: their cash sales
+  // never enter the salon's till, so they must be excluded from the expected cash count.
   const transactions = (transactionsRaw || []).map((t: any) => ({
     id: t.id,
     type: t.type,
@@ -46,12 +48,21 @@ export async function GET(req: NextRequest) {
     tip_amount: t.tip_amount || 0,
     barber_id: t.barber_id,
     barberName: t.barber?.name || null,
+    barberTakesCash: t.barber?.work_mode === "rental" && !!t.barber?.rental_cash_to_barber,
     services: Array.isArray(t.items) ? t.items.map((i: any) => i.description).filter(Boolean).join(", ") : "",
   }));
 
-  // Calculate cash movements
+  // Calculate cash movements. Exclude cash from rental barbers who take their own cash —
+  // that money is theirs and never goes into the salon till, so counting it would make
+  // the till look short every day.
   const cashIncome = (transactions || [])
-    .filter((t) => t.type === "income" && t.payment_method === "cash")
+    .filter((t) => t.type === "income" && t.payment_method === "cash" && !t.barberTakesCash)
+    .reduce((sum, t) => sum + Number(t.total), 0);
+
+  // Cash that a rental barber pocketed directly (informational — shown separately, NOT
+  // part of the salon's expected till).
+  const rentalCashToBarber = (transactions || [])
+    .filter((t) => t.type === "income" && t.payment_method === "cash" && t.barberTakesCash)
     .reduce((sum, t) => sum + Number(t.total), 0);
 
   const cashExpense = (transactions || [])
@@ -84,6 +95,7 @@ export async function GET(req: NextRequest) {
       totalIncome,
       totalExpense,
       expectedCash,
+      rentalCashToBarber, // cash pocketed by rental barbers, NOT in the salon till
       transactionCount: (transactions || []).length,
     },
     transactions: transactions || [],
@@ -174,19 +186,23 @@ export async function PATCH(req: NextRequest) {
 
   const { data: transactions } = await supabase
     .from("transactions")
-    .select("type, total, payment_method")
+    .select("type, total, payment_method, barber:profiles(work_mode, rental_cash_to_barber)")
     .eq("status", "completed")
     .eq("tenant_id", tenantId)
     .gte("created_at", dayStart)
     .lte("created_at", dayEnd);
 
+  // Same exclusion as the GET summary: cash pocketed directly by a rental barber never
+  // entered the till, so it must not be part of the expected amount at close.
+  const barberTakesCash = (t: any) => t.barber?.work_mode === "rental" && !!t.barber?.rental_cash_to_barber;
+
   const cashIncome = (transactions || [])
-    .filter((t) => t.type === "income" && t.payment_method === "cash")
-    .reduce((sum, t) => sum + Number(t.total), 0);
+    .filter((t: any) => t.type === "income" && t.payment_method === "cash" && !barberTakesCash(t))
+    .reduce((sum: number, t: any) => sum + Number(t.total), 0);
 
   const cashExpense = (transactions || [])
-    .filter((t) => t.type === "expense" && t.payment_method === "cash")
-    .reduce((sum, t) => sum + Number(t.total), 0);
+    .filter((t: any) => t.type === "expense" && t.payment_method === "cash")
+    .reduce((sum: number, t: any) => sum + Number(t.total), 0);
 
   const expectedAmount = Number(register.opening_amount) + cashIncome - cashExpense;
   const difference = (closingAmount || 0) - expectedAmount;
