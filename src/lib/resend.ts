@@ -143,10 +143,12 @@ interface SendBookingConfirmationParams {
   duration: number;
   price: number;
   appointmentId?: string;
+  // Business's own logo (tenants.logo_url). Falls back to the generic re-booking logo.
+  businessLogoUrl?: string | null;
 }
 
 export async function sendBookingConfirmation(params: SendBookingConfirmationParams) {
-  const { to, clientName, barberName, serviceName, date, duration, price, appointmentId } = params;
+  const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl } = params;
 
   const dateStr = new Date(date).toLocaleDateString("es-CL", {
     weekday: "long",
@@ -166,7 +168,11 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
   <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
     <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #0F8B8D; padding-bottom: 20px;">
-      <img src="https://re-booking.cl/logo-horizontal.png" alt="re-booking" style="height: 40px; margin-bottom: 10px;" />
+      ${businessLogoUrl
+        // Business logo on a white card so a dark logo reads on this dark email. Generic
+        // re-booking logo (white) sits directly on the dark header.
+        ? `<div style="display: inline-block; background: #ffffff; padding: 12px 20px; border-radius: 12px; margin-bottom: 10px;"><img src="${businessLogoUrl}" alt="Logo" style="height: 44px; max-width: 220px; object-fit: contain; display: block;" /></div>`
+        : `<img src="https://re-booking.cl/logo-horizontal-white.png" alt="re-booking" style="height: 40px; margin-bottom: 10px;" />`}
       <p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Cita Confirmada</p>
     </div>
 

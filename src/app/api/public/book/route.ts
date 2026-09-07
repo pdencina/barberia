@@ -141,6 +141,14 @@ export async function POST(req: NextRequest) {
     .eq("id", barberId)
     .single();
 
+  // Business logo for the confirmation email (so it shows the salon's brand, not the
+  // generic re-booking logo).
+  let businessLogoUrl: string | null = null;
+  if (tenantId) {
+    const { data: tenantRow } = await supabase.from("tenants").select("logo_url").eq("id", tenantId).single();
+    businessLogoUrl = tenantRow?.logo_url || null;
+  }
+
   // Send confirmation email (non-blocking)
   if (clientEmail) {
     try {
@@ -153,6 +161,7 @@ export async function POST(req: NextRequest) {
         duration: totalDuration,
         price: totalPrice,
         appointmentId: appointment!.id,
+        businessLogoUrl,
       });
     } catch (e) {
       console.error("Error sending confirmation email:", e);

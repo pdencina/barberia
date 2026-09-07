@@ -67,16 +67,18 @@ export default function MiPerfilPage() {
   if (loading) return <Spinner />;
   if (!data) return <p className="p-6 text-brand-gray">No se pudo cargar tu perfil.</p>;
 
-  // Build the personal booking link using the barber's unique ID (+ tenant), NOT the
-  // name. The old name-based link (?profesional=nombre-slug) had no tenant, so booking
-  // matched by normalized name across every business and opened the wrong barber (a
-  // Bastian link opened the first available barber). ID is unambiguous.
+  // Short readable personal link: /b/<tenant>/<barber-slug>. Falls back to the
+  // ?barberId= link if the slug isn't set yet. Both point to the correct barber
+  // unambiguously (the old name-based link opened "any available barber").
   const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
   const tenantSlug = tenant?.slug || "";
   const barberId = data.id || user?.id || "";
-  const bookingLink = barberId
-    ? `${origin}/booking?${tenantSlug ? `tenant=${tenantSlug}&` : ""}barberId=${barberId}`
-    : `${origin}/booking${tenantSlug ? `?tenant=${tenantSlug}` : ""}`;
+  const bookingSlug = (data as any).booking_slug;
+  const bookingLink = tenantSlug && bookingSlug
+    ? `${origin}/b/${tenantSlug}/${bookingSlug}`
+    : barberId
+      ? `${origin}/booking?${tenantSlug ? `tenant=${tenantSlug}&` : ""}barberId=${barberId}`
+      : `${origin}/booking${tenantSlug ? `?tenant=${tenantSlug}` : ""}`;
 
   return (
     <div className="p-4 md:p-6 max-w-2xl space-y-6 animate-fade-in">

@@ -20,9 +20,14 @@ interface Barber {
   specialties: string[] | null;
   intro_video_url: string | null;
   years_experience: number | null;
+  booking_slug?: string | null;
 }
 
 type Step = "barber" | "service" | "datetime" | "details" | "confirmed";
+
+// Online payment button on the booking confirmation screen. Off for now (clients pay
+// in the shop); set to true to re-enable.
+const ONLINE_PAYMENT_ON_CONFIRM = false;
 
 export default function BookingPage() {
   const [step, setStep] = useState<Step>("barber");
@@ -64,7 +69,8 @@ export default function BookingPage() {
     const urlParams = new URLSearchParams(window.location.search);
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch");
     const barberSlug = urlParams.get("profesional") || urlParams.get("barber");
-    const barberIdParam = urlParams.get("barberId"); // preferred: unambiguous
+    const profSlugParam = urlParams.get("prof"); // preferred: unique readable booking_slug
+    const barberIdParam = urlParams.get("barberId"); // also unambiguous (uuid)
     const barberUrl = tenantSlug ? `/api/public/barbers?branch=${tenantSlug}` : "/api/public/barbers";
 
     // Fetch business info if on subdomain
@@ -87,11 +93,16 @@ export default function BookingPage() {
 
     fetch(barberUrl).then((r) => r.json()).then((data) => {
       setBarbers(data);
-      // Auto-select the barber. Prefer the unambiguous ?barberId=<uuid>; fall back to
-      // the old ?profesional=<name-slug> for links already shared out there.
+      // Auto-select the barber, most-reliable identifier first:
+      //   1. ?prof=<booking_slug>  (unique, readable — the new short links)
+      //   2. ?barberId=<uuid>      (unambiguous)
+      //   3. ?profesional=<name>   (legacy links already shared; may be ambiguous)
       if (data.length > 0) {
         let match = null;
-        if (barberIdParam) {
+        if (profSlugParam) {
+          match = data.find((b: any) => b.booking_slug === profSlugParam);
+        }
+        if (!match && barberIdParam) {
           match = data.find((b: any) => b.id === barberIdParam);
         }
         if (!match && barberSlug) {
@@ -704,7 +715,10 @@ export default function BookingPage() {
             )}
 
             {/* Payment option */}
-            {totalPrice > 0 && appointmentId && (
+            {/* Online payment on the confirmation screen — hidden for now at Nico's
+                request (clients pay in the shop). Flip ONLINE_PAYMENT_ON_CONFIRM to true
+                to bring it back. */}
+            {ONLINE_PAYMENT_ON_CONFIRM && totalPrice > 0 && appointmentId && (
               <div className="mb-6 p-4 bg-white border border-gray-200 rounded-xl">
                 <p className="text-sm text-brand-gray mb-3">Quieres pagar ahora?</p>
                 <button

@@ -246,14 +246,16 @@ export default function EditProfessionalPage() {
       <div className="bg-brand-light border border-brand-blue/20 rounded-2xl p-4">
         <p className="text-xs text-brand-gray font-medium mb-1.5">Link de agenda personal</p>
         <div className="flex items-center gap-2">
-          {/* Link built by barber ID (+ tenant), not by name. The old name-based link
-              (?profesional=nombre-slug) had no tenant, so booking loaded every business's
-              barbers and matched by normalized name — landing on the wrong barber (a
-              Bastian link opened Felipe Mesa). ID is unique and unambiguous. */}
+          {/* Short readable link using the barber's unique booking_slug:
+              /b/<tenant>/<barber-slug>. Falls back to the barberId link if the slug or
+              tenant slug isn't available yet. Both resolve to the correct barber
+              unambiguously (no more "any available barber"). */}
           {(() => {
             const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
-            const tenantPart = tenant?.slug ? `tenant=${tenant.slug}&` : "";
-            const bookingLink = `${origin}/booking?${tenantPart}barberId=${data.id}`;
+            const bslug = (data as any).booking_slug;
+            const bookingLink = tenant?.slug && bslug
+              ? `${origin}/b/${tenant.slug}/${bslug}`
+              : `${origin}/booking?${tenant?.slug ? `tenant=${tenant.slug}&` : ""}barberId=${data.id}`;
             return (
               <>
                 <code className="flex-1 text-sm text-brand-blue bg-white px-3 py-2 rounded-xl border border-gray-200 truncate">
