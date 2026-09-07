@@ -63,11 +63,13 @@ export default function BookingPage() {
 
   const [closedDays, setClosedDays] = useState<number[]>([]);
   const [closedDaysLoaded, setClosedDaysLoaded] = useState(false);
+  const [tenantSlugState, setTenantSlugState] = useState<string>("");
 
   useEffect(() => {
     // Get tenant slug from URL params
     const urlParams = new URLSearchParams(window.location.search);
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch");
+    if (tenantSlug) setTenantSlugState(tenantSlug);
     const barberSlug = urlParams.get("profesional") || urlParams.get("barber");
     const profSlugParam = urlParams.get("prof"); // preferred: unique readable booking_slug
     const barberIdParam = urlParams.get("barberId"); // also unambiguous (uuid)
@@ -98,15 +100,22 @@ export default function BookingPage() {
       //   2. ?barberId=<uuid>      (unambiguous)
       //   3. ?profesional=<name>   (legacy links already shared; may be ambiguous)
       if (data.length > 0) {
-        let match = null;
+        const nameToSlug = (n: string) =>
+          (n || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+        let match: any = null;
         if (profSlugParam) {
+          // 1) exact booking_slug (the new short links)
           match = data.find((b: any) => b.booking_slug === profSlugParam);
+          // 1b) if booking_slug isn't populated yet (migration not run), also try to
+          // match the prof segment against the barber's name turned into a slug, so the
+          // short link still lands on the right person.
+          if (!match) match = data.find((b: any) => nameToSlug(b.name) === profSlugParam);
         }
         if (!match && barberIdParam) {
           match = data.find((b: any) => b.id === barberIdParam);
         }
         if (!match && barberSlug) {
-          match = data.find((b: any) => b.name.toLowerCase().replace(/\s+/g, "-") === barberSlug);
+          match = data.find((b: any) => nameToSlug(b.name) === barberSlug);
         }
         if (match) {
           setSelectedBarber(match);
@@ -365,7 +374,7 @@ export default function BookingPage() {
             {/* First available button */}
             <button
               onClick={async () => {
-                const res = await fetch(`/api/public/first-available?date=${selectedDate || new Date().toISOString().split("T")[0]}`);
+                const res = await fetch(`/api/public/first-available?date=${selectedDate || new Date().toISOString().split("T")[0]}${tenantSlugState ? `&tenant=${tenantSlugState}` : ""}`);
                 const data = await res.json();
                 if (data.barber) {
                   setSelectedBarber(data.barber);

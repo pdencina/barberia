@@ -6,13 +6,27 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
+  const branchSlug = searchParams.get("branch") || searchParams.get("tenant");
 
-  // Get all active barbers
-  const { data: barbers } = await supabase
+  // Scope to the business. Without this, "primer barbero disponible" picked the barber
+  // with fewest appointments ACROSS ALL businesses — that's why it returned Dylan from
+  // another salon. Resolve the tenant by slug (hyphen-insensitive, like the rest).
+  let tenantId: string | null = null;
+  if (branchSlug) {
+    const norm = (s: string) => s.replace(/-/g, "").toLowerCase();
+    const { data: allTenants } = await supabase.from("tenants").select("id, slug").eq("active", true);
+    const t = (allTenants || []).find((x) => norm(x.slug) === norm(branchSlug));
+    tenantId = t?.id || null;
+  }
+
+  // Get active barbers, scoped to the business when known
+  let barberQuery = supabase
     .from("profiles")
-    .select("id, name")
+    .select("id, name, avatar_url")
     .eq("role", "barber")
     .eq("active", true);
+  if (tenantId) barberQuery = barberQuery.eq("tenant_id", tenantId);
+  const { data: barbers } = await barberQuery;
 
   if (!barbers || barbers.length === 0) {
     return NextResponse.json({ error: "No hay barberos activos" }, { status: 404 });

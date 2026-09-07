@@ -252,7 +252,8 @@ export default function EditProfessionalPage() {
               unambiguously (no more "any available barber"). */}
           {(() => {
             const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
-            const bslug = (data as any).booking_slug;
+            const nameSlug = (data.name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+            const bslug = (data as any).booking_slug || nameSlug;
             const bookingLink = tenant?.slug && bslug
               ? `${origin}/b/${tenant.slug}/${bslug}`
               : `${origin}/booking?${tenant?.slug ? `tenant=${tenant.slug}&` : ""}barberId=${data.id}`;

@@ -73,7 +73,11 @@ export default function MiPerfilPage() {
   const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
   const tenantSlug = tenant?.slug || "";
   const barberId = data.id || user?.id || "";
-  const bookingSlug = (data as any).booking_slug;
+  // Prefer the stored booking_slug; if the migration that adds it hasn't run yet, derive
+  // a slug from the name (the booking page also matches by name-slug as a fallback), so
+  // the short link works either way.
+  const nameSlug = (data.name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  const bookingSlug = (data as any).booking_slug || nameSlug;
   const bookingLink = tenantSlug && bookingSlug
     ? `${origin}/b/${tenantSlug}/${bookingSlug}`
     : barberId

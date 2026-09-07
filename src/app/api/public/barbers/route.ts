@@ -21,26 +21,51 @@ export async function GET(req: NextRequest) {
     .eq("active", true)
     .order("name");
 
-  // First try to match as tenant slug
-  const { data: tenant } = await supabase
+  // Resolve the tenant by slug. Match EXACT first, then fall back to a hyphen-insensitive
+  // match (same tolerance business-info already has), so "estudiolevels" resolves to a
+  // tenant whose real slug is "estudio-levels". Without this, a one-hyphen difference
+  // returned an empty barber list and the booking page showed "selecciona un profesional"
+  // even though the business name appeared correctly.
+  const norm = (s: string) => s.replace(/-/g, "").toLowerCase();
+  let tenantId: string | null = null;
+
+  const { data: exactTenant } = await supabase
     .from("tenants")
     .select("id")
     .eq("slug", branchSlug)
     .eq("active", true)
-    .single();
+    .maybeSingle();
 
-  if (tenant) {
-    query = query.eq("tenant_id", tenant.id);
+  if (exactTenant) {
+    tenantId = exactTenant.id;
   } else {
-    // Try as branch slug
-    const { data: branch } = await supabase
+    const { data: allTenants } = await supabase
+      .from("tenants")
+      .select("id, slug")
+      .eq("active", true);
+    const fuzzy = (allTenants || []).find((t) => norm(t.slug) === norm(branchSlug));
+    if (fuzzy) tenantId = fuzzy.id;
+  }
+
+  if (tenantId) {
+    query = query.eq("tenant_id", tenantId);
+  } else {
+    // Try as branch slug (exact, then hyphen-insensitive)
+    const { data: exactBranch } = await supabase
       .from("branches")
       .select("id")
       .eq("slug", branchSlug)
-      .single();
+      .maybeSingle();
 
-    if (branch) {
-      query = query.eq("branch_id", branch.id);
+    let branchId: string | null = exactBranch?.id || null;
+    if (!branchId) {
+      const { data: allBranches } = await supabase.from("branches").select("id, slug");
+      const fuzzy = (allBranches || []).find((b) => norm(b.slug) === norm(branchSlug));
+      branchId = fuzzy?.id || null;
+    }
+
+    if (branchId) {
+      query = query.eq("branch_id", branchId);
     } else {
       // Unknown slug — don't leak every professional as a fallback.
       return NextResponse.json([]);
