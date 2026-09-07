@@ -76,16 +76,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  // Create appointment
+  // Create appointment. client_id may be null (reception holding a slot without a
+  // client yet) — explicit ?? null so an undefined doesn't turn into a NOT-NULL error.
   const { data: appointment, error } = await supabase
     .from("appointments")
     .insert({
-      client_id: clientId,
+      client_id: clientId ?? null,
       barber_id: barberId,
       date,
       start_time: start.toISOString(),
       end_time: end.toISOString(),
-      notes,
+      status: "scheduled",
+      notes: notes ?? null,
       tenant_id: resolvedTenantId,
     })
     .select()
@@ -93,14 +95,19 @@ export async function POST(req: NextRequest) {
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Add services
+  // Add services (surface a failure instead of silently losing them)
   const serviceInserts = services.map((s) => ({
     appointment_id: appointment.id,
     service_id: s.id,
     price: s.price,
   }));
 
-  await supabase.from("appointment_services").insert(serviceInserts);
+  const { error: svcError } = await supabase.from("appointment_services").insert(serviceInserts);
+  if (svcError) {
+    // Roll back the orphan appointment so we don't leave a cita with no services.
+    await supabase.from("appointments").delete().eq("id", appointment.id);
+    return NextResponse.json({ error: `No se pudieron agregar los servicios: ${svcError.message}` }, { status: 500 });
+  }
 
   // Notify the assigned professional by push that a new appointment was booked for
   // them (e.g. reception created it). Non-blocking.
