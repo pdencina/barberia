@@ -214,14 +214,19 @@ export default function CalendarioPage() {
     setBlocksRefresh((n) => n + 1);
   };
 
-  // Fetch blocks whenever the barber list, date, or refresh trigger changes
+  // Fetch blocks whenever the barber list, date, or refresh trigger changes.
+  // Load blocks for the SAME set of barbers the grid renders (displayBarbers), not just
+  // the raw `barbers` list. If that list came back empty (e.g. the barbers fetch failed
+  // or hasn't resolved), we still fall back to the logged-in user, so a block just
+  // created for that column actually shows up instead of silently disappearing.
   const [blocksRefresh, setBlocksRefresh] = useState(0);
   useEffect(() => {
-    if (barbers.length === 0) { setBlocks([]); return; }
+    const targets = (barbers.length > 0 ? barbers : (user?.id ? [{ id: user.id }] : [])) as Array<{ id: string }>;
+    if (targets.length === 0) { setBlocks([]); return; }
     let cancelled = false;
     const month = date.slice(0, 7); // YYYY-MM
     Promise.all(
-      barbers.map((b) =>
+      targets.map((b) =>
         fetch(`/api/barber/blocks?barberId=${b.id}&month=${month}`).then((r) => r.json()).catch(() => [])
       )
     ).then((results) => {
@@ -230,7 +235,8 @@ export default function CalendarioPage() {
       setBlocks(allBlocks.filter((bl: any) => bl.date === date));
     });
     return () => { cancelled = true; };
-  }, [barbers, date, blocksRefresh]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barbers, date, blocksRefresh, user?.id]);
 
   // Navigation
   const changeDate = (delta: number) => {
@@ -460,7 +466,7 @@ export default function CalendarioPage() {
       }
     } else {
       // Create block/event
-      await fetch("/api/barber/blocks", {
+      const blockRes = await fetch("/api/barber/blocks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -472,7 +478,12 @@ export default function CalendarioPage() {
           reason: eventName || "Bloqueo",
         }),
       });
-      showToast("Bloqueo creado", "success");
+      if (blockRes.ok) {
+        showToast("Bloqueo creado", "success");
+      } else {
+        const err = await blockRes.json().catch(() => ({}));
+        showToast(err.error || "No se pudo crear el bloqueo", "error");
+      }
     }
 
     setCreating(false);
