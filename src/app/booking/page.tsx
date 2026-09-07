@@ -93,26 +93,34 @@ export default function BookingPage() {
       }).catch(() => {});
     }
 
+    const nameToSlug = (n: string) =>
+      (n || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
+    // Personal link path: if we have a specific barber (by id), resolve that barber
+    // DIRECTLY — don't depend on the tenant-filtered list matching. This is what makes
+    // the professional's own link reliably open THEIR services instead of falling back
+    // to "selecciona un profesional" or the wrong person.
+    if (barberIdParam) {
+      fetch(`/api/public/barber?id=${barberIdParam}`).then((r) => r.json()).then((res) => {
+        if (res?.barber) {
+          setSelectedBarber(res.barber);
+          setStep("service");
+          if (res.tenant?.logo_url) setBusinessLogoUrl(res.tenant.logo_url);
+          if (res.tenant?.name) setBusinessName(res.tenant.name);
+        }
+      }).catch(() => {});
+    }
+
     fetch(barberUrl).then((r) => r.json()).then((data) => {
       setBarbers(data);
-      // Auto-select the barber, most-reliable identifier first:
-      //   1. ?prof=<booking_slug>  (unique, readable — the new short links)
-      //   2. ?barberId=<uuid>      (unambiguous)
-      //   3. ?profesional=<name>   (legacy links already shared; may be ambiguous)
-      if (data.length > 0) {
-        const nameToSlug = (n: string) =>
-          (n || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      // If the link didn't carry a barberId, auto-select from the list by:
+      //   1. ?prof=<booking_slug or name-slug>
+      //   2. ?profesional=<name> (legacy)
+      if (!barberIdParam && data.length > 0) {
         let match: any = null;
         if (profSlugParam) {
-          // 1) exact booking_slug (the new short links)
-          match = data.find((b: any) => b.booking_slug === profSlugParam);
-          // 1b) if booking_slug isn't populated yet (migration not run), also try to
-          // match the prof segment against the barber's name turned into a slug, so the
-          // short link still lands on the right person.
-          if (!match) match = data.find((b: any) => nameToSlug(b.name) === profSlugParam);
-        }
-        if (!match && barberIdParam) {
-          match = data.find((b: any) => b.id === barberIdParam);
+          match = data.find((b: any) => b.booking_slug === profSlugParam) ||
+                  data.find((b: any) => nameToSlug(b.name) === profSlugParam);
         }
         if (!match && barberSlug) {
           match = data.find((b: any) => nameToSlug(b.name) === barberSlug);

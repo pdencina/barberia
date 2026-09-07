@@ -70,19 +70,14 @@ export default function MiPerfilPage() {
   // Short readable personal link: /b/<tenant>/<barber-slug>. Falls back to the
   // ?barberId= link if the slug isn't set yet. Both point to the correct barber
   // unambiguously (the old name-based link opened "any available barber").
+  // Short personal link that resolves the barber directly by id: /pro/<barberId>.
+  // This is the reliable path — it always opens THIS professional's services and never
+  // falls back to picking another barber.
   const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
-  const tenantSlug = tenant?.slug || "";
   const barberId = data.id || user?.id || "";
-  // Prefer the stored booking_slug; if the migration that adds it hasn't run yet, derive
-  // a slug from the name (the booking page also matches by name-slug as a fallback), so
-  // the short link works either way.
-  const nameSlug = (data.name || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-  const bookingSlug = (data as any).booking_slug || nameSlug;
-  const bookingLink = tenantSlug && bookingSlug
-    ? `${origin}/b/${tenantSlug}/${bookingSlug}`
-    : barberId
-      ? `${origin}/booking?${tenantSlug ? `tenant=${tenantSlug}&` : ""}barberId=${barberId}`
-      : `${origin}/booking${tenantSlug ? `?tenant=${tenantSlug}` : ""}`;
+  const bookingLink = barberId
+    ? `${origin}/pro/${barberId}`
+    : `${origin}/booking${tenant?.slug ? `?tenant=${tenant.slug}` : ""}`;
 
   return (
     <div className="p-4 md:p-6 max-w-2xl space-y-6 animate-fade-in">
