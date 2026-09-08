@@ -199,6 +199,31 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Notify the barber (and the business's reception/admins) by push. Deposit bookings
+    // create the appointment straight from this webhook, and previously this path never
+    // fired a push — so a professional booked via a paid deposit got no alert. Mirror the
+    // same notification the public/dashboard booking flows send.
+    try {
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
+      const { data: barberRow } = await supabase.from("profiles").select("name").eq("id", barberId).single();
+      const startDateForMsg = new Date(startDate);
+      await fetch(`${appUrl}/api/push/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: barberId,
+          tenantId,
+          roles: ["admin", "receptionist"],
+          title: "Nueva Cita Agendada",
+          body: `${clientName} - ${startDateForMsg.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })} con ${barberRow?.name || "Profesional"}`,
+          url: "/dashboard/agenda",
+          tag: "new-appointment",
+        }),
+      });
+    } catch (e) {
+      console.error("Error sending push (deposit booking):", e);
+    }
+
     return NextResponse.json({ ok: true, appointmentId: appointment?.id });
   } catch (error: any) {
     console.error("Deposit webhook error:", error);

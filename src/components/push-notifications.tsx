@@ -73,3 +73,85 @@ export function PushNotificationPrompt() {
     </div>
   );
 }
+
+/**
+ * Permanent "activate notifications" button. Unlike the one-time banner above (which
+ * never comes back once dismissed), this lets a professional turn on push whenever they
+ * want — e.g. Vicente, who said appointment alerts weren't arriving because he'd never
+ * completed the subscription. Drop it anywhere in the dashboard (e.g. Mi Agenda).
+ */
+export function PushNotificationButton() {
+  const [permission, setPermission] = useState<string>("default");
+  const [busy, setBusy] = useState(false);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if ("Notification" in window && "serviceWorker" in navigator) {
+      setPermission(Notification.permission);
+    } else {
+      setPermission("unsupported");
+    }
+  }, []);
+
+  const enable = async () => {
+    if (!user?.id) return;
+    setBusy(true);
+    try {
+      const perm = await Notification.requestPermission();
+      setPermission(perm);
+      if (perm === "granted") {
+        const registration = await navigator.serviceWorker.register("/sw.js");
+        await navigator.serviceWorker.ready;
+        const subscription = await registration.pushManager.subscribe({
+          userVisibleOnly: true,
+          applicationServerKey: process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY,
+        });
+        await fetch("/api/push/subscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ subscription: subscription.toJSON(), userId: user.id }),
+        });
+        // Clear the dismissed flag so state stays consistent with the banner.
+        localStorage.setItem("push-prompt-dismissed", "true");
+      }
+    } catch (err) {
+      console.error("Error enabling push:", err);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (permission === "unsupported") return null;
+
+  if (permission === "granted") {
+    return (
+      <div className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-green-50 text-green-700 text-xs font-medium rounded-full">
+        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>
+        Notificaciones activadas
+      </div>
+    );
+  }
+
+  if (permission === "denied") {
+    return (
+      <p className="text-xs text-brand-gray">
+        Notificaciones bloqueadas en el navegador. Actívalas desde los ajustes del sitio (candado junto a la dirección) para recibir avisos de nuevas citas.
+      </p>
+    );
+  }
+
+  return (
+    <button
+      onClick={enable}
+      disabled={busy}
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-brand-blue text-white text-xs font-medium rounded-full hover:bg-brand-blue/90 disabled:opacity-60"
+    >
+      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+      </svg>
+      {busy ? "Activando..." : "Activar notificaciones"}
+    </button>
+  );
+}

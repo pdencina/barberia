@@ -8,6 +8,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
+import { PushNotificationButton } from "@/components/push-notifications";
 
 interface Appointment {
   id: string;
@@ -224,6 +225,12 @@ export default function MiAgendaPage() {
         >
           Bloquear Dia
         </button>
+      </div>
+
+      {/* Turn on push alerts for new appointments (Vicente's request). Permanent, unlike
+          the one-time banner. */}
+      <div>
+        <PushNotificationButton />
       </div>
 
       {/* Barber selector (only for admin/super_admin) */}
