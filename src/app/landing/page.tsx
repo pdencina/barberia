@@ -3,7 +3,6 @@
 import { motion, useScroll, useTransform, useInView } from "framer-motion";
 import { TypeAnimation } from "react-type-animation";
 import { useRef, useEffect, useState } from "react";
-import Link from "next/link";
 
 // Animated section wrapper
 function AnimatedSection({ children, className = "", delay = 0 }: { children: React.ReactNode; className?: string; delay?: number }) {
@@ -66,12 +65,16 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-600">
             <a href="#funciones" className="hover:text-brand-blue transition-colors">Funciones</a>
             <a href="#testimonios" className="hover:text-brand-blue transition-colors">Testimonios</a>
+            <a href="#contacto" className="hover:text-brand-blue transition-colors">Contacto</a>
           </div>
           <div className="flex items-center gap-3">
-            <Link href="/login" className="text-sm text-gray-600 hover:text-brand-blue hidden md:block">Iniciar Sesion</Link>
+            {/* Contact-only CTA. Registration/login entry points are intentionally hidden
+                while the product isn't open for public sign-up — visitors reach out to
+                Nico directly instead of creating an account. */}
             <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-              href="/signup" className="hidden md:inline-flex px-5 py-2.5 bg-brand-blue text-white text-sm font-medium rounded-full hover:bg-[#0a6b6d] shadow-lg shadow-brand-blue/25">
-              Registra tu negocio
+              href="https://wa.me/56984939625?text=Hola! Me interesa saber mas sobre re-booking" target="_blank"
+              className="hidden md:inline-flex px-5 py-2.5 bg-brand-blue text-white text-sm font-medium rounded-full hover:bg-[#0a6b6d] shadow-lg shadow-brand-blue/25">
+              Contactar
             </motion.a>
             {/* Mobile hamburger */}
             <button onClick={() => setMobileMenu(!mobileMenu)} className="md:hidden p-2 text-gray-700">
@@ -99,12 +102,10 @@ export default function LandingPage() {
             <a href="#funciones" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-brand-blue font-medium">Funciones</a>
             <a href="#testimonios" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-brand-blue font-medium">Testimonios</a>
             <a href="#contacto" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-brand-blue font-medium">Contacto</a>
-            <div className="pt-3 border-t border-gray-100 space-y-2">
-              <Link href="/login" className="block w-full text-center py-3 border border-brand-blue text-brand-blue font-semibold rounded-full hover:bg-brand-blue/5">
-                Iniciar Sesion
-              </Link>
-              <a href="/signup" onClick={() => setMobileMenu(false)} className="block w-full text-center py-3 bg-brand-blue text-white font-semibold rounded-full">
-                Registra tu negocio
+            <div className="pt-3 border-t border-gray-100">
+              <a href="https://wa.me/56984939625?text=Hola! Me interesa saber mas sobre re-booking" target="_blank" onClick={() => setMobileMenu(false)}
+                className="block w-full text-center py-3 bg-brand-blue text-white font-semibold rounded-full">
+                Contactar
               </a>
             </div>
           </motion.div>
@@ -157,8 +158,8 @@ export default function LandingPage() {
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.6 }}
               className="mt-8 md:mt-10 flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center px-4 sm:px-0">
               <motion.a whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(37,99,235,0.3)" }} whileTap={{ scale: 0.95 }}
-                href="/signup" className="px-8 py-4 bg-brand-blue text-white font-semibold rounded-full transition-colors hover:bg-[#0a6b6d]">
-                Comenzar gratis
+                href="#contacto" className="px-8 py-4 bg-brand-blue text-white font-semibold rounded-full transition-colors hover:bg-[#0a6b6d]">
+                Contactar
               </motion.a>
               <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                 href="#funciones" className="px-8 py-4 bg-white text-gray-700 font-semibold rounded-full border border-gray-200 hover:border-brand-blue hover:text-brand-blue">
@@ -433,21 +434,18 @@ export default function LandingPage() {
                 className="absolute -bottom-10 -left-10 w-40 h-40 border border-white/10 rounded-full" />
               <div className="relative">
                 <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}
-                  className="text-2xl md:text-3xl lg:text-5xl font-bold">Agenda tu demo gratuita</motion.h2>
+                  className="text-2xl md:text-3xl lg:text-5xl font-bold">Hablemos de tu negocio</motion.h2>
                 <p className="mt-4 text-[#2EC4B6] text-lg max-w-xl mx-auto">
-                  En 15 minutos te mostramos como re-booking puede transformar tu negocio.
+                  Escribenos y te contamos como re-booking puede ayudarte.
                 </p>
-                <div className="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
+                <div className="mt-10 flex justify-center">
+                  {/* Single contact CTA — direct WhatsApp to Nico. No sign-up while the
+                      product isn't open for public registration yet. */}
                   <motion.a whileHover={{ scale: 1.05, boxShadow: "0 20px 40px rgba(0,0,0,0.3)" }} whileTap={{ scale: 0.95 }}
-                    href="https://wa.me/56942666172?text=Hola! Me interesa una demo de re-booking" target="_blank"
-                    className="px-8 py-4 bg-white text-brand-blue font-bold rounded-full inline-flex items-center justify-center gap-2 shadow-xl">
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.612.638l4.63-1.218A11.953 11.953 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.239 0-4.332-.726-6.033-1.96l-.424-.316-2.745.722.734-2.682-.347-.553A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
-                    WhatsApp
-                  </motion.a>
-                  <motion.a whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                    href="mailto:contacto@rebooking.cl"
-                    className="px-8 py-4 text-white font-bold rounded-full border-2 border-white/30 hover:border-white hover:bg-white/10 transition-all inline-flex items-center justify-center">
-                    contacto@rebooking.cl
+                    href="https://wa.me/56984939625?text=Hola! Me interesa saber mas sobre re-booking" target="_blank"
+                    className="px-8 py-4 bg-white text-brand-blue font-bold rounded-full inline-flex items-center justify-center gap-3 shadow-xl text-lg">
+                    <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/><path d="M12 0C5.373 0 0 5.373 0 12c0 2.625.846 5.059 2.284 7.034L.789 23.492a.5.5 0 00.612.638l4.63-1.218A11.953 11.953 0 0012 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 22c-2.239 0-4.332-.726-6.033-1.96l-.424-.316-2.745.722.734-2.682-.347-.553A9.963 9.963 0 012 12C2 6.477 6.477 2 12 2s10 4.477 10 10-4.477 10-10 10z"/></svg>
+                    +56 9 8493 9625
                   </motion.a>
                 </div>
               </div>
