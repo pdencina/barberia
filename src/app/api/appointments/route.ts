@@ -44,10 +44,11 @@ export async function POST(req: NextRequest) {
     resolvedTenantId = barberProfile?.tenant_id || null;
   }
 
-  // Get services to calculate duration (if no custom end time)
+  // Get services to calculate duration (if no custom end time). name is used for the
+  // barber's new-appointment email.
   const { data: services } = await supabase
     .from("services")
-    .select("id, price, duration")
+    .select("id, name, price, duration")
     .in("id", serviceIds);
 
   if (!services || services.length === 0) {
@@ -109,12 +110,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: `No se pudieron agregar los servicios: ${svcError.message}` }, { status: 500 });
   }
 
-  // Notify the assigned professional by push that a new appointment was booked for
-  // them (e.g. reception created it). Non-blocking.
+  // Notify the assigned professional that a new appointment was booked for them (e.g.
+  // reception created it) — by push AND by email. Email is the reliable channel: it
+  // arrives even if the barber never enabled browser notifications. Non-blocking.
   try {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
     const [{ data: barber }, { data: client }] = await Promise.all([
-      supabase.from("profiles").select("name").eq("id", barberId).single(),
+      supabase.from("profiles").select("name, email").eq("id", barberId).single(),
       clientId ? supabase.from("clients").select("name").eq("id", clientId).single() : Promise.resolve({ data: null }),
     ]);
     await fetch(`${appUrl}/api/push/send`, {
@@ -128,8 +130,19 @@ export async function POST(req: NextRequest) {
         tag: "new-appointment",
       }),
     });
+    if (barber?.email) {
+      const { sendBarberNewAppointment } = await import("@/lib/resend");
+      const serviceNames = services.map((s: any) => s.name || "Servicio").join(" + ");
+      await sendBarberNewAppointment({
+        to: barber.email,
+        barberName: barber.name || "Profesional",
+        clientName: client?.name || "Cliente",
+        serviceName: serviceNames,
+        date: start,
+      });
+    }
   } catch (e) {
-    console.error("Error sending push (dashboard booking):", e);
+    console.error("Error notifying barber (dashboard booking):", e);
   }
 
   return NextResponse.json(appointment, { status: 201 });

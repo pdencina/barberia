@@ -205,7 +205,7 @@ export async function POST(req: NextRequest) {
     // same notification the public/dashboard booking flows send.
     try {
       const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
-      const { data: barberRow } = await supabase.from("profiles").select("name").eq("id", barberId).single();
+      const { data: barberRow } = await supabase.from("profiles").select("name, email").eq("id", barberId).single();
       const startDateForMsg = new Date(startDate);
       await fetch(`${appUrl}/api/push/send`, {
         method: "POST",
@@ -220,8 +220,20 @@ export async function POST(req: NextRequest) {
           tag: "new-appointment",
         }),
       });
+      // Email the barber too (works even without browser notifications).
+      if (barberRow?.email) {
+        const { sendBarberNewAppointment } = await import("@/lib/resend");
+        const svcNames = (await supabase.from("services").select("name").in("id", serviceIds)).data?.map((s) => s.name).join(" + ") || "Servicio";
+        await sendBarberNewAppointment({
+          to: barberRow.email,
+          barberName: barberRow.name || "Profesional",
+          clientName,
+          serviceName: svcNames,
+          date: startDateForMsg,
+        });
+      }
     } catch (e) {
-      console.error("Error sending push (deposit booking):", e);
+      console.error("Error notifying barber (deposit booking):", e);
     }
 
     return NextResponse.json({ ok: true, appointmentId: appointment?.id });

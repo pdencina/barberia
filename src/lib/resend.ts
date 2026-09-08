@@ -427,3 +427,72 @@ export async function sendWelcomeEmail(params: SendWelcomeParams) {
     return { success: false, error: error.message };
   }
 }
+
+// ==================== NEW APPOINTMENT EMAIL FOR THE BARBER ====================
+// Sent to the professional (not the client) whenever a new appointment is booked for
+// them — by reception, by the public booking link, or via a paid deposit. This is the
+// email companion to the push notification, so a barber gets word even if they never
+// enabled browser notifications (Vicente's case).
+
+interface SendBarberNewAppointmentParams {
+  to: string;              // barber's email
+  barberName: string;
+  clientName: string;
+  serviceName: string;
+  date: Date;
+  businessName?: string | null;
+}
+
+export async function sendBarberNewAppointment(params: SendBarberNewAppointmentParams) {
+  const { to, barberName, clientName, serviceName, date, businessName } = params;
+
+  const dateStr = new Date(date).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
+  const timeStr = new Date(date).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
+
+  const html = `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width" /></head>
+<body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background-color: #F5F7FA; margin: 0; padding: 20px;">
+  <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
+    <div style="background: linear-gradient(135deg, #0F8B8D, #2EC4B6); padding: 28px 24px; text-align: center;">
+      <img src="https://re-booking.cl/logo-horizontal-white.png" alt="re-booking" style="height: 30px; max-width: 220px; object-fit: contain; margin-bottom: 12px;" />
+      <h1 style="color: white; margin: 0; font-size: 20px;">Nueva cita agendada</h1>
+    </div>
+    <div style="padding: 28px 24px;">
+      <p style="color: #1F2937; font-size: 15px; margin: 0 0 20px;">Hola <strong>${barberName}</strong>, te agendaron una nueva cita:</p>
+
+      <div style="background: #F5F7FA; border-radius: 12px; padding: 20px; margin-bottom: 24px; text-align: center;">
+        <p style="color: #0F8B8D; font-size: 30px; font-weight: bold; margin: 0 0 4px;">${timeStr}</p>
+        <p style="color: #6B7280; font-size: 14px; margin: 0 0 16px; text-transform: capitalize;">${dateStr}</p>
+        <div style="border-top: 1px solid #E5E7EB; padding-top: 14px;">
+          <p style="color: #6B7280; font-size: 13px; margin: 4px 0;">Cliente: <strong style="color: #1F2937;">${clientName}</strong></p>
+          <p style="color: #6B7280; font-size: 13px; margin: 4px 0;">Servicio: <strong style="color: #1F2937;">${serviceName}</strong></p>
+        </div>
+      </div>
+
+      <a href="${appUrl}/dashboard/mi-agenda" style="display: block; text-align: center; background: #0F8B8D; color: white; padding: 13px 24px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 14px;">
+        Ver mi agenda
+      </a>
+    </div>
+    <div style="border-top: 1px solid #F3F4F6; padding: 14px 24px; text-align: center;">
+      <p style="color: #9CA3AF; font-size: 11px; margin: 0;">${businessName ? `${businessName} · ` : ""}re-booking</p>
+    </div>
+  </div>
+</body>
+</html>`;
+
+  try {
+    const resend = getResendClient();
+    await resend.emails.send({
+      from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
+      to,
+      subject: `Nueva cita: ${clientName} el ${dateStr} a las ${timeStr}`,
+      html,
+    });
+    return { success: true };
+  } catch (error: any) {
+    console.error("Error sending barber new-appointment email:", error);
+    return { success: false, error: error.message };
+  }
+}

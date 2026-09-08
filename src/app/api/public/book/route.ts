@@ -134,10 +134,10 @@ export async function POST(req: NextRequest) {
   }));
   await supabase.from("appointment_services").insert(serviceInserts);
 
-  // Get barber name for email
+  // Get barber name + email (name for the client's email, email to notify the barber).
   const { data: barber } = await supabase
     .from("profiles")
-    .select("name")
+    .select("name, email")
     .eq("id", barberId)
     .single();
 
@@ -187,6 +187,22 @@ export async function POST(req: NextRequest) {
     });
   } catch (e) {
     console.error("Error sending push:", e);
+  }
+
+  // Also email the barber (reliable channel, works without browser notifications).
+  if (barber?.email) {
+    try {
+      const { sendBarberNewAppointment } = await import("@/lib/resend");
+      await sendBarberNewAppointment({
+        to: barber.email,
+        barberName: barber.name || "Profesional",
+        clientName,
+        serviceName: serviceNames,
+        date: start,
+      });
+    } catch (e) {
+      console.error("Error emailing barber (public booking):", e);
+    }
   }
 
   return NextResponse.json({
