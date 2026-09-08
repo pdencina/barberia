@@ -68,16 +68,21 @@ export default function MiPerfilPage() {
   if (!data) return <p className="p-6 text-brand-gray">No se pudo cargar tu perfil.</p>;
 
   // Short readable personal link: /b/<tenant>/<barber-slug>. Falls back to the
-  // ?barberId= link if the slug isn't set yet. Both point to the correct barber
-  // unambiguously (the old name-based link opened "any available barber").
-  // Short personal link that resolves the barber directly by id: /pro/<barberId>.
-  // This is the reliable path — it always opens THIS professional's services and never
-  // falls back to picking another barber.
+  // Short, readable personal link: /<tenant-slug>/<barber-slug>
+  //   e.g. re-booking.cl/estudiolevels/javier-garcia
+  // Needs both the tenant slug and the barber's booking_slug. If either isn't ready,
+  // fall back to /pro/<barberId> (longer but resolves the right barber directly), and
+  // finally to a plain /booking link. All paths open THIS professional — never "any
+  // available barber".
   const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
   const barberId = data.id || user?.id || "";
-  const bookingLink = barberId
+  const barberSlug = data.booking_slug as string | undefined;
+  const tenantSlug = tenant?.slug;
+  const bookingLink = barberSlug && tenantSlug
+    ? `${origin}/${tenantSlug}/${barberSlug}`
+    : barberId
     ? `${origin}/pro/${barberId}`
-    : `${origin}/booking${tenant?.slug ? `?tenant=${tenant.slug}` : ""}`;
+    : `${origin}/booking${tenantSlug ? `?tenant=${tenantSlug}` : ""}`;
 
   return (
     <div className="p-4 md:p-6 max-w-2xl space-y-6 animate-fade-in">

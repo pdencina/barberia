@@ -252,9 +252,15 @@ export default function EditProfessionalPage() {
               unambiguously (no more "any available barber"). */}
           {(() => {
             const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
-            // Short link resolved directly by barber id — always opens this
-            // professional's services, no wrong-barber fallback.
-            const bookingLink = `${origin}/pro/${data.id}`;
+            // Prefer the SHORT readable link: /<tenant-slug>/<barber-slug>
+            // (e.g. re-booking.cl/estudiolevels/javier-garcia). Both the tenant slug and
+            // the barber's booking_slug must exist; if either isn't ready yet we fall
+            // back to /pro/<uuid>, which is longer but still resolves the right barber.
+            const barberSlug = (data as any).booking_slug as string | undefined;
+            const tenantSlug = tenant?.slug;
+            const bookingLink = barberSlug && tenantSlug
+              ? `${origin}/${tenantSlug}/${barberSlug}`
+              : `${origin}/pro/${data.id}`;
             return (
               <>
                 <code className="flex-1 text-sm text-brand-blue bg-white px-3 py-2 rounded-xl border border-gray-200 truncate">
