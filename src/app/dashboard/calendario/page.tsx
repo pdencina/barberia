@@ -123,14 +123,32 @@ export default function CalendarioPage() {
 
   const updateApptStatus = async (status: string) => {
     if (!selectedApptId) return;
-    await fetch(`/api/appointments/${selectedApptId}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
-    showToast("Estado actualizado", "success");
-    setSelectedApptId(null);
-    await fetchAppointments();
+    // Cancelling closes the popup (the appointment leaves the board). Every other status
+    // change (Pendiente/Confirmado/En atencion/Completado) should STAY open and reflect
+    // immediately, so the user sees it took effect instead of the popup vanishing.
+    const isCancel = status === "cancelled";
+    try {
+      const res = await fetch(`/api/appointments/${selectedApptId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      });
+      // Don't lie with a success toast when the server rejected the change (this was the
+      // bug: it said "Estado actualizado" but nothing saved, so reopening showed the old
+      // status). Surface the real error instead.
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || "No se pudo actualizar el estado", "error");
+        return;
+      }
+      showToast("Estado actualizado", "success");
+      // Reflect the new status in the open popup right away.
+      setApptDetails((prev: any) => (prev ? { ...prev, status } : prev));
+      if (isCancel) setSelectedApptId(null);
+      await fetchAppointments();
+    } catch {
+      showToast("No se pudo actualizar el estado", "error");
+    }
   };
 
   // Drag-to-create state
