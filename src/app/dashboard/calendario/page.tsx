@@ -41,6 +41,18 @@ const statusDot: Record<string, string> = {
   scheduled: "bg-yellow-500", confirmed: "bg-blue-500", in_progress: "bg-purple-500", completed: "bg-green-500",
 };
 
+// Readable status badge shown INSIDE each appointment block, so the morning
+// confirmation state (Pendiente / Confirmado / ...) is visible at a glance on the
+// calendar without opening the appointment — this was the main complaint ("apenas se ve").
+const statusBadge: Record<string, { label: string; cls: string }> = {
+  scheduled:   { label: "Pendiente",   cls: "bg-yellow-100 text-yellow-800" },
+  confirmed:   { label: "Confirmado",  cls: "bg-green-100 text-green-800" },
+  in_progress: { label: "En atención", cls: "bg-purple-100 text-purple-800" },
+  completed:   { label: "Completado",  cls: "bg-gray-200 text-gray-700" },
+  no_show:     { label: "No asistió",  cls: "bg-red-100 text-red-700" },
+  cancelled:   { label: "Cancelado",   cls: "bg-red-100 text-red-700" },
+};
+
 const HOUR_HEIGHT = 64; // px per hour
 const START_HOUR = 9;
 const END_HOUR = 21;
@@ -844,7 +856,13 @@ export default function CalendarioPage() {
                       >
                         <p className="text-[11px] font-bold truncate">{appt.client?.name || "Cliente"}</p>
                         <p className="text-[9px] truncate opacity-70">{appt.services?.map((s: any) => s.service?.name).join(", ")}</p>
-                        <p className="text-[9px] opacity-50" data-timelabel>{timeLabel}</p>
+                        <div className="flex items-center justify-between gap-1">
+                          <p className="text-[9px] opacity-50 truncate" data-timelabel>{timeLabel}</p>
+                          {/* Status badge — visible confirmation state on the block itself. */}
+                          <span className={`shrink-0 text-[8px] font-bold px-1 py-0.5 rounded ${(statusBadge[appt.status] || statusBadge.scheduled).cls}`}>
+                            {(statusBadge[appt.status] || statusBadge.scheduled).label}
+                          </span>
+                        </div>
                         {/* Resize handle */}
                         <div
                           className="absolute bottom-0 left-0 right-0 h-3 cursor-s-resize flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
