@@ -182,15 +182,17 @@ export default function StandbyPage() {
         </div>
         <div className="text-right">
           <p className="text-[10px] text-gray-400 uppercase">En caja</p>
-          <p className="text-sm font-bold text-green-600">{formatCurrency(cashInRegister)}</p>
+          {/* Red when negative: a negative till means expenses outran cash sales (or a
+              bad expense was logged), so it should look like an alert, not available cash. */}
+          <p className={`text-sm font-bold ${cashInRegister < 0 ? "text-red-600" : "text-green-600"}`}>{formatCurrency(cashInRegister)}</p>
         </div>
       </div>
 
       {/* Cash in register banner */}
       {paymentMethod === "cash" && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-3 flex items-center justify-between">
-          <span className="text-sm text-green-700">Efectivo en caja</span>
-          <span className="font-bold text-green-700">{formatCurrency(cashInRegister)}</span>
+        <div className={`border rounded-xl p-3 flex items-center justify-between ${cashInRegister < 0 ? "bg-red-50 border-red-200" : "bg-green-50 border-green-200"}`}>
+          <span className={`text-sm ${cashInRegister < 0 ? "text-red-700" : "text-green-700"}`}>Efectivo en caja</span>
+          <span className={`font-bold ${cashInRegister < 0 ? "text-red-700" : "text-green-700"}`}>{formatCurrency(cashInRegister)}</span>
         </div>
       )}
 
