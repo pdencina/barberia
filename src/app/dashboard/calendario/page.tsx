@@ -53,6 +53,12 @@ export default function CalendarioPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<Array<{ id: string; barber_id: string; date: string; all_day: boolean; start_time: string | null; end_time: string | null; reason: string | null }>>([]);
   const [loading, setLoading] = useState(true);
+  // Minutes since midnight for the "current time" line (like Setmore). Refreshed every
+  // minute so the line creeps down through the day on its own.
+  const [nowMinutes, setNowMinutes] = useState(() => {
+    const n = new Date();
+    return n.getHours() * 60 + n.getMinutes();
+  });
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
@@ -150,6 +156,15 @@ export default function CalendarioPage() {
       showToast("No se pudo actualizar el estado", "error");
     }
   };
+
+  // Tick the current-time line every minute.
+  useEffect(() => {
+    const id = setInterval(() => {
+      const n = new Date();
+      setNowMinutes(n.getHours() * 60 + n.getMinutes());
+    }, 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
 
   // Drag-to-create state
   const [dragging, setDragging] = useState(false);
@@ -688,6 +703,27 @@ export default function CalendarioPage() {
 
             {/* Time grid */}
             <div className="relative flex" ref={(el) => { (gridRef as any).current = el; (gridContainerRef as any).current = el; }}>
+              {/* Current-time line (like Setmore). Only on today's view and only while the
+                  clock is within the grid's hour range. Spans the full width across every
+                  barber column so you can see at a glance where "now" sits. */}
+              {isToday && nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60 && (
+                <div
+                  className="absolute left-0 right-0 z-20 pointer-events-none flex items-center"
+                  style={{ top: `${((nowMinutes - START_HOUR * 60) / 60) * HOUR_HEIGHT}px` }}
+                >
+                  {/* Time badge on the left, over the hour-labels column (w-14) */}
+                  <span className="w-14 flex-shrink-0 flex justify-center">
+                    <span className="text-[10px] font-bold text-white bg-red-500 rounded px-1 py-0.5 leading-none">
+                      {Math.floor(nowMinutes / 60).toString().padStart(2, "0")}:{(nowMinutes % 60).toString().padStart(2, "0")}
+                    </span>
+                  </span>
+                  {/* The line itself, across the barber columns */}
+                  <span className="flex-1 h-[2px] bg-red-500 relative">
+                    <span className="absolute -left-1 -top-[3px] w-2 h-2 rounded-full bg-red-500" />
+                  </span>
+                </div>
+              )}
+
               {/* Time labels */}
               <div className="w-14 flex-shrink-0 border-r border-gray-100">
                 {hours.map((h) => (
