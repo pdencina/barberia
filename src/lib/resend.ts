@@ -382,8 +382,8 @@ export async function sendWelcomeEmail(params: SendWelcomeParams) {
 <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background-color: #F5F7FA; margin: 0; padding: 20px;">
   <div style="max-width: 480px; margin: 0 auto; background: white; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 12px rgba(0,0,0,0.08);">
     <div style="background: linear-gradient(135deg, #0F8B8D, #2EC4B6); padding: 32px 24px; text-align: center;">
-      <img src="${loginUrl.replace("/login", "")}/oti/oti-web-160.png" alt="Oti" style="width: 64px; height: 64px; margin-bottom: 12px;" />
-      <h1 style="color: white; margin: 0; font-size: 22px;">Bienvenido a re-booking</h1>
+      <img src="https://re-booking.cl/logo-horizontal-white.png" alt="re-booking" style="height: 32px; max-width: 240px; object-fit: contain; margin-bottom: 14px;" />
+      <h1 style="color: white; margin: 0; font-size: 22px;">Bienvenido a bordo</h1>
       <p style="color: rgba(255,255,255,0.85); margin: 8px 0 0; font-size: 14px;">${businessName} te ha agregado como profesional</p>
     </div>
     <div style="padding: 32px 24px;">

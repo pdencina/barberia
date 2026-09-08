@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { SuccessMark } from "@/components/ui/empty-state";
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState("");
@@ -113,8 +114,8 @@ export default function ResetPasswordPage() {
     return (
       <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
         <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl p-8 text-center">
-          <img src="/oti/oti-web-160.png" alt="Oti" className="w-20 h-20 mx-auto mb-4" />
-          <h2 className="text-xl font-bold text-brand-dark">contraseña actualizada</h2>
+          <SuccessMark size={64} className="mb-4" />
+          <h2 className="text-xl font-bold text-brand-dark">Contraseña actualizada</h2>
           <p className="text-sm text-brand-gray mt-2">Redirigiendo al login...</p>
         </div>
       </div>

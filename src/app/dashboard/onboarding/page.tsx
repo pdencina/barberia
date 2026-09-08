@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
+import { Users, Scissors, Clock } from "lucide-react";
 
 interface TeamMember {
   name: string;
@@ -131,7 +132,9 @@ export default function OnboardingPage() {
           {step === 1 && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <img src="/oti/oti-face-96.png" alt="Oti" className="w-12 h-12" />
+                <div className="w-12 h-12 rounded-2xl bg-brand-blue/5 ring-4 ring-brand-blue/10 flex items-center justify-center shrink-0">
+                  <Users className="w-5 h-5 text-brand-blue" strokeWidth={1.75} />
+                </div>
                 <div>
                   <h2 className="text-lg font-bold text-brand-dark">Agrega tu equipo</h2>
                   <p className="text-sm text-brand-gray">Quienes trabajan en tu negocio?</p>
@@ -165,7 +168,9 @@ export default function OnboardingPage() {
           {step === 2 && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <img src="/oti/oti-transparent-128.png" alt="Oti" className="w-12 h-12" />
+                <div className="w-12 h-12 rounded-2xl bg-brand-blue/5 ring-4 ring-brand-blue/10 flex items-center justify-center shrink-0">
+                  <Scissors className="w-5 h-5 text-brand-blue" strokeWidth={1.75} />
+                </div>
                 <div>
                   <h2 className="text-lg font-bold text-brand-dark">Configura tus servicios</h2>
                   <p className="text-sm text-brand-gray">Que ofreces a tus clientes?</p>
@@ -199,7 +204,9 @@ export default function OnboardingPage() {
           {step === 3 && (
             <div>
               <div className="flex items-center gap-3 mb-6">
-                <img src="/oti/oti-web-160.png" alt="Oti" className="w-12 h-12" />
+                <div className="w-12 h-12 rounded-2xl bg-brand-blue/5 ring-4 ring-brand-blue/10 flex items-center justify-center shrink-0">
+                  <Clock className="w-5 h-5 text-brand-blue" strokeWidth={1.75} />
+                </div>
                 <div>
                   <h2 className="text-lg font-bold text-brand-dark">Horarios de atencion</h2>
                   <p className="text-sm text-brand-gray">Cuando atiendes clientes?</p>

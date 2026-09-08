@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { formatCurrency } from "@/lib/utils";
+import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 
 interface Tenant {
   id: string;
@@ -140,12 +141,17 @@ export default function SuperAdminTenantsPage() {
       {loading ? (
         <div className="text-center py-12 text-brand-gray">Cargando...</div>
       ) : tenants.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
-          <img src="/oti/oti-face-128.png" alt="Oti" className="w-20 h-20 mx-auto mb-3" />
-          <p className="text-brand-gray">No hay empresas registradas aun</p>
-          <button onClick={() => setShowCreate(true)} className="mt-4 px-4 py-2 bg-brand-blue text-white text-sm rounded-xl">
-            Crear primera empresa
-          </button>
+        <div className="bg-white rounded-2xl border border-gray-100 p-6">
+          <EmptyState
+            icon={EmptyIcons.business}
+            title="No hay empresas registradas aun"
+            description="Crea la primera empresa para empezar a operar."
+            action={
+              <button onClick={() => setShowCreate(true)} className="px-4 py-2 bg-brand-blue text-white text-sm rounded-xl">
+                Crear primera empresa
+              </button>
+            }
+          />
         </div>
       ) : (
         <div className="space-y-3">

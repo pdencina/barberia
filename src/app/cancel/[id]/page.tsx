@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
+import { EmptyIcons, SuccessMark } from "@/components/ui/empty-state";
 
 export default function CancelPage() {
   const params = useParams();
@@ -34,7 +35,9 @@ export default function CancelPage() {
 
         {status === "confirm" && (
           <>
-            <img src="/oti/oti-face-96.png" alt="Oti" className="w-20 h-20 mx-auto mb-4" />
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-50 ring-4 ring-amber-100 flex items-center justify-center">
+              <EmptyIcons.agendaEmpty className="w-6 h-6 text-amber-600" strokeWidth={1.75} />
+            </div>
             <h2 className="text-lg font-bold text-brand-dark">Cancelar cita</h2>
             <p className="text-sm text-brand-gray mt-2 mb-6">
               Estas seguro que deseas cancelar tu cita? Esta accion no se puede deshacer.
@@ -62,7 +65,7 @@ export default function CancelPage() {
 
         {status === "success" && (
           <>
-            <img src="/oti/oti-web-160.png" alt="Oti confirmado" className="w-20 h-20 mx-auto mb-4" />
+            <SuccessMark size={64} className="mb-4" />
             <h2 className="text-lg font-bold text-brand-dark">Cita cancelada</h2>
             <p className="text-sm text-brand-gray mt-2 mb-6">
               Tu cita ha sido cancelada exitosamente. Puedes reagendar cuando quieras.
@@ -75,7 +78,9 @@ export default function CancelPage() {
 
         {status === "error" && (
           <>
-            <img src="/oti/oti-face-64.png" alt="Oti sorprendido" className="w-20 h-20 mx-auto mb-4" />
+            <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-red-50 ring-4 ring-red-100 flex items-center justify-center">
+              <EmptyIcons.error className="w-6 h-6 text-red-500" strokeWidth={1.75} />
+            </div>
             <h2 className="text-lg font-bold text-brand-dark">No se pudo cancelar</h2>
             <p className="text-sm text-red-500 mt-2 mb-6">{errorMsg}</p>
             <a href="/booking" className="block w-full py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">

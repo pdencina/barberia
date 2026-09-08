@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
+import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 
 interface PortalData {
   client: {
@@ -158,12 +159,17 @@ export default function PortalDashboard() {
         {tab === "upcoming" && (
           <div className="space-y-3">
             {data.upcoming.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-gray-100 p-8 text-center">
-                <img src="/oti/oti-face-96.png" alt="Oti" className="w-16 h-16 mx-auto mb-2" />
-                <p className="text-brand-gray text-sm">No tienes citas agendadas</p>
-                <a href="/booking" className="mt-4 inline-block px-5 py-2 bg-brand-blue text-white text-sm font-medium rounded-xl hover:bg-blue-700">
-                  Agendar cita
-                </a>
+              <div className="bg-white rounded-2xl border border-gray-100 p-4">
+                <EmptyState
+                  icon={EmptyIcons.agendaEmpty}
+                  title="No tienes citas agendadas"
+                  description="Reserva tu proxima hora en unos segundos."
+                  action={
+                    <a href="/booking" className="inline-block px-5 py-2 bg-brand-blue text-white text-sm font-medium rounded-xl hover:bg-blue-700">
+                      Agendar cita
+                    </a>
+                  }
+                />
               </div>
             ) : data.upcoming.map((appt) => {
               const time = appt.start_time?.match(/(\d{2}:\d{2})/)?.[1] || "";

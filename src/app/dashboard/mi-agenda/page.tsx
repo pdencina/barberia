@@ -7,6 +7,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
+import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 
 interface Appointment {
   id: string;
@@ -286,11 +287,12 @@ export default function MiAgendaPage() {
       {loading ? (
         <Spinner />
       ) : appointments.length === 0 && !isBlockedToday ? (
-        <div className="text-center py-12">
-          <img src="/oti/oti-face-128.png" alt="Oti feliz" className="w-20 h-20 mx-auto mb-3" />
-          <p className="text-lg text-brand-gray font-medium">Sin citas para hoy</p>
-          <p className="text-sm text-brand-gray">Disfruta tu tiempo libre!</p>
-        </div>
+        <EmptyState
+          icon={EmptyIcons.agendaEmpty}
+          title="Sin citas para hoy"
+          description="Tu agenda de hoy esta libre."
+          size="lg"
+        />
       ) : (
         <div className="space-y-3">
           {appointments.map((a: any) => (

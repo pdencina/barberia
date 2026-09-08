@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyIcons } from "@/components/ui/empty-state";
 
 interface Client {
   id: string;
@@ -459,7 +460,9 @@ export default function ClientesPage() {
       {(deleting || importing) && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
           <div className="bg-white rounded-3xl p-8 w-full max-w-sm shadow-2xl text-center animate-scale-in">
-            <img src="/oti/oti-avatar-400.png" alt="Oti" className="w-28 h-28 mx-auto mb-5 drop-shadow-xl" />
+            <div className="w-14 h-14 mx-auto mb-5 rounded-2xl bg-brand-blue/5 ring-4 ring-brand-blue/10 flex items-center justify-center">
+              <EmptyIcons.clients className="w-6 h-6 text-brand-blue animate-pulse" strokeWidth={1.75} />
+            </div>
             
             <h3 className="text-xl font-bold text-brand-dark mb-2">
               {deleting ? "Eliminando clientes" : "Importando clientes"}

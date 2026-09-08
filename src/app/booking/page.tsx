@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
+import { SuccessMark } from "@/components/ui/empty-state";
 
 interface Service {
   id: string;
@@ -692,12 +693,12 @@ export default function BookingPage() {
         {step === "confirmed" && (
           <div className="text-center py-12">
             {/* Show the business's own logo on the confirmation when it has one, so an
-                independent professional (e.g. Saray) doesn't see the re-booking mascot
-                on their booking flow. Falls back to the mascot for tenants with no logo. */}
+                independent professional (e.g. Saray) sees their own brand. Tenants with no
+                logo get a neutral success mark instead of a mascot illustration. */}
             {businessLogoUrl ? (
               <img src={businessLogoUrl} alt={businessName || "Logo"} className="h-20 mx-auto mb-4 object-contain drop-shadow-lg" />
             ) : (
-              <img src="/oti/oti-web-160.png" alt="Confirmado!" className="w-24 h-24 mx-auto mb-4 drop-shadow-lg" />
+              <SuccessMark size={80} className="mb-4" />
             )}
             <h2 className="text-3xl font-bold mb-3">Cita Confirmada!</h2>
             <p className="text-brand-gray mb-6">Tu cita ha sido agendada exitosamente</p>

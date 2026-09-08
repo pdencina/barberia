@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
+import { EmptyIcons } from "@/components/ui/empty-state";
 
 interface Service { id: string; name: string; price: number; duration: number; }
 
@@ -119,7 +120,9 @@ export default function StandbyPage() {
     return (
       <div className="min-h-[80vh] flex items-center justify-center p-4">
         <div className="w-full max-w-xs text-center">
-          <img src="/oti/oti-face-96.png" alt="Oti" className="w-16 h-16 mx-auto mb-4 drop-shadow-md" />
+          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-indigo-50 ring-4 ring-indigo-100/60 flex items-center justify-center">
+            <EmptyIcons.locked className="w-6 h-6 text-indigo-500" strokeWidth={1.75} />
+          </div>
           <h1 className="text-xl font-bold text-gray-900 mb-1">Modo Standby</h1>
           <p className="text-sm text-gray-500 mb-6">Ingresa tu codigo personal</p>
 

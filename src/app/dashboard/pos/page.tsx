@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
+import { EmptyState, EmptyIcons, SuccessMark } from "@/components/ui/empty-state";
 
 interface Service {
   id: string;
@@ -799,11 +800,12 @@ export default function POSPage() {
         {/* Cart items - scrollable, spacious */}
         <div className="flex-1 overflow-y-auto p-3 space-y-2 min-h-0">
           {cart.length === 0 ? (
-            <div className="text-center py-10">
-              <img src="/oti/oti-face-96.png" alt="Oti pensando" className="w-20 h-20 mx-auto mb-2 opacity-90" />
-              <p className="text-brand-gray text-sm font-medium">Carrito vacio</p>
-              <p className="text-brand-gray text-[11px] mt-1">Toca un servicio o producto para agregar</p>
-            </div>
+            <EmptyState
+              icon={EmptyIcons.cart}
+              title="Carrito vacio"
+              description="Toca un servicio o producto para agregar"
+              size="sm"
+            />
           ) : (
             <>
               <div className="flex items-center justify-between px-1 mb-1">
@@ -1155,13 +1157,8 @@ export default function POSPage() {
 
             {/* Main content */}
             <div className="relative">
-              <img src="/oti/oti-web-320.png" alt="Venta exitosa!" className="w-28 h-28 mx-auto mb-4 drop-shadow-2xl" />
               <div className="bg-white rounded-3xl p-8 shadow-2xl max-w-sm mx-auto">
-                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                  <svg className="w-9 h-9 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                </div>
+                <SuccessMark size={72} className="mb-4" />
                 <h2 className="text-2xl font-bold text-brand-dark">Venta exitosa!</h2>
                 <p className="text-4xl font-black text-brand-blue mt-3">{formatCurrency(successAmount)}</p>
                 <p className="text-sm text-brand-gray mt-3">Registrada correctamente</p>

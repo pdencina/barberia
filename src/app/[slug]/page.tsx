@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { formatCurrency } from "@/lib/utils";
+import { EmptyIcons } from "@/components/ui/empty-state";
 
 interface Barber {
   id: string;
@@ -72,7 +73,9 @@ export default function TenantBookingPage() {
     return (
       <div className="min-h-screen bg-brand-light flex items-center justify-center p-4">
         <div className="text-center">
-          <img src="/oti/oti-face-96.png" alt="No encontrado" className="w-20 h-20 mx-auto mb-4" />
+          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gray-100 ring-4 ring-gray-50 flex items-center justify-center">
+            <EmptyIcons.search className="w-6 h-6 text-gray-400" strokeWidth={1.75} />
+          </div>
           <h1 className="text-xl font-bold text-brand-dark">Negocio no encontrado</h1>
           <p className="text-sm text-brand-gray mt-2">No existe un negocio con el identificador "{slug}"</p>
           <a href="/landing" className="inline-block mt-4 px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:opacity-90">

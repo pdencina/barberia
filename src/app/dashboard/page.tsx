@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import Link from "next/link";
@@ -68,12 +69,9 @@ export default function DashboardPage() {
   if (!data) {
     return (
       <div className="p-4 md:p-6 animate-fade-in">
-        <div className="flex items-center gap-3 mb-6">
-          <img src="/oti/oti-face-64.png" alt="Oti" className="w-10 h-10 hidden md:block" />
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-brand-dark">Hola, {firstName}! 👋</h1>
-            <p className="text-brand-gray text-sm mt-0.5">Tu dashboard esta vacio. Agrega servicios y clientes para empezar.</p>
-          </div>
+        <div className="mb-6">
+          <h1 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">Hola, {firstName}</h1>
+          <p className="text-brand-gray text-sm mt-1">Tu dashboard esta vacio. Agrega servicios y clientes para empezar.</p>
         </div>
       </div>
     );
@@ -90,10 +88,9 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <img src="/oti/oti-face-64.png" alt="Oti" className="w-10 h-10 hidden md:block" />
           <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-brand-dark">
-              Hola, {firstName}! 👋
+            <h1 className="text-2xl md:text-3xl font-bold text-brand-dark tracking-tight">
+              Hola, {firstName}
             </h1>
             <p className="text-brand-gray text-sm mt-0.5">
               Aqui tienes el resumen de tu negocio hoy.
@@ -197,11 +194,11 @@ export default function DashboardPage() {
           </div>
 
           {data.todayAppointments.length === 0 ? (
-            <div className="text-center py-12">
-              <img src="/oti/oti-face-128.png" alt="Oti feliz" className="w-20 h-20 mx-auto mb-3" />
-              <p className="text-brand-gray text-sm">No hay citas agendadas para hoy</p>
-              <p className="text-xs text-brand-gray mt-1">Disfruta tu tiempo libre!</p>
-            </div>
+            <EmptyState
+              icon={EmptyIcons.agendaEmpty}
+              title="No hay citas agendadas para hoy"
+              description="Cuando se agende una cita aparecera aqui."
+            />
           ) : (
             <div className="space-y-1">
               {data.todayAppointments.map((appt) => {
