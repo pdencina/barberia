@@ -65,7 +65,6 @@ export default function LandingPage() {
           </div>
           <div className="hidden md:flex items-center gap-8 text-sm text-gray-600">
             <a href="#funciones" className="hover:text-brand-blue transition-colors">Funciones</a>
-            <a href="#precios" className="hover:text-brand-blue transition-colors">Precios</a>
             <a href="#testimonios" className="hover:text-brand-blue transition-colors">Testimonios</a>
           </div>
           <div className="flex items-center gap-3">
@@ -98,7 +97,6 @@ export default function LandingPage() {
             className="md:hidden bg-white border-t border-gray-100 px-4 py-4 space-y-1"
           >
             <a href="#funciones" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-brand-blue font-medium">Funciones</a>
-            <a href="#precios" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-brand-blue font-medium">Precios</a>
             <a href="#testimonios" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-brand-blue font-medium">Testimonios</a>
             <a href="#contacto" onClick={() => setMobileMenu(false)} className="block py-3 text-gray-700 hover:text-brand-blue font-medium">Contacto</a>
             <div className="pt-3 border-t border-gray-100 space-y-2">
@@ -420,88 +418,6 @@ export default function LandingPage() {
               </div>
             </motion.div>
           </AnimatedSection>
-        </div>
-      </section>
-
-      {/* Pricing */}
-      <section id="precios" className="py-20 md:py-32 bg-gradient-to-b from-gray-50 to-white">
-        <div className="max-w-7xl mx-auto px-6">
-          <AnimatedSection className="text-center mb-16">
-            <h2 className="text-3xl md:text-5xl font-bold">Precios <span className="text-brand-blue">transparentes</span></h2>
-            <p className="mt-4 text-gray-600">Sin letra chica. Cancela cuando quieras.</p>
-          </AnimatedSection>
-
-          <motion.div variants={stagger} initial="hidden" whileInView="visible" viewport={{ once: true }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
-            {/* Basic */}
-            <motion.div variants={fadeUp} whileHover={{ y: -8 }} className="p-6 bg-white rounded-3xl border border-gray-200 hover:border-brand-blue/30 transition-colors hover:shadow-lg">
-              <h3 className="text-lg font-bold text-brand-dark">Basic</h3>
-              <p className="text-xs text-brand-gray mt-1">1 usuario</p>
-              <div className="mt-4"><span className="text-3xl font-bold">$8.900</span><span className="text-brand-gray text-sm">/mes</span></div>
-              <ul className="mt-5 space-y-2 text-xs text-brand-gray">
-                {["Agenda online", "100 WhatsApp/mes", "100 emails marketing", "Reportes basicos", "Informes IA semanales"].map((f) => (
-                  <li key={f} className="flex items-center gap-2"><span className="text-brand-blue font-bold">✓</span> {f}</li>
-                ))}
-              </ul>
-              <motion.a whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} href="#contacto"
-                className="mt-6 block text-center py-2.5 border-2 border-brand-blue text-brand-blue font-semibold rounded-full hover:bg-brand-blue/5 transition-colors text-sm">
-                Elegir plan
-              </motion.a>
-            </motion.div>
-
-            {/* Starter */}
-            <motion.div variants={fadeUp} whileHover={{ y: -8 }} className="p-6 bg-white rounded-3xl border border-gray-200 hover:border-brand-blue/30 transition-colors hover:shadow-lg">
-              <h3 className="text-lg font-bold text-brand-dark">Starter</h3>
-              <p className="text-xs text-brand-gray mt-1">Hasta 3 usuarios</p>
-              <div className="mt-4"><span className="text-3xl font-bold">$29.990</span><span className="text-brand-gray text-sm">/mes</span></div>
-              <ul className="mt-5 space-y-2 text-xs text-brand-gray">
-                {["Todo de Basic", "Login por profesional", "400 WhatsApp/mes", "500 emails marketing", "Reportes avanzados", "Mensajes masivos", "Fichas del cliente", "Cupones", "POS + Caja", "Fidelizacion"].map((f) => (
-                  <li key={f} className="flex items-center gap-2"><span className="text-brand-blue font-bold">✓</span> {f}</li>
-                ))}
-              </ul>
-              <motion.a whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} href="#contacto"
-                className="mt-6 block text-center py-2.5 border-2 border-brand-blue text-brand-blue font-semibold rounded-full hover:bg-brand-blue/5 transition-colors text-sm">
-                Elegir plan
-              </motion.a>
-            </motion.div>
-
-            {/* Pro - highlighted */}
-            <motion.div variants={fadeUp} whileHover={{ y: -8 }}
-              className="p-6 bg-gradient-to-br from-[#0F8B8D] to-[#0a6b6d] rounded-3xl text-white relative shadow-2xl shadow-[#0F8B8D]/30 md:scale-105">
-              <motion.div initial={{ scale: 0 }} whileInView={{ scale: 1 }} viewport={{ once: true }}
-                className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 bg-[#2EC4B6] text-white text-xs font-bold rounded-full shadow-lg">
-                MAS ELEGIDO
-              </motion.div>
-              <h3 className="text-lg font-bold">Pro</h3>
-              <p className="text-white/70 text-xs mt-1">Hasta 8 usuarios</p>
-              <div className="mt-4"><span className="text-3xl font-bold">$49.990</span><span className="text-white/70 text-sm">/mes</span></div>
-              <ul className="mt-5 space-y-2 text-xs text-white/80">
-                {["Todo de Starter", "1.000 WhatsApp/mes", "2.000 emails marketing", "Personalizacion colores", "Comisiones + Arriendo", "Facturas", "Inventario", "MercadoPago", "Sucursales: +USD 30/mes"].map((f) => (
-                  <li key={f} className="flex items-center gap-2"><span className="text-[#2EC4B6] font-bold">✓</span> {f}</li>
-                ))}
-              </ul>
-              <motion.a whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} href="#contacto"
-                className="mt-6 block text-center py-2.5 bg-white text-[#0F8B8D] font-semibold rounded-full hover:bg-white/90 transition-colors text-sm">
-                Elegir plan
-              </motion.a>
-            </motion.div>
-
-            {/* Enterprise */}
-            <motion.div variants={fadeUp} whileHover={{ y: -8 }} className="p-6 bg-white rounded-3xl border border-gray-200 hover:border-brand-blue/30 transition-colors hover:shadow-lg">
-              <h3 className="text-lg font-bold text-brand-dark">Enterprise</h3>
-              <p className="text-xs text-brand-gray mt-1">Usuarios ilimitados</p>
-              <div className="mt-4"><span className="text-3xl font-bold">$189.990</span><span className="text-brand-gray text-sm">/mes</span></div>
-              <ul className="mt-5 space-y-2 text-xs text-brand-gray">
-                {["Profesionales ilimitados", "Multi-sucursal", "API personalizada", "Soporte dedicado", "Onboarding completo", "SLA 99.9%", "Account Manager", "Modulos a medida", "Backups prioritarios"].map((f) => (
-                  <li key={f} className="flex items-center gap-2"><span className="text-brand-blue font-bold">✓</span> {f}</li>
-                ))}
-              </ul>
-              <motion.a whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }} href="#contacto"
-                className="mt-6 block text-center py-2.5 border-2 border-brand-blue text-brand-blue font-semibold rounded-full hover:bg-brand-blue/5 transition-colors text-sm">
-                Contactar ventas
-              </motion.a>
-            </motion.div>
-          </motion.div>
         </div>
       </section>
 
