@@ -69,30 +69,51 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-brand-light p-4 relative overflow-hidden">
-      {/* Background watermark */}
-      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <svg className="w-[600px] h-[600px] text-brand-blue/[0.03]" viewBox="0 0 32 32" fill="currentColor">
-          <path d="M16 4a12 12 0 0 1 12 12h-4a8 8 0 0 0-8-8V4z"/>
-          <path d="M28 16a12 12 0 0 1-12 12v-4a8 8 0 0 0 8-8h4z" opacity="0.7"/>
-          <path d="M16 28A12 12 0 0 1 4 16h4a8 8 0 0 0 8 8v4z" opacity="0.4"/>
-        </svg>
-      </div>
+    <div className="min-h-screen flex bg-brand-light">
+      {/* Left brand panel — desktop only. Sets the tone before the user even signs in. */}
+      <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-brand-blue via-blue-600 to-blue-800">
+        {/* Soft light orbs */}
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/10 rounded-full blur-3xl -translate-y-1/3 translate-x-1/3" />
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/5 rounded-full blur-3xl translate-y-1/3 -translate-x-1/3" />
 
-      {/* Subtle gradient orbs */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-brand-blue/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2" />
-      <div className="absolute bottom-0 left-0 w-72 h-72 bg-brand-blue/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2" />
-
-      <div className="relative w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl shadow-blue-900/5 p-6 md:p-8 animate-scale-in">
-        <div className="text-center mb-8">
-          <a href="/landing">
-            <img src="/logo-icon.png" alt="re-booking" className="w-16 h-16 mx-auto mb-3 drop-shadow-lg cursor-pointer hover:scale-105 transition-transform" />
-          </a>
-          <img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto mx-auto mb-2" />
-          <p className="text-xs text-brand-gray uppercase tracking-[0.2em]">Todo tu negocio. Un solo sistema.</p>
+        {/* Large watermark mark */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <svg className="w-[520px] h-[520px] text-white/[0.06]" viewBox="0 0 32 32" fill="currentColor">
+            <path d="M16 4a12 12 0 0 1 12 12h-4a8 8 0 0 0-8-8V4z"/>
+            <path d="M28 16a12 12 0 0 1-12 12v-4a8 8 0 0 0 8-8h4z" opacity="0.7"/>
+            <path d="M16 28A12 12 0 0 1 4 16h4a8 8 0 0 0 8 8v4z" opacity="0.4"/>
+          </svg>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="relative z-10 flex flex-col justify-between p-12 text-white">
+          <img src="/logo-horizontal-white.png" alt="re-booking" className="h-9 w-auto" />
+          <div>
+            <h2 className="text-4xl font-bold leading-tight tracking-tight">
+              Todo tu negocio.<br />Un solo sistema.
+            </h2>
+            <p className="mt-4 text-white/70 text-sm max-w-sm leading-relaxed">
+              Agenda, punto de venta, clientes y reportes en un mismo lugar. Ingresa para gestionar tu dia.
+            </p>
+          </div>
+          <p className="text-xs text-white/40 tracking-wide">© {new Date().getFullYear()} re-booking · v1.0</p>
+        </div>
+      </div>
+
+      {/* Right form panel */}
+      <div className="flex-1 flex items-center justify-center p-4 relative overflow-hidden">
+        {/* Subtle gradient orbs (mobile/tablet ambience) */}
+        <div className="absolute top-0 right-0 w-72 h-72 bg-brand-blue/5 rounded-full blur-3xl -translate-y-1/2 translate-x-1/2 lg:hidden" />
+        <div className="absolute bottom-0 left-0 w-60 h-60 bg-brand-blue/5 rounded-full blur-3xl translate-y-1/2 -translate-x-1/2 lg:hidden" />
+
+        <div className="relative w-full max-w-sm animate-scale-in">
+          {/* Logo — shown on mobile, and as a compact header on desktop */}
+          <div className="text-center mb-8">
+            <img src="/logo-icon.png" alt="re-booking" className="w-14 h-14 mx-auto mb-3 drop-shadow-lg lg:hidden" />
+            <h1 className="text-2xl font-bold text-brand-dark tracking-tight">Bienvenido de vuelta</h1>
+            <p className="text-sm text-brand-gray mt-1">Ingresa a tu cuenta para continuar</p>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-xs font-medium text-brand-gray">
               Email
@@ -198,6 +219,7 @@ export default function LoginPage() {
             </button>
           </>
         )}
+        </div>
       </div>
 
       {/* Forgot password modal */}
@@ -243,13 +265,8 @@ export default function LoginPage() {
         </div>
       )}
 
-      {/* Version + Landing link */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
-        <a href="/landing" className="text-xs text-brand-gray hover:text-brand-blue transition-colors">
-          Conoce re-booking →
-        </a>
-        <p className="text-[10px] text-brand-gray/50 mt-1">v1.0</p>
-      </div>
+      {/* Version — mobile/tablet only; desktop shows it in the brand panel. */}
+      <p className="lg:hidden absolute bottom-4 left-1/2 -translate-x-1/2 text-[10px] text-brand-gray/50">v1.0</p>
     </div>
   );
 }
