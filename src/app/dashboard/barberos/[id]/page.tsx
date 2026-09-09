@@ -312,7 +312,10 @@ export default function EditProfessionalPage() {
                   const res = await fetch("/api/barberos/resend-credentials", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ email: data.email, name: data.name }),
+                    // Send the profile id (the row on screen), not just the email —
+                    // resolving by id avoids the duplicate-email ambiguity that made this
+                    // fail before.
+                    body: JSON.stringify({ profileId: data.id, email: data.email, name: data.name }),
                   });
                   const result = await res.json();
                   if (result.success) showToast("Email enviado", "success");
