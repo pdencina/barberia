@@ -387,7 +387,9 @@ export default function ClienteDetailPage() {
                   </p>
                 </div>
                 <span className="text-xs text-gray-400">
-                  {new Date(appt.start_time).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                  {/* HH:MM straight from the stored string; new Date(...).toLocaleTimeString
+                      re-applied the UTC-3 offset and showed the wrong hour. */}
+                  {appt.start_time?.match(/(\d{2}:\d{2})/)?.[1] || ""}
                 </span>
               </div>
             ))}

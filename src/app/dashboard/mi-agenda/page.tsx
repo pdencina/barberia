@@ -47,6 +47,13 @@ const statusColors: Record<string, string> = {
   completed: "bg-green-100 text-green-700",
 };
 
+// Read HH:MM straight from the stored timestamp string, WITHOUT timezone conversion.
+// In this app times are stored as UTC that already holds Chile local time (same
+// convention the calendar uses). Using new Date(...).toLocaleTimeString() re-applied the
+// UTC-3 offset and shifted every hour back 3h (13:00 shown as 10:00) — that was the bug.
+const hhmm = (ts: string | null | undefined): string =>
+  ts?.match(/(\d{2}:\d{2})/)?.[1] || "";
+
 export default function MiAgendaPage() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedBarber, setSelectedBarber] = useState("");
@@ -308,10 +315,10 @@ export default function MiAgendaPage() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <span className="text-lg font-bold text-indigo-600">
-                      {new Date(a.start_time).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                      {hhmm(a.start_time)}
                     </span>
                     <span className="text-xs text-gray-400">
-                      - {new Date(a.end_time).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
+                      - {hhmm(a.end_time)}
                     </span>
                   </div>
                   <p className="font-medium text-gray-900">{a.client?.name || "Sin cliente"}</p>
