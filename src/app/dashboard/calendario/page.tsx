@@ -54,7 +54,10 @@ const statusBadge: Record<string, { label: string; cls: string }> = {
 };
 
 const HOUR_HEIGHT = 64; // px per hour
-const START_HOUR = 9;
+// Grid starts at 8 (barbershops commonly open at 8 AM). Before this it started at 9, so
+// an 8 AM block rendered at a negative top — off-screen and impossible to click/delete,
+// which is exactly the "el bloqueo de las 8 no aparece ni se puede borrar" report.
+const START_HOUR = 8;
 const END_HOUR = 21;
 
 export default function CalendarioPage() {
@@ -913,8 +916,13 @@ export default function CalendarioPage() {
                         if (sm && em) {
                           const startMin = parseInt(sm[1]) * 60 + parseInt(sm[2]);
                           const endMin = parseInt(em[1]) * 60 + parseInt(em[2]);
-                          top = ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT;
-                          height = ((endMin - startMin) / 60) * HOUR_HEIGHT;
+                          const rawTop = ((startMin - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                          const rawBottom = ((endMin - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                          // Clamp to the visible grid so a block that starts before the grid
+                          // (e.g. an early-morning block) never renders off-screen with its
+                          // delete button out of reach. It stays clickable at the top edge.
+                          top = Math.max(rawTop, 0);
+                          height = Math.max(rawBottom - top, 24);
                         }
                       }
                       return (

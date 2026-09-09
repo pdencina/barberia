@@ -19,13 +19,21 @@ export async function GET(req: NextRequest) {
     tenantId = t?.id || null;
   }
 
-  // Get active barbers, scoped to the business when known
-  let barberQuery = supabase
+  // Never pick a barber across ALL businesses. If we couldn't resolve the tenant (no
+  // ?tenant=/?branch=, or an unknown slug), refuse instead of returning someone from
+  // another salon — that cross-business leak is exactly the "aparece Pablo Yáñez en la
+  // agenda de Saray" bug. Same fail-safe guard /api/public/barbers already has.
+  if (!tenantId) {
+    return NextResponse.json({ error: "Negocio no especificado" }, { status: 400 });
+  }
+
+  // Get active barbers, scoped to the business.
+  const barberQuery = supabase
     .from("profiles")
     .select("id, name, avatar_url")
     .eq("role", "barber")
-    .eq("active", true);
-  if (tenantId) barberQuery = barberQuery.eq("tenant_id", tenantId);
+    .eq("active", true)
+    .eq("tenant_id", tenantId);
   const { data: barbers } = await barberQuery;
 
   if (!barbers || barbers.length === 0) {
