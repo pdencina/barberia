@@ -928,18 +928,26 @@ export default function CalendarioPage() {
                       return (
                         <div
                           key={block.id}
-                          className="absolute left-1 right-1 rounded-md bg-gray-200/80 border border-gray-300 border-dashed px-1.5 py-1 overflow-hidden z-[5] group"
-                          style={{ top: `${top}px`, height: `${Math.max(height, 24)}px` }}
+                          className="absolute left-1 right-1 rounded-md bg-gray-300 border border-gray-400 px-1.5 py-1 overflow-hidden z-[5] group"
+                          style={{
+                            top: `${top}px`,
+                            height: `${Math.max(height, 24)}px`,
+                            // Diagonal grey stripes = the universal "blocked / unavailable"
+                            // look (like Setmore). Makes a block unmistakable next to a
+                            // colored appointment, so reception (David) can tell them apart.
+                            backgroundImage:
+                              "repeating-linear-gradient(45deg, rgba(107,114,128,0.35) 0, rgba(107,114,128,0.35) 6px, rgba(209,213,219,0.6) 6px, rgba(209,213,219,0.6) 12px)",
+                          }}
                           onClick={(e) => {
                             e.stopPropagation();
                             showToast(`Bloqueo: ${block.reason || "Sin motivo"}`, "info");
                           }}
                         >
-                          <p className="text-[10px] font-medium text-gray-600 truncate pr-4">🚫 {block.reason || "Bloqueo"}</p>
+                          <p className="text-[10px] font-bold text-gray-800 truncate pr-4">🚫 {block.reason || "Bloqueado"}</p>
                           {!block.all_day && block.start_time && block.end_time && (
-                            <p className="text-[9px] text-gray-500">{block.start_time?.slice(0,5)} – {block.end_time?.slice(0,5)}</p>
+                            <p className="text-[9px] font-medium text-gray-700">{block.start_time?.slice(0,5)} – {block.end_time?.slice(0,5)}</p>
                           )}
-                          {block.all_day && <p className="text-[9px] text-gray-500">Todo el dia</p>}
+                          {block.all_day && <p className="text-[9px] font-medium text-gray-700">Todo el dia</p>}
                           {/* Always visible (not hover-only) — hover doesn't exist on
                               touch devices, so this was effectively unreachable on
                               mobile/tablet, which is how this app is mostly used. */}

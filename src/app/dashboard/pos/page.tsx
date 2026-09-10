@@ -131,7 +131,22 @@ export default function POSPage() {
         const preClient = sp.get("clientId");
         const preServices = sp.get("serviceIds");
         if (preBarber) setSelectedBarber(preBarber);
-        if (preClient) setSelectedClient(preClient);
+        if (preClient) {
+          setSelectedClient(preClient);
+          // Also load the client's name + points and show them. Without this, only the
+          // id was set (invisible), the cashier saw an empty client field, searched by
+          // hand and could pick the wrong person with a similar name — which is how a
+          // receipt/points got charged to the wrong client. Now the pre-loaded client is
+          // shown by name, no manual search needed.
+          fetch(`/api/clients/${preClient}`)
+            .then((r) => r.json())
+            .then((d) => {
+              const c = d?.client;
+              if (c?.name) setClientSearch(c.name);
+              setClientPoints(c?.loyalty_points || 0);
+            })
+            .catch(() => {});
+        }
         if (preServices) {
           const ids = preServices.split(",").filter(Boolean);
           const preCart = ids
