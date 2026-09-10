@@ -67,6 +67,11 @@ export default function CalendarioPage() {
   const [clients, setClients] = useState<Client[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<Array<{ id: string; barber_id: string; date: string; all_day: boolean; start_time: string | null; end_time: string | null; reason: string | null }>>([]);
+  // Each barber's working hours for the currently viewed weekday, keyed by barber id.
+  // Used to dim (grey out) the slots OUTSIDE their shift on the grid, so out-of-hours
+  // time reads as unavailable at a glance (David's feedback), without needing a manual
+  // block there.
+  const [schedules, setSchedules] = useState<Record<string, { is_working: boolean; start_time: string | null; end_time: string | null; break_start: string | null; break_end: string | null }>>({});
   const [loading, setLoading] = useState(true);
   // Minutes since midnight for the "current time" line (like Setmore). Refreshed every
   // minute so the line creeps down through the day on its own.
@@ -285,6 +290,41 @@ export default function CalendarioPage() {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [barbers, date, blocksRefresh, user?.id]);
+
+  // Load each barber's working hours for the viewed weekday, to grey out slots outside
+  // their shift. Weekday from the date string (avoid new Date(date) which shifts by TZ).
+  useEffect(() => {
+    const targets = (barbers.length > 0 ? barbers : (user?.id ? [{ id: user.id }] : [])) as Array<{ id: string }>;
+    if (targets.length === 0) { setSchedules({}); return; }
+    const [y, m, d] = date.split("-").map(Number);
+    const weekday = new Date(y, m - 1, d).getDay(); // 0=Sun..6=Sat, local — no TZ shift
+    let cancelled = false;
+    Promise.all(
+      targets.map((b) =>
+        fetch(`/api/barber-schedule?barberId=${b.id}`)
+          .then((r) => r.json())
+          .then((rows: any[]) => ({ id: b.id, day: (Array.isArray(rows) ? rows : []).find((s) => s.day_of_week === weekday) }))
+          .catch(() => ({ id: b.id, day: null }))
+      )
+    ).then((results) => {
+      if (cancelled) return;
+      const map: Record<string, any> = {};
+      for (const r of results) {
+        if (r.day) {
+          map[r.id] = {
+            is_working: r.day.is_working !== false,
+            start_time: r.day.start_time || null,
+            end_time: r.day.end_time || null,
+            break_start: r.day.break_start || null,
+            break_end: r.day.break_end || null,
+          };
+        }
+      }
+      setSchedules(map);
+    });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [barbers, date, user?.id]);
 
   // Navigation
   const changeDate = (delta: number) => {
@@ -784,6 +824,52 @@ export default function CalendarioPage() {
                     {hours.map((h) => (
                       <div key={h} className="h-16 border-b border-gray-50 hover:bg-gray-50/50" />
                     ))}
+
+                    {/* Out-of-hours shading. Greys out the parts of the day OUTSIDE this
+                        barber's shift (before open, after close, during break, or the
+                        whole day if they don't work) so unavailable time is obvious at a
+                        glance — David's request (a barber closing at 3PM should look dimmed
+                        after 3). Purely visual: sits under appointments (z below), doesn't
+                        block clicks/drag to create. */}
+                    {(() => {
+                      const sched = schedules[barber.id];
+                      const gridTopMin = START_HOUR * 60;
+                      const gridBotMin = END_HOUR * 60;
+                      const toMin = (t: string | null) => {
+                        const m = t?.match(/(\d{2}):(\d{2})/);
+                        return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : null;
+                      };
+                      const shade = (fromMin: number, toMinutes: number, key: string) => {
+                        const a = Math.max(fromMin, gridTopMin);
+                        const b = Math.min(toMinutes, gridBotMin);
+                        if (b <= a) return null;
+                        return (
+                          <div
+                            key={key}
+                            className="absolute left-0 right-0 pointer-events-none z-[1]"
+                            style={{
+                              top: `${((a - gridTopMin) / 60) * HOUR_HEIGHT}px`,
+                              height: `${((b - a) / 60) * HOUR_HEIGHT}px`,
+                              background: "rgba(148,163,184,0.18)",
+                            }}
+                          />
+                        );
+                      };
+                      // No schedule info → don't shade (assume available, avoids greying
+                      // the whole grid by mistake).
+                      if (!sched) return null;
+                      // Doesn't work this day → shade the whole visible grid.
+                      if (!sched.is_working) return shade(gridTopMin, gridBotMin, "offday");
+                      const open = toMin(sched.start_time);
+                      const close = toMin(sched.end_time);
+                      const parts: (JSX.Element | null)[] = [];
+                      if (open !== null) parts.push(shade(gridTopMin, open, "before"));
+                      if (close !== null) parts.push(shade(close, gridBotMin, "after"));
+                      const bs = toMin(sched.break_start);
+                      const be = toMin(sched.break_end);
+                      if (bs !== null && be !== null) parts.push(shade(bs, be, "break"));
+                      return parts;
+                    })()}
 
                     {/* Drop indicator - shows where block will land */}
                     {dropIndicator && dropIndicator.barberId === barber.id && (
