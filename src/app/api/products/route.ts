@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -32,11 +32,18 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { name, description, sku, price, cost, stock, min_stock, tenantId } = body;
 
-  // Resolve tenant
-  let resolvedTenantId = tenantId;
-  if (!resolvedTenantId) {
-    resolvedTenantId = await getCurrentTenantId();
-    if (resolvedTenantId === "ALL") resolvedTenantId = null;
+  // Resolve tenant. Prefer the validated session tenant over the browser-provided id
+  // (never trust the client). resolveTenantForRequest forces the caller's own tenant for
+  // non-super_admins, so even if the body's tenantId is empty/stale, a logged-in admin
+  // still gets their business — this is what fixes the spurious "no se pudo reconocer el
+  // negocio" when the client-side tenant context hadn't loaded yet.
+  let resolvedTenantId: string | null = null;
+  const resolved = await resolveTenantForRequest(tenantId);
+  if (resolved.tenantId && resolved.tenantId !== "ALL") {
+    resolvedTenantId = resolved.tenantId;
+  } else if (resolved.tenantId === "ALL" && tenantId) {
+    // super_admin creating for a specific business they selected
+    resolvedTenantId = tenantId;
   }
 
   // A product without a tenant_id is invisible everywhere (the GET filters by tenant),

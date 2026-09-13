@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 
 interface WhatsAppLink {
@@ -19,18 +20,29 @@ export default function RecordatoriosPage() {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const { showToast } = useToast();
+  const { tenant, loading: tenantLoading } = useTenant();
+
+  const getActiveTenantId = () => {
+    if (tenant?.id) return tenant.id;
+    try {
+      const stored = localStorage.getItem("tenant_override");
+      if (stored) return JSON.parse(stored).tenantId;
+    } catch {}
+    return "";
+  };
 
   const fetchLinks = async () => {
     setLoading(true);
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
     const tomorrowStr = tomorrow.toISOString().split("T")[0];
-    const res = await fetch(`/api/cron/reminders/whatsapp?date=${tomorrowStr}`);
+    const t = getActiveTenantId();
+    const res = await fetch(`/api/cron/reminders/whatsapp?date=${tomorrowStr}${t ? `&tenantId=${t}` : ""}`);
     setLinks(await res.json());
     setLoading(false);
   };
 
-  useEffect(() => { fetchLinks(); }, []);
+  useEffect(() => { if (!tenantLoading) fetchLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tenantLoading, tenant?.id]);
 
   const triggerEmailReminders = async () => {
     setSending(true);

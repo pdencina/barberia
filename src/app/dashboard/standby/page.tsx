@@ -57,7 +57,8 @@ export default function StandbyPage() {
   // Verify PIN
   const verifyPin = async () => {
     setPinError("");
-    const res = await fetch("/api/barber/verify-pin", {
+    const t = getActiveTenantId();
+    const res = await fetch(`/api/barber/verify-pin${t ? `?tenantId=${t}` : ""}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ pin: pinInput }),

@@ -72,7 +72,7 @@ export async function POST(req: NextRequest) {
 
   if (conflicts && conflicts.length > 0) {
     return NextResponse.json(
-      { error: "El barbero tiene una cita en ese horario" },
+      { error: "El profesional tiene una cita en ese horario" },
       { status: 409 }
     );
   }

@@ -112,8 +112,10 @@ interface SidebarProps {
 
 // Routes that assume there's a team to manage — meaningless for a solo professional
 // running their own account (nothing to "receive" clients for, no other professional
-// to redirect a waitlist to, no chair rental to charge to anyone but themselves).
-const SOLO_BUSINESS_HIDDEN_ROUTES = ["/dashboard/recepcion", "/dashboard/waitlist", "/dashboard/arriendo"];
+// to redirect a waitlist to). Arriendo (chair rental) is NOT hidden anymore: an
+// independent professional (like Saray) rents her own chair and needs to track it —
+// hiding it left her without a way to manage her rental.
+const SOLO_BUSINESS_HIDDEN_ROUTES = ["/dashboard/recepcion", "/dashboard/waitlist"];
 
 export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);

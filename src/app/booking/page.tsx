@@ -304,7 +304,8 @@ export default function BookingPage() {
 
         {/* Step 2: Service (después de elegir barbero) */}
         {step === "service" && (
-          <div>
+          // pb-28 leaves room so the sticky "Continuar" bar never covers the last service.
+          <div className="pb-28">
             <button onClick={() => setStep("barber")} className="text-brand-gray hover:text-brand-blue text-sm mb-4 flex items-center gap-1">
               ← Volver
             </button>
@@ -350,27 +351,28 @@ export default function BookingPage() {
               })}
             </div>
 
-            {/* Selection summary */}
-            {selectedServices.length > 0 && (
-              <div className="mt-6 p-4 bg-white border border-gray-200 rounded-xl">
-                <div className="flex justify-between text-sm mb-2">
-                  <span className="text-brand-gray">{selectedServices.length} servicio{selectedServices.length > 1 ? "s" : ""}</span>
-                  <span className="text-brand-gray">{totalDuration} min total</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-brand-dark font-medium">Total</span>
-                  <span className="text-brand-blue font-bold text-xl">{formatCurrency(totalPrice)}</span>
-                </div>
-              </div>
-            )}
+          </div>
+        )}
 
-            <button
-              onClick={() => setStep("datetime")}
-              disabled={selectedServices.length === 0}
-              className="w-full mt-4 py-3 rounded-xl bg-brand-blue text-white font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-            >
-              Continuar
-            </button>
+        {/* Sticky bottom bar for the service step: the "Continuar" button stays pinned to
+            the bottom of the screen the moment a service is picked, so the client doesn't
+            have to scroll past the whole list to find it. Shows the running total too. */}
+        {step === "service" && selectedServices.length > 0 && (
+          <div className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-gray-200 shadow-[0_-4px_12px_rgba(0,0,0,0.06)]">
+            <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] text-brand-gray leading-tight">
+                  {selectedServices.length} servicio{selectedServices.length > 1 ? "s" : ""} · {totalDuration} min
+                </p>
+                <p className="text-brand-blue font-bold text-lg leading-tight">{formatCurrency(totalPrice)}</p>
+              </div>
+              <button
+                onClick={() => setStep("datetime")}
+                className="shrink-0 px-8 py-3 rounded-xl bg-brand-blue text-white font-bold hover:bg-blue-700 transition-colors"
+              >
+                Continuar
+              </button>
+            </div>
           </div>
         )}
 

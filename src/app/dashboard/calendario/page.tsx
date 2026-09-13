@@ -9,7 +9,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 
-interface Barber { id: string; name: string; }
+interface Barber { id: string; name: string; role?: string; also_attends_clients?: boolean; }
 interface Service { id: string; name: string; price: number; duration: number; }
 interface Client { id: string; name: string; }
 
@@ -103,18 +103,37 @@ export default function CalendarioPage() {
   // - Admins/receptionists see the whole team.
   // Falls back to today's appointment barbers, then to the logged-in user, so there's
   // always at least one column to act on.
+  // Who actually gets a column: someone who attends clients. Receptionists never do
+  // (they don't take appointments — that's why "recepcion levels" shouldn't be a column).
+  // An admin/super_admin only shows if they explicitly also attend clients.
+  const attendsClients = (b: Barber) =>
+    b.role === "barber" ||
+    b.role === undefined || // fallback rows (from appointments) are barbers
+    ((b.role === "admin" || b.role === "super_admin") && !!b.also_attends_clients);
+
+  // Off today = has a schedule row for this weekday with is_working === false. No row
+  // means "assume working" (don't hide someone just for missing config).
+  const worksToday = (b: Barber) => {
+    const s = schedules[b.id];
+    return !s || s.is_working !== false;
+  };
+
   const computeDisplayBarbers = (): Barber[] => {
     // Barber: restrict to themselves. Prefer their row from the fetched list (correct name).
     if (isBarber && user?.id) {
       const self = barbers.find((b) => b.id === user.id);
       return [self || { id: user.id, name: user.name || "Yo" }];
     }
-    if (barbers.length > 0) return barbers;
+    // Admin/reception view: only client-attending professionals who work today. This
+    // removes receptionists and staff on their day off from the calendar columns.
+    if (barbers.length > 0) {
+      return barbers.filter((b) => attendsClients(b) && worksToday(b));
+    }
     const fromAppts = Array.from(
       new Map(
         appointments
           .filter((a) => a.barber_id && a.barber?.name)
-          .map((a) => [a.barber_id, { id: a.barber_id, name: a.barber!.name }])
+          .map((a) => [a.barber_id, { id: a.barber_id, name: a.barber!.name } as Barber])
       ).values()
     );
     if (fromAppts.length > 0) return fromAppts;
@@ -1014,26 +1033,18 @@ export default function CalendarioPage() {
                       return (
                         <div
                           key={block.id}
-                          className="absolute left-1 right-1 rounded-md bg-gray-300 border border-gray-400 px-1.5 py-1 overflow-hidden z-[5] group"
-                          style={{
-                            top: `${top}px`,
-                            height: `${Math.max(height, 24)}px`,
-                            // Diagonal grey stripes = the universal "blocked / unavailable"
-                            // look (like Setmore). Makes a block unmistakable next to a
-                            // colored appointment, so reception (David) can tell them apart.
-                            backgroundImage:
-                              "repeating-linear-gradient(45deg, rgba(107,114,128,0.35) 0, rgba(107,114,128,0.35) 6px, rgba(209,213,219,0.6) 6px, rgba(209,213,219,0.6) 12px)",
-                          }}
+                          className="absolute left-1 right-1 rounded-md bg-gray-100 border border-gray-200 px-1.5 py-1 overflow-hidden z-[5] group"
+                          style={{ top: `${top}px`, height: `${Math.max(height, 24)}px` }}
                           onClick={(e) => {
                             e.stopPropagation();
                             showToast(`Bloqueo: ${block.reason || "Sin motivo"}`, "info");
                           }}
                         >
-                          <p className="text-[10px] font-bold text-gray-800 truncate pr-4">🚫 {block.reason || "Bloqueado"}</p>
+                          <p className="text-[10px] font-medium text-gray-500 truncate pr-4">{block.reason || "Bloqueado"}</p>
                           {!block.all_day && block.start_time && block.end_time && (
-                            <p className="text-[9px] font-medium text-gray-700">{block.start_time?.slice(0,5)} – {block.end_time?.slice(0,5)}</p>
+                            <p className="text-[9px] text-gray-400">{block.start_time?.slice(0,5)} – {block.end_time?.slice(0,5)}</p>
                           )}
-                          {block.all_day && <p className="text-[9px] font-medium text-gray-700">Todo el dia</p>}
+                          {block.all_day && <p className="text-[9px] text-gray-400">Todo el dia</p>}
                           {/* Always visible (not hover-only) — hover doesn't exist on
                               touch devices, so this was effectively unreachable on
                               mobile/tablet, which is how this app is mostly used. */}

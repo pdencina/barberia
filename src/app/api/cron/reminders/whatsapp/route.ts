@@ -1,11 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 
 // Returns WhatsApp links for tomorrow's appointments (for manual batch sending)
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  
+
+  // Scope to the caller's business. This is consumed by the Recordatorios page; without
+  // the tenant filter it listed tomorrow's appointments of EVERY business, which is how
+  // Saray saw other salons' reminders.
+  const tenantId = await getTenantFromRequest(req);
+  if (!tenantId || tenantId === "ALL") return NextResponse.json([]);
+
   // Accept date param from frontend (more reliable than server-side timezone calc)
   let tomorrowStr = searchParams.get("date");
   
@@ -28,6 +35,7 @@ export async function GET(req: NextRequest) {
       )
     `)
     .eq("date", tomorrowStr)
+    .eq("tenant_id", tenantId)
     .in("status", ["scheduled", "confirmed"])
     .order("start_time");
 

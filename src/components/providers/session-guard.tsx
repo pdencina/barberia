@@ -9,38 +9,37 @@ export function SessionGuard({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
 
   useEffect(() => {
-    // Check session on mount
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+    // Only redirect to login on a REAL sign-out. This used to also check getSession()
+    // on mount and every 5 minutes and push to /login whenever it returned null — but
+    // getSession() just reads the local cookie and does NOT refresh the token. When the
+    // 1-hour access token expired before the refresh ran, getSession() briefly reported
+    // "no session" for a perfectly valid login, kicking professionals out every couple
+    // of days. The middleware (which uses getUser(), the validating/refreshing call)
+    // already protects the routes, so the guard only needs to react to an explicit
+    // SIGNED_OUT event.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === "SIGNED_OUT") {
         router.push("/login");
+        router.refresh();
+      }
+    });
+
+    // When the app comes back to the foreground (PWA on a phone left in the background,
+    // tab refocused), proactively validate/refresh the session. auto-refresh can pause
+    // while the tab is hidden; getUser() revives the token so the barber isn't silently
+    // logged out after leaving the app open for a day or two.
+    const onVisible = () => {
+      if (document.visibilityState === "visible") {
+        supabase.auth.getUser().catch(() => {});
       }
     };
-
-    checkSession();
-
-    // Listen for auth state changes (logout, token expiry)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
-        if (event === "SIGNED_OUT" || event === "TOKEN_REFRESHED" && !session) {
-          router.push("/login");
-          router.refresh();
-        }
-      }
-    );
-
-    // Periodic check every 5 minutes
-    const interval = setInterval(async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        router.push("/login");
-      }
-    }, 5 * 60 * 1000);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       subscription.unsubscribe();
-      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return <>{children}</>;

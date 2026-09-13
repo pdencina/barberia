@@ -103,30 +103,46 @@ export async function GET(req: NextRequest) {
   const noBarberIncome = (incomeTx || []).filter((t: any) => !t.barber_id).reduce((s: number, t: any) => s + Number(t.total), 0);
   incomeCommission += noBarberIncome;
 
-  // Top services (from transaction_items via transactions)
-  const { data: serviceItems } = await supabase
-    .from("transaction_items")
-    .select("description, total, quantity, service_id, transaction_id")
-    .not("service_id", "is", null);
+  // transaction_items has NO tenant_id column, so it must be scoped through the
+  // transactions of THIS business/period. Without this, "Top servicios" and "Top
+  // productos" mixed sale items from every business. Get this tenant's transaction ids
+  // first and filter items by them.
+  const { data: tenantTxIds } = await tf(supabase
+    .from("transactions")
+    .select("id")
+    .eq("status", "completed")
+    .gte("created_at", startDate)
+    .lte("created_at", endDate));
+  const txIdList = (tenantTxIds || []).map((t: any) => t.id);
 
+  // Top services (from transaction_items via this tenant's transactions)
   const svcMap: Record<string, { total: number; count: number }> = {};
-  for (const item of serviceItems || []) {
-    if (!svcMap[item.description]) svcMap[item.description] = { total: 0, count: 0 };
-    svcMap[item.description].total += Number(item.total);
-    svcMap[item.description].count += item.quantity;
-  }
-
-  // Top products
-  const { data: productItems } = await supabase
-    .from("transaction_items")
-    .select("description, total, quantity, product_id, transaction_id")
-    .not("product_id", "is", null);
-
   const prodMap: Record<string, { total: number; count: number }> = {};
-  for (const item of productItems || []) {
-    if (!prodMap[item.description]) prodMap[item.description] = { total: 0, count: 0 };
-    prodMap[item.description].total += Number(item.total);
-    prodMap[item.description].count += item.quantity;
+
+  if (txIdList.length > 0) {
+    const { data: serviceItems } = await supabase
+      .from("transaction_items")
+      .select("description, total, quantity, service_id, transaction_id")
+      .not("service_id", "is", null)
+      .in("transaction_id", txIdList);
+
+    for (const item of serviceItems || []) {
+      if (!svcMap[item.description]) svcMap[item.description] = { total: 0, count: 0 };
+      svcMap[item.description].total += Number(item.total);
+      svcMap[item.description].count += item.quantity;
+    }
+
+    const { data: productItems } = await supabase
+      .from("transaction_items")
+      .select("description, total, quantity, product_id, transaction_id")
+      .not("product_id", "is", null)
+      .in("transaction_id", txIdList);
+
+    for (const item of productItems || []) {
+      if (!prodMap[item.description]) prodMap[item.description] = { total: 0, count: 0 };
+      prodMap[item.description].total += Number(item.total);
+      prodMap[item.description].count += item.quantity;
+    }
   }
 
   return NextResponse.json({

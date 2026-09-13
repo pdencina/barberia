@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 
 interface InactiveClient {
@@ -25,6 +26,46 @@ export default function RetencionPage() {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [bulkSending, setBulkSending] = useState(false);
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
+
+  // Ask the server WHO would receive this (scoped to the business), show a sample and
+  // the exact count, and only send after an explicit confirmation. This is the guard
+  // against the "sent to 647 people by one click" incident.
+  const sendBulkEmail = async () => {
+    setBulkSending(true);
+    try {
+      const previewRes = await fetch("/api/retention/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", preview: true }),
+      });
+      const preview = await previewRes.json();
+      if (!previewRes.ok) { showToast(preview.error || "No se pudo preparar el envio", "error"); return; }
+      if (!preview.total) { showToast("No hay clientes con email para enviar", "info"); return; }
+
+      const sampleNames = (preview.sample || []).map((s: any) => `• ${s.name} (${s.email})`).join("\n");
+      const ok = await confirm({
+        title: `Enviar ${preview.total} correo${preview.total === 1 ? "" : "s"}?`,
+        message: `Se enviara un correo a ${preview.total} cliente${preview.total === 1 ? "" : "s"} de tu negocio. Ejemplos:\n\n${sampleNames}${preview.total > 5 ? `\n… y ${preview.total - 5} mas` : ""}\n\nEsta accion no se puede deshacer.`,
+        confirmText: `Si, enviar ${preview.total}`,
+        variant: "warning",
+      });
+      if (!ok) return;
+
+      const res = await fetch("/api/retention/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ days, couponCode: selectedCoupon || null, message: customMessage || null, type: "email" }),
+      });
+      const data = await res.json();
+      if (!res.ok) { showToast(data.error || "Error al enviar", "error"); return; }
+      showToast(`${data.sent || 0} de ${data.total || 0} correos enviados`, "success");
+    } catch {
+      showToast("Error al enviar", "error");
+    } finally {
+      setBulkSending(false);
+    }
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -79,22 +120,7 @@ export default function RetencionPage() {
         {clients.length > 0 && (
           <div className="flex gap-2">
             <button
-              onClick={async () => {
-                setBulkSending(true);
-                const res = await fetch("/api/retention/bulk", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({
-                    days,
-                    couponCode: selectedCoupon || null,
-                    message: customMessage || null,
-                    type: "email",
-                  }),
-                });
-                const data = await res.json();
-                setBulkSending(false);
-                showToast(`${data.sent || 0} emails enviados de ${data.total || 0}`, "success");
-              }}
+              onClick={sendBulkEmail}
               disabled={bulkSending}
               className="px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 disabled:opacity-50"
             >

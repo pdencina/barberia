@@ -118,52 +118,61 @@ export async function GET(req: NextRequest) {
   const nowMinutes = nowChile.getHours() * 60 + nowChile.getMinutes();
   const isToday = date === todayStr;
 
-  for (let totalMin = startMinutes; totalMin < endMinutes; totalMin += slotInterval) {
-    const hour = Math.floor(totalMin / 60);
-    const min = totalMin % 60;
+  // Pre-parse busy intervals (appointments + partial blocks + break) into [start,end] min.
+  const busyIntervals: Array<{ start: number; end: number }> = [];
+  for (const appt of appointments || []) {
+    const s = appt.start_time.match(/(\d{2}):(\d{2})/);
+    const e = appt.end_time.match(/(\d{2}):(\d{2})/);
+    if (s && e) busyIntervals.push({ start: parseInt(s[1]) * 60 + parseInt(s[2]), end: parseInt(e[1]) * 60 + parseInt(e[2]) });
+  }
+  for (const block of blocks || []) {
+    if (block.all_day || !block.start_time || !block.end_time) continue;
+    const s = block.start_time.match(/(\d{2}):(\d{2})/);
+    const e = block.end_time.match(/(\d{2}):(\d{2})/);
+    if (s && e) busyIntervals.push({ start: parseInt(s[1]) * 60 + parseInt(s[2]), end: parseInt(e[1]) * 60 + parseInt(e[2]) });
+  }
+  if (breakStartMin !== null && breakEndMin !== null) {
+    busyIntervals.push({ start: breakStartMin, end: breakEndMin });
+  }
 
-    // Check slot + duration doesn't exceed close time
-    if (totalMin + duration > endMinutes) continue;
-
-    // Check slot is not in the past (only matters for today)
-    if (isToday && totalMin <= nowMinutes) continue;
-
-    // Build ISO string with explicit timezone offset for Chile (-04:00 or -03:00)
-    const slotISO = `${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00`;
-
-    // Check no conflict with existing appointments (compare as minutes, not Date objects)
+  // Walk the day. When a candidate slot overlaps a busy interval (block/appt/break),
+  // RE-ANCHOR the grid to the END of that interval instead of jumping to the next fixed
+  // multiple of slotInterval. Before this, a 30-min block at 14:00 with a 3h grid killed
+  // the whole 14:30–17:00 window (next fixed point was 17:00) — the "castiga 2:30" bug.
+  // Now the next slot resumes right at the block's end (e.g. 14:30), so a 30-min block
+  // only costs 30 min. For short services with a 15-min grid, behaviour is unchanged
+  // (nothing is discarded when there are no conflicts, and re-anchoring to a block end
+  // simply keeps the natural cadence).
+  let totalMin = startMinutes;
+  let guard = 0;
+  while (totalMin < endMinutes && guard++ < 500) {
     const slotStartMin = totalMin;
     const slotEndMin = totalMin + duration;
 
-    const hasConflict = (appointments || []).some((appt) => {
-      const apptStartMatch = appt.start_time.match(/(\d{2}):(\d{2})/);
-      const apptEndMatch = appt.end_time.match(/(\d{2}):(\d{2})/);
-      if (!apptStartMatch || !apptEndMatch) return false;
-      const apptStartMin = parseInt(apptStartMatch[1]) * 60 + parseInt(apptStartMatch[2]);
-      const apptEndMin = parseInt(apptEndMatch[1]) * 60 + parseInt(apptEndMatch[2]);
-      return slotStartMin < apptEndMin && slotEndMin > apptStartMin;
-    });
+    // Past close time — nothing more fits.
+    if (slotEndMin > endMinutes) break;
 
-    // Check no conflict with partial blocks
-    const isBlocked = (blocks || []).some((block) => {
-      if (block.all_day) return true;
-      if (!block.start_time || !block.end_time) return false;
-      const blockStartMatch = block.start_time.match(/(\d{2}):(\d{2})/);
-      const blockEndMatch = block.end_time.match(/(\d{2}):(\d{2})/);
-      if (!blockStartMatch || !blockEndMatch) return false;
-      const blockStartMin = parseInt(blockStartMatch[1]) * 60 + parseInt(blockStartMatch[2]);
-      const blockEndMin = parseInt(blockEndMatch[1]) * 60 + parseInt(blockEndMatch[2]);
-      return slotStartMin < blockEndMin && slotEndMin > blockStartMin;
-    });
+    // Skip past slots (today only), advancing by the grid step.
+    if (isToday && totalMin <= nowMinutes) { totalMin += slotInterval; continue; }
 
-    // Check no conflict with barber's break time
-    const isDuringBreak = (breakStartMin !== null && breakEndMin !== null)
-      ? (slotStartMin < breakEndMin && slotEndMin > breakStartMin)
-      : false;
-
-    if (!hasConflict && !isBlocked && !isDuringBreak) {
-      slots.push(slotISO);
+    // Does this slot overlap any busy interval? If so, find the LATEST end among the
+    // overlapping ones and re-anchor there.
+    let reanchorTo: number | null = null;
+    for (const iv of busyIntervals) {
+      if (slotStartMin < iv.end && slotEndMin > iv.start) {
+        reanchorTo = reanchorTo === null ? iv.end : Math.max(reanchorTo, iv.end);
+      }
     }
+
+    if (reanchorTo !== null) {
+      totalMin = reanchorTo; // resume exactly when the barber is free again
+      continue;
+    }
+
+    const hour = Math.floor(totalMin / 60);
+    const min = totalMin % 60;
+    slots.push(`${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00`);
+    totalMin += slotInterval;
   }
 
   return NextResponse.json({ slots, date, barberId });

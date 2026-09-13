@@ -120,7 +120,7 @@ export default function WhatsAppBroadcastPage() {
         <textarea
           value={message}
           onChange={(e) => setMessage(e.target.value)}
-          placeholder={`Ej: Hola! Te recordamos que puedes agendar tu proximo corte en nuestro link: ${bookingLink}`}
+          placeholder={`Ej: Hola! Te recordamos que puedes agendar tu proximo servicio en nuestro link: ${bookingLink}`}
           rows={4}
           className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm text-brand-dark placeholder:text-brand-gray resize-none focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none"
         />

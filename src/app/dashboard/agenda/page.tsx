@@ -213,7 +213,7 @@ export default function AgendaPage() {
                   </span>
                 </div>
                 <p className="text-sm text-gray-500 mt-1">
-                  Barbero: {a.barber?.name || "-"} | Servicios: {a.services?.map((s: any) => s.service?.name).join(", ") || "-"}
+                  Profesional: {a.barber?.name || "-"} | Servicios: {a.services?.map((s: any) => s.service?.name).join(", ") || "-"}
                 </p>
               </div>
               <div className="flex gap-2">
@@ -261,7 +261,7 @@ export default function AgendaPage() {
                 <select required value={formData.barber_id}
                   onChange={(e) => setFormData({ ...formData, barber_id: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
-                  <option value="">Seleccionar barbero</option>
+                  <option value="">Seleccionar profesional</option>
                   {barbers.map((b) => (
                     <option key={b.id} value={b.id}>{b.name}</option>
                   ))}

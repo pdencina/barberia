@@ -54,7 +54,7 @@ export async function GET(req: NextRequest) {
     if (countMap[a.barber_id] !== undefined) countMap[a.barber_id]++;
   }
 
-  // Check for blocked barbers
+  // Check for all-day blocked barbers
   const { data: blocks } = await supabase
     .from("barber_blocks")
     .select("barber_id")
@@ -63,14 +63,31 @@ export async function GET(req: NextRequest) {
 
   const blockedIds = new Set((blocks || []).map((b) => b.barber_id));
 
-  // Find barber with least appointments (excluding blocked)
+  // Exclude barbers who DON'T WORK on this weekday. "Primer barbero disponible" was
+  // returning professionals on their day off because it only checked all-day blocks,
+  // not the weekly schedule. A barber is off if barber_schedule for this weekday has
+  // is_working = false. If a barber has NO schedule row at all, we DON'T exclude them
+  // (assume available) so a missing config doesn't leave the client with nobody.
+  const [y, m, d] = date.split("-").map(Number);
+  const weekday = new Date(Date.UTC(y, m - 1, d)).getUTCDay(); // 0=Sun..6=Sat
+  const { data: schedules } = await supabase
+    .from("barber_schedule")
+    .select("barber_id, is_working")
+    .eq("day_of_week", weekday)
+    .in("barber_id", barbers.map((b) => b.id));
+
+  const offToday = new Set(
+    (schedules || []).filter((s) => s.is_working === false).map((s) => s.barber_id)
+  );
+
+  // Find barber with least appointments, excluding all-day-blocked and day-off barbers.
   const available = barbers
-    .filter((b) => !blockedIds.has(b.id))
+    .filter((b) => !blockedIds.has(b.id) && !offToday.has(b.id))
     .map((b) => ({ ...b, appointments: countMap[b.id] || 0 }))
     .sort((a, b) => a.appointments - b.appointments);
 
   if (available.length === 0) {
-    return NextResponse.json({ error: "Todos los barberos bloqueados" }, { status: 404 });
+    return NextResponse.json({ error: "No hay profesionales disponibles ese dia" }, { status: 404 });
   }
 
   return NextResponse.json({

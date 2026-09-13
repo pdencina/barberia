@@ -7,12 +7,19 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const tenantId = await getTenantFromRequest(req);
 
-  // Get clients with phone numbers
+  // Never return contacts across all businesses. Without a concrete tenant, return an
+  // empty list instead of everyone (this is the same cross-business leak that let one
+  // business broadcast to 647 people from other salons).
+  if (!tenantId || tenantId === "ALL") {
+    return NextResponse.json([]);
+  }
+
+  // Get clients with phone numbers, scoped to this business.
   let query = supabase
     .from("clients")
     .select("id, name, phone, email")
-    .not("phone", "is", null);
-  if (tenantId) query = query.eq("tenant_id", tenantId);
+    .not("phone", "is", null)
+    .eq("tenant_id", tenantId);
   query = query.neq("phone", "").order("name");
 
   const { data: clients } = await query;

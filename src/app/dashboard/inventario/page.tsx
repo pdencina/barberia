@@ -153,11 +153,11 @@ export default function InventarioPage() {
       });
       showToast("Producto actualizado", "success");
     } else {
-      // Never create a product without a business, or it becomes invisible in the POS.
-      if (!activeTenantId) {
-        showToast("No se pudo identificar el negocio. Recarga la pagina e intenta de nuevo.", "error");
-        return;
-      }
+      // Don't block on the client-side tenant here. If the tenant context hasn't loaded
+      // yet (a slow /api/tenant call), activeTenantId is "" and we used to refuse right
+      // here with "no se pudo identificar el negocio" — even though the user IS logged
+      // in. The server resolves the tenant from the session as a fallback, so let it
+      // try; it still fails loudly (and we surface that) if it truly can't.
       const res = await fetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

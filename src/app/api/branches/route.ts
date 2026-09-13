@@ -28,7 +28,18 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { name, slug, address, phone, email, open_time, close_time } = body;
+  const { name, slug, address, phone, email, open_time, close_time, tenantId } = body;
+
+  // A branch MUST belong to a business. Before this, the insert left tenant_id NULL, so
+  // the branch became an orphan visible/invisible inconsistently across businesses
+  // (that's the phantom "Estudio Levels Puente Alto" Saray saw). Resolve from session.
+  const { tenantId: resolvedTenant } = await resolveTenantForRequest(tenantId);
+  const branchTenant = resolvedTenant && resolvedTenant !== "ALL"
+    ? resolvedTenant
+    : (resolvedTenant === "ALL" && tenantId ? tenantId : null);
+  if (!branchTenant) {
+    return NextResponse.json({ error: "No se pudo determinar el negocio para la sucursal." }, { status: 400 });
+  }
 
   const { data, error } = await supabase
     .from("branches")
@@ -40,6 +51,7 @@ export async function POST(req: NextRequest) {
       email,
       open_time: open_time || "10:00",
       close_time: close_time || "21:00",
+      tenant_id: branchTenant,
     })
     .select()
     .single();

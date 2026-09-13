@@ -1,31 +1,54 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { getTenantFromRequest } from "@/lib/tenant-filter";
 import { sendRetentionEmail } from "@/lib/resend";
 
-// POST: Send retention message to ALL inactive clients at once
+// POST: Send retention message to inactive clients OF THIS BUSINESS.
+//
+// Two safety guards after the incident where a business with 9 clients emailed 647
+// people from OTHER businesses with no confirmation:
+//   1. Tenant scoping is MANDATORY. Without a concrete tenant (or for a super_admin's
+//      "ALL"), we refuse — a bulk send must never run across every business.
+//   2. `preview: true` returns the recipient list WITHOUT sending, so the UI can show a
+//      confirmation with a sample before anything goes out.
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { days, couponCode, message, type } = body; // type: 'email' | 'whatsapp'
+  const { days, couponCode, message, type, preview } = body; // type: 'email' | 'whatsapp'
+
+  // Resolve and REQUIRE a single tenant. This is the fix for the cross-business leak:
+  // the query below used to hit every client of every business (service-role bypasses
+  // RLS). "ALL" (super_admin) is rejected too — a mass send must target one business.
+  const tenantId = await getTenantFromRequest(req);
+  if (!tenantId || tenantId === "ALL") {
+    return NextResponse.json(
+      { error: "No se pudo identificar el negocio. Recarga la pagina e intenta de nuevo." },
+      { status: 400 }
+    );
+  }
 
   const cutoffDate = new Date();
   cutoffDate.setDate(cutoffDate.getDate() - (days || 30));
 
-  // Get all clients
+  // Clients of THIS business only.
   const { data: clients } = await supabase
     .from("clients")
-    .select("id, name, email, phone, created_at");
+    .select("id, name, email, phone, created_at")
+    .eq("tenant_id", tenantId);
 
-  // Get last visit per client
-  const { data: appointments } = await supabase
-    .from("appointments")
-    .select("client_id, date")
-    .eq("status", "completed")
-    .order("date", { ascending: false });
-
+  // Last completed visit per client (scoped to this business's clients).
+  const clientIds = (clients || []).map((c) => c.id);
   const lastVisitMap: Record<string, string> = {};
-  for (const appt of appointments || []) {
-    if (!lastVisitMap[appt.client_id]) lastVisitMap[appt.client_id] = appt.date;
+  if (clientIds.length > 0) {
+    const { data: appointments } = await supabase
+      .from("appointments")
+      .select("client_id, date")
+      .eq("status", "completed")
+      .in("client_id", clientIds)
+      .order("date", { ascending: false });
+    for (const appt of appointments || []) {
+      if (!lastVisitMap[appt.client_id]) lastVisitMap[appt.client_id] = appt.date;
+    }
   }
 
   // Filter inactive
@@ -37,8 +60,17 @@ export async function POST(req: NextRequest) {
 
   if (type === "email") {
     const withEmail = inactiveClients.filter((c) => c.email);
-    let sent = 0;
 
+    // Preview mode: return who WOULD receive it + a small sample, send nothing.
+    if (preview) {
+      return NextResponse.json({
+        preview: true,
+        total: withEmail.length,
+        sample: withEmail.slice(0, 5).map((c) => ({ name: c.name, email: c.email })),
+      });
+    }
+
+    let sent = 0;
     for (const client of withEmail) {
       try {
         await sendRetentionEmail({
@@ -60,7 +92,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (type === "whatsapp") {
-    const bookingUrl = process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app";
+    const bookingUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
     const withPhone = inactiveClients.filter((c) => c.phone);
 
     const links = withPhone.map((c) => {

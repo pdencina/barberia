@@ -129,7 +129,7 @@ export default function GaleriaPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">Galeria de Trabajos</h1>
-          <p className="text-gray-500 text-sm">Portafolio de cortes de tu equipo</p>
+          <p className="text-gray-500 text-sm">Portafolio de trabajos de tu equipo</p>
         </div>
       </div>
 
@@ -188,7 +188,7 @@ export default function GaleriaPage() {
       {loading ? <Spinner /> : images.length === 0 ? (
         <div className="text-center py-12 text-gray-400">
           <p className="text-lg mb-2">Sin fotos aun</p>
-          <p className="text-sm">Sube la primera foto de un corte!</p>
+          <p className="text-sm">Sube la primera foto de un trabajo!</p>
         </div>
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -196,7 +196,7 @@ export default function GaleriaPage() {
             <div key={img.id} className="group relative rounded-lg overflow-hidden bg-gray-100 aspect-square">
               <img
                 src={img.image_url}
-                alt={img.caption || "Corte"}
+                alt={img.caption || "Trabajo"}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-3">

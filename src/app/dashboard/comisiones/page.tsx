@@ -258,7 +258,7 @@ export default function ComisionesPage() {
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               </div>
               <div>
-                <label className="text-xs text-brand-gray block mb-1">PIN Super Admin</label>
+                <label className="text-xs text-brand-gray block mb-1">PIN de administrador</label>
                 <input type="password" maxLength={4} value={adjustForm.pin}
                   onChange={(e) => setAdjustForm({ ...adjustForm, pin: e.target.value.replace(/\D/g, "") })}
                   placeholder="••••"

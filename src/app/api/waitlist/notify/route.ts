@@ -23,7 +23,7 @@ export async function POST(req: NextRequest) {
 
     const message = `Hola ${entry.client_name}! Se libero una hora para el ${new Date(entry.preferred_date).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}.\n\n` +
       (entry.service ? `Servicio: ${(entry as any).service?.name}\n` : "") +
-      (entry.barber ? `Barbero: ${(entry as any).barber?.name}\n` : "") +
+      (entry.barber ? `Profesional: ${(entry as any).barber?.name}\n` : "") +
       `\nAgenda aqui antes de que se ocupe: ${bookingUrl}/booking\n\n` +
       `Te esperamos!`;
 
