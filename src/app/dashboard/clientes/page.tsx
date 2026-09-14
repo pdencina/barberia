@@ -143,43 +143,8 @@ export default function ClientesPage() {
     fetchClients(search);
   };
 
-  const handleDeleteAll = async () => {
-    if (!confirm(`ELIMINAR TODOS los clientes? Esta accion no se puede deshacer.`)) return;
-    if (!confirm(`CONFIRMACION FINAL: Se borraran TODOS los clientes de la base de datos. Continuar?`)) return;
-    setDeleting(true);
-    setDeleteProgress("Obteniendo lista de clientes...");
-    setProgressCurrent(0);
-    setProgressTotal(0);
-
-    // First get total count
-    const countRes = await fetch("/api/clients");
-    const countData = await countRes.json();
-    const allClients = countData.clients || countData || [];
-    const allIds = allClients.map((c: any) => c.id);
-    setProgressTotal(allIds.length);
-
-    const batchSize = 50;
-    let deleted = 0;
-    for (let i = 0; i < allIds.length; i += batchSize) {
-      const batch = allIds.slice(i, i + batchSize);
-      await fetch("/api/clients/bulk-delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: batch }),
-      });
-      deleted += batch.length;
-      setProgressCurrent(deleted);
-      setDeleteProgress(`Eliminando... ${deleted} de ${allIds.length}`);
-    }
-
-    showToast(`${deleted} clientes eliminados`, "success");
-    setSelectedIds(new Set());
-    setDeleting(false);
-    setDeleteProgress("");
-    setProgressCurrent(0);
-    setProgressTotal(0);
-    fetchClients(search);
-  };
+  // handleDeleteAll removed: the "Eliminar TODOS" button it powered was wiping the whole
+  // client base by accident. Bulk delete of everything is no longer exposed in the UI.
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 animate-fade-in">
@@ -314,10 +279,10 @@ export default function ClientesPage() {
             className="px-3 py-1.5 bg-red-600 text-white text-xs rounded-lg hover:bg-red-700 disabled:opacity-50 font-medium">
             {deleting ? "Eliminando..." : "Eliminar seleccionados"}
           </button>
-          <button onClick={handleDeleteAll} disabled={deleting}
-            className="px-3 py-1.5 bg-red-800 text-white text-xs rounded-lg hover:bg-red-900 disabled:opacity-50 font-medium">
-            Eliminar TODOS
-          </button>
+          {/* "Eliminar TODOS" removed on purpose: it sat right next to "Eliminar
+              seleccionados" and was fired by accident, wiping the first 50 clients (with
+              their points, appointments and reviews). Deleting the whole client base is
+              too destructive to expose as a one-click button in the bulk bar. */}
           <button onClick={() => setSelectedIds(new Set())}
             className="px-3 py-1.5 border border-gray-300 text-xs rounded-lg hover:bg-white text-brand-gray">
             Cancelar

@@ -26,11 +26,13 @@ export async function POST(req: NextRequest) {
   let targetIds: string[] = [];
 
   if (deleteAll) {
-    // Get ALL client IDs — scoped to the caller's tenant (never global for a tenant admin).
-    let q = supabase.from("clients").select("id");
-    if (scopeTenant) q = q.eq("tenant_id", tenantId);
-    const { data: allClients } = await q;
-    targetIds = (allClients || []).map((c) => c.id);
+    // Disabled on purpose. "Delete every client at once" caused an accidental wipe of the
+    // whole client base (with points/appointments/reviews). It's no longer allowed, even
+    // via a direct API call — deletions must be an explicit list of ids.
+    return NextResponse.json(
+      { error: "Eliminar todos los clientes esta deshabilitado. Selecciona clientes especificos." },
+      { status: 400 }
+    );
   } else {
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json({ error: "ids required" }, { status: 400 });

@@ -21,7 +21,11 @@ export async function GET(req: NextRequest) {
     `)
     .eq("status", "completed")
     .order("created_at", { ascending: false })
-    .limit(100);
+    // Was 100. In a busy shop, manual expenses (luz, arriendo, etc.) got pushed past the
+    // 100 most-recent transactions and looked "deleted" even though they were never
+    // removed. Raised so a month of activity stays visible. The date filters below narrow
+    // it further when the user picks a range.
+    .limit(1000);
 
   // "ALL" means super_admin (no filter, sees every business).
   if (tenantId && tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
