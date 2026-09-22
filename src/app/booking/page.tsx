@@ -132,10 +132,21 @@ export default function BookingPage() {
         }
       }
     });
-    fetch("/api/business-hours").then((r) => r.json()).then((hours: any[]) => {
-      setClosedDays(hours.filter((h) => h.is_closed).map((h) => h.day_of_week));
-    }).finally(() => setClosedDaysLoaded(true));
   }, []);
+
+  // Closed days come from the SELECTED professional's schedule (their own days, falling
+  // back to their business's hours) — not a global business-hours list. That list had no
+  // tenant for anonymous clients and hid Sunday for everyone, so a professional who only
+  // works Sundays never showed that day.
+  useEffect(() => {
+    if (!selectedBarber) return;
+    setClosedDaysLoaded(false);
+    fetch(`/api/public/barber-days?barberId=${selectedBarber.id}`)
+      .then((r) => r.json())
+      .then((data) => setClosedDays(Array.isArray(data?.closedDays) ? data.closedDays : []))
+      .catch(() => setClosedDays([]))
+      .finally(() => setClosedDaysLoaded(true));
+  }, [selectedBarber]);
 
   // Load services when barber is selected (with custom prices)
   useEffect(() => {
@@ -150,7 +161,12 @@ export default function BookingPage() {
   // closed, fall back to the next open day. Runs once closedDays has loaded so we
   // don't default into a closed day by mistake.
   useEffect(() => {
-    if (!closedDaysLoaded || selectedDate) return; // wait for real data, don't override a user pick
+    if (!closedDaysLoaded) return; // wait for real data
+    if (selectedDate) {
+      // Keep the user's pick unless it falls on a day this professional doesn't attend.
+      const [y, m, dd] = selectedDate.split("-").map(Number);
+      if (!closedDays.includes(new Date(y, m - 1, dd).getDay())) return;
+    }
     let d = new Date();
     for (let i = 0; i < 14; i++) {
       if (!closedDays.includes(d.getDay())) {
@@ -385,7 +401,7 @@ export default function BookingPage() {
             {/* First available button */}
             <button
               onClick={async () => {
-                const res = await fetch(`/api/public/first-available?date=${selectedDate || new Date().toISOString().split("T")[0]}${tenantSlugState ? `&tenant=${tenantSlugState}` : ""}`);
+                const res = await fetch(`/api/public/first-available?date=${selectedDate || toLocalDateStr(new Date())}${tenantSlugState ? `&tenant=${tenantSlugState}` : ""}`);
                 const data = await res.json();
                 if (data.barber) {
                   setSelectedBarber(data.barber);
