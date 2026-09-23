@@ -117,6 +117,20 @@ interface SidebarProps {
 // hiding it left her without a way to manage her rental.
 const SOLO_BUSINESS_HIDDEN_ROUTES = ["/dashboard/recepcion", "/dashboard/waitlist"];
 
+// Ocultas temporalmente a pedido de Pablo (2026-09-23): no se borra nada del codigo,
+// solo se saca de la navegacion. Facil de revertir quitando la ruta de esta lista.
+// - Precios y Galeria: quedan en pausa por ahora.
+// - Pagos: es un formulario viejo que no guarda nada real (no hace POST a ningun API);
+//   la config de pagos real vive en Terminal POS. Se oculta en vez de "moverla" para no
+//   reabrir la confusion que ya se habia resuelto separando ambas cosas.
+// - Agenda: se fusiona dentro de Calendario (que ahora tiene un toggle Calendario/Lista).
+const TEMP_HIDDEN_ROUTES = [
+  "/dashboard/precios",
+  "/dashboard/galeria",
+  "/dashboard/pagos",
+  "/dashboard/agenda",
+];
+
 export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: SidebarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
@@ -174,6 +188,11 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
           items: isSoloBusiness
             ? section.items.filter((item) => !SOLO_BUSINESS_HIDDEN_ROUTES.includes(item.href))
             : section.items,
+        }))
+        // Temporalmente ocultas para todos los roles (ver TEMP_HIDDEN_ROUTES arriba)
+        .map((section) => ({
+          ...section,
+          items: section.items.filter((item) => !TEMP_HIDDEN_ROUTES.includes(item.href)),
         }))
         .filter((section) => section.items.length > 0);
 
