@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { todayInChile } from "@/lib/utils";
 
 export async function GET() {
   const admin = createAdminSupabase();
@@ -44,7 +45,7 @@ export async function GET() {
   return new NextResponse(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": `attachment; filename="clientes-rebooking-${new Date().toISOString().split("T")[0]}.csv"`,
+      "Content-Disposition": `attachment; filename="clientes-rebooking-${todayInChile()}.csv"`,
     },
   });
 }
