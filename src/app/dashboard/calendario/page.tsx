@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayInChile } from "@/lib/utils";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/toast";
@@ -85,7 +85,7 @@ export default function CalendarioPage() {
   // aqui — ver punto 20 del pedido de Pablo).
   const [view, setView] = useState<"calendario" | "lista">("calendario");
   const [listBarberFilter, setListBarberFilter] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(todayInChile());
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -375,7 +375,7 @@ export default function CalendarioPage() {
     d.setDate(d.getDate() + delta);
     setDate(d.toISOString().split("T")[0]);
   };
-  const isToday = date === new Date().toISOString().split("T")[0];
+  const isToday = date === todayInChile();
 
   // Convert Y position to time
   const yToTime = (y: number): string => {
@@ -803,7 +803,7 @@ export default function CalendarioPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <button onClick={() => changeDate(-1)} className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">←</button>
-          <button onClick={() => setDate(new Date().toISOString().split("T")[0])} className={`px-3 py-2 rounded-lg text-sm font-medium ${isToday ? "bg-blue-600 text-white" : "bg-gray-100"}`}>Hoy</button>
+          <button onClick={() => setDate(todayInChile())} className={`px-3 py-2 rounded-lg text-sm font-medium ${isToday ? "bg-blue-600 text-white" : "bg-gray-100"}`}>Hoy</button>
           <button onClick={() => changeDate(1)} className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">→</button>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border rounded-lg px-3 py-2 text-sm ml-2" />
           {view === "lista" && (
