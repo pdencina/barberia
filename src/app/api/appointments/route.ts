@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
       status: "scheduled",
       notes: notes ?? null,
       tenant_id: resolvedTenantId,
+      source: "manual", // Punto 10: creada por el equipo desde el dashboard (no por el cliente).
     })
     .select()
     .single();
