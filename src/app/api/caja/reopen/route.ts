@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { todayInChile } from "@/lib/utils";
 
 // POST: Reopen a closed cash register for today (exceptional case)
 export async function POST() {
   const supabase = createAdminSupabase();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayInChile();
 
   // Find today's closed register
   const { data: register } = await supabase
