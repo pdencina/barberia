@@ -274,10 +274,20 @@ export default function ClienteDetailPage() {
             <h3 className="font-bold text-gray-800">Fotos de Trabajos</h3>
             <p className="text-xs text-gray-400">Referencia visual del estilo del cliente</p>
           </div>
-          <label className={`px-4 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 cursor-pointer ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
-            {uploading ? "Subiendo..." : "📷 Subir Foto"}
-            <input type="file" accept="image/*" capture="environment" onChange={uploadPhoto} className="hidden" />
-          </label>
+          {/* Punto 11 (Pablo): en celular "capture" fuerza la camara y no deja elegir
+              desde la galeria. Se agregan dos botones separados: uno que abre la camara
+              directo (capture="environment") y otro sin ese atributo, que en mobile abre
+              el selector de fotos/galeria del dispositivo. */}
+          <div className={`flex gap-2 ${uploading ? "opacity-50 pointer-events-none" : ""}`}>
+            <label className="px-3 py-2 bg-indigo-600 text-white text-sm rounded-lg hover:bg-indigo-700 cursor-pointer whitespace-nowrap">
+              {uploading ? "Subiendo..." : "📷 Tomar Foto"}
+              <input type="file" accept="image/*" capture="environment" onChange={uploadPhoto} className="hidden" />
+            </label>
+            <label className="px-3 py-2 bg-indigo-50 text-indigo-700 text-sm rounded-lg hover:bg-indigo-100 cursor-pointer whitespace-nowrap">
+              {uploading ? "Subiendo..." : "🖼️ Elegir de Galería"}
+              <input type="file" accept="image/*" onChange={uploadPhoto} className="hidden" />
+            </label>
+          </div>
         </div>
         <div className="p-4">
           {photos.length === 0 ? (
