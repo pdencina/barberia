@@ -20,12 +20,18 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { name, slug, rut_empresa, admin_email, admin_name, phone, address, plan } = body;
+  const { name, slug, rut_empresa, admin_email, admin_name, phone, address, plan, logo_url, website, social_media, trial_days } = body;
 
   // Validations
   if (!name || !slug || !admin_email) {
     return NextResponse.json({ error: "name, slug y admin_email son obligatorios" }, { status: 400 });
   }
+
+  // Punto 22 (Pablo): periodo de prueba configurable al crear el negocio (antes 15 dias
+  // fijo). Se acota a un rango razonable para evitar un valor invalido/negativo.
+  const trialDays = Number.isFinite(Number(trial_days)) && Number(trial_days) > 0
+    ? Math.min(Math.round(Number(trial_days)), 365)
+    : 15;
 
   if (!/^[a-z0-9-]+$/.test(slug)) {
     return NextResponse.json({ error: "Slug solo puede tener letras minusculas, numeros y guiones" }, { status: 400 });
@@ -56,9 +62,9 @@ export async function POST(req: NextRequest) {
   const maxProfessionals = planConfig?.max_professionals || 3;
   const maxBranches = planConfig?.max_branches || 1;
 
-  // Trial: 15 days
+  // Trial: configurable, 15 dias por defecto.
   const trialEnds = new Date();
-  trialEnds.setDate(trialEnds.getDate() + 15);
+  trialEnds.setDate(trialEnds.getDate() + trialDays);
 
   // Create tenant
   const { data: tenant, error: tenantError } = await supabase
@@ -78,6 +84,9 @@ export async function POST(req: NextRequest) {
       status: "trial",
       phone: phone || null,
       address: address || null,
+      logo_url: logo_url || null,
+      website: website || null,
+      social_media: social_media || null,
     })
     .select()
     .single();
@@ -157,7 +166,7 @@ export async function POST(req: NextRequest) {
       <p style="margin: 4px 0; font-size: 14px; color: #1D2433;"><strong>URL:</strong> <a href="${appUrl}/login" style="color: #1E88E5;">${appUrl}/login</a></p>
       <p style="margin: 4px 0; font-size: 14px; color: #1D2433;"><strong>Email:</strong> ${admin_email}</p>
       <p style="margin: 4px 0; font-size: 14px; color: #1D2433;"><strong>Contrasena temporal:</strong> <code style="background: #1E88E5; color: white; padding: 2px 8px; border-radius: 4px; font-size: 16px;">${tempPassword}</code></p>
-      <p style="margin: 4px 0; font-size: 14px; color: #1D2433;"><strong>Plan:</strong> ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)} (15 dias gratis)</p>
+      <p style="margin: 4px 0; font-size: 14px; color: #1D2433;"><strong>Plan:</strong> ${selectedPlan.charAt(0).toUpperCase() + selectedPlan.slice(1)} (${trialDays} dias gratis)</p>
     </div>
 
     <p style="color: #8A94A6; font-size: 13px;">
@@ -184,7 +193,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     tenant,
     temp_password: tempPassword,
-    message: `Empresa creada. Trial de 15 dias activo.`,
+    message: `Empresa creada. Trial de ${trialDays} dias activo.`,
     login_url: `${process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app"}/login`,
   }, { status: 201 });
 }
