@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { todayInChile } from "@/lib/utils";
 
 export function ActivityIndicator() {
   const [stats, setStats] = useState({ activeNow: 0, todaySales: 0 });
@@ -8,7 +9,7 @@ export function ActivityIndicator() {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const today = new Date().toISOString().split("T")[0];
+        const today = todayInChile();
         const res = await fetch(`/api/appointments?date=${today}`);
         const data = await res.json();
         const active = Array.isArray(data) ? data.filter((a: any) => a.status === "in_progress").length : 0;
