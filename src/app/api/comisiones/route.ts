@@ -1,17 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
+
+// Punto 1 (Nico): rango [startUtc, endUtc) de un mes calendario de Chile, para filtrar
+// columnas timestamptz como created_at (evita el corrimiento de zona horaria que daba
+// `new Date(year, month, 0, 23, 59, 59).toISOString()`).
+function monthBoundsChile(year: number, month: number): { startUtc: string; endUtc: string } {
+  const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+  return { startUtc: chileDayBoundsUtc(startDate).startUtc, endUtc: chileDayBoundsUtc(endDate).endUtc };
+}
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const tenantId = await getTenantFromRequest(req);
   const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
   const { searchParams } = new URL(req.url);
-  const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
-  const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
+  const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
+  const month = parseInt(searchParams.get("month") || String(chileMonth));
+  const year = parseInt(searchParams.get("year") || String(chileYear));
 
-  const startDate = new Date(year, month - 1, 1).toISOString();
-  const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+  const { startUtc: startDate, endUtc: endDate } = monthBoundsChile(year, month);
 
   // Commission-mode barbers only. Rental ("arriendo") professionals pay a fixed chair
   // fee and don't earn commission, so they must not appear here. work_mode can be null
@@ -32,14 +43,14 @@ export async function GET(req: NextRequest) {
     .eq("status", "completed")
     .not("barber_id", "is", null)
     .gte("created_at", startDate)
-    .lte("created_at", endDate));
+    .lt("created_at", endDate));
 
   // Get already paid commissions
   const { data: paidCommissions } = await scoped(supabase
     .from("commissions")
     .select("barber_id, commission_amount, paid")
     .gte("created_at", startDate)
-    .lte("created_at", endDate));
+    .lt("created_at", endDate));
 
   // Calculate per barber
   const barberStats = (barbers || []).map((barber: any) => {
@@ -95,8 +106,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
   const { barberId, amount, month, year } = body;
 
-  const startDate = new Date(year, month - 1, 1).toISOString();
-  const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+  const { startUtc: startDate, endUtc: endDate } = monthBoundsChile(year, month);
 
   // Get transactions for this barber this month
   const { data: transactions } = await supabase
@@ -106,7 +116,7 @@ export async function POST(req: NextRequest) {
     .eq("status", "completed")
     .eq("barber_id", barberId)
     .gte("created_at", startDate)
-    .lte("created_at", endDate);
+    .lt("created_at", endDate);
 
   // Get barber rate
   const { data: barber } = await supabase
