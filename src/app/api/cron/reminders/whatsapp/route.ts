@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { chileDateOffset } from "@/lib/utils";
 
 // Returns WhatsApp links for tomorrow's appointments (for manual batch sending)
 export async function GET(req: NextRequest) {
@@ -13,15 +14,12 @@ export async function GET(req: NextRequest) {
   const tenantId = await getTenantFromRequest(req);
   if (!tenantId || tenantId === "ALL") return NextResponse.json([]);
 
-  // Accept date param from frontend (more reliable than server-side timezone calc)
-  let tomorrowStr = searchParams.get("date");
-  
-  if (!tomorrowStr) {
-    // Fallback: calculate tomorrow in Chile time
-    const now = new Date();
-    const chileTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Santiago" }));
-    chileTime.setDate(chileTime.getDate() + 1);
-    tomorrowStr = chileTime.toISOString().split("T")[0];
+  // Accept date param from frontend (lets Recordatorios manage any day, not just
+  // "tomorrow" — see Punto 4). Falls back to tomorrow in Chile's calendar if omitted.
+  let targetDateStr = searchParams.get("date");
+
+  if (!targetDateStr) {
+    targetDateStr = chileDateOffset(1);
   }
 
   const { data: appointments } = await supabase
@@ -34,7 +32,7 @@ export async function GET(req: NextRequest) {
         service:services(name)
       )
     `)
-    .eq("date", tomorrowStr)
+    .eq("date", targetDateStr)
     .eq("tenant_id", tenantId)
     .in("status", ["scheduled", "confirmed"])
     .order("start_time");
@@ -42,6 +40,16 @@ export async function GET(req: NextRequest) {
   if (!appointments) return NextResponse.json([]);
 
   const bookingUrl = process.env.NEXT_PUBLIC_APP_URL || "https://barberia-kappa-weld.vercel.app";
+
+  // Punto 4 (Nico): el mensaje decia "manana" fijo, pero ahora la fecha puede ser
+  // cualquier dia elegido en el selector, asi que el texto debe reflejar el dia real.
+  const [ty, tm, td] = targetDateStr.split("-").map(Number);
+  const friendlyDate = new Intl.DateTimeFormat("es-CL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Santiago",
+  }).format(new Date(Date.UTC(ty, tm - 1, td, 12)));
 
   const links = (appointments || [])
     .map((a: any) => {
@@ -54,7 +62,7 @@ export async function GET(req: NextRequest) {
       const phone = client?.phone?.replace(/\D/g, "")?.replace(/^0/, "56") || "";
       const whatsappPhone = phone.startsWith("56") ? phone : `56${phone}`;
 
-      const message = `Hola ${client?.name || ""}! Te recordamos tu cita de manana:\n\n` +
+      const message = `Hola ${client?.name || ""}! Te recordamos tu cita del ${friendlyDate}:\n\n` +
         `Servicio: ${services}\n` +
         `Profesional: ${barber?.name || "Tu profesional"}\n` +
         `Hora: ${time}\n\n` +
