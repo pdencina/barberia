@@ -19,6 +19,13 @@ export default function RetencionPage() {
   const [clients, setClients] = useState<InactiveClient[]>([]);
   const [stats, setStats] = useState({ total: 0, inactive: 0, percentage: 0 });
   const [days, setDays] = useState(30);
+  // Punto 12 (Pablo): "Personalizado..." ponia days=0, y el input numerico solo se
+  // mostraba mientras days===0 — apenas se escribia un numero valido, days dejaba de
+  // ser 0 y esa misma condicion hacia desaparecer el input a mitad de tipeo ("me saca
+  // de la seleccion"). El modo personalizado ahora es un estado propio, independiente
+  // del valor de days que dispara la busqueda.
+  const [isCustomDays, setIsCustomDays] = useState(false);
+  const [customDaysInput, setCustomDaysInput] = useState("");
   const [loading, setLoading] = useState(true);
   const [coupons, setCoupons] = useState<Array<{ code: string; description: string }>>([]);
   const [selectedCoupon, setSelectedCoupon] = useState("");
@@ -184,8 +191,19 @@ export default function RetencionPage() {
           <div>
             <label className="block text-xs font-medium text-gray-600 mb-1">Dias sin visita</label>
             <select
-              value={days}
-              onChange={(e) => setDays(parseInt(e.target.value))}
+              value={isCustomDays ? 0 : days}
+              onChange={(e) => {
+                const v = parseInt(e.target.value);
+                if (v === 0) {
+                  // Entrar en modo personalizado no dispara la busqueda todavia — recien
+                  // cuando el usuario termine de escribir un numero valido (ver abajo).
+                  setIsCustomDays(true);
+                  setCustomDaysInput("");
+                } else {
+                  setIsCustomDays(false);
+                  setDays(v);
+                }
+              }}
               className="border rounded-lg px-3 py-2 text-sm"
             >
               <option value={15}>15 dias</option>
@@ -198,10 +216,25 @@ export default function RetencionPage() {
               <option value={365}>365 dias</option>
               <option value={0}>Personalizado...</option>
             </select>
-            {days === 0 && (
-              <input type="number" min={1} max={999} placeholder="Dias"
-                onChange={(e) => { const v = parseInt(e.target.value); if (v > 0) setDays(v); }}
-                className="border rounded-lg px-3 py-2 text-sm w-24 mt-1" />
+            {isCustomDays && (
+              <input
+                type="number"
+                min={1}
+                max={999}
+                placeholder="Dias"
+                value={customDaysInput}
+                onChange={(e) => setCustomDaysInput(e.target.value)}
+                onBlur={() => {
+                  const v = parseInt(customDaysInput);
+                  if (v > 0) setDays(v);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key !== "Enter") return;
+                  const v = parseInt(customDaysInput);
+                  if (v > 0) setDays(v);
+                }}
+                className="border rounded-lg px-3 py-2 text-sm w-24 mt-1"
+              />
             )}
           </div>
           <div>
