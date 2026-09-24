@@ -47,8 +47,21 @@ export async function GET(req: NextRequest) {
   const totalIncome = income.reduce((s, t) => s + Number(t.total), 0);
   const totalExpenses = expenses.reduce((s, t) => s + Number(t.total), 0);
 
+  // Punto 5 (Pablo): al crear/editar un movimiento manual, permitir elegir a que
+  // profesional corresponde. Devuelto junto con la lista de transacciones para no
+  // agregar otro round-trip al abrir el modal.
+  let barbersQuery = supabase
+    .from("profiles")
+    .select("id, name")
+    .eq("role", "barber")
+    .eq("active", true)
+    .order("name");
+  if (tenantId && tenantId !== "ALL") barbersQuery = barbersQuery.eq("tenant_id", tenantId);
+  const { data: barbers } = await barbersQuery;
+
   return NextResponse.json({
     transactions: transactions || [],
+    barbers: barbers || [],
     stats: {
       totalIncome,
       totalExpenses,
@@ -58,10 +71,12 @@ export async function GET(req: NextRequest) {
   });
 }
 
+const ASSIGNED_TO_VALUES = new Set(["professional", "reception", "business"]);
+
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { type, description, amount, paymentMethod, notes, tenantId: bodyTenantId } = body;
+  const { type, description, amount, paymentMethod, notes, tenantId: bodyTenantId, assignedTo, barberId } = body;
 
   // Resolve tenant: prefer explicit param, fallback to session. Never save a manual
   // income/expense entry without a business, or it becomes invisible in Finanzas.
@@ -74,6 +89,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No se pudo determinar el negocio para la transaccion." }, { status: 400 });
   }
 
+  // Punto 5 (Pablo): "a quien corresponde" (Profesional/Recepcion/Negocio general).
+  // Opcional para no romper otros flujos que sigan llamando a este endpoint sin el
+  // campo; un valor invalido se ignora en vez de fallar la transaccion completa.
+  const resolvedAssignedTo = ASSIGNED_TO_VALUES.has(assignedTo) ? assignedTo : null;
+  const resolvedBarberId = resolvedAssignedTo === "professional" && barberId ? barberId : null;
+
   const { data: tx, error: txError } = await supabase
     .from("transactions")
     .insert({
@@ -84,6 +105,8 @@ export async function POST(req: NextRequest) {
       payment_method: paymentMethod.toLowerCase(),
       notes,
       tenant_id: resolvedTenantId,
+      assigned_to: resolvedAssignedTo,
+      barber_id: resolvedBarberId,
     })
     .select()
     .single();
