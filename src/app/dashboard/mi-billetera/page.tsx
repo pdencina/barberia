@@ -1,28 +1,51 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
+
+interface WalletMovement {
+  id: string;
+  createdAt: string;
+  clientName: string;
+  service: string;
+  amount: number;
+  paymentMethod: string;
+  paymentMethodLabel: string;
+}
 
 interface WalletData {
   barber: { name: string; mode: string; commissionRate: number; rentalRate: number };
   month: { earned: number; totalSales: number; projected: number; projectedFromAppts: number; txCount: number; upcomingAppts: number };
   today: { earnings: number; sales: number };
   dailyEarnings: Array<{ day: string; amount: number }>;
+  movements: WalletMovement[];
+  movementsRange: { from: string; to: string };
 }
 
 export default function MiBilleteraPage() {
   const [data, setData] = useState<WalletData | null>(null);
   const [loading, setLoading] = useState(true);
   const { user } = useAuth();
+  // Punto 16 (Pablo): selector de fecha/rango para revisar el detalle diario de
+  // movimientos. Por defecto, hoy (igual que antes de que existiera el selector).
+  const [dateFrom, setDateFrom] = useState(todayInChile());
+  const [dateTo, setDateTo] = useState(todayInChile());
 
   useEffect(() => {
     if (!user?.id) return;
-    fetch(`/api/wallet?barberId=${user.id}`)
+    setLoading(true);
+    const params = new URLSearchParams({ barberId: user.id, from: dateFrom, to: dateTo });
+    fetch(`/api/wallet?${params.toString()}`)
       .then((r) => r.json())
       .then((d) => { if (d.barber) setData(d); })
       .finally(() => setLoading(false));
-  }, [user]);
+  }, [user, dateFrom, dateTo]);
+
+  const setQuickRange = (from: string, to: string) => {
+    setDateFrom(from);
+    setDateTo(to);
+  };
 
   if (loading || !data) {
     return (
@@ -125,6 +148,77 @@ export default function MiBilleteraPage() {
             );
           })}
         </div>
+      </div>
+
+      {/* Detalle diario de movimientos (Punto 16) */}
+      <div className="bg-white rounded-2xl border border-gray-100 p-5">
+        <h3 className="font-bold text-brand-dark text-sm mb-3">Detalle de movimientos</h3>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
+          <button
+            type="button"
+            onClick={() => setQuickRange(todayInChile(), todayInChile())}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium ${dateFrom === todayInChile() && dateTo === todayInChile() ? "bg-brand-blue text-white" : "bg-gray-100 text-brand-gray hover:bg-gray-200"}`}
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickRange(dateStrOffset(todayInChile(), -1), dateStrOffset(todayInChile(), -1))}
+            className={`px-3 py-1.5 rounded-lg text-xs font-medium ${dateFrom === dateStrOffset(todayInChile(), -1) && dateTo === dateStrOffset(todayInChile(), -1) ? "bg-brand-blue text-white" : "bg-gray-100 text-brand-gray hover:bg-gray-200"}`}
+          >
+            Ayer
+          </button>
+          <button
+            type="button"
+            onClick={() => setQuickRange(dateStrOffset(todayInChile(), -6), todayInChile())}
+            className="px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 text-brand-gray hover:bg-gray-200"
+          >
+            Ultimos 7 dias
+          </button>
+          <div className="flex items-center gap-1.5 ml-auto">
+            <input
+              type="date"
+              value={dateFrom}
+              max={dateTo}
+              onChange={(e) => e.target.value && setDateFrom(e.target.value)}
+              className="border rounded-lg px-2 py-1.5 text-xs"
+            />
+            <span className="text-brand-gray text-xs">a</span>
+            <input
+              type="date"
+              value={dateTo}
+              min={dateFrom}
+              max={todayInChile()}
+              onChange={(e) => e.target.value && setDateTo(e.target.value)}
+              className="border rounded-lg px-2 py-1.5 text-xs"
+            />
+          </div>
+        </div>
+
+        {data.movements.length === 0 ? (
+          <p className="text-center py-6 text-brand-gray text-sm">Sin movimientos en ese periodo</p>
+        ) : (
+          <div className="divide-y divide-gray-50 -mx-1">
+            {data.movements.map((m) => {
+              const when = new Intl.DateTimeFormat("es-CL", {
+                day: "numeric",
+                month: "short",
+                hour: "2-digit",
+                minute: "2-digit",
+                timeZone: "America/Santiago",
+              }).format(new Date(m.createdAt));
+              return (
+                <div key={m.id} className="flex items-center justify-between gap-3 py-2.5 px-1">
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-brand-dark truncate">{m.clientName}</p>
+                    <p className="text-xs text-brand-gray truncate">{m.service} · {when} · {m.paymentMethodLabel}</p>
+                  </div>
+                  <span className="text-sm font-bold text-brand-dark flex-shrink-0">{formatCurrency(m.amount)}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Info */}
