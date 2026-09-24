@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { todayInChile } from "@/lib/utils";
 
 // GET: Admin view of waitlist
 export async function GET(req: NextRequest) {
@@ -7,7 +8,7 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const status = searchParams.get("status") || "waiting";
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayInChile();
 
   let query = supabase
     .from("waitlist")
