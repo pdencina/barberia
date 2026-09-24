@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 import { useAuth } from "@/lib/auth-context";
@@ -9,6 +9,7 @@ import { useTenant } from "@/lib/tenant-context";
 import Link from "next/link";
 
 interface DashboardData {
+  date?: string;
   stats: {
     reservasHoy: number;
     reservasChange: number;
@@ -37,17 +38,21 @@ interface DashboardData {
 export default function DashboardPage() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  // Punto 8 (Pablo): antes solo se podia ver el dia actual. Por defecto sigue siendo
+  // hoy (comportamiento previo), pero ahora se puede elegir cualquier dia anterior para
+  // revisar ventas, reservas y servicios de esa fecha.
+  const [selectedDate, setSelectedDate] = useState(todayInChile());
   const { user } = useAuth();
   const { tenant, loading: tenantLoading } = useTenant();
+  const isToday = selectedDate === todayInChile();
 
   useEffect(() => {
     if (tenantLoading) return;
 
     const fetchDashboard = () => {
-      const url = tenant?.id
-        ? `/api/dashboard?tenantId=${tenant.id}`
-        : "/api/dashboard";
-      fetch(url, { cache: "no-store" })
+      const params = new URLSearchParams({ date: selectedDate });
+      if (tenant?.id) params.set("tenantId", tenant.id);
+      fetch(`/api/dashboard?${params.toString()}`, { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => setData(d))
         .finally(() => setLoading(false));
@@ -55,15 +60,23 @@ export default function DashboardPage() {
 
     fetchDashboard();
 
-    // Auto-refresh every 30 seconds
+    // Auto-refresh every 30 seconds — only useful while looking at today; a past day's
+    // numbers don't change, so polling them would just be wasted requests.
+    if (!isToday) return;
     const interval = setInterval(fetchDashboard, 30000);
     return () => clearInterval(interval);
-  }, [tenant?.id, tenantLoading]);
+  }, [tenant?.id, tenantLoading, selectedDate, isToday]);
 
   if (loading) return <Spinner />;
 
   const firstName = user?.name?.split(" ")[0] || "Usuario";
-  const today = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
+  // El titulo de fecha debe reflejar el dia elegido, no siempre "hoy" del navegador.
+  const selectedDateLabel = new Intl.DateTimeFormat("es-CL", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    timeZone: "America/Santiago",
+  }).format(new Date(`${selectedDate}T12:00:00Z`));
 
   // If no data (no tenant or empty), show empty dashboard
   if (!data) {
@@ -79,7 +92,7 @@ export default function DashboardPage() {
 
   const StatChange = ({ value }: { value: number }) => (
     <span className={`text-xs font-medium ${value >= 0 ? "text-green-600" : "text-red-500"}`}>
-      {value >= 0 ? "+" : ""}{value}% vs ayer
+      {value >= 0 ? "+" : ""}{value}% vs dia anterior
     </span>
   );
 
@@ -93,16 +106,39 @@ export default function DashboardPage() {
               Hola, {firstName}
             </h1>
             <p className="text-brand-gray text-sm mt-0.5">
-              Aqui tienes el resumen de tu negocio hoy.
+              {isToday
+                ? "Aqui tienes el resumen de tu negocio hoy."
+                : `Resumen de tu negocio del ${selectedDateLabel}.`}
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl border border-gray-100 text-sm text-brand-gray">
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+        {/* Punto 8: selector de fecha, para consultar el Dashboard de un dia anterior */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setSelectedDate(todayInChile())}
+            className={`px-3 py-2 rounded-lg text-sm font-medium ${isToday ? "bg-brand-blue text-white" : "bg-white border border-gray-100 text-brand-gray hover:bg-gray-50"}`}
+          >
+            Hoy
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedDate(dateStrOffset(todayInChile(), -1))}
+            className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedDate === dateStrOffset(todayInChile(), -1) ? "bg-brand-blue text-white" : "bg-white border border-gray-100 text-brand-gray hover:bg-gray-50"}`}
+          >
+            Ayer
+          </button>
+          <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-gray-100 text-sm text-brand-gray">
+            <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
             </svg>
-            <span className="capitalize">{today}</span>
+            <input
+              type="date"
+              value={selectedDate}
+              max={todayInChile()}
+              onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+              className="text-sm text-brand-gray bg-transparent outline-none"
+            />
           </div>
         </div>
       </div>
@@ -110,12 +146,12 @@ export default function DashboardPage() {
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <p className="text-xs text-brand-gray font-medium">Reservas hoy</p>
+          <p className="text-xs text-brand-gray font-medium">{isToday ? "Reservas hoy" : "Reservas"}</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.reservasHoy}</p>
           <StatChange value={data.stats.reservasChange} />
         </div>
         <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
-          <p className="text-xs text-brand-gray font-medium">Ventas hoy</p>
+          <p className="text-xs text-brand-gray font-medium">{isToday ? "Ventas hoy" : "Ventas"}</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{formatCurrency(data.stats.ventasHoy)}</p>
           <StatChange value={data.stats.ventasChange} />
         </div>
@@ -184,10 +220,10 @@ export default function DashboardPage() {
 
       {/* Main content: Agenda + Top Services */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-        {/* Agenda de hoy */}
+        {/* Agenda del dia elegido (por defecto, hoy) */}
         <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-5">
           <div className="flex items-center justify-between mb-5">
-            <h3 className="font-bold text-brand-dark">Agenda de hoy</h3>
+            <h3 className="font-bold text-brand-dark">{isToday ? "Agenda de hoy" : "Agenda de ese dia"}</h3>
             <Link href="/dashboard/calendario" className="text-xs text-brand-blue font-medium hover:underline">
               Ver agenda completa →
             </Link>
@@ -196,7 +232,7 @@ export default function DashboardPage() {
           {data.todayAppointments.length === 0 ? (
             <EmptyState
               icon={EmptyIcons.agendaEmpty}
-              title="No hay citas agendadas para hoy"
+              title={isToday ? "No hay citas agendadas para hoy" : "No hay citas agendadas para ese dia"}
               description="Cuando se agende una cita aparecera aqui."
             />
           ) : (
