@@ -44,6 +44,9 @@ export default function ClientesPage() {
   // Import/Export is a security-sensitive bulk operation: only owners/admins.
   // NOT available to barbers NOR receptionists.
   const canImportExport = gateRole === "admin" || gateRole === "super_admin";
+  // Punto 10 (Pablo): "Metricas" (origen de clientes) es solo para Administrador y
+  // Recepcion, igual que el resto de la vista de negocio.
+  const canSeeMetrics = isAdmin || gateRole === "receptionist";
 
   const fetchClients = async (query: string, p: number = page) => {
     setLoading(true);
@@ -151,6 +154,14 @@ export default function ClientesPage() {
       <div className="flex justify-between items-center">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Clientes</h1>
         <div className="flex gap-2">
+          {canSeeMetrics && (
+            <button
+              onClick={() => router.push("/dashboard/clientes/metricas")}
+              className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm"
+            >
+              📊 Métricas
+            </button>
+          )}
           {canImportExport && <>
           <label className="px-3 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm cursor-pointer">
             Importar CSV/Excel
