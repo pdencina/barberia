@@ -40,6 +40,7 @@ const sections: NavSection[] = [
     title: "Clientes",
     items: [
       { name: "Clientes", href: "/dashboard/clientes", icon: Users, minRole: "receptionist" },
+      { name: "Métricas", href: "/dashboard/clientes/metricas", icon: BarChart3, minRole: "receptionist" },
       { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star, minRole: "admin" },
       { name: "Retencion", href: "/dashboard/retencion", icon: Heart, minRole: "admin" },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: Users, minRole: "admin" },
