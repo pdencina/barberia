@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { todayInChile } from "@/lib/utils";
 
 // GET: Get all client portal data (appointments, history, loyalty)
 export async function GET(req: NextRequest) {
@@ -22,7 +23,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayInChile();
 
   // Upcoming appointments
   const { data: upcoming } = await supabase
