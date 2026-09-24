@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 // Reads from the DB and must never be prerendered/baked at build time.
 export const dynamic = "force-dynamic";
@@ -16,8 +17,10 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
-  const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
-  const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
+  // Punto 1 (Nico): "mes actual" por defecto debe ser el mes calendario de Chile.
+  const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
+  const month = parseInt(searchParams.get("month") || String(chileMonth));
+  const year = parseInt(searchParams.get("year") || String(chileYear));
 
   // Scope every query to the caller's business. "ALL" means super_admin (no filter).
   const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
@@ -35,8 +38,11 @@ export async function GET(req: NextRequest) {
     if (tenantRow?.address) businessAddress = tenantRow.address;
   }
 
-  const startDate = new Date(year, month - 1, 1).toISOString();
-  const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+  const firstDayStr = `${year}-${String(month).padStart(2, "0")}-01`;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const lastDayStr = `${year}-${String(month).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+  const startDate = chileDayBoundsUtc(firstDayStr).startUtc;
+  const endDate = chileDayBoundsUtc(lastDayStr).endUtc; // exclusive upper bound
 
   const monthNames = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio",
     "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -46,24 +52,24 @@ export async function GET(req: NextRequest) {
     .from("transactions")
     .select("total, payment_method, barber_id")
     .eq("type", "income").eq("status", "completed")
-    .gte("created_at", startDate).lte("created_at", endDate));
+    .gte("created_at", startDate).lt("created_at", endDate));
 
   const { data: expenseTx } = await scoped(supabase
     .from("transactions")
     .select("total")
     .eq("type", "expense").eq("status", "completed")
-    .gte("created_at", startDate).lte("created_at", endDate));
+    .gte("created_at", startDate).lt("created_at", endDate));
 
   const { count: appointmentsCompleted } = await scoped(supabase
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("status", "completed")
-    .gte("date", startDate.split("T")[0]).lte("date", endDate.split("T")[0]));
+    .gte("date", firstDayStr).lte("date", lastDayStr));
 
   const { count: newClients } = await scoped(supabase
     .from("clients")
     .select("id", { count: "exact", head: true })
-    .gte("created_at", startDate).lte("created_at", endDate));
+    .gte("created_at", startDate).lt("created_at", endDate));
 
   const totalIncome = (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
   const totalExpenses = (expenseTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
