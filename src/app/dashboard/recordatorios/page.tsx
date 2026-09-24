@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
+import { chileDateOffset } from "@/lib/utils";
 
 interface WhatsAppLink {
   appointmentId: string;
@@ -19,6 +20,10 @@ export default function RecordatoriosPage() {
   const [links, setLinks] = useState<WhatsAppLink[]>([]);
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
+  // Punto 4 (Nico): antes esta pagina solo mostraba "manana" sin forma de elegir otro
+  // dia. Por defecto sigue siendo manana (comportamiento previo), pero ahora se puede
+  // adelantar trabajo (ej. gestionar lunes/martes en sabado) con el selector de fecha.
+  const [selectedDate, setSelectedDate] = useState(chileDateOffset(1));
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
 
@@ -33,16 +38,30 @@ export default function RecordatoriosPage() {
 
   const fetchLinks = async () => {
     setLoading(true);
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const tomorrowStr = tomorrow.toISOString().split("T")[0];
     const t = getActiveTenantId();
-    const res = await fetch(`/api/cron/reminders/whatsapp?date=${tomorrowStr}${t ? `&tenantId=${t}` : ""}`);
+    const res = await fetch(`/api/cron/reminders/whatsapp?date=${selectedDate}${t ? `&tenantId=${t}` : ""}`);
     setLinks(await res.json());
     setLoading(false);
   };
 
-  useEffect(() => { if (!tenantLoading) fetchLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tenantLoading, tenant?.id]);
+  useEffect(() => { if (!tenantLoading) fetchLinks(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [tenantLoading, tenant?.id, selectedDate]);
+
+  // Etiqueta amigable para el dia elegido, calculada en el navegador a partir del
+  // string YYYY-MM-DD (evita el corrimiento de un dia que da new Date("YYYY-MM-DD")
+  // al interpretarse como UTC medianoche).
+  const dateLabel = (() => {
+    const [y, m, d] = selectedDate.split("-").map(Number);
+    const todayStr = chileDateOffset(0);
+    const tomorrowStr = chileDateOffset(1);
+    if (selectedDate === todayStr) return "de hoy";
+    if (selectedDate === tomorrowStr) return "de mañana";
+    const formatted = new Intl.DateTimeFormat("es-CL", {
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    }).format(new Date(Date.UTC(y, m - 1, d, 12)));
+    return `del ${formatted}`;
+  })();
 
   const triggerEmailReminders = async () => {
     setSending(true);
@@ -68,7 +87,7 @@ export default function RecordatoriosPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">Recordatorios</h1>
-          <p className="text-gray-500 text-sm">Citas de mañana - notifica a tus clientes</p>
+          <p className="text-gray-500 text-sm">Citas {dateLabel} - notifica a tus clientes</p>
         </div>
         <div className="flex gap-2">
           <button
@@ -100,16 +119,48 @@ export default function RecordatoriosPage() {
         </p>
       </div>
 
-      {/* Tomorrow's appointments */}
+      {/* Selector de dia - Punto 4: permite gestionar recordatorios de cualquier dia,
+          no solo "mañana" (ej. adelantar lunes/martes en sabado). */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex flex-wrap items-center gap-3">
+        <label className="text-sm font-medium text-gray-700">Ver citas de:</label>
+        <input
+          type="date"
+          value={selectedDate}
+          onChange={(e) => setSelectedDate(e.target.value)}
+          className="border rounded-lg px-3 py-2 text-sm"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSelectedDate(chileDateOffset(0))}
+            className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedDate === chileDateOffset(0) ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          >
+            Hoy
+          </button>
+          <button
+            onClick={() => setSelectedDate(chileDateOffset(1))}
+            className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedDate === chileDateOffset(1) ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          >
+            Mañana
+          </button>
+          <button
+            onClick={() => setSelectedDate(chileDateOffset(2))}
+            className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedDate === chileDateOffset(2) ? "bg-indigo-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          >
+            Pasado mañana
+          </button>
+        </div>
+      </div>
+
+      {/* Selected day's appointments */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-4 border-b">
-          <h2 className="font-bold text-gray-800">Citas de Mañana ({links.length})</h2>
+          <h2 className="font-bold text-gray-800">Citas {dateLabel} ({links.length})</h2>
         </div>
         {loading ? (
           <Spinner />
         ) : links.length === 0 ? (
           <div className="p-8 text-center text-gray-400">
-            <p className="text-lg">No hay citas agendadas para mañana</p>
+            <p className="text-lg">No hay citas agendadas para ese dia</p>
           </div>
         ) : (
           <div className="divide-y">
