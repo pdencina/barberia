@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
+import { todayInChile } from "@/lib/utils";
 
 interface Appointment {
   id: string;
@@ -42,7 +43,7 @@ const statusColors: Record<string, string> = {
 };
 
 export default function AgendaPage() {
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(todayInChile());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
