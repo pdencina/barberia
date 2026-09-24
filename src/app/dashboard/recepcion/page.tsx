@@ -6,6 +6,7 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
+import { todayInChile } from "@/lib/utils";
 
 interface Appointment {
   id: string;
@@ -43,7 +44,7 @@ export default function RecepcionPage() {
   const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayInChile();
 
   // Appointment times are stored as Chile local time WITHOUT a timezone (e.g.
   // "2026-09-01T15:00:00"). Feeding that to `new Date(...).toLocaleTimeString` made the
