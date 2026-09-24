@@ -5,6 +5,24 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+/**
+ * Turns a display name into a URL-safe slug: strips accents, lowercases, and collapses
+ * any run of non-alphanumeric characters into a single hyphen (e.g. "Javier García" ->
+ * "javier-garcia"). Mirrors the normalization the 062_barber_booking_slug.sql backfill
+ * used in SQL, so a professional created through the app gets the same shape of slug as
+ * the ones that migration generated for pre-existing profiles.
+ */
+export function slugify(text: string): string {
+  const withoutAccents = text
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, ""); // combining diacritical marks
+  const slug = withoutAccents
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return slug || "profesional";
+}
+
 export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("es-CL", {
     style: "currency",
@@ -50,15 +68,25 @@ export function todayInChile(): string {
 }
 
 /**
- * Chile's "today" (see todayInChile) shifted by `days` (negative = past, positive =
- * future). Built on a UTC-noon anchor so adding/subtracting days never gets tripped up
- * by DST or local-timezone rollover.
+ * A given Chile calendar date (YYYY-MM-DD) shifted by `days` (negative = past, positive
+ * = future). Built on a UTC-noon anchor so adding/subtracting days never gets tripped up
+ * by DST or local-timezone rollover. Pure calendar arithmetic on the date string — the
+ * input doesn't need to be "today", so this also powers "day before the one the user
+ * picked" (Punto 8: selector de fecha en Dashboard) without re-deriving todayInChile().
  */
-export function chileDateOffset(days: number): string {
-  const [y, m, d] = todayInChile().split("-").map(Number);
+export function dateStrOffset(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
   const anchor = new Date(Date.UTC(y, m - 1, d, 12));
   anchor.setUTCDate(anchor.getUTCDate() + days);
   return anchor.toISOString().split("T")[0];
+}
+
+/**
+ * Chile's "today" (see todayInChile) shifted by `days` (negative = past, positive =
+ * future).
+ */
+export function chileDateOffset(days: number): string {
+  return dateStrOffset(todayInChile(), days);
 }
 
 /**
