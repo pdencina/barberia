@@ -5,7 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayInChile } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 import { PushNotificationButton } from "@/components/push-notifications";
@@ -57,7 +57,7 @@ const hhmm = (ts: string | null | undefined): string =>
 export default function MiAgendaPage() {
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [selectedBarber, setSelectedBarber] = useState("");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(todayInChile());
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,14 +67,14 @@ export default function MiAgendaPage() {
     clientName: "",
     clientPhone: "",
     serviceId: "",
-    date: new Date().toISOString().split("T")[0],
+    date: todayInChile(),
     time: "10:00",
   });
   const [services, setServices] = useState<Array<{ id: string; name: string; duration: number; price: number }>>([]);
   const [creating, setCreating] = useState(false);
   const [clientSuggestions, setClientSuggestions] = useState<Array<{ id: string; name: string; phone: string | null }>>([]);
   const [blockForm, setBlockForm] = useState({
-    date: new Date().toISOString().split("T")[0],
+    date: todayInChile(),
     allDay: true,
     startTime: "10:00",
     endTime: "21:00",
@@ -201,7 +201,7 @@ export default function MiAgendaPage() {
     });
     showToast("Dia bloqueado", "success");
     setShowBlockModal(false);
-    setBlockForm({ date: new Date().toISOString().split("T")[0], allDay: true, startTime: "10:00", endTime: "21:00", reason: "" });
+    setBlockForm({ date: todayInChile(), allDay: true, startTime: "10:00", endTime: "21:00", reason: "" });
     fetchData();
   };
 
