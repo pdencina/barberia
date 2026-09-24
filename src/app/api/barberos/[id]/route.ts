@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { slugify } from "@/lib/utils";
 
 // GET: Get single professional profile
 export async function GET(
@@ -38,6 +39,33 @@ export async function PATCH(
   const update: Record<string, any> = {};
   for (const key of allowedFields) {
     if (body[key] !== undefined) update[key] = body[key];
+  }
+
+  // Punto 14 (Pablo): red de seguridad para cualquier profesional que haya quedado sin
+  // booking_slug (creado antes de que POST /api/barberos empezara a generarlo). Sin
+  // slug, su link personal cae de vuelta al feo "/pro/{uuid}" para siempre. Se genera
+  // aqui, de paso, la primera vez que se edita ese profesional — cualquier edicion, no
+  // solo un cambio de nombre.
+  const { data: current } = await supabase
+    .from("profiles")
+    .select("booking_slug, name")
+    .eq("id", params.id)
+    .single();
+  if (current && !current.booking_slug) {
+    const base = slugify(update.name || current.name || "profesional");
+    let candidate = base;
+    let n = 0;
+    while (n < 25) {
+      const { data: existing } = await supabase
+        .from("profiles")
+        .select("id")
+        .eq("booking_slug", candidate)
+        .maybeSingle();
+      if (!existing || existing.id === params.id) break;
+      n += 1;
+      candidate = n === 1 ? `${base}-${params.id.slice(0, 4)}` : `${base}-${params.id.slice(0, 4 + n)}`;
+    }
+    update.booking_slug = candidate;
   }
 
   const { data, error } = await supabase
