@@ -2,6 +2,8 @@
 // Supports: Simple API (chilesystems.com), Haulmer/OpenFactura, or direct SII
 // DTE Type 39 = Boleta Electrónica, Type 41 = Boleta Exenta
 
+import { todayInChile } from "./utils";
+
 interface BoletaItem {
   name: string;
   quantity: number;
@@ -62,7 +64,9 @@ async function emitViaSimpleApi(params: EmitBoletaParams): Promise<BoletaResult>
       Encabezado: {
         IdDoc: {
           TipoDTE: 39, // Boleta Electrónica
-          FchEmis: new Date().toISOString().split("T")[0],
+          // Punto 1 (Nico): fecha de emision de la boleta debe ser el dia calendario de
+          // Chile, no el UTC del server (evita boletas emitidas con fecha del dia siguiente).
+          FchEmis: todayInChile(),
           IndServicio: 3, // Servicios
           FmaPago: PAYMENT_CODES[params.paymentMethod] || 1,
         },
