@@ -20,6 +20,7 @@ interface ReportData {
   incomeByMethod: Array<{ method: string; total: number; count: number }>;
   topServices: Array<{ name: string; count: number; total: number }>;
   topProducts: Array<{ name: string; count: number; total: number }>;
+  expensesDetail: Array<{ name: string; count: number; total: number }>;
 }
 
 const monthNames = [
@@ -275,6 +276,40 @@ export default function ReportesPage() {
               ))}
             </tbody>
           </table>
+        </div>
+
+        {/* Detalle de Egresos (Punto 18) */}
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 md:col-span-2">
+          <h3 className="font-bold text-gray-800 p-4 border-b">Detalle de Egresos</h3>
+          {(!data.expensesDetail || data.expensesDetail.length === 0) ? (
+            <p className="text-center py-6 text-gray-400 text-sm">Sin egresos manuales en este periodo</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-gray-50 border-b">
+                <tr>
+                  <th className="text-left p-3 font-medium text-gray-600">Concepto</th>
+                  <th className="text-center p-3 font-medium text-gray-600">Cantidad</th>
+                  <th className="text-right p-3 font-medium text-gray-600">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {data.expensesDetail.map((row, i) => (
+                  <tr key={i}>
+                    <td className="p-3">{row.name}</td>
+                    <td className="p-3 text-center">{row.count}</td>
+                    <td className="p-3 text-right font-medium text-red-600">{formatCurrency(row.total)}</td>
+                  </tr>
+                ))}
+              </tbody>
+              <tfoot>
+                <tr className="border-t bg-gray-50">
+                  <td className="p-3 font-bold text-gray-800">Total Egresos</td>
+                  <td className="p-3 text-center font-bold text-gray-800">{data.expensesDetail.reduce((s, r) => s + r.count, 0)}</td>
+                  <td className="p-3 text-right font-bold text-red-600">{formatCurrency(data.summary.totalExpenses)}</td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
         </div>
       </div>
     </div>
