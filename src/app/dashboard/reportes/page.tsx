@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayInChile } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 
 interface ReportData {
@@ -35,9 +35,9 @@ const paymentMethodLabels: Record<string, string> = {
 };
 
 export default function ReportesPage() {
-  const now = new Date();
-  const [month, setMonth] = useState(now.getMonth() + 1);
-  const [year, setYear] = useState(now.getFullYear());
+  const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
+  const [month, setMonth] = useState(chileMonth);
+  const [year, setYear] = useState(chileYear);
   const [data, setData] = useState<ReportData | null>(null);
   const [loading, setLoading] = useState(true);
   const [comparison, setComparison] = useState<Array<{ label: string; income: number; expenses: number }>>([]);
