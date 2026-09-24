@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
+import { slugify } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   // Use admin client to bypass RLS - barbers list is internal data
@@ -40,6 +41,33 @@ export async function GET(req: NextRequest) {
   return NextResponse.json(data || []);
 }
 
+// Punto 14 (Pablo): los links publicos "re-booking.cl/{negocio}/{profesional}" (ver
+// barberos/[id]/page.tsx) dependen de que profiles.booking_slug este seteado; si no, la
+// UI cae de vuelta al link largo y feo "/pro/{uuid}". La migracion 062 solo rellenaba
+// booking_slug una vez, para los profesionales que ya existian en ese momento — nada en
+// el codigo de la app lo seteaba para uno nuevo, asi que cualquier profesional creado
+// despues de esa migracion quedaba atrapado con el link largo para siempre. Genera un
+// slug unico aqui, con el mismo criterio de normalizacion que uso esa migracion en SQL.
+async function generateUniqueBookingSlug(adminSupabase: ReturnType<typeof createAdminSupabase>, name: string, userId: string): Promise<string> {
+  const base = slugify(name || "profesional");
+  let candidate = base;
+  let n = 0;
+  // Small bound instead of an unbounded loop — collisions this deep are effectively
+  // impossible, and a bound keeps a pathological case from hanging the request.
+  while (n < 25) {
+    const { data: existing } = await adminSupabase
+      .from("profiles")
+      .select("id")
+      .eq("booking_slug", candidate)
+      .maybeSingle();
+    if (!existing || existing.id === userId) return candidate;
+    n += 1;
+    candidate = n === 1 ? `${base}-${userId.slice(0, 4)}` : `${base}-${userId.slice(0, 4 + n)}`;
+  }
+  // Extremely unlikely fallback: the full id guarantees uniqueness.
+  return `${base}-${userId}`;
+}
+
 export async function POST(req: NextRequest) {
   const adminSupabase = createAdminSupabase();
   const body = await req.json();
@@ -77,6 +105,8 @@ export async function POST(req: NextRequest) {
     if (phone) updates.phone = phone;
     if (resolvedTenantId) updates.tenant_id = resolvedTenantId;
 
+    const bookingSlug = await generateUniqueBookingSlug(adminSupabase, name, authData.user.id);
+
     // Use upsert: if trigger already created the profile, update it.
     // If not, create it with all the data.
     const { error: profileError } = await adminSupabase
@@ -89,6 +119,7 @@ export async function POST(req: NextRequest) {
         phone: phone || null,
         tenant_id: resolvedTenantId || null,
         active: true,
+        booking_slug: bookingSlug,
       }, { onConflict: "id" });
 
     // If the profile couldn't be created, we'd be left with an orphaned auth user
