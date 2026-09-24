@@ -138,7 +138,14 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
-  const { isAtLeast, loading: authLoading, role: userAuthRole } = useAuth();
+  const { isAtLeast, loading: authLoading, role: userAuthRole, user } = useAuth();
+  // Punto 15 (Pablo): el espacio de la foto en la esquina inferior izquierda siempre
+  // mostraba solo iniciales, nunca la foto real, aunque el profesional ya tuviera una
+  // cargada en su ficha (misma foto que usa Mi Perfil / Profesionales). userName/userRole
+  // vienen como props del render en servidor (mas confiables), pero avatar_url solo esta
+  // disponible via useAuth() en el cliente — no hace falta que sea "confiable" para esto,
+  // es solo una imagen decorativa.
+  const userAvatarUrl = user?.avatar_url || null;
 
   // Use the server-provided role (reliable) over client-side auth (unreliable on Vercel)
   const effectiveRole = userRole || userAuthRole || "barber";
@@ -377,9 +384,17 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
             </button>
           ) : (
             <div className="flex items-center gap-2 px-2">
-              <div className="w-8 h-8 rounded-full bg-brand-blue/10 flex items-center justify-center text-[10px] font-bold text-brand-blue">
-                {userName.split(" ").map((n) => n[0]).join("").slice(0, 2)}
-              </div>
+              {userAvatarUrl ? (
+                <img
+                  src={userAvatarUrl}
+                  alt={userName}
+                  className="w-8 h-8 rounded-full object-cover flex-shrink-0"
+                />
+              ) : (
+                <div className="w-8 h-8 rounded-full bg-brand-blue/10 flex items-center justify-center text-[10px] font-bold text-brand-blue flex-shrink-0">
+                  {userName.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                </div>
+              )}
               <div className="flex-1 min-w-0">
                 <p className="text-xs font-medium text-brand-dark truncate">{userName}</p>
                 <p className="text-[10px] text-brand-gray">{roleLabel[userRole] || userRole}</p>
