@@ -43,6 +43,7 @@ export default function SuperAdminTenantsPage() {
   const [createdInfo, setCreatedInfo] = useState<{ email: string; password: string; slug: string } | null>(null);
   const [form, setForm] = useState({
     name: "", slug: "", admin_email: "", admin_name: "", phone: "", address: "", rut_empresa: "", plan: "basic",
+    logo_url: "", website: "", social_media: "", trial_days: "15",
   });
   const { showToast } = useToast();
   const { switchTenant } = useTenant();
@@ -72,7 +73,7 @@ export default function SuperAdminTenantsPage() {
     if (res.ok) {
       setCreatedInfo({ email: form.admin_email, password: data.temp_password, slug: form.slug });
       setShowCreate(false);
-      setForm({ name: "", slug: "", admin_email: "", admin_name: "", phone: "", address: "", rut_empresa: "", plan: "starter" });
+      setForm({ name: "", slug: "", admin_email: "", admin_name: "", phone: "", address: "", rut_empresa: "", plan: "starter", logo_url: "", website: "", social_media: "", trial_days: "15" });
       fetchTenants();
       showToast("Empresa creada exitosamente", "success");
     } else {
@@ -262,6 +263,34 @@ export default function SuperAdminTenantsPage() {
                     placeholder="Calle 123, Ciudad"
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
                 </div>
+                <div>
+                  <label className="text-xs font-medium text-brand-gray block mb-1">Logo (URL)</label>
+                  <input type="url" value={form.logo_url}
+                    onChange={(e) => setForm({ ...form, logo_url: e.target.value })}
+                    placeholder="https://..."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-brand-gray block mb-1">Pagina web</label>
+                  <input type="url" value={form.website}
+                    onChange={(e) => setForm({ ...form, website: e.target.value })}
+                    placeholder="https://miempresa.cl"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-brand-gray block mb-1">Redes sociales</label>
+                  <input type="text" value={form.social_media}
+                    onChange={(e) => setForm({ ...form, social_media: e.target.value })}
+                    placeholder="@instagram, facebook.com/..."
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-brand-gray block mb-1">Dias de prueba</label>
+                  <input type="number" min={1} max={365} value={form.trial_days}
+                    onChange={(e) => setForm({ ...form, trial_days: e.target.value })}
+                    placeholder="15"
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-brand-blue focus:border-transparent outline-none" />
+                </div>
                 <div className="col-span-2">
                   <label className="text-xs font-medium text-brand-gray block mb-1">Plan</label>
                   <div className="grid grid-cols-2 gap-2">
@@ -282,7 +311,7 @@ export default function SuperAdminTenantsPage() {
               </div>
 
               <div className="bg-blue-50 rounded-xl p-3 text-xs text-brand-blue">
-                Se generara una contraseña temporal y se enviara por email al admin. Trial de 15 dias incluido.
+                Se generara una contraseña temporal y se enviara por email al admin. Trial de {form.trial_days || 15} dias incluido.
               </div>
 
               <div className="flex gap-2 pt-2">
