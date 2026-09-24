@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
   // Business-wide financials: owners/managers only. A professional must never pull the
@@ -13,11 +14,19 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
-  const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
-  const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
+  // Punto 1 (Nico): "mes actual" por defecto debe ser el mes calendario de Chile, no el
+  // UTC del server (afectaba el cierre mensual cerca de fin de mes).
+  const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
+  const month = parseInt(searchParams.get("month") || String(chileMonth));
+  const year = parseInt(searchParams.get("year") || String(chileYear));
 
-  const startDate = new Date(year, month - 1, 1).toISOString();
-  const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
+  // Month bounds as Chile midnight-to-midnight UTC instants (not naive local-Date
+  // construction, which used the server's own UTC offset for the boundary).
+  const firstDayStr = `${year}-${String(month).padStart(2, "0")}-01`;
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const lastDayStr = `${year}-${String(month).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+  const startDate = chileDayBoundsUtc(firstDayStr).startUtc;
+  const endDate = chileDayBoundsUtc(lastDayStr).endUtc; // exclusive upper bound
   // "ALL" means super_admin (no filter, sees every business). Only apply the filter
   // when there's a real tenant id, otherwise .eq("tenant_id","ALL") matches nothing
   // and every card shows $0 for super_admin.
@@ -30,7 +39,7 @@ export async function GET(req: NextRequest) {
     .eq("type", "income")
     .eq("status", "completed")
     .gte("created_at", startDate)
-    .lte("created_at", endDate));
+    .lt("created_at", endDate));
 
   // Expense transactions
   const { data: expenseTx } = await tf(supabase
@@ -39,7 +48,7 @@ export async function GET(req: NextRequest) {
     .eq("type", "expense")
     .eq("status", "completed")
     .gte("created_at", startDate)
-    .lte("created_at", endDate));
+    .lt("created_at", endDate));
 
   const totalIncome = (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
   const totalExpenses = (expenseTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
@@ -49,15 +58,15 @@ export async function GET(req: NextRequest) {
     .from("appointments")
     .select("id", { count: "exact", head: true })
     .eq("status", "completed")
-    .gte("date", startDate.split("T")[0])
-    .lte("date", endDate.split("T")[0]));
+    .gte("date", firstDayStr)
+    .lte("date", lastDayStr));
 
   // New clients
   const { count: newClients } = await tf(supabase
     .from("clients")
     .select("id", { count: "exact", head: true })
     .gte("created_at", startDate)
-    .lte("created_at", endDate));
+    .lt("created_at", endDate));
 
   // Income by payment method
   const methodMap: Record<string, { total: number; count: number }> = {};
@@ -112,7 +121,7 @@ export async function GET(req: NextRequest) {
     .select("id")
     .eq("status", "completed")
     .gte("created_at", startDate)
-    .lte("created_at", endDate));
+    .lt("created_at", endDate));
   const txIdList = (tenantTxIds || []).map((t: any) => t.id);
 
   // Top services (from transaction_items via this tenant's transactions)
