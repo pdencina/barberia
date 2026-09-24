@@ -6,6 +6,16 @@ import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 // Reads from the DB and must never be prerendered/baked at build time.
 export const dynamic = "force-dynamic";
 
+// Punto 17 (Pablo): mismo criterio que /api/reportes/monthly — agrupar por nombre
+// normalizado para no listar dos veces a un profesional cuya cuenta fue recreada.
+function normalizeName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 // Generates an HTML report that can be printed/saved as PDF
 export async function GET(req: NextRequest) {
   // Owners/managers only — same gate as the monthly report JSON.
@@ -56,7 +66,7 @@ export async function GET(req: NextRequest) {
 
   const { data: expenseTx } = await scoped(supabase
     .from("transactions")
-    .select("total")
+    .select("id, total")
     .eq("type", "expense").eq("status", "completed")
     .gte("created_at", startDate).lt("created_at", endDate));
 
@@ -92,6 +102,30 @@ export async function GET(req: NextRequest) {
   if (barberIds.length > 0) {
     const { data: profiles } = await supabase.from("profiles").select("id, name").in("id", barberIds);
     barberNames = Object.fromEntries((profiles || []).map((p) => [p.id, p.name]));
+  }
+
+  // Punto 17: agrupar ventas e id's por nombre normalizado.
+  const barberNameGroups: Record<string, { name: string; total: number; count: number }> = {};
+  for (const [id, total] of Object.entries(barberMap)) {
+    const name = barberNames[id] || "Desconocido";
+    const key = normalizeName(name);
+    if (!barberNameGroups[key]) barberNameGroups[key] = { name, total: 0, count: 0 };
+    barberNameGroups[key].total += total;
+    barberNameGroups[key].count += (incomeTx || []).filter((t: any) => t.barber_id === id).length;
+  }
+
+  // Punto 18: detalle de egresos manuales (electricidad, arriendo, sueldos, etc.).
+  const expenseTxIds = (expenseTx || []).map((t: any) => t.id);
+  const expenseMap: Record<string, number> = {};
+  if (expenseTxIds.length > 0) {
+    const { data: expenseItems } = await supabase
+      .from("transaction_items")
+      .select("description, total, transaction_id")
+      .in("transaction_id", expenseTxIds);
+    for (const item of expenseItems || []) {
+      const label = item.description || "Otro egreso";
+      expenseMap[label] = (expenseMap[label] || 0) + Number(item.total);
+    }
   }
 
   const paymentLabels: Record<string, string> = {
@@ -195,8 +229,8 @@ export async function GET(req: NextRequest) {
     <table>
       <thead><tr><th>Barbero</th><th class="text-right">Ventas</th><th class="text-right">Total</th></tr></thead>
       <tbody>
-        ${Object.entries(barberMap).map(([id, total]) => `
-          <tr><td>${barberNames[id] || "Desconocido"}</td><td class="text-right">${(incomeTx || []).filter((t: any) => t.barber_id === id).length}</td><td class="text-right">${fmt(total)}</td></tr>
+        ${Object.values(barberNameGroups).map(({ name, count, total }) => `
+          <tr><td>${name}</td><td class="text-right">${count}</td><td class="text-right">${fmt(total)}</td></tr>
         `).join("")}
       </tbody>
     </table>
@@ -210,6 +244,18 @@ export async function GET(req: NextRequest) {
         ${Object.entries(methodMap).map(([method, total]) => `
           <tr><td>${paymentLabels[method] || method}</td><td class="text-right">${fmt(total)}</td></tr>
         `).join("")}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="section">
+    <h2>Detalle de Egresos</h2>
+    <table>
+      <thead><tr><th>Concepto</th><th class="text-right">Total</th></tr></thead>
+      <tbody>
+        ${Object.keys(expenseMap).length > 0 ? Object.entries(expenseMap).map(([name, total]) => `
+          <tr><td>${name}</td><td class="text-right">${fmt(total)}</td></tr>
+        `).join("") : `<tr><td colspan="2" style="text-align:center;color:#999;">Sin egresos manuales en este periodo</td></tr>`}
       </tbody>
     </table>
   </div>
