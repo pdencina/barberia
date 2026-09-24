@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 // GET: Current day's cash register status + transactions
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
+  // Punto 1 (Nico): "hoy" debe ser el dia calendario de Chile, no el UTC del server.
+  const date = searchParams.get("date") || todayInChile();
 
   // Get register for this date, scoped to the caller's business. Without this, two
   // businesses opening a register on the same day would collide (see migration 053).
@@ -18,9 +20,9 @@ export async function GET(req: NextRequest) {
   if (tenantId && tenantId !== "ALL") registerQuery = registerQuery.eq("tenant_id", tenantId);
   const { data: register } = await registerQuery.maybeSingle();
 
-  // Get today's cash transactions
-  const dayStart = `${date}T00:00:00`;
-  const dayEnd = `${date}T23:59:59`;
+  // Get today's cash transactions. Bounds computed against Chile's real midnight (not a
+  // naive date-string range, which Postgres would read in its own session timezone).
+  const { startUtc: dayStart, endUtc: dayEnd } = chileDayBoundsUtc(date);
 
   // Enriched breakdown for the "Movimientos del dia" table: who did it (barber), what
   // (service/item descriptions), the tip, plus the amount/method/time. This is what
@@ -30,7 +32,7 @@ export async function GET(req: NextRequest) {
     .select("id, type, total, payment_method, notes, created_at, tip_amount, barber_id, barber:profiles(name, work_mode, rental_cash_to_barber), items:transaction_items(description)")
     .eq("status", "completed")
     .gte("created_at", dayStart)
-    .lte("created_at", dayEnd)
+    .lt("created_at", dayEnd)
     .order("created_at", { ascending: true });
   if (tenantId && tenantId !== "ALL") txQuery = txQuery.eq("tenant_id", tenantId);
   const { data: transactionsRaw } = await txQuery;
@@ -118,7 +120,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No se pudo determinar el negocio para abrir la caja." }, { status: 400 });
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayInChile();
 
   // Check if THIS business already opened a register today (was checking globally,
   // which blocked every other business from opening theirs — see migration 053).
@@ -165,7 +167,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No se pudo determinar el negocio para cerrar la caja." }, { status: 400 });
   }
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayInChile();
 
   // Get THIS business's open register for today.
   const { data: register } = await supabase
@@ -180,9 +182,9 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: "No hay caja abierta para hoy" }, { status: 404 });
   }
 
-  // Calculate expected — only THIS business's transactions.
-  const dayStart = `${today}T00:00:00`;
-  const dayEnd = `${today}T23:59:59`;
+  // Calculate expected — only THIS business's transactions, bounded to Chile's real
+  // midnight-to-midnight for "today" (not a naive date-string range).
+  const { startUtc: dayStart, endUtc: dayEnd } = chileDayBoundsUtc(today);
 
   const { data: transactions } = await supabase
     .from("transactions")
@@ -190,7 +192,7 @@ export async function PATCH(req: NextRequest) {
     .eq("status", "completed")
     .eq("tenant_id", tenantId)
     .gte("created_at", dayStart)
-    .lte("created_at", dayEnd);
+    .lt("created_at", dayEnd);
 
   // Same exclusion as the GET summary: cash pocketed directly by a rental barber never
   // entered the till, so it must not be part of the expected amount at close.
