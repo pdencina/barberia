@@ -3,6 +3,20 @@ import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase
 import { getTenantFromRequest } from "@/lib/tenant-filter";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
+// Punto 17 (Pablo): "profesionales duplicados en el cierre mensual" — al recrear una
+// cuenta durante pruebas queda un profile_id viejo (desactivado) y uno nuevo, ambos con
+// el mismo nombre, y el cierre los mostraba como dos filas separadas. No hay forma
+// segura de fusionar los ids en la base de datos sin arriesgar historial, asi que se
+// agrupa la vista del reporte por nombre normalizado (sin acentos/mayusculas), sumando
+// el historial de todos los profile_id que compartan nombre.
+function normalizeName(name: string): string {
+  return name
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .trim()
+    .toLowerCase();
+}
+
 export async function GET(req: NextRequest) {
   // Business-wide financials: owners/managers only. A professional must never pull the
   // whole salon's income from here (they were seeing it via the UI before the fix).
@@ -44,7 +58,7 @@ export async function GET(req: NextRequest) {
   // Expense transactions
   const { data: expenseTx } = await tf(supabase
     .from("transactions")
-    .select("total")
+    .select("id, total")
     .eq("type", "expense")
     .eq("status", "completed")
     .gte("created_at", startDate)
@@ -88,13 +102,32 @@ export async function GET(req: NextRequest) {
 
   // Get barber names and work mode
   const barberIds = Object.keys(barberMap);
-  let barberProfiles: Record<string, { name: string; work_mode: string }> = {};
+  let barberProfiles: Record<string, { name: string; work_mode: string; active: boolean }> = {};
   if (barberIds.length > 0) {
     const { data: profiles } = await supabase
       .from("profiles")
-      .select("id, name, work_mode")
+      .select("id, name, work_mode, active")
       .in("id", barberIds);
-    barberProfiles = Object.fromEntries((profiles || []).map((p) => [p.id, { name: p.name, work_mode: p.work_mode || "commission" }]));
+    barberProfiles = Object.fromEntries((profiles || []).map((p) => [p.id, { name: p.name, work_mode: p.work_mode || "commission", active: p.active !== false }]));
+  }
+
+  // Punto 17: agrupar por nombre normalizado para no mostrar la misma persona dos veces
+  // cuando su cuenta fue recreada (id viejo desactivado + id nuevo). Se prefiere el modo
+  // de trabajo del profile activo; si ninguno esta activo, se usa el primero encontrado.
+  const nameGroups: Record<string, { name: string; total: number; count: number; workMode: string; hasActive: boolean }> = {};
+  for (const [id, v] of Object.entries(barberMap)) {
+    const profile = barberProfiles[id];
+    const displayName = profile?.name || "Desconocido";
+    const key = normalizeName(displayName);
+    if (!nameGroups[key]) {
+      nameGroups[key] = { name: displayName, total: 0, count: 0, workMode: profile?.work_mode || "commission", hasActive: false };
+    }
+    nameGroups[key].total += v.total;
+    nameGroups[key].count += v.count;
+    if (profile?.active) {
+      nameGroups[key].workMode = profile.work_mode;
+      nameGroups[key].hasActive = true;
+    }
   }
 
   // Separate income by work mode
@@ -154,6 +187,27 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  // Punto 18 (Pablo): "incorporar egresos manuales al cierre mensual" — el total ya
+  // incluia los egresos manuales (electricidad, arriendo, sueldos, insumos, bebidas,
+  // etc.), pero el cierre solo mostraba una cifra global sin poder ver de que se
+  // componia. Se agrega el detalle agrupado por descripcion, igual que Top
+  // servicios/productos, para que se vea el movimiento financiero completo.
+  const expenseMap: Record<string, { total: number; count: number }> = {};
+  const expenseTxIds = new Set((expenseTx || []).map((t: any) => t.id));
+  if (expenseTxIds.size > 0) {
+    const { data: expenseItems } = await supabase
+      .from("transaction_items")
+      .select("description, total, transaction_id")
+      .in("transaction_id", Array.from(expenseTxIds));
+
+    for (const item of expenseItems || []) {
+      const label = item.description || "Otro egreso";
+      if (!expenseMap[label]) expenseMap[label] = { total: 0, count: 0 };
+      expenseMap[label].total += Number(item.total);
+      expenseMap[label].count++;
+    }
+  }
+
   return NextResponse.json({
     period: { month, year },
     summary: {
@@ -178,10 +232,11 @@ export async function GET(req: NextRequest) {
       .map(([name, v]) => ({ name, ...v }))
       .sort((a, b) => b.total - a.total)
       .slice(0, 10),
-    incomeByBarber: Object.entries(barberMap).map(([id, v]) => ({
-      name: barberProfiles[id]?.name || "Desconocido",
-      workMode: barberProfiles[id]?.work_mode || "commission",
-      ...v,
-    })),
+    incomeByBarber: Object.values(nameGroups)
+      .map(({ name, total, count, workMode }) => ({ name, total, count, workMode }))
+      .sort((a, b) => b.total - a.total),
+    expensesDetail: Object.entries(expenseMap)
+      .map(([name, v]) => ({ name, ...v }))
+      .sort((a, b) => b.total - a.total),
   });
 }
