@@ -118,6 +118,7 @@ export async function POST(req: NextRequest) {
       status: "scheduled",
       notes: notes || null,
       tenant_id: tenantId,
+      source: "link", // Punto 10: reserva hecha por el cliente desde el link publico.
     })
     .select("id")
     .single();
