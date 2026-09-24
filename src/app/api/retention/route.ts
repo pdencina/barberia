@@ -8,9 +8,6 @@ export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const days = parseInt(searchParams.get("days") || "30");
 
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - days);
-
   // Get all clients with their last appointment date
   const { data: clients } = await supabase
     .from("clients")
@@ -21,12 +18,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ clients: [], stats: { total: 0, inactive: 0 } });
   }
 
-  // Get last completed appointment for each client
-  const { data: appointments } = await supabase
+  // Punto 13 (Pablo): las metricas de retencion no deben considerar periodos
+  // anteriores a la fecha en que el negocio realmente empezo a usar re-booking (para
+  // Estudio Levels, fijada en 1 de septiembre 2026). Para negocios nuevos, sin fecha
+  // explicita, se usa automaticamente su tenants.created_at.
+  let retentionStartDate: string | null = null;
+  if (tenantId && tenantId !== "ALL") {
+    const { data: tenantRow } = await supabase
+      .from("tenants")
+      .select("retention_start_date, created_at")
+      .eq("id", tenantId)
+      .single();
+    retentionStartDate = tenantRow?.retention_start_date || tenantRow?.created_at || null;
+  }
+
+  // Get last completed appointment for each client, scoped to this tenant and to the
+  // retention window (visitas anteriores a retentionStartDate no cuentan como "ultima
+  // visita real" — ver comentario arriba).
+  let apptQuery = supabase
     .from("appointments")
     .select("client_id, date")
     .eq("status", "completed")
     .order("date", { ascending: false });
+  if (tenantId && tenantId !== "ALL") apptQuery = apptQuery.eq("tenant_id", tenantId);
+  if (retentionStartDate) apptQuery = apptQuery.gte("date", retentionStartDate);
+  const { data: appointments } = await apptQuery;
 
   // Build map of last visit per client
   const lastVisitMap: Record<string, string> = {};
@@ -44,14 +60,23 @@ export async function GET(req: NextRequest) {
 
   // Filter inactive clients
   const inactiveClients = clients
-    .map((client) => ({
-      ...client,
-      lastVisit: lastVisitMap[client.id] || null,
-      totalVisits: visitCountMap[client.id] || 0,
-      daysSinceVisit: lastVisitMap[client.id]
-        ? Math.floor((Date.now() - new Date(lastVisitMap[client.id]).getTime()) / (1000 * 60 * 60 * 24))
-        : Math.floor((Date.now() - new Date(client.created_at).getTime()) / (1000 * 60 * 60 * 24)),
-    }))
+    .map((client) => {
+      // When there's no visit within the retention window, the "days since" clock
+      // should never start earlier than retentionStartDate — otherwise a client whose
+      // account predates go-live (import, testing, etc.) would look artificially
+      // ancient/inactive from day one, distorting the stats the same way a real
+      // pre-launch visit would if it were still being counted.
+      let sinceRef = lastVisitMap[client.id] || client.created_at;
+      if (!lastVisitMap[client.id] && retentionStartDate && new Date(client.created_at) < new Date(retentionStartDate)) {
+        sinceRef = retentionStartDate;
+      }
+      return {
+        ...client,
+        lastVisit: lastVisitMap[client.id] || null,
+        totalVisits: visitCountMap[client.id] || 0,
+        daysSinceVisit: Math.floor((Date.now() - new Date(sinceRef).getTime()) / (1000 * 60 * 60 * 24)),
+      };
+    })
     .filter((c) => c.daysSinceVisit >= days)
     .sort((a, b) => b.daysSinceVisit - a.daysSinceVisit);
 
