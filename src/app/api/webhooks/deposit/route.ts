@@ -142,6 +142,7 @@ export async function POST(req: NextRequest) {
         deposit_status: "paid",
         deposit_payment_id: String(paymentId),
         deposit_paid_at: new Date().toISOString(),
+        source: "link", // Punto 10: tambien es una reserva publica (con deposito via MP).
       })
       .select("id")
       .single();
