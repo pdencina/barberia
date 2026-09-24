@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { todayInChile } from "@/lib/utils";
 
 // GET: Returns the barber with fewest appointments today (first available)
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") || new Date().toISOString().split("T")[0];
+  const date = searchParams.get("date") || todayInChile();
   const branchSlug = searchParams.get("branch") || searchParams.get("tenant");
 
   // Scope to the business. Without this, "primer barbero disponible" picked the barber
