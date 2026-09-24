@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 // GET: Calculate rental summary for all rental-mode professionals
 export async function GET(req: NextRequest) {
@@ -8,8 +9,10 @@ export async function GET(req: NextRequest) {
   const tenantId = await getTenantFromRequest(req);
   const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
   const { searchParams } = new URL(req.url);
-  const month = parseInt(searchParams.get("month") || String(new Date().getMonth() + 1));
-  const year = parseInt(searchParams.get("year") || String(new Date().getFullYear()));
+  // Punto 1 (Nico): "mes actual" por defecto debe ser el mes calendario de Chile.
+  const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
+  const month = parseInt(searchParams.get("month") || String(chileMonth));
+  const year = parseInt(searchParams.get("year") || String(chileYear));
 
   // Get all rental professionals (scoped to the caller's business)
   const { data: professionals } = await scoped(supabase
@@ -24,9 +27,14 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ professionals: [], totals: { totalNet: 0, totalGross: 0 }, period: { month, year } });
   }
 
-  // Get days worked per barber (distinct dates with completed appointments)
+  // Get days worked per barber (distinct dates with completed appointments). Bounds
+  // computed against Chile's real midnight for created_at (timestamptz), plain calendar
+  // dates for the `date` column.
   const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
-  const endDate = new Date(year, month, 0).toISOString().split("T")[0]; // last day of month
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(daysInMonth).padStart(2, "0")}`;
+  const monthStartUtc = chileDayBoundsUtc(startDate).startUtc;
+  const monthEndUtc = chileDayBoundsUtc(endDate).endUtc; // exclusive upper bound
 
   const { data: appointments } = await scoped(supabase
     .from("appointments")
@@ -40,8 +48,8 @@ export async function GET(req: NextRequest) {
     .select("id, barber_id")
     .eq("type", "income")
     .eq("status", "completed")
-    .gte("created_at", `${startDate}T00:00:00`)
-    .lte("created_at", `${endDate}T23:59:59`));
+    .gte("created_at", monthStartUtc)
+    .lt("created_at", monthEndUtc));
 
   // Map transactions to barber
   const txBarberMap = new Map<string, string>((transactions || []).map((t: any) => [t.id, t.barber_id]));
