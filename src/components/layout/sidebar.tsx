@@ -19,6 +19,10 @@ interface NavItem {
   href: string;
   icon: any;
   minRole: Role; // minimum role required to see this item
+  // Punto (Nico, 25-sep): sub-paginas anidadas bajo un item padre (Clientes, Calendario,
+  // Configuracion), para comprimir la barra lateral — el padre sigue siendo un link a su
+  // propia pagina, y un chevron aparte expande/colapsa sus hijos.
+  children?: NavItem[];
 }
 
 interface NavSection {
@@ -39,12 +43,17 @@ const sections: NavSection[] = [
   {
     title: "Clientes",
     items: [
-      { name: "Clientes", href: "/dashboard/clientes", icon: Users, minRole: "receptionist" },
-      { name: "Métricas", href: "/dashboard/clientes/metricas", icon: BarChart3, minRole: "receptionist" },
-      { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star, minRole: "admin" },
-      { name: "Retencion", href: "/dashboard/retencion", icon: Heart, minRole: "admin" },
+      {
+        name: "Clientes", href: "/dashboard/clientes", icon: Users, minRole: "receptionist",
+        // Punto (Nico, 25-sep): pedido de Pablo — comprimir la barra dejando Metricas,
+        // Fidelidad y Retencion anidadas bajo Clientes en vez de como filas propias.
+        children: [
+          { name: "Métricas", href: "/dashboard/clientes/metricas", icon: BarChart3, minRole: "receptionist" },
+          { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star, minRole: "admin" },
+          { name: "Retencion", href: "/dashboard/retencion", icon: Heart, minRole: "admin" },
+        ],
+      },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: Users, minRole: "admin" },
-      { name: "Lista Espera", href: "/dashboard/waitlist", icon: Users, minRole: "admin" },
     ],
   },
   {
@@ -52,19 +61,23 @@ const sections: NavSection[] = [
     items: [
       { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck, minRole: "barber" },
       { name: "Agenda", href: "/dashboard/agenda", icon: Calendar, minRole: "receptionist" },
-      { name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays, minRole: "receptionist" },
-      { name: "Recepcion", href: "/dashboard/recepcion", icon: Tablet, minRole: "receptionist" },
-      { name: "Recordatorios", href: "/dashboard/recordatorios", icon: Bell, minRole: "admin" },
+      {
+        name: "Calendario", href: "/dashboard/calendario", icon: CalendarDays, minRole: "receptionist",
+        // Punto (Nico, 25-sep): Recepcion, Recordatorios y Lista Espera pasan a ser hijos
+        // de Calendario (Lista Espera se muda desde la seccion Clientes).
+        children: [
+          { name: "Recepcion", href: "/dashboard/recepcion", icon: Tablet, minRole: "receptionist" },
+          { name: "Recordatorios", href: "/dashboard/recordatorios", icon: Bell, minRole: "admin" },
+          { name: "Lista Espera", href: "/dashboard/waitlist", icon: Users, minRole: "admin" },
+        ],
+      },
     ],
   },
   {
     title: "Finanzas",
     items: [
       { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign, minRole: "admin" },
-      { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap, minRole: "barber" },
       { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: Wallet, minRole: "barber" },
-      { name: "Arriendo", href: "/dashboard/arriendo", icon: Zap, minRole: "admin" },
-      { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin" },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: BarChart3, minRole: "admin" },
       { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin" },
       { name: "Facturas", href: "/dashboard/facturas", icon: Receipt, minRole: "admin" },
@@ -73,8 +86,6 @@ const sections: NavSection[] = [
   {
     title: "Catalogo",
     items: [
-      { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
-      { name: "Inventario", href: "/dashboard/inventario", icon: Package, minRole: "admin" },
       { name: "Cupones", href: "/dashboard/cupones", icon: CreditCard, minRole: "admin" },
       { name: "Precios", href: "/dashboard/precios", icon: Tag, minRole: "super_admin" },
       { name: "Galeria", href: "/dashboard/galeria", icon: Image, minRole: "admin" },
@@ -87,7 +98,18 @@ const sections: NavSection[] = [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin" },
       { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin" },
-      { name: "Config", href: "/dashboard/configuracion", icon: Settings, minRole: "admin" },
+      {
+        name: "Configuracion", href: "/dashboard/configuracion", icon: Settings, minRole: "admin",
+        // Punto (Nico, 25-sep): Comisiones/Arriendo/Terminal POS (antes en Finanzas) y
+        // Servicios/Inventario (antes en Catalogo) pasan a ser hijos de Configuracion.
+        children: [
+          { name: "Comisiones", href: "/dashboard/comisiones", icon: Zap, minRole: "barber" },
+          { name: "Arriendo", href: "/dashboard/arriendo", icon: Zap, minRole: "admin" },
+          { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin" },
+          { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
+          { name: "Inventario", href: "/dashboard/inventario", icon: Package, minRole: "admin" },
+        ],
+      },
     ],
   },
   {
@@ -136,6 +158,9 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({});
+  // Punto (Nico, 25-sep): expand/collapse por item padre (Clientes/Calendario/Configuracion),
+  // separado de openSections que controla el titulo de seccion completo.
+  const [openItems, setOpenItems] = useState<Record<string, boolean>>({});
   const pathname = usePathname();
   const router = useRouter();
   const supabase = createClient();
@@ -169,47 +194,54 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     ],
   };
 
+  // Punto (Nico, 25-sep): antes era una cadena de 4 pasos .map()/.filter() que solo miraba
+  // items de primer nivel. Con items anidados (Clientes/Calendario/Configuracion) el mismo
+  // criterio (whitelist de rol, solo-negocio, oculto temporal) tiene que aplicarse tambien a
+  // los hijos, asi que se reemplaza por una funcion recursiva. Devuelve null cuando el item
+  // (padre o hijo) debe desaparecer por completo de la barra.
+  const processItem = (item: NavItem): (NavItem & { locked?: boolean }) | null => {
+    if (isSoloBusiness && SOLO_BUSINESS_HIDDEN_ROUTES.includes(item.href)) return null;
+    if (TEMP_HIDDEN_ROUTES.includes(item.href)) return null;
+
+    const whitelist = ROLE_MENU_ACCESS[effectiveRole];
+    const locked = whitelist ? !whitelist.includes(item.href) : !isAtLeast(item.minRole);
+
+    // Para roles con whitelist explicita (receptionist/barber): un item bloqueado se saca
+    // por completo en vez de mostrarse como "PRO" — mismo comportamiento de antes, ahora
+    // recursivo para que tambien aplique a los hijos.
+    if (whitelist && locked) return null;
+
+    const children = item.children
+      ?.map(processItem)
+      .filter((c): c is NavItem & { locked?: boolean } => c !== null);
+
+    return { ...item, locked, children: children && children.length > 0 ? children : undefined };
+  };
+
   const filteredSections = authLoading && !userRole
     ? sections.map((s) => ({ ...s, items: s.items.slice(0, 1) })).slice(0, 2)
     : sections
         .map((section) => ({
           ...section,
-          items: section.items.map((item) => {
-            // If role has explicit whitelist, use it
-            const whitelist = ROLE_MENU_ACCESS[effectiveRole];
-            const locked = whitelist
-              ? !whitelist.includes(item.href)
-              : !isAtLeast(item.minRole);
-            return { ...item, locked };
-          }),
-        }))
-        // For receptionist/barber: completely remove locked items (don't show as PRO)
-        .map((section) => ({
-          ...section,
-          items: ROLE_MENU_ACCESS[effectiveRole]
-            ? section.items.filter((item) => !(item as any).locked)
-            : section.items,
-        }))
-        // Solo/independent professional: remove team-only items entirely
-        .map((section) => ({
-          ...section,
-          items: isSoloBusiness
-            ? section.items.filter((item) => !SOLO_BUSINESS_HIDDEN_ROUTES.includes(item.href))
-            : section.items,
-        }))
-        // Temporalmente ocultas para todos los roles (ver TEMP_HIDDEN_ROUTES arriba)
-        .map((section) => ({
-          ...section,
-          items: section.items.filter((item) => !TEMP_HIDDEN_ROUTES.includes(item.href)),
+          items: section.items
+            .map(processItem)
+            .filter((i): i is NavItem & { locked?: boolean } => i !== null),
         }))
         .filter((section) => section.items.length > 0);
 
   useEffect(() => {
     const saved = localStorage.getItem("sidebar-collapsed");
     if (saved === "true") setCollapsed(true);
-    // Open section that contains active route
-    const active = filteredSections.find((s) => s.items.some((i) => i.href === pathname));
-    if (active) setOpenSections((prev) => ({ ...prev, [active.title]: true }));
+    // Open section (and parent item) that contains the active route, incluyendo hijos
+    // anidados (ej: entrar directo a /dashboard/recepcion abre Agenda Y Calendario).
+    const active = filteredSections.find((s) =>
+      s.items.some((i) => i.href === pathname || i.children?.some((c) => c.href === pathname))
+    );
+    if (active) {
+      setOpenSections((prev) => ({ ...prev, [active.title]: true }));
+      const parentItem = active.items.find((i) => i.children?.some((c) => c.href === pathname));
+      if (parentItem) setOpenItems((prev) => ({ ...prev, [parentItem.href]: true }));
+    }
   }, []);
 
   const toggleCollapse = () => {
@@ -220,6 +252,10 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
 
   const toggleSection = (title: string) => {
     setOpenSections((prev) => ({ ...prev, [title]: !prev[title] }));
+  };
+
+  const toggleItem = (href: string) => {
+    setOpenItems((prev) => ({ ...prev, [href]: !prev[href] }));
   };
 
   const handleLogout = async () => {
@@ -263,40 +299,94 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
                 {section.items.map((item) => {
                   const isActive = pathname === item.href;
                   const isLocked = (item as any).locked;
+                  const hasChildren = !!item.children && item.children.length > 0;
+                  const childActive = item.children?.some((c) => c.href === pathname) ?? false;
+                  // Punto (Nico, 25-sep): si el usuario nunca lo toco, se auto-abre cuando
+                  // contiene la ruta activa (se recalcula en cada render, no necesita el
+                  // useEffect de montaje para el caso de navegar entre paginas ya adentro).
+                  const itemOpen = openItems[item.href] ?? childActive;
                   return (
                     <li key={item.href}>
-                      {isLocked ? (
-                        <div
-                          title="Disponible en plan superior"
-                          className={cn(
-                            "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium opacity-40 cursor-not-allowed",
-                            !showLabels && "justify-center px-2",
-                          )}
-                        >
-                          <item.icon className="h-[18px] w-[18px] flex-shrink-0 text-brand-gray" strokeWidth={1.5} />
-                          {showLabels && (
-                            <span className="truncate flex-1">{item.name}</span>
-                          )}
-                          {showLabels && (
-                            <span className="px-1.5 py-0.5 bg-brand-accent/20 text-brand-accent text-[9px] font-bold rounded">PRO</span>
-                          )}
-                        </div>
-                      ) : (
-                        <Link
-                          href={item.href}
-                          onClick={() => setMobileOpen(false)}
-                          title={!showLabels ? item.name : undefined}
-                          className={cn(
-                            "flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
-                            !showLabels && "justify-center px-2",
-                            isActive
-                              ? "bg-brand-blue/10 text-brand-blue"
-                              : "text-brand-dark/70 hover:bg-brand-light hover:text-brand-dark"
-                          )}
-                        >
-                          <item.icon className={cn("h-[18px] w-[18px] flex-shrink-0", isActive ? "text-brand-blue" : "text-brand-gray")} strokeWidth={1.5} />
-                          {showLabels && <span className="truncate">{item.name}</span>}
-                        </Link>
+                      <div className="flex items-center">
+                        {isLocked ? (
+                          <div
+                            title="Disponible en plan superior"
+                            className={cn(
+                              "flex flex-1 min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium opacity-40 cursor-not-allowed",
+                              !showLabels && "justify-center px-2",
+                            )}
+                          >
+                            <item.icon className="h-[18px] w-[18px] flex-shrink-0 text-brand-gray" strokeWidth={1.5} />
+                            {showLabels && (
+                              <span className="truncate flex-1">{item.name}</span>
+                            )}
+                            {showLabels && (
+                              <span className="px-1.5 py-0.5 bg-brand-accent/20 text-brand-accent text-[9px] font-bold rounded">PRO</span>
+                            )}
+                          </div>
+                        ) : (
+                          <Link
+                            href={item.href}
+                            onClick={() => setMobileOpen(false)}
+                            title={!showLabels ? item.name : undefined}
+                            className={cn(
+                              "flex flex-1 min-w-0 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-all",
+                              !showLabels && "justify-center px-2",
+                              isActive
+                                ? "bg-brand-blue/10 text-brand-blue"
+                                : "text-brand-dark/70 hover:bg-brand-light hover:text-brand-dark"
+                            )}
+                          >
+                            <item.icon className={cn("h-[18px] w-[18px] flex-shrink-0", isActive ? "text-brand-blue" : "text-brand-gray")} strokeWidth={1.5} />
+                            {showLabels && <span className="truncate">{item.name}</span>}
+                          </Link>
+                        )}
+                        {hasChildren && showLabels && !isLocked && (
+                          <button
+                            onClick={() => toggleItem(item.href)}
+                            title={itemOpen ? "Colapsar" : "Expandir"}
+                            className="flex-shrink-0 p-1.5 mr-1 text-brand-gray hover:text-brand-dark"
+                          >
+                            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !itemOpen && "-rotate-90")} />
+                          </button>
+                        )}
+                      </div>
+
+                      {hasChildren && showLabels && itemOpen && (
+                        <ul className="mt-0.5 ml-4 pl-3 border-l border-gray-100 dark:border-white/10 space-y-0.5">
+                          {item.children!.map((child) => {
+                            const childLocked = (child as any).locked;
+                            const childIsActive = pathname === child.href;
+                            return (
+                              <li key={child.href}>
+                                {childLocked ? (
+                                  <div
+                                    title="Disponible en plan superior"
+                                    className="flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium opacity-40 cursor-not-allowed"
+                                  >
+                                    <child.icon className="h-4 w-4 flex-shrink-0 text-brand-gray" strokeWidth={1.5} />
+                                    <span className="truncate flex-1">{child.name}</span>
+                                    <span className="px-1.5 py-0.5 bg-brand-accent/20 text-brand-accent text-[9px] font-bold rounded">PRO</span>
+                                  </div>
+                                ) : (
+                                  <Link
+                                    href={child.href}
+                                    onClick={() => setMobileOpen(false)}
+                                    className={cn(
+                                      "flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-[13px] font-medium transition-all",
+                                      childIsActive
+                                        ? "bg-brand-blue/10 text-brand-blue"
+                                        : "text-brand-dark/60 hover:bg-brand-light hover:text-brand-dark"
+                                    )}
+                                  >
+                                    <child.icon className={cn("h-4 w-4 flex-shrink-0", childIsActive ? "text-brand-blue" : "text-brand-gray")} strokeWidth={1.5} />
+                                    <span className="truncate">{child.name}</span>
+                                  </Link>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
                     </li>
                   );
