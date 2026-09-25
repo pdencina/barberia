@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 // Reads from the DB and must never be prerendered/baked at build time.
 export const dynamic = "force-dynamic";
@@ -8,7 +7,10 @@ export const dynamic = "force-dynamic";
 // GET: Monthly comparison - last 6 months of income/expenses (scoped to the caller's business)
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getTenantFromRequest(req);
+  const { searchParams } = new URL(req.url);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
   // Scope every query to the caller's tenant. "ALL" means super_admin (no filter).
   const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
