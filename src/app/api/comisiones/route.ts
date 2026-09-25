@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 // Punto 1 (Nico): rango [startUtc, endUtc) de un mes calendario de Chile, para filtrar
@@ -15,9 +14,11 @@ function monthBoundsChile(year: number, month: number): { startUtc: string; endU
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getTenantFromRequest(req);
-  const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
   const { searchParams } = new URL(req.url);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
+  const scoped = (q: any) => (tenantId && tenantId !== "ALL" ? q.eq("tenant_id", tenantId) : q);
   const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
   const month = parseInt(searchParams.get("month") || String(chileMonth));
   const year = parseInt(searchParams.get("year") || String(chileYear));
