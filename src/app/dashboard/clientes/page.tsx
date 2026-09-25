@@ -23,7 +23,7 @@ export default function ClientesPage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "", notes: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", notes: "", source: "manual", sourceDetail: "" });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState("");
@@ -90,7 +90,7 @@ export default function ClientesPage() {
       });
       showToast("Cliente creado exitosamente", "success");
       setShowModal(false);
-      setFormData({ name: "", email: "", phone: "", notes: "" });
+      setFormData({ name: "", email: "", phone: "", notes: "", source: "manual", sourceDetail: "" });
       fetchClients(search);
     } catch (err) {
       console.error("Error creating client:", err);
@@ -398,25 +398,20 @@ export default function ClientesPage() {
                   className="w-full border rounded-lg px-3 py-2" rows={2} />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Como nos conocio?</label>
-                <select value={(formData as any).source || ""}
-                  onChange={(e) => setFormData({ ...formData, source: e.target.value } as any)}
+                <label className="block text-sm font-medium text-gray-700 mb-1">¿Cómo nos visitó?</label>
+                <select value={formData.source}
+                  onChange={(e) => setFormData({ ...formData, source: e.target.value, sourceDetail: e.target.value === "promotion" ? formData.sourceDetail : "" })}
                   className="w-full border rounded-lg px-3 py-2">
-                  <option value="">Seleccionar...</option>
-                  <option value="friend">Amigo / Referido</option>
-                  <option value="google_maps">Google Maps</option>
-                  <option value="instagram">Instagram</option>
-                  <option value="tiktok">TikTok</option>
-                  <option value="ads">Publicidad</option>
-                  <option value="other">Otro</option>
+                  <option value="manual">Normal (recomendación, boca a boca, etc.)</option>
+                  <option value="promotion">Llegó por una promoción</option>
                 </select>
               </div>
-              {(formData as any).source === "instagram" && (
+              {formData.source === "promotion" && (
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Cuenta de Instagram</label>
-                  <input type="text" value={(formData as any).source_detail || ""}
-                    onChange={(e) => setFormData({ ...formData, source_detail: e.target.value } as any)}
-                    placeholder="@usuario"
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Código de descuento o influencer (opcional)</label>
+                  <input type="text" value={formData.sourceDetail}
+                    onChange={(e) => setFormData({ ...formData, sourceDetail: e.target.value })}
+                    placeholder="Ej: DESCUENTO10 o @influencer"
                     className="w-full border rounded-lg px-3 py-2" />
                 </div>
               )}
