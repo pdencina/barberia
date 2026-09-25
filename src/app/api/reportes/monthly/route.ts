@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 // Punto 17 (Pablo): "profesionales duplicados en el cierre mensual" — al recrear una
@@ -26,8 +25,10 @@ export async function GET(req: NextRequest) {
   }
 
   const supabase = createAdminSupabase();
-  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
   // Punto 1 (Nico): "mes actual" por defecto debe ser el mes calendario de Chile, no el
   // UTC del server (afectaba el cierre mensual cerca de fin de mes).
   const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
