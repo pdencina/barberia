@@ -58,6 +58,41 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(data, { status: 201 });
 }
 
+// Punto (Nico, 25-sep): antes un bloqueo solo se podia eliminar (la X roja en el
+// calendario) — Pablo pidio poder modificar nombre/duracion sin tener que borrar y
+// recrear. Mismo shape que POST, pero solo actualiza los campos recibidos.
+export async function PATCH(req: NextRequest) {
+  const supabase = createAdminSupabase();
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+  if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
+
+  const body = await req.json().catch(() => ({} as any));
+  const { reason, allDay, startTime, endTime } = body;
+
+  const updates: Record<string, any> = {};
+  if (reason !== undefined) updates.reason = reason || null;
+  if (allDay !== undefined) {
+    updates.all_day = !!allDay;
+    updates.start_time = allDay ? null : startTime || null;
+    updates.end_time = allDay ? null : endTime || null;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return NextResponse.json({ error: "Nada para actualizar" }, { status: 400 });
+  }
+
+  const { data, error } = await supabase
+    .from("barber_blocks")
+    .update(updates)
+    .eq("id", id)
+    .select()
+    .single();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);
+}
+
 export async function DELETE(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
