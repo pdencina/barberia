@@ -7,6 +7,8 @@ import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashboard/sales-chart";
+import { ProductCarousel, type CarouselItem } from "@/components/dashboard/product-carousel";
+import { PackageX, ShoppingBag } from "lucide-react";
 import Link from "next/link";
 
 interface DashboardData {
@@ -33,6 +35,8 @@ interface DashboardData {
     services: Array<{ service: { name: string } }>;
   }>;
   topServices: Array<{ name: string; count: number }>;
+  topProducts: Array<{ name: string; count: number }>;
+  lowStock: Array<{ id: string; name: string; stock: number; minStock: number }>;
   chartRange: ChartRange;
   chartData: ChartPoint[];
   chartTotal: number;
@@ -102,17 +106,39 @@ export default function DashboardPage() {
     );
   }
 
-  const StatChange = ({ value }: { value: number }) => (
-    <span
-      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full mt-2 ${
-        value >= 0 ? "text-emerald-600 bg-emerald-50" : "text-red-500 bg-red-50"
-      }`}
-    >
-      {value >= 0 ? "+" : ""}
-      {value}%
-      <span className="font-normal opacity-70">vs dia anterior</span>
-    </span>
-  );
+  // `invert`: para metricas donde subir es MALO (ej. Cancelaciones) — un + rojo, un -
+  // verde. Antes todo positivo se pintaba verde, incluso mas cancelaciones, que es peor
+  // para el negocio, no mejor.
+  const StatChange = ({ value, invert = false }: { value: number; invert?: boolean }) => {
+    const isGood = invert ? value <= 0 : value >= 0;
+    return (
+      <span
+        className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full mt-2 ${
+          isGood ? "text-emerald-600 bg-emerald-50" : "text-red-500 bg-red-50"
+        }`}
+      >
+        {value >= 0 ? "+" : ""}
+        {value}%
+        <span className="font-normal opacity-70">vs dia anterior</span>
+      </span>
+    );
+  };
+
+  // Carrusel de stock bajo: "critico" cuando ya llego a 0, "bajo" cuando esta en o por
+  // debajo del minimo pero todavia queda algo.
+  const lowStockItems: CarouselItem[] = (data.lowStock || []).map((p) => ({
+    id: p.id,
+    primary: p.name,
+    secondary: `${p.stock}/${p.minStock} uds · ${p.stock <= 0 ? "Critico" : "Bajo"}`,
+    tone: p.stock <= 0 ? "danger" : "warning",
+  }));
+
+  const topProductItems: CarouselItem[] = (data.topProducts || []).map((p, i) => ({
+    id: p.name,
+    primary: p.name,
+    secondary: `${p.count} vendidos`,
+    tone: i === 0 ? "success" : "neutral",
+  }));
 
   return (
     <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
@@ -186,7 +212,7 @@ export default function DashboardPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">Cancelaciones</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.cancelaciones}</p>
-          <StatChange value={data.stats.cancelacionesChange} />
+          <StatChange value={data.stats.cancelacionesChange} invert />
         </div>
       </div>
 
@@ -199,6 +225,22 @@ export default function DashboardPage() {
         growth={data.chartGrowth || 0}
         loading={chartLoading}
       />
+
+      {/* Aviso de stock bajo + Productos mas vendidos — carruseles de 3 por vista */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <ProductCarousel
+          title="Stock bajo"
+          icon={<PackageX className="w-4 h-4" />}
+          emptyMessage="Todo el inventario esta dentro de su stock minimo."
+          items={lowStockItems}
+        />
+        <ProductCarousel
+          title="Mas vendidos (ultimos 30 dias)"
+          icon={<ShoppingBag className="w-4 h-4" />}
+          emptyMessage="Sin ventas de productos en este periodo."
+          items={topProductItems}
+        />
+      </div>
 
       {/* Main content: Agenda + Top Services */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
