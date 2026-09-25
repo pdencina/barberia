@@ -5,7 +5,6 @@ import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { formatCurrency } from "@/lib/utils";
 import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Tenant {
   id: string;
@@ -48,7 +47,6 @@ export default function SuperAdminTenantsPage() {
   });
   const { showToast } = useToast();
   const { switchTenant } = useTenant();
-  const { confirm } = useConfirm();
 
   // Punto (Nico, 25-sep): opciones de gestion pedidas por Pablo — editar, eliminar
   // (permanente, para limpiar empresas ficticias/de prueba), ver contacto del dueño, y
@@ -61,6 +59,11 @@ export default function SuperAdminTenantsPage() {
   const [deletingTenant, setDeletingTenant] = useState<{ tenant: Tenant; counts?: any } | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [deleting, setDeleting] = useState(false);
+  // Punto (Nico, 25-sep): Pablo pidio ver una "vista previa" del negocio antes de entrar
+  // a operar como el (antes era un confirm() de texto plano, sin datos reales del negocio).
+  const [enteringTenant, setEnteringTenant] = useState<any | null>(null);
+  const [loadingEnterPreview, setLoadingEnterPreview] = useState(false);
+  const [entering, setEntering] = useState(false);
 
   const openContact = async (t: Tenant) => {
     setViewingContact({ ...t });
@@ -143,15 +146,24 @@ export default function SuperAdminTenantsPage() {
   };
 
   // Entrar a operar como el negocio (Punto de Pablo, 25-sep: pedia confirmacion antes de
-  // esto — antes era un solo click sin aviso).
-  const handleEnter = async (t: Tenant) => {
-    const ok = await confirm({
-      title: "Entrar a la empresa",
-      message: `Vas a entrar a operar como "${t.name}". Veras y podras modificar sus datos (clientes, citas, caja, etc.) hasta que salgas del modo Superadmin. Continuar?`,
-      confirmText: "Entrar",
-    });
-    if (!ok) return;
-    switchTenant(t.id, t.name);
+  // esto — antes era un solo click sin aviso; luego pidio ademas una vista previa real del
+  // negocio en vez de solo un texto de confirmacion, asi que este modal reutiliza el mismo
+  // endpoint de detalle+conteos que usa "Contacto").
+  const openEnterPreview = async (t: Tenant) => {
+    setEnteringTenant({ ...t });
+    setLoadingEnterPreview(true);
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${t.id}`);
+      if (res.ok) setEnteringTenant(await res.json());
+    } finally {
+      setLoadingEnterPreview(false);
+    }
+  };
+
+  const confirmEnter = () => {
+    if (!enteringTenant) return;
+    setEntering(true);
+    switchTenant(enteringTenant.id, enteringTenant.name);
   };
 
   const fetchTenants = async () => {
@@ -239,7 +251,7 @@ export default function SuperAdminTenantsPage() {
                 <p><strong>URL:</strong> {appUrl}/login</p>
               </div>
             </div>
-            <button onClick={() => setCreatedInfo(null)} className="text-green-600 hover:text-green-800">âœ•</button>
+            <button onClick={() => setCreatedInfo(null)} className="text-green-600 hover:text-green-800">✕</button>
           </div>
         </div>
       )}
@@ -280,7 +292,7 @@ export default function SuperAdminTenantsPage() {
                       </span>
                     </div>
                     <p className="text-xs text-brand-gray mt-0.5">
-                      {t.admin_email} Â· /{t.slug} Â· {t.max_professionals} profesionales max
+                      {t.admin_email} · /{t.slug} · {t.max_professionals} profesionales max
                     </p>
                   </div>
                 </div>
@@ -321,10 +333,10 @@ export default function SuperAdminTenantsPage() {
                       Eliminar
                     </button>
                     <button
-                      onClick={() => handleEnter(t)}
+                      onClick={() => openEnterPreview(t)}
                       className="px-3 py-1.5 bg-brand-blue text-white text-xs font-medium rounded-lg hover:bg-brand-blue/90 transition-colors"
                     >
-                      Entrar â†’
+                      Entrar →
                     </button>
                   </div>
                 </div>
@@ -424,10 +436,10 @@ export default function SuperAdminTenantsPage() {
                   <label className="text-xs font-medium text-brand-gray block mb-1">Plan</label>
                   <div className="grid grid-cols-2 gap-2">
                     {[
-                      { key: "basic", label: "Basic", desc: "1 prof Â· $8.900/mes" },
-                      { key: "starter", label: "Starter", desc: "3 prof Â· $29.990/mes" },
-                      { key: "pro", label: "Pro", desc: "8 prof Â· $49.990/mes" },
-                      { key: "enterprise", label: "Enterprise", desc: "Ilimitado Â· $189.990/mes" },
+                      { key: "basic", label: "Basic", desc: "1 prof · $8.900/mes" },
+                      { key: "starter", label: "Starter", desc: "3 prof · $29.990/mes" },
+                      { key: "pro", label: "Pro", desc: "8 prof · $49.990/mes" },
+                      { key: "enterprise", label: "Enterprise", desc: "Ilimitado · $189.990/mes" },
                     ].map((p) => (
                       <button key={p.key} type="button" onClick={() => setForm({ ...form, plan: p.key })}
                         className={`p-3 rounded-xl border-2 text-left transition-all ${form.plan === p.key ? "border-brand-blue bg-brand-blue/5" : "border-gray-200 hover:border-gray-300"}`}>
@@ -621,6 +633,64 @@ export default function SuperAdminTenantsPage() {
                 className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 disabled:opacity-50"
               >
                 {deleting ? "Eliminando..." : "Eliminar permanentemente"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Vista previa antes de entrar a operar como el negocio (Punto de Pablo, 25-sep) */}
+      {enteringTenant && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => !entering && setEnteringTenant(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-11 h-11 rounded-xl bg-brand-blue/10 flex items-center justify-center text-brand-blue font-bold text-sm shrink-0">
+                {(enteringTenant.name || "").slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <h2 className="text-lg font-bold text-brand-dark leading-tight">{enteringTenant.name}</h2>
+                <p className="text-xs text-brand-gray">/{enteringTenant.slug}</p>
+              </div>
+            </div>
+
+            {loadingEnterPreview ? (
+              <p className="text-sm text-brand-gray text-center py-6">Cargando vista previa...</p>
+            ) : (
+              <div className="space-y-3 text-sm mb-5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${planColors[enteringTenant.plan] || ""}`}>
+                    {enteringTenant.plan}
+                  </span>
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-medium ${statusColors[enteringTenant.status] || ""}`}>
+                    {enteringTenant.status === "trial" ? `Trial (${daysLeft(enteringTenant.trial_ends_at)}d)` : enteringTenant.status}
+                  </span>
+                </div>
+                <div>
+                  <p className="text-[10px] text-brand-gray uppercase font-medium">Dueño / admin</p>
+                  <p className="text-brand-dark">{enteringTenant.admin_name || "—"} · {enteringTenant.admin_email || "—"}</p>
+                </div>
+                {enteringTenant.counts && (
+                  <div className="pt-3 border-t grid grid-cols-2 gap-2 text-xs text-brand-gray">
+                    <p>{enteringTenant.counts.clients} clientes</p>
+                    <p>{enteringTenant.counts.appointments} citas</p>
+                    <p>{enteringTenant.counts.transactions} transacciones</p>
+                    <p>{enteringTenant.counts.profiles} usuarios</p>
+                  </div>
+                )}
+                <div className="bg-blue-50 rounded-xl p-3 text-xs text-brand-blue">
+                  Vas a entrar a operar como "{enteringTenant.name}". Veras y podras modificar sus datos (clientes, citas, caja, etc.) hasta que salgas del modo Superadmin.
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2">
+              <button onClick={() => setEnteringTenant(null)} disabled={entering}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50 disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={confirmEnter} disabled={entering || loadingEnterPreview}
+                className="flex-1 py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                {entering ? "Entrando..." : "Entrar a operar"}
               </button>
             </div>
           </div>
