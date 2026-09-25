@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { sendRetentionEmail } from "@/lib/resend";
 
 // POST: Send retention message to inactive clients OF THIS BUSINESS.
@@ -19,7 +18,10 @@ export async function POST(req: NextRequest) {
   // Resolve and REQUIRE a single tenant. This is the fix for the cross-business leak:
   // the query below used to hit every client of every business (service-role bypasses
   // RLS). "ALL" (super_admin) is rejected too — a mass send must target one business.
-  const tenantId = await getTenantFromRequest(req);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { searchParams } = new URL(req.url);
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
   if (!tenantId || tenantId === "ALL") {
     return NextResponse.json(
       { error: "No se pudo identificar el negocio. Recarga la pagina e intenta de nuevo." },
