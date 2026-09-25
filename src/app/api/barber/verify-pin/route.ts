@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -12,7 +11,10 @@ export async function POST(req: NextRequest) {
   // salon, so e.g. Dylan's PIN (Estudio Levels) opened Standby inside Saray's account.
   // Also, two barbers in different businesses can legitimately share a PIN, which made
   // .single() throw. We filter by tenant and take the first match within it.
-  const tenantId = await getTenantFromRequest(req);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { searchParams } = new URL(req.url);
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
   if (!tenantId || tenantId === "ALL") {
     return NextResponse.json({ valid: false, error: "No se pudo identificar el negocio" });
   }
