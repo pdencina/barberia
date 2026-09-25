@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
   const startDate = searchParams.get("start"); // YYYY-MM-DD (Monday)
 
   if (!startDate) return NextResponse.json([]);
