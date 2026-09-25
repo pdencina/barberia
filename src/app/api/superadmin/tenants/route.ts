@@ -1,8 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+
+// SEGURIDAD (Nico, 25-sep): esta ruta lista/crea TODAS las empresas de la plataforma
+// (no solo la del que llama) y antes no verificaba el rol en el servidor — cualquiera
+// autenticado podia listar el resto de los negocios. Se agrega el mismo guard que se usa
+// en el resto de las rutas de Superadmin.
+async function requireSuperAdmin() {
+  const { role } = await getCurrentUserRoleAndTenant();
+  if (role !== "super_admin") {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+  return null;
+}
 
 // GET: List all tenants
 export async function GET() {
+  const denied = await requireSuperAdmin();
+  if (denied) return denied;
+
   const supabase = createAdminSupabase();
 
   const { data: tenants } = await supabase
@@ -18,6 +33,9 @@ export async function GET() {
 
 // POST: Create new tenant (business)
 export async function POST(req: NextRequest) {
+  const denied = await requireSuperAdmin();
+  if (denied) return denied;
+
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { name, slug, rut_empresa, admin_email, admin_name, phone, address, plan, logo_url, website, social_media, trial_days } = body;
