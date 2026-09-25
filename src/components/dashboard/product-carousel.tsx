@@ -19,9 +19,9 @@ interface ProductCarouselProps {
 }
 
 const TONE_CLASSES: Record<NonNullable<CarouselItem["tone"]>, string> = {
-  danger: "bg-red-50 text-red-600",
-  warning: "bg-amber-50 text-amber-600",
-  success: "bg-emerald-50 text-emerald-600",
+  danger: "bg-red-50 text-red-600 dark:bg-red-500/10 dark:text-red-400",
+  warning: "bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400",
+  success: "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400",
   neutral: "bg-brand-light text-brand-gray",
 };
 
@@ -57,7 +57,7 @@ export function ProductCarousel({ title, icon, items, emptyMessage, loading }: P
     <div
       onMouseEnter={() => setPaused(true)}
       onMouseLeave={() => setPaused(false)}
-      className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-500 hover:border-brand-blue/20 hover:shadow-lg hover:shadow-brand-blue/5"
+      className="bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5 transition-all duration-500 hover:border-brand-blue/20 hover:shadow-lg hover:shadow-brand-blue/5"
     >
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-2">
@@ -74,7 +74,7 @@ export function ProductCarousel({ title, icon, items, emptyMessage, loading }: P
                 onClick={() => setPage(i)}
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-300",
-                  i === page ? "w-4 bg-brand-blue" : "w-1.5 bg-gray-200 hover:bg-gray-300"
+                  i === page ? "w-4 bg-brand-blue" : "w-1.5 bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20"
                 )}
               />
             ))}
@@ -97,7 +97,7 @@ export function ProductCarousel({ title, icon, items, emptyMessage, loading }: P
                 {pageItems.map((item) => (
                   <div
                     key={item.id}
-                    className="rounded-xl border border-gray-100 bg-brand-light/40 p-3 flex flex-col gap-1.5 min-h-[92px]"
+                    className="rounded-xl border border-gray-100 dark:border-white/10 bg-brand-light/40 p-3 flex flex-col gap-1.5 min-h-[92px]"
                   >
                     <p className="text-xs font-semibold text-brand-dark leading-tight line-clamp-2">{item.primary}</p>
                     <span

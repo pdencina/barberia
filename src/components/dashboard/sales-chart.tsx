@@ -53,7 +53,7 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
     <div
       onMouseEnter={() => setIsHovering(true)}
       onMouseLeave={handleContainerLeave}
-      className="group relative bg-white rounded-2xl border border-gray-100 p-5 md:p-6 backdrop-blur-sm transition-all duration-500 hover:border-brand-blue/20 hover:shadow-lg hover:shadow-brand-blue/5"
+      className="group relative bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5 md:p-6 backdrop-blur-sm transition-all duration-500 hover:border-brand-blue/20 hover:shadow-lg hover:shadow-brand-blue/5"
     >
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -83,7 +83,7 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
           <span
             className={cn(
               "text-xs font-semibold px-2 py-1 rounded-full",
-              isPositive ? "text-emerald-600 bg-emerald-50" : "text-red-500 bg-red-50"
+              isPositive ? "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-500/10" : "text-red-500 bg-red-50 dark:text-red-400 dark:bg-red-500/10"
             )}
           >
             {isPositive ? "+" : ""}
@@ -103,7 +103,7 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
               className={cn(
                 "px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200",
                 range === opt.value
-                  ? "bg-white text-brand-dark shadow-sm"
+                  ? "bg-white dark:bg-brand-white text-brand-dark shadow-sm"
                   : "text-brand-gray hover:text-brand-dark"
               )}
             >
@@ -139,7 +139,10 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
                 {/* Tooltip */}
                 <div
                   className={cn(
-                    "absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md bg-brand-dark text-white text-[10px] font-medium transition-all duration-200 whitespace-nowrap z-10 pointer-events-none",
+                    // Tooltip oscuro fijo (no brand-dark): brand-dark se invierte a casi-blanco
+                    // en tema oscuro (para el texto), asi que usarlo de fondo aca dejaria el
+                    // tooltip blanco sobre blanco.
+                    "absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md bg-gray-900 text-white text-[10px] font-medium transition-all duration-200 whitespace-nowrap z-10 pointer-events-none",
                     isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
                   )}
                 >
@@ -158,7 +161,7 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
                       ? "bg-brand-blue/15"
                       : item.total > 0
                       ? "bg-brand-blue/25 group-hover:bg-brand-blue/30"
-                      : "bg-gray-100"
+                      : "bg-gray-100 dark:bg-white/10"
                   )}
                   style={{
                     height: `${heightPx}px`,
