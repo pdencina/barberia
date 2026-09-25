@@ -14,6 +14,9 @@ interface TenantInfo {
   max_professionals: number;
   max_branches: number;
   trial_ends_at: string | null;
+  // Punto (Nico, 25-sep): tema claro/oscuro elegido por el Administrador en
+  // Configuracion, aplicado a todo el sistema para ese negocio.
+  theme: "light" | "dark";
 }
 
 interface TenantContextType {
@@ -105,6 +108,18 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
       })
       .finally(() => setLoading(false));
   }, [activeTenantId]);
+
+  // Punto (Nico, 25-sep): aplica el tema claro/oscuro del negocio a TODO el sistema
+  // (html.dark, ver globals.css/tailwind.config.ts) apenas se conoce el tenant. Se
+  // limpia al desmontar (ej. al salir a /login, donde no hay TenantProvider) para que
+  // esa pantalla no se quede oscura por un tema que ya no aplica.
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.documentElement.classList.toggle("dark", tenant?.theme === "dark");
+    return () => {
+      document.documentElement.classList.remove("dark");
+    };
+  }, [tenant?.theme]);
 
   const switchTenant = (tenantId: string, tenantName: string) => {
     localStorage.setItem("tenant_override", JSON.stringify({ tenantId, tenantName }));
