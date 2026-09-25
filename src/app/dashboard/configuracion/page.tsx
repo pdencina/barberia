@@ -4,7 +4,8 @@ import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
-import { Copy, ExternalLink, Globe, Clock, Building2, Image as ImageIcon, Lock } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { Copy, ExternalLink, Globe, Clock, Building2, Image as ImageIcon, Lock, Moon, Sun } from "lucide-react";
 import { compressImage } from "@/lib/image-compress";
 
 const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
@@ -24,6 +25,8 @@ export default function ConfiguracionPage() {
   // call, which is the unreliable-on-Vercel pattern that made the booking link fall
   // back to the generic /booking URL for some accounts (e.g. recepcion).
   const { tenant, loading: tenantCtxLoading, switchTenant } = useTenant();
+  const { isAtLeast } = useAuth();
+  const isAdmin = isAtLeast("admin");
 
   const [businessData, setBusinessData] = useState({
     name: "",
@@ -48,6 +51,13 @@ export default function ConfiguracionPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState("");
+
+  // Tema (Punto Nico, 25-sep): claro/oscuro por negocio, solo administrador. Se guarda
+  // en la tabla tenants y se aplica al instante en toda la app via TenantProvider
+  // (ver src/lib/tenant-context.tsx), asi que aca solo hace falta reflejar el valor
+  // actual y avisarle al servidor cuando cambia.
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [savingTheme, setSavingTheme] = useState(false);
 
   // Deposit/abono settings
   const [depositEnabled, setDepositEnabled] = useState(false);
@@ -121,7 +131,7 @@ export default function ConfiguracionPage() {
       const currentTenantId = resolvedTenantId;
       const { data: tenantRow } = await supabase
         .from("tenants")
-        .select("name, slug, address, phone, logo_url, website")
+        .select("name, slug, address, phone, logo_url, website, theme")
         .eq("id", resolvedTenantId)
         .single();
 
@@ -134,6 +144,7 @@ export default function ConfiguracionPage() {
         });
         setTenantSlug(tenantRow.slug || null);
         setLogoUrl((tenantRow as any).logo_url || null);
+        setTheme(((tenantRow as any).theme as "light" | "dark") || "light");
       }
 
       {
@@ -230,6 +241,32 @@ export default function ConfiguracionPage() {
   const copyLink = () => {
     navigator.clipboard.writeText(bookingUrl);
     showToast("Link copiado!", "success");
+  };
+
+  const handleThemeChange = async (next: "light" | "dark") => {
+    if (!tenantId || savingTheme || next === theme) return;
+    const previous = theme;
+    setTheme(next); // optimista: TenantProvider aplica document.documentElement.classList al instante
+    setSavingTheme(true);
+    try {
+      const res = await fetch("/api/settings/theme", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId, theme: next }),
+      });
+      if (!res.ok) throw new Error();
+      showToast(next === "dark" ? "Tema oscuro activado" : "Tema claro activado", "success");
+      // TenantProvider (arriba, en el layout) es quien aplica document.documentElement.dark
+      // en base al tema del tenant que ya tiene cargado; recargamos para que vuelva a
+      // pedir /api/tenant/info y el cambio se refleje en TODA la app (sidebar incluido),
+      // no solo en esta pagina.
+      setTimeout(() => window.location.reload(), 400);
+    } catch {
+      setTheme(previous);
+      showToast("No se pudo cambiar el tema", "error");
+    } finally {
+      setSavingTheme(false);
+    }
   };
 
   const uploadLogo = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -356,7 +393,7 @@ export default function ConfiguracionPage() {
     return (
       <div className="p-4 md:p-6 space-y-4 animate-fade-in max-w-3xl">
         <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Configuracion</h1>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+        <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
           <div>
             <h2 className="font-bold text-brand-dark">Elige el negocio</h2>
             <p className="text-xs text-brand-gray">Tu cuenta administra varios negocios. Selecciona cual quieres configurar.</p>
@@ -399,7 +436,7 @@ export default function ConfiguracionPage() {
           Comparte este link para que tus clientes agenden directamente. Aparecen todos los profesionales disponibles.
         </p>
         <div className="flex items-center gap-2">
-          <div className="flex-1 bg-white border border-gray-200 rounded-xl px-4 py-2.5 text-sm font-mono text-brand-dark truncate">
+          <div className="flex-1 bg-white dark:bg-brand-white border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono text-brand-dark truncate">
             {bookingUrl}
           </div>
           <button onClick={copyLink}
@@ -408,7 +445,7 @@ export default function ConfiguracionPage() {
             Copiar
           </button>
           <a href={bookingUrl} target="_blank" rel="noopener noreferrer"
-            className="p-2.5 bg-white border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors">
+            className="p-2.5 bg-white dark:bg-brand-white border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
             <ExternalLink className="w-4 h-4 text-brand-gray" />
           </a>
         </div>
@@ -418,7 +455,7 @@ export default function ConfiguracionPage() {
       </div>
 
       {/* Business Data */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+      <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
         <div className="flex items-center gap-2">
           <Building2 className="w-5 h-5 text-brand-gray" />
           <h2 className="font-bold text-brand-dark">Datos del Negocio</h2>
@@ -429,9 +466,9 @@ export default function ConfiguracionPage() {
         <div className="flex items-center gap-4">
           <label className="relative group cursor-pointer flex-shrink-0">
             {logoUrl ? (
-              <img src={logoUrl} alt="Logo del negocio" className="w-16 h-16 rounded-xl object-contain border border-gray-200 bg-white" />
+              <img src={logoUrl} alt="Logo del negocio" className="w-16 h-16 rounded-xl object-contain border border-gray-200 dark:border-white/10 bg-white" />
             ) : (
-              <div className="w-16 h-16 rounded-xl bg-gray-50 border border-dashed border-gray-300 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-xl bg-gray-50 dark:bg-brand-light/40 border border-dashed border-gray-300 dark:border-white/10 flex items-center justify-center">
                 <ImageIcon className="w-6 h-6 text-gray-300" />
               </div>
             )}
@@ -459,34 +496,34 @@ export default function ConfiguracionPage() {
             <label className="block text-xs font-medium text-brand-gray mb-1">Nombre</label>
             <input type="text" value={businessData.name}
               onChange={(e) => setBusinessData({ ...businessData, name: e.target.value })}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-medium text-brand-gray mb-1">Telefono</label>
             <input type="text" value={businessData.phone}
               onChange={(e) => setBusinessData({ ...businessData, phone: e.target.value })}
               placeholder="+56 9 1234 5678"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm" />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-medium text-brand-gray mb-1">Direccion</label>
             <input type="text" value={businessData.address}
               onChange={(e) => setBusinessData({ ...businessData, address: e.target.value })}
               placeholder="Av. Concha y Toro 123, Puente Alto"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm" />
           </div>
           <div className="md:col-span-2">
             <label className="block text-xs font-medium text-brand-gray mb-1">Sitio Web</label>
             <input type="text" value={businessData.website}
               onChange={(e) => setBusinessData({ ...businessData, website: e.target.value })}
               placeholder="https://www.estudiolevels.cl"
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm" />
           </div>
         </div>
       </div>
 
       {/* Per-day Schedule */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+      <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
         <div className="flex items-center gap-2">
           <Clock className="w-5 h-5 text-brand-gray" />
           <div>
@@ -511,7 +548,7 @@ export default function ConfiguracionPage() {
             return (
               <div key={dayIndex}
                 className={`grid grid-cols-1 md:grid-cols-[140px_1fr_1fr_80px] gap-2 md:gap-3 items-center p-3 rounded-xl border transition-colors ${
-                  day.is_closed ? "bg-gray-50 border-gray-100 opacity-60" : "bg-white border-gray-200"
+                  day.is_closed ? "bg-gray-50 dark:bg-brand-light/20 border-gray-100 dark:border-white/10 opacity-60" : "bg-white dark:bg-brand-white border-gray-200 dark:border-white/10"
                 }`}>
                 {/* Day name */}
                 <div className="flex items-center justify-between md:justify-start">
@@ -520,7 +557,7 @@ export default function ConfiguracionPage() {
                   </span>
                   {/* Mobile toggle */}
                   <button onClick={() => updateDay(dayIndex, "is_closed", !day.is_closed)}
-                    className="md:hidden text-xs px-2 py-1 rounded-lg border border-gray-200">
+                    className="md:hidden text-xs px-2 py-1 rounded-lg border border-gray-200 dark:border-white/10">
                     {day.is_closed ? "Cerrado" : "Abierto"}
                   </button>
                 </div>
@@ -529,7 +566,7 @@ export default function ConfiguracionPage() {
                 <select value={day.open_time}
                   disabled={day.is_closed}
                   onChange={(e) => updateDay(dayIndex, "open_time", e.target.value)}
-                  className="border border-gray-200 rounded-lg px-2 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                  className="border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-lg px-2 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
                   {timeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
 
@@ -537,7 +574,7 @@ export default function ConfiguracionPage() {
                 <select value={day.close_time}
                   disabled={day.is_closed}
                   onChange={(e) => updateDay(dayIndex, "close_time", e.target.value)}
-                  className="border border-gray-200 rounded-lg px-2 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
+                  className="border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-lg px-2 py-2 text-sm disabled:opacity-40 disabled:cursor-not-allowed">
                   {timeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
                 </select>
 
@@ -565,7 +602,7 @@ export default function ConfiguracionPage() {
       {/* Deposit / Abono Config
           (Configuracion de terminales de cobro con tarjeta: ver /dashboard/terminal-pos.
           Antes vivia aqui duplicado con otra pagina vieja separada, se unifico todo alla.) */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+      <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <svg className="w-5 h-5 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
@@ -590,7 +627,7 @@ export default function ConfiguracionPage() {
               <div>
                 <label className="block text-xs font-medium text-brand-gray mb-1">Porcentaje de abono</label>
                 <select value={depositPercentage} onChange={(e) => setDepositPercentage(parseInt(e.target.value))}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                  className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm">
                   <option value={20}>20%</option>
                   <option value={30}>30%</option>
                   <option value={40}>40%</option>
@@ -602,7 +639,7 @@ export default function ConfiguracionPage() {
               <div>
                 <label className="block text-xs font-medium text-brand-gray mb-1">Cancelacion gratis hasta</label>
                 <select value={cancellationHours} onChange={(e) => setCancellationHours(parseInt(e.target.value))}
-                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                  className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm">
                   <option value={2}>2 horas antes</option>
                   <option value={6}>6 horas antes</option>
                   <option value={12}>12 horas antes</option>
@@ -616,12 +653,12 @@ export default function ConfiguracionPage() {
             <div>
               <label className="block text-xs font-medium text-brand-gray mb-1">Mensaje al cliente</label>
               <input type="text" value={depositMessage} onChange={(e) => setDepositMessage(e.target.value)}
-                className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm"
+                className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm"
                 placeholder="Este servicio requiere un abono para confirmar tu cita." />
             </div>
 
-            <div className="bg-green-50 border border-green-200 rounded-xl p-3">
-              <p className="text-xs text-green-700">
+            <div className="bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/20 rounded-xl p-3">
+              <p className="text-xs text-green-700 dark:text-green-400">
                 <strong>Ejemplo:</strong> Si un servicio cuesta $35.000 y el abono es 30%, la clienta paga $10.500 al agendar.
                 Si cancela antes de {cancellationHours}h, se le devuelve. Despues de ese plazo, pierde el abono.
               </p>
@@ -654,8 +691,55 @@ export default function ConfiguracionPage() {
         )}
       </div>
 
+      {/* Tema (Punto Nico, 25-sep): solo Administrador — a diferencia del resto de esta
+          pagina (admin + recepcion), el tema es de todo el negocio: lo elige el admin y
+          lo ven todos los que trabajan ahi, asi que se restringe a admin/super_admin. */}
+      {isAdmin && (
+        <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
+          <div className="flex items-center gap-2">
+            {theme === "dark" ? <Moon className="w-5 h-5 text-brand-gray" /> : <Sun className="w-5 h-5 text-brand-gray" />}
+            <div>
+              <h2 className="font-bold text-brand-dark">Tema del Negocio</h2>
+              <p className="text-xs text-brand-gray">Elige como se ve re-booking para todo tu equipo (claro u oscuro)</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 max-w-md">
+            <button
+              type="button"
+              onClick={() => handleThemeChange("light")}
+              disabled={savingTheme}
+              className={`flex items-center gap-2 justify-center rounded-xl border-2 px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50 ${
+                theme === "light"
+                  ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                  : "border-gray-200 dark:border-white/10 text-brand-gray hover:border-gray-300 dark:hover:border-white/20"
+              }`}
+            >
+              <Sun className="w-4 h-4" />
+              Claro
+            </button>
+            <button
+              type="button"
+              onClick={() => handleThemeChange("dark")}
+              disabled={savingTheme}
+              className={`flex items-center gap-2 justify-center rounded-xl border-2 px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50 ${
+                theme === "dark"
+                  ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
+                  : "border-gray-200 dark:border-white/10 text-brand-gray hover:border-gray-300 dark:hover:border-white/20"
+              }`}
+            >
+              <Moon className="w-4 h-4" />
+              Oscuro
+            </button>
+          </div>
+          <p className="text-xs text-brand-gray">
+            Este cambio aplica a todo el sistema para {businessData.name || "tu negocio"}: colores, tarjetas y el logo de re-booking se adaptan automaticamente.
+          </p>
+        </div>
+      )}
+
       {/* Privacidad: cambiar contraseña */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
+      <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
         <div className="flex items-center gap-2">
           <Lock className="w-5 h-5 text-brand-gray" />
           <div>
@@ -669,26 +753,29 @@ export default function ConfiguracionPage() {
             <label className="block text-xs font-medium text-brand-gray mb-1">Contraseña actual</label>
             <input type="password" value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-medium text-brand-gray mb-1">Nueva contraseña</label>
             <input type="password" value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm" />
           </div>
           <div>
             <label className="block text-xs font-medium text-brand-gray mb-1">Confirmar nueva contraseña</label>
             <input type="password" value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              className="w-full border border-gray-200 dark:border-white/10 dark:bg-brand-light/40 dark:text-gray-100 rounded-xl px-3 py-2.5 text-sm" />
           </div>
         </div>
 
-        {passwordError && <p className="text-xs text-red-500 bg-red-50 rounded-lg px-3 py-2">{passwordError}</p>}
+        {passwordError && <p className="text-xs text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 rounded-lg px-3 py-2">{passwordError}</p>}
 
         <button onClick={handleChangePassword} disabled={changingPassword}
-          className="px-6 py-2.5 bg-brand-dark text-white rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors">
+          // bg-gray-900 fijo (no brand-dark): brand-dark se invierte a casi-blanco en tema
+          // oscuro (se usa para texto de alto contraste), asi que de fondo aca dejaria el
+          // boton blanco sobre blanco.
+          className="px-6 py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded-xl text-sm font-medium hover:opacity-90 disabled:opacity-50 transition-colors">
           {changingPassword ? "Cambiando..." : "Cambiar contraseña"}
         </button>
       </div>
