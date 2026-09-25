@@ -88,11 +88,12 @@ export async function POST(req: NextRequest) {
     // Find or create client
     let clientId: string | null = null;
     if (clientEmail) {
-      const { data: existingClient } = await supabase
-        .from("clients")
-        .select("id")
-        .eq("email", clientEmail)
-        .single();
+      // Fix: this lookup had no tenant_id filter, so a deposit for Estudio Levels could
+      // match (and link to) a client with the same email from a different business —
+      // cross-tenant data mixing. Scoped to tenantId now, same pattern as public/book.
+      let dupQuery = supabase.from("clients").select("id").eq("email", clientEmail);
+      if (tenantId) dupQuery = dupQuery.eq("tenant_id", tenantId);
+      const { data: existingClient } = await dupQuery.order("created_at", { ascending: true }).limit(1).maybeSingle();
 
       if (existingClient) {
         clientId = existingClient.id;
@@ -100,9 +101,11 @@ export async function POST(req: NextRequest) {
           await supabase.from("clients").update({ phone: clientPhone }).eq("id", clientId);
         }
       } else {
+        // Punto 10 (Pablo): cliente nuevo creado al pagar el deposito de una reserva por
+        // link -> origen "link". Solo se marca al CREAR el cliente.
         const { data: newClient } = await supabase
           .from("clients")
-          .insert({ name: clientName, email: clientEmail, phone: clientPhone || null, tenant_id: tenantId })
+          .insert({ name: clientName, email: clientEmail, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" })
           .select("id")
           .single();
         clientId = newClient?.id || null;
@@ -110,7 +113,7 @@ export async function POST(req: NextRequest) {
     } else {
       const { data: newClient } = await supabase
         .from("clients")
-        .insert({ name: clientName, phone: clientPhone || null, tenant_id: tenantId })
+        .insert({ name: clientName, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" })
         .select("id")
         .single();
       clientId = newClient?.id || null;
