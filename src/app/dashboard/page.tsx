@@ -6,6 +6,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
+import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashboard/sales-chart";
 import Link from "next/link";
 
 interface DashboardData {
@@ -32,7 +33,10 @@ interface DashboardData {
     services: Array<{ service: { name: string } }>;
   }>;
   topServices: Array<{ name: string; count: number }>;
-  weekData: Array<{ day: string; date: string; total: number }>;
+  chartRange: ChartRange;
+  chartData: ChartPoint[];
+  chartTotal: number;
+  chartGrowth: number;
 }
 
 export default function DashboardPage() {
@@ -42,6 +46,10 @@ export default function DashboardPage() {
   // hoy (comportamiento previo), pero ahora se puede elegir cualquier dia anterior para
   // revisar ventas, reservas y servicios de esa fecha.
   const [selectedDate, setSelectedDate] = useState(todayInChile());
+  // Punto 9 (Pablo): rango del grafico de ventas — 7 dias / 1 mes / 3 meses / 12 meses,
+  // para ir viendo el crecimiento del negocio de forma comoda.
+  const [chartRange, setChartRange] = useState<ChartRange>("7d");
+  const [chartLoading, setChartLoading] = useState(false);
   const { user } = useAuth();
   const { tenant, loading: tenantLoading } = useTenant();
   const isToday = selectedDate === todayInChile();
@@ -49,13 +57,17 @@ export default function DashboardPage() {
   useEffect(() => {
     if (tenantLoading) return;
 
-    const fetchDashboard = () => {
-      const params = new URLSearchParams({ date: selectedDate });
+    const fetchDashboard = (opts?: { silent?: boolean }) => {
+      const params = new URLSearchParams({ date: selectedDate, range: chartRange });
       if (tenant?.id) params.set("tenantId", tenant.id);
+      if (!opts?.silent) setChartLoading(true);
       fetch(`/api/dashboard?${params.toString()}`, { cache: "no-store" })
         .then((r) => r.json())
         .then((d) => setData(d))
-        .finally(() => setLoading(false));
+        .finally(() => {
+          setLoading(false);
+          setChartLoading(false);
+        });
     };
 
     fetchDashboard();
@@ -63,9 +75,9 @@ export default function DashboardPage() {
     // Auto-refresh every 30 seconds — only useful while looking at today; a past day's
     // numbers don't change, so polling them would just be wasted requests.
     if (!isToday) return;
-    const interval = setInterval(fetchDashboard, 30000);
+    const interval = setInterval(() => fetchDashboard({ silent: true }), 30000);
     return () => clearInterval(interval);
-  }, [tenant?.id, tenantLoading, selectedDate, isToday]);
+  }, [tenant?.id, tenantLoading, selectedDate, isToday, chartRange]);
 
   if (loading) return <Spinner />;
 
@@ -91,8 +103,14 @@ export default function DashboardPage() {
   }
 
   const StatChange = ({ value }: { value: number }) => (
-    <span className={`text-xs font-medium ${value >= 0 ? "text-green-600" : "text-red-500"}`}>
-      {value >= 0 ? "+" : ""}{value}% vs dia anterior
+    <span
+      className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full mt-2 ${
+        value >= 0 ? "text-emerald-600 bg-emerald-50" : "text-red-500 bg-red-50"
+      }`}
+    >
+      {value >= 0 ? "+" : ""}
+      {value}%
+      <span className="font-normal opacity-70">vs dia anterior</span>
     </span>
   );
 
@@ -145,78 +163,42 @@ export default function DashboardPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">{isToday ? "Reservas hoy" : "Reservas"}</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.reservasHoy}</p>
           <StatChange value={data.stats.reservasChange} />
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">{isToday ? "Ventas hoy" : "Ventas"}</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{formatCurrency(data.stats.ventasHoy)}</p>
           <StatChange value={data.stats.ventasChange} />
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">Clientes nuevos</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.clientesNuevos}</p>
           <StatChange value={data.stats.clientesChange} />
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">Reagendamientos</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.reagendamientos}</p>
           <StatChange value={data.stats.reagendamientosChange} />
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 hover:shadow-md transition-shadow">
+        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">Cancelaciones</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.cancelaciones}</p>
           <StatChange value={data.stats.cancelacionesChange} />
         </div>
       </div>
 
-      {/* Weekly Sales Chart */}
-      {data.weekData && data.weekData.length > 0 && (() => {
-        const maxVal = Math.max(...data.weekData.map((d) => d.total), 1);
-        const weekTotal = data.weekData.reduce((s, d) => s + d.total, 0);
-        return (
-          <div className="bg-white rounded-2xl border border-gray-100 p-5">
-            <div className="flex items-center justify-between mb-5">
-              <div>
-                <h3 className="font-bold text-brand-dark">Ventas de la semana</h3>
-                <p className="text-xs text-brand-gray mt-0.5">Ultimos 7 dias · Total: {formatCurrency(weekTotal)}</p>
-              </div>
-              <Link href="/dashboard/reportes" className="text-xs text-brand-blue font-medium hover:underline">
-                Ver reportes →
-              </Link>
-            </div>
-            <div className="flex items-end justify-between gap-2 h-44">
-              {data.weekData.map((d, i) => {
-                const barHeight = maxVal > 0 ? Math.max((d.total / maxVal) * 140, 4) : 4;
-                const isToday = i === data.weekData.length - 1;
-                return (
-                  <div key={d.date} className="flex-1 flex flex-col items-center justify-end h-full group">
-                    {/* Amount tooltip on hover */}
-                    <span className="text-[9px] text-brand-gray mb-1 font-medium opacity-0 group-hover:opacity-100 transition-opacity">
-                      {d.total > 0 ? formatCurrency(d.total) : "-"}
-                    </span>
-                    <div
-                      className={`w-full max-w-[36px] rounded-xl transition-all ${
-                        isToday
-                          ? "bg-gradient-to-t from-brand-blue to-blue-400 shadow-md shadow-brand-blue/20"
-                          : d.total > 0
-                          ? "bg-gradient-to-t from-blue-200 to-blue-100"
-                          : "bg-gray-100"
-                      }`}
-                      style={{ height: `${barHeight}px` }}
-                    />
-                    <span className={`text-[11px] mt-2 font-medium ${isToday ? "text-brand-blue" : "text-brand-gray"}`}>
-                      {d.day}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
+      {/* Sales Chart — Punto 9: 7 dias / 1 mes / 3 meses / 12 meses */}
+      <SalesChart
+        data={data.chartData || []}
+        range={chartRange}
+        onRangeChange={setChartRange}
+        total={data.chartTotal || 0}
+        growth={data.chartGrowth || 0}
+        loading={chartLoading}
+      />
 
       {/* Main content: Agenda + Top Services */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
