@@ -119,7 +119,8 @@ export default function MiAgendaPage() {
       fetch(`/api/barber/agenda?barberId=${selectedBarber}&date=${date}`),
       fetch(`/api/barber/blocks?barberId=${selectedBarber}&month=${date.slice(0, 7)}`),
     ]);
-    setAppointments(await apptRes.json());
+    const appts = await apptRes.json();
+    setAppointments(Array.isArray(appts) ? appts : []);
     setBlocks(await blockRes.json());
     setLoading(false);
   };

@@ -120,6 +120,23 @@ export async function resolveTenantForRequest(
   return { tenantId: callerTenantId, role, denied };
 }
 
+// Authorize access to ONE professional's data (agenda with client names/phones, weekly
+// schedule). These endpoints took `?barberId=` with no login check at all, so anyone
+// with a professional's id could read their clients or overwrite their schedule.
+// Allowed: super_admin, or a signed-in user of the same business as that professional.
+export async function canAccessBarber(barberId: string): Promise<boolean> {
+  const { userId, role, tenantId } = await getCurrentUserRoleAndTenant();
+  if (!userId) return false;
+  if (role === "super_admin") return true;
+  if (!tenantId) return false;
+  const { data: barber } = await createAdminSupabase()
+    .from("profiles")
+    .select("tenant_id")
+    .eq("id", barberId)
+    .single();
+  return barber?.tenant_id === tenantId;
+}
+
 // Get the current user's tenant_id from the session
 // Returns: tenant_id string, "ALL" for super_admin, or null if can't determine
 export async function getCurrentTenantId(): Promise<string | null> {

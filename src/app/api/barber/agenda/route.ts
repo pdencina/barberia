@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, canAccessBarber } from "@/lib/supabase/server";
 import { todayInChile } from "@/lib/utils";
 
 export async function GET(req: NextRequest) {
@@ -9,6 +9,9 @@ export async function GET(req: NextRequest) {
   const date = searchParams.get("date");
 
   if (!barberId) return NextResponse.json([]);
+  if (!(await canAccessBarber(barberId))) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
 
   let query = supabase
     .from("appointments")
