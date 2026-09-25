@@ -312,9 +312,12 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
   return (
     <>
       {/* Mobile header */}
-      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white border-b border-gray-100 flex items-center px-4 gap-3">
+      <div className="lg:hidden fixed top-0 left-0 right-0 z-40 h-14 bg-white dark:bg-brand-white border-b border-gray-100 dark:border-white/10 flex items-center px-4 gap-3">
         <button onClick={() => setMobileOpen(true)} className="text-brand-dark p-1"><Menu className="h-6 w-6" /></button>
-        <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" /></Link>
+        <Link href="/dashboard">
+          <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto dark:hidden" />
+          <img src="/logo-horizontal-white.png" alt="re-booking" className="h-7 w-auto hidden dark:block" />
+        </Link>
       </div>
 
       {/* Mobile overlay */}
@@ -322,18 +325,21 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
 
       {/* Mobile drawer */}
       <div className={cn(
-        "lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white flex flex-col transform transition-transform duration-200 shadow-xl",
+        "lg:hidden fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-brand-white flex flex-col transform transition-transform duration-200 shadow-xl",
         mobileOpen ? "translate-x-0" : "-translate-x-full"
       )}>
-        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-100">
+        <div className="flex h-14 items-center justify-between px-4 border-b border-gray-100 dark:border-white/10">
           <div className="flex items-center gap-2">
-            <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto" /></Link>
+            <Link href="/dashboard">
+              <img src="/logo-horizontal.png" alt="re-booking" className="h-8 w-auto dark:hidden" />
+              <img src="/logo-horizontal-white.png" alt="re-booking" className="h-8 w-auto hidden dark:block" />
+            </Link>
             {tenantName && <span className="text-xs text-brand-gray font-medium truncate max-w-[120px]">· {tenantName}</span>}
           </div>
           <button onClick={() => setMobileOpen(false)} className="text-brand-gray hover:text-brand-dark"><X className="h-5 w-5" /></button>
         </div>
         {renderNav(true)}
-        <div className="border-t border-gray-100 p-3">
+        <div className="border-t border-gray-100 dark:border-white/10 p-3">
           <div className="flex items-center gap-3">
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-brand-dark truncate">{userName}</p>
@@ -346,12 +352,22 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
 
       {/* Desktop sidebar */}
       <div className={cn(
-        "hidden lg:flex h-full flex-col bg-white border-r border-gray-100 flex-shrink-0 transition-all duration-200",
+        "hidden lg:flex h-full flex-col bg-white dark:bg-brand-white border-r border-gray-100 dark:border-white/10 flex-shrink-0 transition-all duration-200",
         collapsed ? "w-16" : "w-60"
       )}>
-        <div className={cn("flex h-14 items-center border-b border-gray-100", collapsed ? "justify-center" : "justify-between px-4")}>
-          {!collapsed && <Link href="/dashboard"><img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto" /></Link>}
-          {collapsed && <Link href="/dashboard"><img src="/logo-icon.png" alt="re-booking" className="h-8 w-8" /></Link>}
+        <div className={cn("flex h-14 items-center border-b border-gray-100 dark:border-white/10", collapsed ? "justify-center" : "justify-between px-4")}>
+          {!collapsed && (
+            <Link href="/dashboard">
+              <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto dark:hidden" />
+              <img src="/logo-horizontal-white.png" alt="re-booking" className="h-7 w-auto hidden dark:block" />
+            </Link>
+          )}
+          {collapsed && (
+            <Link href="/dashboard">
+              <img src="/logo-icon.png" alt="re-booking" className="h-8 w-8 dark:hidden" />
+              <img src="/logo-icon-white.png" alt="re-booking" className="h-8 w-8 hidden dark:block" />
+            </Link>
+          )}
           <button onClick={toggleCollapse} className="text-brand-gray hover:text-brand-dark p-1 rounded-lg hover:bg-brand-light">
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
@@ -368,17 +384,17 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
         {!collapsed && (
           <button
             onClick={() => document.dispatchEvent(new KeyboardEvent("keydown", { key: "k", ctrlKey: true }))}
-            className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-light hover:bg-gray-100 transition-colors text-brand-gray"
+            className="mx-3 mt-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-light hover:bg-gray-100 dark:hover:bg-white/5 transition-colors text-brand-gray"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
             <span className="text-xs flex-1 text-left">Buscar...</span>
-            <kbd className="text-[9px] bg-white border border-gray-200 px-1.5 py-0.5 rounded font-mono text-brand-gray">⌘K</kbd>
+            <kbd className="text-[9px] bg-white dark:bg-brand-light border border-gray-200 dark:border-white/10 px-1.5 py-0.5 rounded font-mono text-brand-gray">⌘K</kbd>
           </button>
         )}
         {renderNav(!collapsed)}
-        <div className="border-t border-gray-100 p-3">
+        <div className="border-t border-gray-100 dark:border-white/10 p-3">
           {collapsed ? (
             <button onClick={handleLogout} className="w-full flex justify-center text-brand-gray hover:text-red-500 p-2" title="Cerrar sesion">
               <LogOut className="h-4 w-4" />
