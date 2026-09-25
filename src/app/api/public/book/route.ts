@@ -90,9 +90,11 @@ export async function POST(req: NextRequest) {
         await supabase.from("clients").update({ phone: clientPhone }).eq("id", clientId);
       }
     } else {
+      // Punto 10 (Pablo): cliente nuevo que se creo solo reservando por link -> origen "link".
+      // Solo se marca al CREAR el cliente; uno que ya existia conserva su origen original.
       const { data: newClient } = await supabase
         .from("clients")
-        .insert({ name: clientName, email: clientEmail, phone: clientPhone || null, tenant_id: tenantId })
+        .insert({ name: clientName, email: clientEmail, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" })
         .select("id")
         .single();
       clientId = newClient!.id;
@@ -100,7 +102,7 @@ export async function POST(req: NextRequest) {
   } else {
     const { data: newClient } = await supabase
       .from("clients")
-      .insert({ name: clientName, phone: clientPhone || null, tenant_id: tenantId })
+      .insert({ name: clientName, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" })
       .select("id")
       .single();
     clientId = newClient!.id;
