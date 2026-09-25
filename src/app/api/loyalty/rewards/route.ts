@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 // POST: Create a reward
 export async function POST(req: NextRequest) {
@@ -11,7 +10,8 @@ export async function POST(req: NextRequest) {
   // Resolve tenant: prefer explicit param, fallback to session.
   let tenantId: string | null = body.tenantId || null;
   if (!tenantId) {
-    const resolved = await getTenantFromRequest(req);
+    const { searchParams } = new URL(req.url);
+    const { tenantId: resolved } = await resolveTenantForRequest(searchParams.get("tenantId"));
     tenantId = resolved && resolved !== "ALL" ? resolved : null;
   }
   if (!tenantId) {
