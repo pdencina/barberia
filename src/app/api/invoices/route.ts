@@ -1,13 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 // Avoid build-time prerendering: this reads from the DB and must not be baked/stale.
 export const dynamic = "force-dynamic";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getTenantFromRequest(req);
+  const { searchParams } = new URL(req.url);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
   let query = supabase
     .from("invoices")
@@ -39,7 +41,8 @@ export async function POST(req: NextRequest) {
   // Resolve the business so the invoice isn't saved orphaned (invisible in the list).
   let tenantId: string | null = (formData.get("tenantId") as string) || null;
   if (!tenantId) {
-    const resolved = await getTenantFromRequest(req);
+    const { searchParams } = new URL(req.url);
+    const { tenantId: resolved } = await resolveTenantForRequest(searchParams.get("tenantId"));
     tenantId = resolved && resolved !== "ALL" ? resolved : null;
   }
   if (!tenantId) {
