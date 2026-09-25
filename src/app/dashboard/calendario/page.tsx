@@ -54,11 +54,15 @@ const statusBadge: Record<string, { label: string; cls: string }> = {
 };
 
 const HOUR_HEIGHT = 64; // px per hour
-// Grid starts at 8 (barbershops commonly open at 8 AM). Before this it started at 9, so
-// an 8 AM block rendered at a negative top — off-screen and impossible to click/delete,
-// which is exactly the "el bloqueo de las 8 no aparece ni se puede borrar" report.
-const START_HOUR = 8;
-const END_HOUR = 21;
+// Rango por defecto de la grilla (Nico, 25-sep): Pablo pidio poder ver todo el dia
+// (antes de las 08:00 y despues de las 21:00 quedaba invisible/inalcanzable). El rango
+// reducido se mantiene como default porque es lo que se usa la gran mayoria del tiempo,
+// pero ahora es una opcion (ver toggle `fullDay` dentro del componente, mas abajo) en vez
+// de un limite fijo — el rango completo cubre las 24 horas.
+const DEFAULT_START_HOUR = 8;
+const DEFAULT_END_HOUR = 21;
+const FULL_DAY_START_HOUR = 0;
+const FULL_DAY_END_HOUR = 24;
 
 // Etiquetas de estado para la vista Lista — mismas usadas antes en la pagina Agenda
 // (ahora fusionada aqui), para que se vea igual a como estaba.
@@ -103,6 +107,25 @@ export default function CalendarioPage() {
     const n = new Date();
     return n.getHours() * 60 + n.getMinutes();
   });
+  // Punto (Nico, 25-sep): Pablo pidio poder ver antes de las 08:00 y despues de las
+  // 21:00 — se agrega como opcion (toggle) en vez de cambiar el default, para no hacer
+  // la grilla gigante todo el tiempo. START_HOUR/END_HOUR locales (no los modulos
+  // DEFAULT_*/FULL_DAY_*) para que toda la grilla, los calculos de posicion y el hover
+  // reaccionen al toggle.
+  const [fullDay, setFullDay] = useState(false);
+  const START_HOUR = fullDay ? FULL_DAY_START_HOUR : DEFAULT_START_HOUR;
+  const END_HOUR = fullDay ? FULL_DAY_END_HOUR : DEFAULT_END_HOUR;
+  // Punto (Nico, 25-sep): tooltip que sigue el cursor mostrando hora (redondeada a 15
+  // min) + profesional, para no tener que desplazarse hacia la columna de horas ni hacia
+  // el header del profesional para confirmar donde se esta parado.
+  const [hoverInfo, setHoverInfo] = useState<{ barberId: string; y: number } | null>(null);
+  // Punto (Nico, 25-sep): edicion de bloqueos (antes solo se podian eliminar con la X
+  // roja). Al hacer click en un bloqueo se abre este panel con nombre + duracion +
+  // eliminar, en vez del toast de solo lectura que habia antes.
+  const [editingBlock, setEditingBlock] = useState<{
+    id: string; barberId: string; reason: string; allDay: boolean; startTime: string; endTime: string;
+  } | null>(null);
+  const [savingBlock, setSavingBlock] = useState(false);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
@@ -806,6 +829,15 @@ export default function CalendarioPage() {
           <button onClick={() => setDate(todayInChile())} className={`px-3 py-2 rounded-lg text-sm font-medium ${isToday ? "bg-blue-600 text-white" : "bg-gray-100"}`}>Hoy</button>
           <button onClick={() => changeDate(1)} className="px-3 py-2 bg-gray-100 rounded-lg hover:bg-gray-200 text-sm">→</button>
           <input type="date" value={date} onChange={(e) => setDate(e.target.value)} className="border rounded-lg px-3 py-2 text-sm ml-2" />
+          {view === "calendario" && (
+            <button
+              onClick={() => setFullDay((v) => !v)}
+              title={fullDay ? "Ver horario reducido (08:00 - 21:00)" : "Ver todo el dia (00:00 - 24:00)"}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${fullDay ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+            >
+              {fullDay ? "Horario reducido" : "Ver todo el dia"}
+            </button>
+          )}
           {view === "lista" && (
             <select value={listBarberFilter} onChange={(e) => setListBarberFilter(e.target.value)}
               className="border rounded-lg px-3 py-2 text-sm">
@@ -890,9 +922,13 @@ export default function CalendarioPage() {
                     data-barber-column={barber.id}
                     className="flex-1 relative border-r border-gray-50 min-w-[120px] select-none"
                     onMouseDown={(e) => handleMouseDown(e, barber.id)}
-                    onMouseMove={handleMouseMove}
+                    onMouseMove={(e) => {
+                      handleMouseMove(e);
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoverInfo({ barberId: barber.id, y: Math.max(0, e.clientY - rect.top) });
+                    }}
                     onMouseUp={handleMouseUp}
-                    onMouseLeave={() => { if (dragging) handleMouseUp(); }}
+                    onMouseLeave={() => { if (dragging) handleMouseUp(); setHoverInfo(null); }}
                     onTouchStart={(e) => handleTouchStart(e, barber.id)}
                     onTouchEnd={handleTouchEnd}
                     onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; 
@@ -1004,6 +1040,22 @@ export default function CalendarioPage() {
                       </div>
                     )}
 
+                    {/* Hover time/profesional tooltip — sigue el cursor con la hora
+                        redondeada a 15 min y el nombre del profesional, para no tener que
+                        mirar la columna de horas ni el header de arriba constantemente. No
+                        se muestra mientras se arrastra (ya hay otro indicador de hora) ni
+                        con el popup de crear cita abierto. */}
+                    {hoverInfo && hoverInfo.barberId === barber.id && !dragging && !showPopup && (
+                      <div
+                        className="absolute left-1 right-1 z-40 pointer-events-none flex justify-center"
+                        style={{ top: `${Math.max(0, hoverInfo.y - 11)}px` }}
+                      >
+                        <span className="text-[10px] font-bold text-white bg-gray-900/85 rounded px-1.5 py-0.5 shadow-sm whitespace-nowrap">
+                          {barber.name} · {formatTime12(yToTime(hoverInfo.y))}
+                        </span>
+                      </div>
+                    )}
+
                     {/* Appointment blocks */}
                     {barberAppts.map((appt: any) => {
                       const sm = appt.start_time?.match(/(\d{2}):(\d{2})/);
@@ -1104,37 +1156,29 @@ export default function CalendarioPage() {
                       return (
                         <div
                           key={block.id}
-                          className="absolute left-1 right-1 rounded-md bg-gray-100 border border-gray-200 px-1.5 py-1 overflow-hidden z-[5] group"
+                          className="absolute left-1 right-1 rounded-md bg-gray-100 border border-gray-200 px-1.5 py-1 overflow-hidden z-[5] cursor-pointer hover:bg-gray-200/70"
                           style={{ top: `${top}px`, height: `${Math.max(height, 24)}px` }}
                           onClick={(e) => {
                             e.stopPropagation();
-                            showToast(`Bloqueo: ${block.reason || "Sin motivo"}`, "info");
+                            // Punto (Nico, 25-sep): antes esto mostraba un toast de solo
+                            // lectura y la unica forma de actuar sobre el bloqueo era la X
+                            // roja siempre visible. Ahora abre un panel con nombre, duracion
+                            // y eliminar — sin la X.
+                            setEditingBlock({
+                              id: block.id,
+                              barberId: block.barber_id,
+                              reason: block.reason || "",
+                              allDay: block.all_day,
+                              startTime: block.start_time?.slice(0, 5) || "09:00",
+                              endTime: block.end_time?.slice(0, 5) || "18:00",
+                            });
                           }}
                         >
-                          <p className="text-[10px] font-medium text-gray-500 truncate pr-4">{block.reason || "Bloqueado"}</p>
+                          <p className="text-[10px] font-medium text-gray-500 truncate">{block.reason || "Bloqueado"}</p>
                           {!block.all_day && block.start_time && block.end_time && (
                             <p className="text-[9px] text-gray-400">{block.start_time?.slice(0,5)} – {block.end_time?.slice(0,5)}</p>
                           )}
                           {block.all_day && <p className="text-[9px] text-gray-400">Todo el dia</p>}
-                          {/* Always visible (not hover-only) — hover doesn't exist on
-                              touch devices, so this was effectively unreachable on
-                              mobile/tablet, which is how this app is mostly used. */}
-                          <button
-                            onClick={async (e) => {
-                              e.stopPropagation();
-                              const ok = await confirm({
-                                title: "Eliminar bloqueo",
-                                message: `Eliminar el bloqueo "${block.reason || "Sin motivo"}"?`,
-                                confirmText: "Eliminar",
-                                variant: "danger",
-                              });
-                              if (!ok) return;
-                              await fetch(`/api/barber/blocks?id=${block.id}`, { method: "DELETE" });
-                              showToast("Bloqueo eliminado", "success");
-                              await fetchAppointments();
-                            }}
-                            className="absolute top-1 right-1 w-5 h-5 bg-red-500 text-white rounded-full text-[10px] flex items-center justify-center shadow-sm"
-                          >✕</button>
                         </div>
                       );
                     })}
@@ -1606,6 +1650,116 @@ export default function CalendarioPage() {
                 )}
               </>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Panel de edicion de bloqueo — reemplaza la X roja: nombre, duracion y eliminar
+          en un solo lugar (punto de Pablo, 25-sep). */}
+      {editingBlock && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEditingBlock(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-bold text-lg text-brand-dark">Bloqueo</h3>
+              <button onClick={() => setEditingBlock(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <label className="text-[10px] text-brand-gray block mb-1">Nombre de bloqueo</label>
+                <input
+                  type="text"
+                  value={editingBlock.reason}
+                  onChange={(e) => setEditingBlock({ ...editingBlock, reason: e.target.value })}
+                  placeholder="Ej: Almuerzo, Capacitacion..."
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
+                />
+              </div>
+
+              <label className="flex items-center gap-2 text-xs text-brand-gray">
+                <input
+                  type="checkbox"
+                  checked={editingBlock.allDay}
+                  onChange={(e) => setEditingBlock({ ...editingBlock, allDay: e.target.checked })}
+                />
+                Todo el dia
+              </label>
+
+              {!editingBlock.allDay && (
+                <div>
+                  <label className="text-[10px] text-brand-gray block mb-1">Duracion</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="text-[9px] text-brand-gray block mb-1">Inicio</label>
+                      <input type="time" step={900} value={editingBlock.startTime}
+                        onChange={(e) => setEditingBlock({ ...editingBlock, startTime: e.target.value })}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs" />
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-brand-gray block mb-1">Fin</label>
+                      <input type="time" step={900} value={editingBlock.endTime}
+                        onChange={(e) => setEditingBlock({ ...editingBlock, endTime: e.target.value })}
+                        className="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-xs" />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex gap-2 pt-2 border-t">
+                <button
+                  onClick={async () => {
+                    const ok = await confirm({
+                      title: "Eliminar bloqueo",
+                      message: `Eliminar el bloqueo "${editingBlock.reason || "Sin motivo"}"?`,
+                      confirmText: "Eliminar",
+                      variant: "danger",
+                    });
+                    if (!ok) return;
+                    await fetch(`/api/barber/blocks?id=${editingBlock.id}`, { method: "DELETE" });
+                    showToast("Bloqueo eliminado", "success");
+                    setEditingBlock(null);
+                    await fetchAppointments();
+                  }}
+                  className="flex-1 py-2 border border-red-200 rounded-xl text-xs text-red-500 hover:bg-red-50 font-medium"
+                >
+                  Eliminar
+                </button>
+                <button
+                  disabled={savingBlock}
+                  onClick={async () => {
+                    if (!editingBlock.allDay && editingBlock.startTime >= editingBlock.endTime) {
+                      showToast("La hora de fin debe ser posterior al inicio", "error");
+                      return;
+                    }
+                    setSavingBlock(true);
+                    try {
+                      const res = await fetch(`/api/barber/blocks?id=${editingBlock.id}`, {
+                        method: "PATCH",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          reason: editingBlock.reason || null,
+                          allDay: editingBlock.allDay,
+                          startTime: editingBlock.allDay ? null : editingBlock.startTime,
+                          endTime: editingBlock.allDay ? null : editingBlock.endTime,
+                        }),
+                      });
+                      if (!res.ok) {
+                        const err = await res.json().catch(() => ({}));
+                        showToast(err.error || "No se pudo guardar el bloqueo", "error");
+                        return;
+                      }
+                      showToast("Bloqueo actualizado", "success");
+                      setEditingBlock(null);
+                      await fetchAppointments();
+                    } finally {
+                      setSavingBlock(false);
+                    }
+                  }}
+                  className="flex-1 py-2 bg-brand-blue text-white rounded-xl text-xs font-bold hover:opacity-90 disabled:opacity-50"
+                >
+                  {savingBlock ? "Guardando..." : "Guardar"}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
