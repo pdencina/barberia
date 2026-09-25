@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
@@ -18,7 +17,10 @@ const defaultHours = () =>
 // GET: business hours for the caller's business
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getTenantFromRequest(req);
+  const { searchParams } = new URL(req.url);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
 
   let query = supabase.from("business_hours").select("*").order("day_of_week");
   // Scope to the caller's business so salons don't see each other's hours.
@@ -47,7 +49,8 @@ export async function PATCH(req: NextRequest) {
   // Resolve the business: body param first, then the session.
   let tenantId: string | null = body.tenantId || null;
   if (!tenantId) {
-    const resolved = await getTenantFromRequest(req);
+    const { searchParams } = new URL(req.url);
+    const { tenantId: resolved } = await resolveTenantForRequest(searchParams.get("tenantId"));
     tenantId = resolved && resolved !== "ALL" ? resolved : null;
   }
   if (!tenantId) {
