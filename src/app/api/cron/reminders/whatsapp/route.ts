@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { chileDateOffset } from "@/lib/utils";
 
 // Returns WhatsApp links for tomorrow's appointments (for manual batch sending)
@@ -10,9 +9,11 @@ export async function GET(req: NextRequest) {
 
   // Scope to the caller's business. This is consumed by the Recordatorios page; without
   // the tenant filter it listed tomorrow's appointments of EVERY business, which is how
-  // Saray saw other salons' reminders.
-  const tenantId = await getTenantFromRequest(req);
-  if (!tenantId || tenantId === "ALL") return NextResponse.json([]);
+  // Saray saw other salons' reminders. SEGURIDAD: nunca confiar directo en el tenantId de
+  // la URL — resolveTenantForRequest lo reemplaza por el negocio real del usuario logueado
+  // salvo que sea super_admin.
+  const { tenantId, denied } = await resolveTenantForRequest(searchParams.get("tenantId"));
+  if (denied || !tenantId || tenantId === "ALL") return NextResponse.json([]);
 
   // Accept date param from frontend (lets Recordatorios manage any day, not just
   // "tomorrow" — see Punto 4). Falls back to tomorrow in Chile's calendar if omitted.
