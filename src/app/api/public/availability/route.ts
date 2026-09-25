@@ -143,6 +143,13 @@ export async function GET(req: NextRequest) {
   // only costs 30 min. For short services with a 15-min grid, behaviour is unchanged
   // (nothing is discarded when there are no conflicts, and re-anchoring to a block end
   // simply keeps the natural cadence).
+  const isFree = (start: number) =>
+    start >= startMinutes &&
+    start + duration <= endMinutes &&
+    !busyIntervals.some((iv) => start < iv.end && start + duration > iv.start);
+  const isPast = (start: number) => isToday && start <= nowMinutes;
+
+  const candidates = new Set<number>();
   let totalMin = startMinutes;
   let guard = 0;
   while (totalMin < endMinutes && guard++ < 500) {
@@ -151,9 +158,6 @@ export async function GET(req: NextRequest) {
 
     // Past close time — nothing more fits.
     if (slotEndMin > endMinutes) break;
-
-    // Skip past slots (today only), advancing by the grid step.
-    if (isToday && totalMin <= nowMinutes) { totalMin += slotInterval; continue; }
 
     // Does this slot overlap any busy interval? If so, find the LATEST end among the
     // overlapping ones and re-anchor there.
@@ -169,10 +173,25 @@ export async function GET(req: NextRequest) {
       continue;
     }
 
-    const hour = Math.floor(totalMin / 60);
-    const min = totalMin % 60;
-    slots.push(`${date}T${hour.toString().padStart(2, "0")}:${min.toString().padStart(2, "0")}:00`);
+    // Past slots (today) are dropped only AFTER re-anchoring. Skipping them first kept
+    // today's grid tied to the opening time: with a 10–12 block, 14–15 break and 45-min
+    // grid, at 14:46 the first candidate was 15:15 (10:00 + n·45) and the free 15:00
+    // (right after the break) never showed — Bastián's "tengo un espacio a las 3" report.
+    if (!isPast(slotStartMin)) candidates.add(slotStartMin);
     totalMin += slotInterval;
+  }
+
+  // Also offer the slot that ENDS exactly when the next appointment/block/break starts.
+  // The grid only packs forward from each busy end, so a gap before the next booking
+  // (e.g. 16:45–17:15 between a 60-min and a 17:15 appointment) was left unbookable
+  // and never filled. This lets a client take the time that closes the gap.
+  for (const iv of busyIntervals) {
+    const start = iv.start - duration;
+    if (isFree(start) && !isPast(start)) candidates.add(start);
+  }
+
+  for (const m of Array.from(candidates).sort((a, b) => a - b)) {
+    slots.push(`${date}T${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}:00`);
   }
 
   return NextResponse.json({ slots, date, barberId });
