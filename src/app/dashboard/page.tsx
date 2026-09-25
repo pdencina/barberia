@@ -114,7 +114,7 @@ export default function DashboardPage() {
     return (
       <span
         className={`inline-flex items-center gap-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full mt-2 ${
-          isGood ? "text-emerald-600 bg-emerald-50" : "text-red-500 bg-red-50"
+          isGood ? "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-500/10" : "text-red-500 bg-red-50 dark:text-red-400 dark:bg-red-500/10"
         }`}
       >
         {value >= 0 ? "+" : ""}
@@ -161,18 +161,18 @@ export default function DashboardPage() {
           <button
             type="button"
             onClick={() => setSelectedDate(todayInChile())}
-            className={`px-3 py-2 rounded-lg text-sm font-medium ${isToday ? "bg-brand-blue text-white" : "bg-white border border-gray-100 text-brand-gray hover:bg-gray-50"}`}
+            className={`px-3 py-2 rounded-lg text-sm font-medium ${isToday ? "bg-brand-blue text-white" : "bg-white dark:bg-brand-white border border-gray-100 dark:border-white/10 text-brand-gray hover:bg-gray-50 dark:hover:bg-white/5"}`}
           >
             Hoy
           </button>
           <button
             type="button"
             onClick={() => setSelectedDate(dateStrOffset(todayInChile(), -1))}
-            className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedDate === dateStrOffset(todayInChile(), -1) ? "bg-brand-blue text-white" : "bg-white border border-gray-100 text-brand-gray hover:bg-gray-50"}`}
+            className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedDate === dateStrOffset(todayInChile(), -1) ? "bg-brand-blue text-white" : "bg-white dark:bg-brand-white border border-gray-100 dark:border-white/10 text-brand-gray hover:bg-gray-50 dark:hover:bg-white/5"}`}
           >
             Ayer
           </button>
-          <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-gray-100 text-sm text-brand-gray">
+          <div className="flex items-center gap-2 px-3 py-2 bg-white dark:bg-brand-white rounded-xl border border-gray-100 dark:border-white/10 text-sm text-brand-gray">
             <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
             </svg>
@@ -189,27 +189,27 @@ export default function DashboardPage() {
 
       {/* Stat Cards */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
+        <div className="bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">{isToday ? "Reservas hoy" : "Reservas"}</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.reservasHoy}</p>
           <StatChange value={data.stats.reservasChange} />
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
+        <div className="bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">{isToday ? "Ventas hoy" : "Ventas"}</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{formatCurrency(data.stats.ventasHoy)}</p>
           <StatChange value={data.stats.ventasChange} />
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
+        <div className="bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">Clientes nuevos</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.clientesNuevos}</p>
           <StatChange value={data.stats.clientesChange} />
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
+        <div className="bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">Reagendamientos</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.reagendamientos}</p>
           <StatChange value={data.stats.reagendamientosChange} />
         </div>
-        <div className="bg-white rounded-2xl border border-gray-100 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
+        <div className="bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5 transition-all duration-300 hover:shadow-md hover:border-brand-blue/20 hover:-translate-y-0.5">
           <p className="text-xs text-brand-gray font-medium">Cancelaciones</p>
           <p className="text-3xl font-bold text-brand-dark mt-1">{data.stats.cancelaciones}</p>
           <StatChange value={data.stats.cancelacionesChange} invert />
@@ -245,7 +245,7 @@ export default function DashboardPage() {
       {/* Main content: Agenda + Top Services */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
         {/* Agenda del dia elegido (por defecto, hoy) */}
-        <div className="lg:col-span-3 bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="lg:col-span-3 bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5">
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-bold text-brand-dark">{isToday ? "Agenda de hoy" : "Agenda de ese dia"}</h3>
             <Link href="/dashboard/calendario" className="text-xs text-brand-blue font-medium hover:underline">
@@ -282,7 +282,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Top Servicios */}
-        <div className="lg:col-span-2 bg-white rounded-2xl border border-gray-100 p-5">
+        <div className="lg:col-span-2 bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-5">
           <div className="flex items-center justify-between mb-5">
             <h3 className="font-bold text-brand-dark">Top Servicios</h3>
             <Link href="/dashboard/reportes" className="text-xs text-brand-blue font-medium hover:underline">

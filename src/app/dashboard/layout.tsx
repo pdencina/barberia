@@ -54,9 +54,9 @@ export default async function DashboardLayout({
         serverName={profile?.name || user.email || ""}
         serverTenantId={profile?.tenant_id || null}
       >
-        <div className="flex h-screen">
+        <div className="flex h-screen dark:bg-gray-950">
           <Sidebar userName={profile?.name || user.email || ""} userRole={profile?.role || "barber"} tenantName={tenantName} isSoloBusiness={isSoloBusiness} />
-          <main className="flex-1 overflow-y-auto bg-gray-50 pt-[4.5rem] lg:pt-0">
+          <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 pt-[4.5rem] lg:pt-0">
             <TenantOverrideBanner />
             <TrialBanner />
             <ErrorBoundary>
