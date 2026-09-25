@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
+import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/ui/spinner";
-import { formatCurrency } from "@/lib/utils";
+import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 
 interface CajaData {
   register: any;
@@ -48,6 +49,10 @@ export default function CajaPage() {
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
+  const { isAtLeast } = useAuth();
+  // Solo Administrador (o super_admin) se salta el PIN de las acciones de modificar/
+  // eliminar un movimiento; Recepcion (unico otro rol con acceso a Caja) siempre lo pide.
+  const isAdmin = isAtLeast("admin");
   const [showReopenModal, setShowReopenModal] = useState(false);
   const [reopenPin, setReopenPin] = useState("");
   const [reopenError, setReopenError] = useState("");
@@ -56,12 +61,38 @@ export default function CajaPage() {
   // Filter the daily movements by professional.
   const [barberFilter, setBarberFilter] = useState<string>("all");
 
+  // Ver dias anteriores (Punto Nico, 25-sep), solo Administrador: la caja de "hoy" sigue
+  // siendo lo unico que se puede abrir/cerrar/reabrir, pero se puede consultar el historial
+  // de movimientos y el resumen de cualquier dia pasado, igual que el selector de fecha del
+  // Dashboard (Punto 8).
+  const [selectedDate, setSelectedDate] = useState(todayInChile());
+  const isToday = selectedDate === todayInChile();
+
   // Manual movement (register a sale by hand when a card charge went through but
   // re-booking didn't record it). Gated by admin PIN.
   const [showManualModal, setShowManualModal] = useState(false);
   const [manualForm, setManualForm] = useState({ barberId: "", serviceName: "", amount: "", paymentMethod: "debit_card", tip: "", notes: "", pin: "" });
   const [manualSaving, setManualSaving] = useState(false);
   const [barbers, setBarbers] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Modificar/eliminar movimientos (Punto Nico, 25-sep). Menu de tres puntos por fila.
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLTableCellElement | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Portón de PIN (solo Recepcion): antes de editar o eliminar, guarda que accion quedo
+  // pendiente y para que movimiento, hasta que se valide el PIN de un administrador.
+  const [pinGate, setPinGate] = useState<{ action: "edit" | "delete"; tx: any } | null>(null);
+  const [gatePin, setGatePin] = useState("");
+  const [gateError, setGateError] = useState("");
+  const [gateVerifying, setGateVerifying] = useState(false);
+
+  // Modal de edicion. editPin guarda el PIN ya validado (solo Recepcion) para reenviarlo
+  // junto con el PATCH, que lo vuelve a verificar en el servidor.
+  const [editingTx, setEditingTx] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ barberId: "", serviceName: "", amount: "", paymentMethod: "cash", tip: "" });
+  const [editPin, setEditPin] = useState("");
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const getActiveTenantId = () => {
     if (tenant?.id) return tenant.id;
@@ -75,7 +106,9 @@ export default function CajaPage() {
   const fetchData = async () => {
     setLoading(true);
     const t = getActiveTenantId();
-    const res = await fetch(`/api/caja${t ? `?tenantId=${t}` : ""}`);
+    const params = new URLSearchParams({ date: selectedDate });
+    if (t) params.set("tenantId", t);
+    const res = await fetch(`/api/caja?${params.toString()}`);
     setData(await res.json());
     setLoading(false);
   };
@@ -114,6 +147,152 @@ export default function CajaPage() {
     }
   };
 
+  // Cierra el menu de tres puntos al hacer click fuera de el.
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpenMenuId(null);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [openMenuId]);
+
+  const openEditModal = (tx: any, pin: string) => {
+    setEditingTx(tx);
+    setEditPin(pin);
+    setEditForm({
+      barberId: tx.barber_id || "",
+      serviceName: tx.services || tx.notes || "",
+      amount: tx.total != null ? String(tx.total) : "",
+      paymentMethod: tx.payment_method || "cash",
+      tip: tx.tip_amount ? String(tx.tip_amount) : "",
+    });
+  };
+
+  const doDelete = async (id: string, pin: string) => {
+    setDeletingId(id);
+    const res = await fetch(`/api/caja/${id}`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: pin || undefined }),
+    });
+    setDeletingId(null);
+    if (res.ok) {
+      showToast("Movimiento eliminado", "success");
+      fetchData();
+    } else {
+      const err = await res.json().catch(() => ({} as any));
+      showToast(err.error || "No se pudo eliminar", "error");
+    }
+  };
+
+  const handleMenuEdit = (tx: any) => {
+    setOpenMenuId(null);
+    if (isAdmin) {
+      openEditModal(tx, "");
+    } else {
+      setGatePin("");
+      setGateError("");
+      setPinGate({ action: "edit", tx });
+    }
+  };
+
+  const handleMenuDelete = async (tx: any) => {
+    setOpenMenuId(null);
+    if (isAdmin) {
+      // Administrador no necesita PIN, pero se le pide doble confirmacion para evitar
+      // errores (dos pasos distintos, no el mismo dialogo repetido).
+      const ok1 = await confirm({
+        title: "Eliminar movimiento",
+        message: `Eliminar el movimiento de ${formatCurrency(Number(tx.total))} (${tx.barberName || "sin profesional"})?`,
+        confirmText: "Eliminar",
+        variant: "danger",
+      });
+      if (!ok1) return;
+      const ok2 = await confirm({
+        title: "Confirmar eliminacion",
+        message: "Esta accion no se puede deshacer desde aqui. Confirmas definitivamente?",
+        confirmText: "Si, eliminar",
+        variant: "danger",
+      });
+      if (!ok2) return;
+      await doDelete(tx.id, "");
+    } else {
+      setGatePin("");
+      setGateError("");
+      setPinGate({ action: "delete", tx });
+    }
+  };
+
+  const handleGateSubmit = async () => {
+    if (!pinGate) return;
+    setGateError("");
+    if (gatePin.length !== 4) { setGateError("PIN de 4 digitos"); return; }
+    setGateVerifying(true);
+    const res = await fetch("/api/pos/verify-pin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ pin: gatePin }),
+    });
+    const data = await res.json();
+    setGateVerifying(false);
+    if (!data.valid) { setGateError("PIN incorrecto"); return; }
+
+    const { action, tx } = pinGate;
+    setPinGate(null);
+    if (action === "edit") {
+      openEditModal(tx, gatePin);
+    } else {
+      await doDelete(tx.id, gatePin);
+    }
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingTx) return;
+    if (!editForm.serviceName.trim() || !editForm.amount) {
+      showToast("Completa servicio y precio", "error");
+      return;
+    }
+    if (isAdmin) {
+      const ok1 = await confirm({
+        title: "Guardar cambios",
+        message: "Guardar los cambios de este movimiento?",
+        confirmText: "Guardar",
+        variant: "warning",
+      });
+      if (!ok1) return;
+      const ok2 = await confirm({
+        title: "Confirmar cambios",
+        message: "Confirmas definitivamente estos cambios?",
+        confirmText: "Si, guardar",
+        variant: "warning",
+      });
+      if (!ok2) return;
+    }
+    setSavingEdit(true);
+    const res = await fetch(`/api/caja/${editingTx.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        barberId: editForm.barberId || null,
+        serviceName: editForm.serviceName,
+        amount: editForm.amount,
+        paymentMethod: editForm.paymentMethod,
+        tip: editForm.tip || 0,
+        pin: isAdmin ? undefined : editPin,
+      }),
+    });
+    setSavingEdit(false);
+    if (res.ok) {
+      showToast("Movimiento actualizado", "success");
+      setEditingTx(null);
+      fetchData();
+    } else {
+      const err = await res.json().catch(() => ({} as any));
+      showToast(err.error || "No se pudo guardar", "error");
+    }
+  };
+
   useEffect(() => {
     if (tenantLoading) return;
     fetchData();
@@ -123,7 +302,7 @@ export default function CajaPage() {
       .then((d) => setBarbers(Array.isArray(d) ? d : []))
       .catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tenantLoading, tenant?.id]);
+  }, [tenantLoading, tenant?.id, selectedDate]);
 
   const submitManualMovement = async () => {
     if (!manualForm.serviceName.trim() || !manualForm.amount || manualForm.pin.length < 4) {
@@ -210,14 +389,46 @@ export default function CajaPage() {
 
   if (loading) return <Spinner />;
 
-  const today = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const todayLabel = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const selectedDateLabel = new Intl.DateTimeFormat("es-CL", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric",
+  }).format(new Date(`${selectedDate}T12:00:00Z`));
 
   return (
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-4xl mx-auto">
-      <div>
-        <h1 className="text-xl md:text-2xl font-bold text-gray-900">Caja Diaria</h1>
-        <p className="text-gray-500 text-sm">{today}</p>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900">Caja Diaria</h1>
+          <p className="text-gray-500 text-sm">{isToday ? todayLabel : selectedDateLabel}</p>
+        </div>
+        {/* Punto Nico (25-sep): ver e historiar dias anteriores, solo Administrador. */}
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => setSelectedDate(todayInChile())}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${isToday ? "bg-brand-blue text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+              Hoy
+            </button>
+            <button type="button" onClick={() => setSelectedDate(dateStrOffset(todayInChile(), -1))}
+              className={`px-3 py-2 rounded-lg text-sm font-medium ${selectedDate === dateStrOffset(todayInChile(), -1) ? "bg-brand-blue text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+              Ayer
+            </button>
+            <div className="flex items-center gap-2 px-3 py-2 bg-white rounded-lg border border-gray-200 text-sm text-gray-600">
+              <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75m-18 0v-7.5A2.25 2.25 0 015.25 9h13.5A2.25 2.25 0 0121 11.25v7.5" />
+              </svg>
+              <input type="date" value={selectedDate} max={todayInChile()}
+                onChange={(e) => e.target.value && setSelectedDate(e.target.value)}
+                className="text-sm text-gray-600 bg-transparent outline-none" />
+            </div>
+          </div>
+        )}
       </div>
+
+      {!isToday && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-2 text-sm text-blue-700">
+          Viendo el historial de {selectedDateLabel}. Abrir, cerrar o reabrir caja solo aplica al dia de hoy.
+        </div>
+      )}
 
       {/* Status */}
       <div className={`rounded-lg p-4 border-2 ${
@@ -236,7 +447,7 @@ export default function CajaPage() {
              data?.register?.status === "closed" ? "Caja Cerrada" :
              "Caja No Abierta"}
           </span>
-          {data?.register?.status === "closed" && (
+          {isToday && data?.register?.status === "closed" && (
             <button onClick={() => setShowReopenModal(true)}
               className="ml-3 px-3 py-1 text-xs border border-orange-300 text-orange-600 rounded-lg hover:bg-orange-50 font-medium">
               Reabrir caja
@@ -251,8 +462,8 @@ export default function CajaPage() {
         </div>
       </div>
 
-      {/* Open register */}
-      {!data?.register && (
+      {/* Open register — solo aplica al dia de hoy */}
+      {isToday && !data?.register && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
           <h3 className="font-bold text-gray-800 mb-4">Abrir Caja</h3>
           <div className="flex gap-3 items-end">
@@ -324,8 +535,8 @@ export default function CajaPage() {
             </div>
           )}
 
-          {/* Close register */}
-          {data.isOpen && (
+          {/* Close register — solo aplica al dia de hoy */}
+          {isToday && data.isOpen && (
             <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 border-2 border-yellow-200">
               <h3 className="font-bold text-gray-800 mb-4">Cerrar Caja</h3>
               <p className="text-sm text-gray-500 mb-4">Cuenta el efectivo en caja y registra el monto.</p>
@@ -419,10 +630,12 @@ export default function CajaPage() {
                         ))}
                       </select>
                     )}
-                    <button onClick={() => setShowManualModal(true)}
-                      className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 font-medium">
-                      + Registrar movimiento
-                    </button>
+                    {isToday && (
+                      <button onClick={() => setShowManualModal(true)}
+                        className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 font-medium">
+                        + Registrar movimiento
+                      </button>
+                    )}
                   </div>
                 </div>
                 {filtered.length === 0 ? (
@@ -438,6 +651,7 @@ export default function CajaPage() {
                           <th className="p-3 font-medium text-gray-600 text-right">Precio</th>
                           <th className="p-3 font-medium text-gray-600">Metodo</th>
                           <th className="p-3 font-medium text-gray-600 text-right">Propina</th>
+                          <th className="p-3 w-10" />
                         </tr>
                       </thead>
                       <tbody className="divide-y">
@@ -458,6 +672,26 @@ export default function CajaPage() {
                             </td>
                             <td className="p-3 text-gray-600">{paymentLabels[t.payment_method] || t.payment_method}</td>
                             <td className="p-3 text-right text-gray-600">{t.tip_amount ? formatCurrency(Number(t.tip_amount)) : "—"}</td>
+                            <td className="p-3 text-right relative" ref={openMenuId === t.id ? menuRef : undefined}>
+                              <button type="button" onClick={() => setOpenMenuId(openMenuId === t.id ? null : t.id)}
+                                disabled={deletingId === t.id}
+                                className="w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center text-gray-500 disabled:opacity-50"
+                                aria-label="Mas acciones">
+                                {deletingId === t.id ? "…" : "⋮"}
+                              </button>
+                              {openMenuId === t.id && (
+                                <div className="absolute right-3 top-10 z-10 bg-white rounded-lg shadow-lg border border-gray-100 py-1 w-36 text-left">
+                                  <button onClick={() => handleMenuEdit(t)}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                                    Modificar
+                                  </button>
+                                  <button onClick={() => handleMenuDelete(t)}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                                    Eliminar
+                                  </button>
+                                </div>
+                              )}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -576,6 +810,113 @@ export default function CajaPage() {
                 <button onClick={handleReopen} disabled={reopenPin.length !== 4 || reopening}
                   className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-medium hover:bg-orange-700 disabled:opacity-50">
                   {reopening ? "Reabriendo..." : "Confirmar reapertura"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* PIN gate — solo Recepcion, antes de modificar o eliminar un movimiento */}
+      {pinGate && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPinGate(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="text-center mb-4">
+              <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-brand-dark">
+                {pinGate.action === "edit" ? "Modificar movimiento" : "Eliminar movimiento"}
+              </h3>
+              <p className="text-sm text-brand-gray mt-1">Requiere PIN de administrador.</p>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-brand-gray block mb-1">PIN Admin (4 digitos)</label>
+                <input
+                  type="password"
+                  maxLength={4}
+                  value={gatePin}
+                  onChange={(e) => { setGatePin(e.target.value.replace(/\D/g, "")); setGateError(""); }}
+                  placeholder="••••"
+                  autoFocus
+                  onKeyDown={(e) => { if (e.key === "Enter" && gatePin.length === 4) handleGateSubmit(); }}
+                  className="w-full border-2 rounded-xl px-3 py-3 text-center text-2xl tracking-[0.5em] font-mono focus:border-orange-400 outline-none"
+                />
+              </div>
+
+              {gateError && <p className="text-xs text-red-500 text-center">{gateError}</p>}
+
+              <div className="flex gap-2">
+                <button onClick={() => setPinGate(null)}
+                  className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
+                  Cancelar
+                </button>
+                <button onClick={handleGateSubmit} disabled={gatePin.length !== 4 || gateVerifying}
+                  className="flex-1 py-2.5 bg-orange-600 text-white rounded-xl text-sm font-medium hover:bg-orange-700 disabled:opacity-50">
+                  {gateVerifying ? "Verificando..." : "Continuar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit modal — Administrador entra directo (con doble confirmacion al guardar);
+          Recepcion llega aca solo despues de validar el PIN en el porton de arriba. */}
+      {editingTx && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditingTx(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-brand-dark mb-1">Modificar movimiento</h3>
+            <p className="text-sm text-brand-gray mb-4">Corrige los datos de este movimiento.</p>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Profesional</label>
+                <select value={editForm.barberId} onChange={(e) => setEditForm({ ...editForm, barberId: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="">Sin asignar</option>
+                  {barbers.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Servicio</label>
+                <input type="text" value={editForm.serviceName}
+                  onChange={(e) => setEditForm({ ...editForm, serviceName: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Precio ($)</label>
+                  <input type="number" min="0" value={editForm.amount}
+                    onChange={(e) => setEditForm({ ...editForm, amount: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-500 block mb-1">Propina ($)</label>
+                  <input type="number" min="0" value={editForm.tip}
+                    onChange={(e) => setEditForm({ ...editForm, tip: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs text-gray-500 block mb-1">Metodo de pago</label>
+                <select value={editForm.paymentMethod} onChange={(e) => setEditForm({ ...editForm, paymentMethod: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="cash">Efectivo</option>
+                  <option value="debit_card">Debito</option>
+                  <option value="credit_card">Credito</option>
+                  <option value="transfer">Transferencia</option>
+                </select>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setEditingTx(null)}
+                  className="flex-1 py-2 border rounded-lg text-sm hover:bg-gray-50">Cancelar</button>
+                <button onClick={handleSaveEdit} disabled={savingEdit}
+                  className="flex-1 py-2 bg-indigo-600 text-white rounded-lg text-sm font-medium hover:bg-indigo-700 disabled:opacity-50">
+                  {savingEdit ? "Guardando..." : "Guardar cambios"}
                 </button>
               </div>
             </div>
