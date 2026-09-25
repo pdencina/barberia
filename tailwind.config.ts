@@ -22,13 +22,18 @@ const config: Config = {
         ring: "hsl(var(--ring))",
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
+        // Punto (Nico, 25-sep): antes eran hex fijos. Ahora referencian variables CSS
+        // (definidas en globals.css, con un bloque .dark que las redefine) para que el
+        // tema oscuro por negocio (Configuracion > Tema) recolore automaticamente todas
+        // las paginas que ya usan text-brand-dark/bg-brand-light/etc, sin tocarlas una
+        // por una.
         brand: {
-          blue: "#0F8B8D",
-          dark: "#1F2937",
-          gray: "#6B7280",
-          light: "#F5F7FA",
-          white: "#FFFFFF",
-          accent: "#2EC4B6",
+          blue: "hsl(var(--brand-blue))",
+          dark: "hsl(var(--brand-dark))",
+          gray: "hsl(var(--brand-gray))",
+          light: "hsl(var(--brand-light))",
+          white: "hsl(var(--brand-white))",
+          accent: "hsl(var(--brand-accent))",
         },
         primary: {
           DEFAULT: "hsl(var(--primary))",
