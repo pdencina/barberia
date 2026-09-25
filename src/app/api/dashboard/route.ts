@@ -202,9 +202,12 @@ export async function GET(req: NextRequest) {
   // como "sin datos". Ademas faltaba el filtro de tenant, lo que habria mezclado los
   // servicios de otros negocios. Se filtra por la transaccion padre (que si tiene
   // created_at y tenant_id) y se recorren sus items en memoria.
+  // Punto (Nico, 25-sep): mismo query tambien alimenta "Productos mas vendidos" — cada
+  // item de una transaccion es o un service_id o un product_id (nunca ambos), asi que se
+  // separan en dos mapas de conteo dentro de la misma pasada.
   let topServicesQuery = supabase
     .from("transactions")
-    .select("items:transaction_items(description, quantity, service_id)")
+    .select("items:transaction_items(description, quantity, service_id, product_id)")
     .eq("type", "income")
     .eq("status", "completed")
     // Window ends at the selected day (todayStr), not always the real "now" — so
@@ -216,16 +219,40 @@ export async function GET(req: NextRequest) {
   const { data: txWithItems } = await topServicesQuery;
 
   const serviceMap: Record<string, number> = {};
+  const productSalesMap: Record<string, number> = {};
   for (const tx of txWithItems || []) {
     for (const item of (tx as any).items || []) {
-      if (!item.service_id) continue;
-      serviceMap[item.description] = (serviceMap[item.description] || 0) + (item.quantity || 1);
+      if (item.service_id) {
+        serviceMap[item.description] = (serviceMap[item.description] || 0) + (item.quantity || 1);
+      } else if (item.product_id) {
+        productSalesMap[item.description] = (productSalesMap[item.description] || 0) + (item.quantity || 1);
+      }
     }
   }
   const topServices = Object.entries(serviceMap)
     .map(([name, count]) => ({ name, count }))
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
+  const topProducts = Object.entries(productSalesMap)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 9);
+
+  // Punto (Nico, 25-sep): aviso de stock bajo para el Dashboard — productos con
+  // stock <= min_stock, los mas criticos primero (mayor deficit = stock - min_stock mas
+  // negativo). Se trae el catalogo activo del negocio y se filtra/ordena en memoria: el
+  // cliente de Supabase no permite comparar dos columnas entre si en un filtro .lte().
+  let productsForStockQuery = supabase
+    .from("products")
+    .select("id, name, stock, min_stock")
+    .eq("active", true);
+  productsForStockQuery = withTenant(productsForStockQuery);
+  const { data: allActiveProducts } = await productsForStockQuery;
+  const lowStock = (allActiveProducts || [])
+    .filter((p: any) => Number(p.stock) <= Number(p.min_stock))
+    .sort((a: any, b: any) => (Number(a.stock) - Number(a.min_stock)) - (Number(b.stock) - Number(b.min_stock)))
+    .slice(0, 9)
+    .map((p: any) => ({ id: p.id, name: p.name, stock: Number(p.stock), minStock: Number(p.min_stock) }));
 
   // Calculate percentage changes
   const calcChange = (today: number, yesterday: number): number => {
@@ -303,6 +330,8 @@ export async function GET(req: NextRequest) {
     },
     todayAppointments: todayAppointments || [],
     topServices,
+    topProducts,
+    lowStock,
     chartRange,
     chartData,
     chartTotal,
