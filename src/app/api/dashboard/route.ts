@@ -2,6 +2,85 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest, isManagerLevel } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc, dateStrOffset } from "@/lib/utils";
 
+const CHART_RANGES = ["7d", "1m", "3m", "12m"] as const;
+type ChartRange = (typeof CHART_RANGES)[number];
+
+interface ChartBucket {
+  label: string;
+  date: string; // bucket start (YYYY-MM-DD)
+  endDate: string; // bucket end, exclusive (YYYY-MM-DD)
+  startUtc: string;
+  endUtcExclusive: string;
+}
+
+// Punto 9 (Pablo): el grafico de ventas ahora soporta 4 ventanas de tiempo para poder
+// ver el crecimiento del negocio, no solo la ultima semana. Genera los "baldes" (dia,
+// semana o mes segun el rango) terminando siempre en `todayStr` (el dia elegido en el
+// selector de fecha del Dashboard), asi el grafico siempre respeta ese contexto.
+function buildChartBuckets(todayStr: string, range: ChartRange): ChartBucket[] {
+  const dayLabelsEs = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
+  const monthLabelsEs = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+  const dayStartUtc = (d: string) => chileDayBoundsUtc(d).startUtc;
+
+  if (range === "1m") {
+    // 30 baldes diarios
+    return Array.from({ length: 30 }, (_, idx) => {
+      const i = 29 - idx;
+      const d = dateStrOffset(todayStr, -i);
+      const next = dateStrOffset(d, 1);
+      return { label: String(Number(d.slice(8, 10))), date: d, endDate: next, startUtc: dayStartUtc(d), endUtcExclusive: dayStartUtc(next) };
+    });
+  }
+
+  if (range === "3m") {
+    // 12 baldes semanales (7 dias c/u), el ultimo termina en todayStr
+    return Array.from({ length: 12 }, (_, idx) => {
+      const i = 11 - idx;
+      const end = dateStrOffset(todayStr, -7 * i);
+      const start = dateStrOffset(end, -6);
+      const next = dateStrOffset(end, 1);
+      const label = `${String(Number(start.slice(8, 10)))}/${String(Number(start.slice(5, 7)))}`;
+      return { label, date: start, endDate: next, startUtc: dayStartUtc(start), endUtcExclusive: dayStartUtc(next) };
+    });
+  }
+
+  if (range === "12m") {
+    // 12 baldes mensuales (mes calendario), el ultimo es el mes de todayStr
+    const [y, m] = todayStr.split("-").map(Number);
+    return Array.from({ length: 12 }, (_, idx) => {
+      const i = 11 - idx;
+      let month = m - i;
+      let year = y;
+      while (month <= 0) {
+        month += 12;
+        year -= 1;
+      }
+      let nextMonth = month + 1;
+      let nextYear = year;
+      if (nextMonth > 12) {
+        nextMonth = 1;
+        nextYear += 1;
+      }
+      const start = `${year}-${String(month).padStart(2, "0")}-01`;
+      const next = `${nextYear}-${String(nextMonth).padStart(2, "0")}-01`;
+      return { label: monthLabelsEs[month - 1], date: start, endDate: next, startUtc: dayStartUtc(start), endUtcExclusive: dayStartUtc(next) };
+    });
+  }
+
+  // "7d" (default): 7 baldes diarios
+  return Array.from({ length: 7 }, (_, idx) => {
+    const i = 6 - idx;
+    const d = dateStrOffset(todayStr, -i);
+    const next = dateStrOffset(d, 1);
+    const weekday = new Date(`${d}T12:00:00Z`).getUTCDay();
+    return { label: dayLabelsEs[weekday], date: d, endDate: next, startUtc: dayStartUtc(d), endUtcExclusive: dayStartUtc(next) };
+  });
+}
+
+function daysBetween(a: string, b: string): number {
+  return Math.round((new Date(`${b}T12:00:00Z`).getTime() - new Date(`${a}T12:00:00Z`).getTime()) / 86400000);
+}
+
 export async function GET(req: NextRequest) {
   // The business-wide dashboard (today's sales, new clients, week chart) is for
   // owners/managers/reception, not for a professional — they have their own agenda.
@@ -148,31 +227,61 @@ export async function GET(req: NextRequest) {
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
-  // Weekly sales (7 days ending on the selected day, not always the real "today")
-  const dayNames = ["Dom", "Lun", "Mar", "Mie", "Jue", "Vie", "Sab"];
-  const weekData: Array<{ day: string; date: string; total: number }> = [];
-  for (let i = 6; i >= 0; i--) {
-    const dayStr = dateStrOffset(todayStr, -i);
-    const dayBounds = chileDayBoundsUtc(dayStr);
-    const { data: dayTx } = await withTenant(supabase
-      .from("transactions")
-      .select("total")
-      .eq("type", "income")
-      .eq("status", "completed")
-      .gte("created_at", dayBounds.startUtc)
-      .lt("created_at", dayBounds.endUtc));
-    const dayTotal = (dayTx || []).reduce((sum: number, t: any) => sum + Number(t.total), 0);
-    // Weekday from the noon-UTC instant of that calendar date, so it never shifts off
-    // by a day regardless of the server's own timezone.
-    const weekday = new Date(`${dayStr}T12:00:00Z`).getUTCDay();
-    weekData.push({ day: dayNames[weekday], date: dayStr, total: dayTotal });
-  }
-
   // Calculate percentage changes
   const calcChange = (today: number, yesterday: number): number => {
     if (yesterday === 0) return today > 0 ? 100 : 0;
     return Math.round(((today - yesterday) / yesterday) * 100);
   };
+
+  // Punto 9 (Pablo): grafico de ventas con 4 ventanas (7 dias / 1 mes / 3 meses / 12
+  // meses) para ver el crecimiento del negocio de forma comoda, en vez de siempre la
+  // ultima semana. Todo el rango se trae en UNA sola consulta y se agrupa en memoria
+  // por balde (en vez de una consulta por dia), para que 12 meses no dispare ~365
+  // queries secuenciales.
+  const requestedRange = searchParams.get("range");
+  const chartRange: ChartRange = (CHART_RANGES as readonly string[]).includes(requestedRange || "")
+    ? (requestedRange as ChartRange)
+    : "7d";
+  const chartBuckets = buildChartBuckets(todayStr, chartRange);
+  const chartRangeStartUtc = chartBuckets[0].startUtc;
+  const chartRangeEndUtc = chartBuckets[chartBuckets.length - 1].endUtcExclusive;
+
+  let chartTxQuery = supabase
+    .from("transactions")
+    .select("total, created_at")
+    .eq("type", "income")
+    .eq("status", "completed")
+    .gte("created_at", chartRangeStartUtc)
+    .lt("created_at", chartRangeEndUtc);
+  chartTxQuery = withTenant(chartTxQuery);
+  const { data: chartTxRaw } = await chartTxQuery;
+
+  const chartData = chartBuckets.map((b) => {
+    const total = (chartTxRaw || [])
+      .filter((t: any) => t.created_at >= b.startUtc && t.created_at < b.endUtcExclusive)
+      .reduce((sum: number, t: any) => sum + Number(t.total), 0);
+    return { label: b.label, date: b.date, total };
+  });
+  const chartTotal = chartData.reduce((s, d) => s + d.total, 0);
+
+  // Crecimiento: total del rango elegido vs el mismo largo de dias inmediatamente
+  // anterior (ej. estos ultimos 30 dias vs los 30 dias previos a esos).
+  const rangeSpanDays = daysBetween(chartBuckets[0].date, chartBuckets[chartBuckets.length - 1].endDate);
+  const prevRangeStartDate = dateStrOffset(chartBuckets[0].date, -rangeSpanDays);
+  const prevRangeStartUtc = chileDayBoundsUtc(prevRangeStartDate).startUtc;
+  const prevRangeEndUtc = chartBuckets[0].startUtc;
+
+  let prevChartTxQuery = supabase
+    .from("transactions")
+    .select("total")
+    .eq("type", "income")
+    .eq("status", "completed")
+    .gte("created_at", prevRangeStartUtc)
+    .lt("created_at", prevRangeEndUtc);
+  prevChartTxQuery = withTenant(prevChartTxQuery);
+  const { data: prevChartTx } = await prevChartTxQuery;
+  const prevChartTotal = (prevChartTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
+  const chartGrowth = calcChange(chartTotal, prevChartTotal);
 
   return NextResponse.json({
     greeting: true,
@@ -194,6 +303,9 @@ export async function GET(req: NextRequest) {
     },
     todayAppointments: todayAppointments || [],
     topServices,
-    weekData,
+    chartRange,
+    chartData,
+    chartTotal,
+    chartGrowth,
   });
 }
