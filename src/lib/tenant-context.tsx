@@ -125,8 +125,13 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
     localStorage.setItem("tenant_override", JSON.stringify({ tenantId, tenantName }));
     setOverrideTenantId(tenantId);
     setIsOverriding(true);
-    // Force reload to refresh all data with new tenant
-    window.location.reload();
+    // Bug (reportado por Nico, 25-sep): antes esto solo hacia reload() de la pagina
+    // actual. Si el click en "Entrar" se hacia desde /dashboard/superadmin/tenants (el
+    // unico lugar desde donde se puede entrar), el reload volvia a caer en esa misma
+    // lista de empresas — que no depende del tenant activo — asi que visualmente parecia
+    // que el boton "no hacia nada", aunque el override si quedaba guardado. Ahora se
+    // navega directo al dashboard del negocio para que el cambio se vea de inmediato.
+    window.location.href = "/dashboard";
   };
 
   const exitTenant = () => {
