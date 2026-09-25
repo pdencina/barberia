@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
   const type = searchParams.get("type");
   const from = searchParams.get("from");
   const to = searchParams.get("to");
@@ -82,7 +83,8 @@ export async function POST(req: NextRequest) {
   // income/expense entry without a business, or it becomes invisible in Finanzas.
   let resolvedTenantId = bodyTenantId;
   if (!resolvedTenantId) {
-    const resolved = await getTenantFromRequest(req);
+    const { searchParams } = new URL(req.url);
+    const { tenantId: resolved } = await resolveTenantForRequest(searchParams.get("tenantId"));
     resolvedTenantId = resolved && resolved !== "ALL" ? resolved : null;
   }
   if (!resolvedTenantId) {
