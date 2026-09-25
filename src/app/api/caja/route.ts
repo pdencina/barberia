@@ -1,13 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
-import { getTenantFromRequest } from "@/lib/tenant-filter";
+import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 // GET: Current day's cash register status + transactions
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const tenantId = await getTenantFromRequest(req);
   const { searchParams } = new URL(req.url);
+  // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
+  // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
+  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
   // Punto 1 (Nico): "hoy" debe ser el dia calendario de Chile, no el UTC del server.
   const date = searchParams.get("date") || todayInChile();
 
@@ -113,7 +114,8 @@ export async function POST(req: NextRequest) {
   // Resolve tenant: prefer explicit param, fallback to session.
   let tenantId: string | null = bodyTenantId || null;
   if (!tenantId) {
-    const resolved = await getTenantFromRequest(req);
+    const { searchParams } = new URL(req.url);
+    const { tenantId: resolved } = await resolveTenantForRequest(searchParams.get("tenantId"));
     tenantId = resolved && resolved !== "ALL" ? resolved : null;
   }
   if (!tenantId) {
@@ -160,7 +162,8 @@ export async function PATCH(req: NextRequest) {
   // Resolve tenant: prefer explicit param, fallback to session.
   let tenantId: string | null = bodyTenantId || null;
   if (!tenantId) {
-    const resolved = await getTenantFromRequest(req);
+    const { searchParams } = new URL(req.url);
+    const { tenantId: resolved } = await resolveTenantForRequest(searchParams.get("tenantId"));
     tenantId = resolved && resolved !== "ALL" ? resolved : null;
   }
   if (!tenantId) {
