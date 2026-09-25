@@ -12,6 +12,7 @@ interface ClientRow {
   email: string | null;
   phone: string | null;
   firstVisit: string;
+  detail?: string | null;
 }
 
 interface MetricsData {
@@ -157,7 +158,10 @@ export default function ClientesMetricasPage() {
                 <tr>
                   <th className="text-left p-3 font-medium text-gray-600">Cliente</th>
                   <th className="text-left p-3 font-medium text-gray-600">Contacto</th>
-                  <th className="text-right p-3 font-medium text-gray-600">Primera visita</th>
+                  {activeSource === "promotion" && (
+                    <th className="text-left p-3 font-medium text-gray-600">Código / Influencer</th>
+                  )}
+                  <th className="text-right p-3 font-medium text-gray-600">Registrado</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
@@ -169,6 +173,9 @@ export default function ClientesMetricasPage() {
                   >
                     <td className="p-3 font-medium text-gray-800">{c.name}</td>
                     <td className="p-3 text-gray-500">{c.phone || c.email || "—"}</td>
+                    {activeSource === "promotion" && (
+                      <td className="p-3 text-gray-500">{c.detail || "—"}</td>
+                    )}
                     <td className="p-3 text-right text-gray-500">
                       {new Date(`${c.firstVisit}T12:00:00Z`).toLocaleDateString("es-CL")}
                     </td>
