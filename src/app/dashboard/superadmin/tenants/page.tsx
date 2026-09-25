@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { formatCurrency } from "@/lib/utils";
 import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 interface Tenant {
   id: string;
@@ -47,6 +48,111 @@ export default function SuperAdminTenantsPage() {
   });
   const { showToast } = useToast();
   const { switchTenant } = useTenant();
+  const { confirm } = useConfirm();
+
+  // Punto (Nico, 25-sep): opciones de gestion pedidas por Pablo — editar, eliminar
+  // (permanente, para limpiar empresas ficticias/de prueba), ver contacto del dueño, y
+  // confirmacion antes de entrar a operar como otro negocio.
+  const [viewingContact, setViewingContact] = useState<any | null>(null);
+  const [loadingContact, setLoadingContact] = useState(false);
+  const [editingTenant, setEditingTenant] = useState<Tenant | null>(null);
+  const [editForm, setEditForm] = useState<Record<string, any>>({});
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deletingTenant, setDeletingTenant] = useState<{ tenant: Tenant; counts?: any } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [deleting, setDeleting] = useState(false);
+
+  const openContact = async (t: Tenant) => {
+    setViewingContact({ ...t });
+    setLoadingContact(true);
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${t.id}`);
+      if (res.ok) setViewingContact(await res.json());
+    } finally {
+      setLoadingContact(false);
+    }
+  };
+
+  const openEdit = (t: Tenant) => {
+    setEditingTenant(t);
+    setEditForm({
+      name: t.name,
+      admin_name: t.admin_name || "",
+      admin_email: t.admin_email,
+      phone: t.phone || "",
+      plan: t.plan,
+      status: t.status,
+      max_professionals: t.max_professionals,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingTenant) return;
+    setSavingEdit(true);
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${editingTenant.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast(data.error || "No se pudo guardar", "error");
+        return;
+      }
+      showToast("Empresa actualizada", "success");
+      setEditingTenant(null);
+      fetchTenants();
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const openDelete = async (t: Tenant) => {
+    setDeleteConfirmText("");
+    setDeletingTenant({ tenant: t });
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${t.id}`);
+      if (res.ok) {
+        const data = await res.json();
+        setDeletingTenant({ tenant: t, counts: data.counts });
+      }
+    } catch {}
+  };
+
+  const doDelete = async () => {
+    if (!deletingTenant || deleteConfirmText !== deletingTenant.tenant.name) return;
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${deletingTenant.tenant.id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ confirmName: deleteConfirmText }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error || "No se pudo eliminar", "error");
+        return;
+      }
+      showToast("Empresa eliminada permanentemente", "success");
+      setDeletingTenant(null);
+      fetchTenants();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  // Entrar a operar como el negocio (Punto de Pablo, 25-sep: pedia confirmacion antes de
+  // esto — antes era un solo click sin aviso).
+  const handleEnter = async (t: Tenant) => {
+    const ok = await confirm({
+      title: "Entrar a la empresa",
+      message: `Vas a entrar a operar como "${t.name}". Veras y podras modificar sus datos (clientes, citas, caja, etc.) hasta que salgas del modo Superadmin. Continuar?`,
+      confirmText: "Entrar",
+    });
+    if (!ok) return;
+    switchTenant(t.id, t.name);
+  };
 
   const fetchTenants = async () => {
     setLoading(true);
@@ -192,12 +298,35 @@ export default function SuperAdminTenantsPage() {
                       Enviar recordatorio
                     </button>
                   )}
-                  <button
-                    onClick={() => switchTenant(t.id, t.name)}
-                    className="mt-1 px-3 py-1.5 bg-brand-blue text-white text-xs font-medium rounded-lg hover:bg-brand-blue/90 transition-colors"
-                  >
-                    Entrar â†’
-                  </button>
+                  <div className="flex items-center gap-1.5 mt-1 flex-wrap justify-end">
+                    <button
+                      onClick={() => openContact(t)}
+                      title="Ver contacto del dueño"
+                      className="px-2.5 py-1.5 bg-gray-100 text-brand-gray text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      Contacto
+                    </button>
+                    <button
+                      onClick={() => openEdit(t)}
+                      title="Editar empresa"
+                      className="px-2.5 py-1.5 bg-gray-100 text-brand-gray text-xs font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      Editar
+                    </button>
+                    <button
+                      onClick={() => openDelete(t)}
+                      title="Eliminar empresa (permanente)"
+                      className="px-2.5 py-1.5 bg-red-50 text-red-600 text-xs font-medium rounded-lg hover:bg-red-100 transition-colors"
+                    >
+                      Eliminar
+                    </button>
+                    <button
+                      onClick={() => handleEnter(t)}
+                      className="px-3 py-1.5 bg-brand-blue text-white text-xs font-medium rounded-lg hover:bg-brand-blue/90 transition-colors"
+                    >
+                      Entrar â†’
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -327,6 +456,173 @@ export default function SuperAdminTenantsPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Ver contacto del dueño (Punto de Pablo, 25-sep) */}
+      {viewingContact && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setViewingContact(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-bold text-brand-dark">Contacto — {viewingContact.name}</h2>
+              <button onClick={() => setViewingContact(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+            {loadingContact ? (
+              <p className="text-sm text-brand-gray text-center py-6">Cargando...</p>
+            ) : (
+              <div className="space-y-3 text-sm">
+                <div>
+                  <p className="text-[10px] text-brand-gray uppercase font-medium">Dueño / admin</p>
+                  <p className="text-brand-dark font-medium">{viewingContact.admin_name || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-brand-gray uppercase font-medium">Email</p>
+                  <p className="text-brand-dark">{viewingContact.admin_email || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-brand-gray uppercase font-medium">Telefono</p>
+                  <p className="text-brand-dark">{viewingContact.phone || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-brand-gray uppercase font-medium">Direccion</p>
+                  <p className="text-brand-dark">{viewingContact.address || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-brand-gray uppercase font-medium">RUT empresa</p>
+                  <p className="text-brand-dark">{viewingContact.rut_empresa || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-brand-gray uppercase font-medium">Pagina web</p>
+                  <p className="text-brand-dark">{viewingContact.website || "—"}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-brand-gray uppercase font-medium">Redes sociales</p>
+                  <p className="text-brand-dark">{viewingContact.social_media || "—"}</p>
+                </div>
+                {viewingContact.counts && (
+                  <div className="pt-3 border-t grid grid-cols-2 gap-2 text-xs text-brand-gray">
+                    <p>{viewingContact.counts.clients} clientes</p>
+                    <p>{viewingContact.counts.appointments} citas</p>
+                    <p>{viewingContact.counts.transactions} transacciones</p>
+                    <p>{viewingContact.counts.profiles} usuarios</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Editar empresa (Punto de Pablo, 25-sep) */}
+      {editingTenant && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setEditingTenant(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-brand-dark mb-4">Editar — {editingTenant.name}</h2>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-brand-gray block mb-1">Nombre de la empresa</label>
+                <input type="text" value={editForm.name || ""}
+                  onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-brand-gray block mb-1">Nombre admin</label>
+                <input type="text" value={editForm.admin_name || ""}
+                  onChange={(e) => setEditForm({ ...editForm, admin_name: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-brand-gray block mb-1">Email admin</label>
+                <input type="email" value={editForm.admin_email || ""}
+                  onChange={(e) => setEditForm({ ...editForm, admin_email: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-brand-gray block mb-1">Telefono</label>
+                <input type="text" value={editForm.phone || ""}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-medium text-brand-gray block mb-1">Plan</label>
+                  <select value={editForm.plan || ""} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                    <option value="basic">Basic</option>
+                    <option value="starter">Starter</option>
+                    <option value="pro">Pro</option>
+                    <option value="enterprise">Enterprise</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-medium text-brand-gray block mb-1">Estado</label>
+                  <select value={editForm.status || ""} onChange={(e) => setEditForm({ ...editForm, status: e.target.value })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                    <option value="trial">Trial</option>
+                    <option value="active">Activa</option>
+                    <option value="suspended">Suspendida</option>
+                    <option value="cancelled">Cancelada</option>
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-brand-gray block mb-1">Max. profesionales</label>
+                <input type="number" min={1} value={editForm.max_professionals ?? ""}
+                  onChange={(e) => setEditForm({ ...editForm, max_professionals: Number(e.target.value) })}
+                  className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+              </div>
+            </div>
+            <div className="flex gap-2 pt-4">
+              <button onClick={() => setEditingTenant(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button onClick={saveEdit} disabled={savingEdit}
+                className="flex-1 py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+                {savingEdit ? "Guardando..." : "Guardar cambios"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Eliminar empresa — permanente, para limpiar empresas ficticias/de prueba
+          (Punto de Pablo, 25-sep). Exige escribir el nombre exacto para confirmar. */}
+      {deletingTenant && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setDeletingTenant(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-bold text-red-600 mb-2">Eliminar empresa</h2>
+            <p className="text-sm text-brand-gray mb-3">
+              Esto borra <strong>permanentemente</strong> "{deletingTenant.tenant.name}" y todos sus datos
+              {deletingTenant.counts && (
+                <> — {deletingTenant.counts.clients} clientes, {deletingTenant.counts.appointments} citas,{" "}
+                {deletingTenant.counts.transactions} transacciones, {deletingTenant.counts.profiles} usuarios</>
+              )}. No se puede deshacer.
+            </p>
+            <label className="text-xs font-medium text-brand-gray block mb-1">
+              Escribe <strong>{deletingTenant.tenant.name}</strong> para confirmar
+            </label>
+            <input
+              type="text"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm mb-4"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <button onClick={() => setDeletingTenant(null)}
+                className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
+                Cancelar
+              </button>
+              <button
+                onClick={doDelete}
+                disabled={deleting || deleteConfirmText !== deletingTenant.tenant.name}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 disabled:opacity-50"
+              >
+                {deleting ? "Eliminando..." : "Eliminar permanentemente"}
+              </button>
+            </div>
           </div>
         </div>
       )}
