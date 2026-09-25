@@ -51,7 +51,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { name, email, phone, notes, tenantId } = body;
+  const { name, email, phone, notes, tenantId, source, sourceDetail } = body;
 
   // Always resolve tenant_id: prefer param, fallback to session
   let resolvedTenantId = tenantId;
@@ -59,9 +59,22 @@ export async function POST(req: NextRequest) {
     resolvedTenantId = await getCurrentTenantId();
   }
 
+  // Punto 10 (Pablo): alta manual desde el boton "Nuevo" en Clientes. El formulario
+  // mandaba un campo "source" que nunca se guardaba (quedaba solo en el estado del
+  // formulario) — quedaba huerfano y Metricas nunca veia estos clientes. Por defecto es
+  // "manual"; si quien lo crea marca que llego por una promocion, se guarda como
+  // "promotion" junto al codigo/influencer que hayan escrito (sourceDetail).
+  const acquisitionSource = source === "promotion" ? "promotion" : "manual";
+  const acquisitionDetail = source === "promotion" ? (sourceDetail || null) : null;
+
   const { data, error } = await supabase
     .from("clients")
-    .insert({ name, email: email || null, phone: phone || null, notes, tenant_id: resolvedTenantId || null })
+    .insert({
+      name, email: email || null, phone: phone || null, notes,
+      tenant_id: resolvedTenantId || null,
+      acquisition_source: acquisitionSource,
+      acquisition_detail: acquisitionDetail,
+    })
     .select()
     .single();
 
