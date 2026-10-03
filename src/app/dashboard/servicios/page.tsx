@@ -259,11 +259,76 @@ export default function ServiciosPage() {
   // ===== REORDER LOGIC =====
   const saveOrder = async (newList: Service[]) => {
     const order = newList.map((s, i) => ({ id: s.id, sort_order: i }));
-    await fetch("/api/services/reorder", {
-      method: "POST",
+    try {
+      const res = await fetch("/api/services/reorder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ order }),
+      });
+      if (!res.ok) throw new Error();
+    } catch {
+      showToast("No se pudo guardar el orden. Recarga e intenta de nuevo", "error");
+    }
+  };
+
+  // Orden de CATEGORIAS: el orden de las carpetas sale de la posicion de sus servicios, asi que
+  // para mover una carpeta se reescribe el orden completo dejando cada categoria junta.
+  // "Sin categoria" siempre queda al final. Es el mismo orden que ve el cliente al reservar.
+  const [dragCat, setDragCat] = useState<string | null>(null);
+  const [overCat, setOverCat] = useState<string | null>(null);
+  const moveCategory = (fromKey: string, toKey: string) => {
+    if (fromKey === toKey || fromKey === CATEGORY_NONE || toKey === CATEGORY_NONE) return;
+    const active = services.filter((x) => x.active);
+    const inactive = services.filter((x) => !x.active);
+    const groups = groupServicesByCategory(active);
+    const keys = groups.map((g) => g.key);
+    const from = keys.indexOf(fromKey);
+    const to = keys.indexOf(toKey);
+    if (from === -1 || to === -1) return;
+    const [k] = keys.splice(from, 1);
+    keys.splice(to, 0, k);
+    const ordered = keys.flatMap((key) => groups.find((g) => g.key === key)!.items);
+    const reordered = ordered.map((x, i) => ({ ...x, sort_order: i }));
+    setServices([...reordered, ...inactive]);
+    saveOrder(reordered);
+    showToast("Orden de categorías actualizado", "success");
+  };
+  const stepCategory = (key: string, dir: -1 | 1) => {
+    const keys = groupServicesByCategory(activeServices).map((g) => g.key).filter((x) => x !== CATEGORY_NONE);
+    const i = keys.indexOf(key);
+    const target = keys[i + dir];
+    if (target) moveCategory(key, target);
+  };
+  // Numero de cada servicio en el orden real (el mismo en que aparece en el link de reserva).
+  const positionById = new Map<string, number>();
+  serviceGroups.forEach((g) => g.items.forEach((x) => positionById.set(x.id, positionById.size + 1)));
+
+  // Arrastrar un servicio a OTRA categoria (o a "Sin categoria"): cambia su categoria y lo deja
+  // en el lugar donde se suelta (antes de `beforeId`, o al final de la categoria si es null).
+  const moveServiceToCategory = (item: Service, targetKey: string, beforeId: string | null) => {
+    const active = services.filter((x) => x.active);
+    const inactive = services.filter((x) => !x.active);
+    const newCategory = targetKey === CATEGORY_NONE ? null : targetKey;
+    const moved: Service = { ...item, category: newCategory };
+    const groups = groupServicesByCategory(active.filter((x) => x.id !== item.id));
+    let target = groups.find((g) => g.key === targetKey);
+    if (!target) {
+      target = { key: targetKey, label: targetKey, items: [] };
+      if (targetKey === CATEGORY_NONE) groups.push(target); else groups.splice(groups.findIndex((g) => g.key === CATEGORY_NONE) === -1 ? groups.length : groups.findIndex((g) => g.key === CATEGORY_NONE), 0, target);
+    }
+    const at = beforeId ? target.items.findIndex((x) => x.id === beforeId) : -1;
+    if (at === -1) target.items.push(moved); else target.items.splice(at, 0, moved);
+    const reordered = groups.flatMap((g) => g.items).map((x, i) => ({ ...x, sort_order: i }));
+    setServices([...reordered, ...inactive]);
+    saveOrder(reordered);
+    fetch(`/api/services/${item.id}`, {
+      method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ order }),
-    });
+      body: JSON.stringify({ category: newCategory }),
+    }).then((r) => {
+      if (!r.ok) throw new Error();
+      showToast(newCategory ? `Movido a "${newCategory}"` : "Movido a Sin categoría", "success");
+    }).catch(() => showToast("No se pudo cambiar la categoría", "error"));
   };
 
   // Punto 2 (Nico, 27-sep): al agrupar por carpetas, arrastrar ya no reordena la lista
@@ -278,8 +343,8 @@ export default function ServiciosPage() {
     const fromKey = fromItem.category || CATEGORY_NONE;
     const toKey = toItem.category || CATEGORY_NONE;
     if (fromKey !== toKey) {
-      showToast("Solo puedes reordenar servicios dentro de la misma categoria", "error");
-      return false;
+      moveServiceToCategory(fromItem, toKey, toItem.id);
+      return false; // ya muestra su propio aviso
     }
 
     setServices((prev) => {
@@ -305,7 +370,7 @@ export default function ServiciosPage() {
       return [...reordered, ...inactive];
     });
     return true;
-  }, [visibleFlat]);
+  }, [visibleFlat, services]);
 
   // Desktop drag events
   const handleDragStart = (index: number) => {
@@ -323,6 +388,7 @@ export default function ServiciosPage() {
     }
     setDragIndex(null);
     setOverIndex(null);
+    setOverCat(null);
   };
 
   // Touch drag events
@@ -395,8 +461,8 @@ export default function ServiciosPage() {
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
         <div className="p-4 border-b flex items-center justify-between">
           <h2 className="font-bold text-brand-dark">Servicios Activos ({activeServices.length})</h2>
-          <span className="text-xs text-brand-gray hidden md:block">Arrastra para reordenar</span>
-          <span className="text-xs text-brand-gray md:hidden">Manten presionado para mover</span>
+          <span className="text-xs text-brand-gray hidden md:block">Arrastra ⋮⋮ para ordenar · así se ve en tu link de reserva</span>
+          <span className="text-xs text-brand-gray md:hidden">Mantén presionado para mover</span>
         </div>
         {loading ? (
           <div className="p-8"><Spinner /></div>
@@ -414,15 +480,38 @@ export default function ServiciosPage() {
                         se muestra si hay mas de una categoria o alguna con nombre, para
                         no agregar ruido visual a un negocio que no usa categorias. */}
                     {(serviceGroups.length > 1) && (
-                      <button
-                        type="button"
+                      <div
+                        draggable={group.key !== CATEGORY_NONE}
+                        onDragStart={(e) => { e.stopPropagation(); setDragCat(group.key); }}
+                        onDragOver={(e) => { if (dragCat || dragIndex !== null) { e.preventDefault(); setOverCat(group.key); } }}
+                        onDrop={() => {
+                          if (dragIndex !== null) {
+                            const it = visibleFlat[dragIndex];
+                            if (it && (it.category || CATEGORY_NONE) !== group.key) moveServiceToCategory(it, group.key, null);
+                            setDragIndex(null); setOverIndex(null); setOverCat(null);
+                          }
+                        }}
+                        onDragEnd={() => { if (dragCat && overCat) moveCategory(dragCat, overCat); setDragCat(null); setOverCat(null); }}
                         onClick={() => toggleCategoryCollapsed(group.key)}
-                        className="w-full flex items-center gap-2 px-3 md:px-4 py-2.5 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                        className={`w-full flex items-center gap-2 px-3 md:px-4 py-2.5 transition-colors text-left cursor-pointer ${
+                          dragCat === group.key ? "opacity-50 bg-brand-blue/5" : overCat === group.key && (dragCat || dragIndex !== null) ? "bg-brand-blue/10 border-t-2 border-t-brand-blue" : "bg-gray-50 hover:bg-gray-100"
+                        }`}
                       >
+                        {group.key !== CATEGORY_NONE ? (
+                          <span className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing" title="Arrastra para ordenar la categoría" onClick={(e) => e.stopPropagation()}>
+                            <GripVertical className="w-4 h-4" />
+                          </span>
+                        ) : <span className="w-4" />}
                         <span className={`text-gray-400 transition-transform ${isCollapsed ? "" : "rotate-90"}`}>▸</span>
                         <span className="font-semibold text-sm text-brand-dark">{group.label}</span>
                         <span className="text-xs text-brand-gray">({group.items.length})</span>
-                      </button>
+                        {group.key !== CATEGORY_NONE && (
+                          <span className="ml-auto flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                            <button type="button" aria-label="Subir categoría" onClick={() => stepCategory(group.key, -1)} className="px-1.5 py-0.5 text-xs text-gray-400 hover:text-brand-dark hover:bg-white rounded">▲</button>
+                            <button type="button" aria-label="Bajar categoría" onClick={() => stepCategory(group.key, 1)} className="px-1.5 py-0.5 text-xs text-gray-400 hover:text-brand-dark hover:bg-white rounded">▼</button>
+                          </span>
+                        )}
+                      </div>
                     )}
                     {!isCollapsed && group.items.map((s) => {
                       flatIndex += 1;
@@ -443,12 +532,13 @@ export default function ServiciosPage() {
                               ? "opacity-50 bg-brand-blue/5 scale-[0.98]"
                               : overIndex === index && dragIndex !== null
                               ? "border-t-2 border-t-brand-blue bg-brand-blue/5"
-                              : "hover:bg-gray-50"
+                              : "hover:bg-gray-50 cursor-grab"
                           } ${touchDragging && dragIndex === index ? "shadow-lg z-10 relative" : ""}`}
                           style={touchDragging && dragIndex === index ? { transform: `translateY(${touchOffsetY}px)` } : undefined}
                         >
                           {/* Drag handle */}
-                          <div className="cursor-grab active:cursor-grabbing touch-none text-gray-300 hover:text-gray-500 p-1">
+                          <span className="w-5 text-right text-[11px] tabular-nums text-gray-400/50 select-none flex-shrink-0">{positionById.get(s.id)}</span>
+                          <div className="cursor-grab active:cursor-grabbing touch-none text-gray-300 hover:text-gray-600 p-1" title="Arrastra para ordenar">
                             <GripVertical className="w-5 h-5" />
                           </div>
 

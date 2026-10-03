@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
+import { newClientAppointmentIds } from "@/lib/new-client";
+import { isSlotFull, exceededAfterInsert, getSlotCapacity } from "@/lib/capacity";
+import { parseWallClock } from "@/lib/wallclock";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -38,18 +41,10 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json([]);
   const rows: any[] = data || [];
 
-  // Distintivo "Nuevo" del calendario: cliente sin ninguna visita completada todavía
-  // (mismo criterio que isNewClient en /api/appointments/[id]/details).
-  const clientIds = Array.from(new Set(rows.map((r) => r.client?.id).filter(Boolean)));
-  if (clientIds.length > 0) {
-    const { data: done } = await supabase
-      .from("appointments")
-      .select("client_id")
-      .in("client_id", clientIds)
-      .eq("status", "completed");
-    const withVisits = new Set((done || []).map((d: any) => d.client_id));
-    for (const r of rows) r.is_new_client = !!r.client?.id && !withVisits.has(r.client.id);
-  }
+  // Distintivo "Nuevo" del calendario: primera cita del cliente, o cita sin ficha de cliente
+  // vinculada. Ver src/lib/new-client.ts.
+  const newIds = await newClientAppointmentIds(supabase, rows);
+  for (const r of rows) r.is_new_client = newIds.has(r.id);
   return NextResponse.json(rows);
 }
 
@@ -78,23 +73,15 @@ export async function POST(req: NextRequest) {
   }
 
   const totalDuration = services.reduce((sum, s) => sum + s.duration, 0);
-  const start = new Date(startTime);
+  const start = parseWallClock(startTime);
   // Use custom end time if provided, otherwise calculate from service duration
-  const end = customEndTime ? new Date(customEndTime) : new Date(start.getTime() + totalDuration * 60000);
+  const end = customEndTime ? parseWallClock(customEndTime) : new Date(start.getTime() + totalDuration * 60000);
 
-  // Check conflicts
-  const { data: conflicts } = await supabase
-    .from("appointments")
-    .select("id")
-    .eq("barber_id", barberId)
-    .eq("date", date)
-    .in("status", ["scheduled", "confirmed", "in_progress"])
-    .lt("start_time", end.toISOString())
-    .gt("end_time", start.toISOString());
-
-  if (conflicts && conflicts.length > 0) {
+  // Check conflicts (con "cupos por bloque", solo kinesiologia, se admiten varias citas hasta el cupo)
+  if (await isSlotFull(supabase, barberId, resolvedTenantId, date, start, end)) {
+    const cap = await getSlotCapacity(supabase, resolvedTenantId);
     return NextResponse.json(
-      { error: "El profesional tiene una cita en ese horario" },
+      { error: cap > 1 ? `Horario lleno: ya hay ${cap} clientes (cupo máximo)` : "El profesional tiene una cita en ese horario" },
       { status: 409 }
     );
   }
@@ -118,6 +105,12 @@ export async function POST(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Dos personas pueden tomar el ultimo cupo a la vez: si nos pasamos, esta cita se deshace.
+  if (await exceededAfterInsert(supabase, barberId, resolvedTenantId, date, start, end)) {
+    await supabase.from("appointments").delete().eq("id", appointment.id);
+    return NextResponse.json({ error: "El profesional ya no tiene cupo en ese horario" }, { status: 409 });
+  }
 
   // Add services (surface a failure instead of silently losing them)
   const serviceInserts = services.map((s) => ({

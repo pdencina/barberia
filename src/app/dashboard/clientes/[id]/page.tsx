@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import {
-  ChevronLeft, Phone, Mail, MessageCircle, CalendarPlus, Camera, ImageIcon, FileText, Pin, X,
+  ChevronLeft, MoreVertical, Phone, Mail, MessageCircle, CalendarPlus, Camera, ImageIcon, FileText, Pin, X,
   Wallet, Receipt, CalendarCheck, UserX, Clock, Scissors, Upload, StickyNote, TrendingUp, Percent, UserCheck,
 } from "lucide-react";
 import { Panel, StatCard, primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
@@ -91,6 +91,41 @@ export default function ClienteDetailPage() {
   const [documents, setDocuments] = useState<Array<{ id: string; file_name: string; size_bytes: number | null; created_at: string; uploaded_by_name: string | null; url: string | null }>>([]);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [docError, setDocError] = useState("");
+  // Editar datos del cliente (nombre, celular, correo, notas)
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [editForm, setEditForm] = useState({ name: "", phone: "", email: "", notes: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  const openEdit = () => {
+    if (!data) return;
+    const c = data.client;
+    setEditForm({ name: c.name || "", phone: c.phone || "", email: c.email || "", notes: c.notes || "" });
+    setEditError("");
+    setEditing(true);
+  };
+
+  const saveEdit = async () => {
+    if (!data) return;
+    if (!editForm.name.trim()) { setEditError("El nombre es obligatorio"); return; }
+    setSavingEdit(true);
+    setEditError("");
+    try {
+      const res = await fetch(`/api/clients/${params.id}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editForm),
+      });
+      const r = await res.json().catch(() => ({}));
+      if (!res.ok) { setEditError(r?.error || "No se pudo guardar"); return; }
+      setData({ ...data, client: { ...data.client, ...r.client } });
+      setEditing(false);
+    } catch {
+      setEditError("No se pudo guardar. Revisa tu conexión.");
+    } finally {
+      setSavingEdit(false);
+    }
+  };
 
   const loadDocuments = async () => {
     try {
@@ -250,6 +285,24 @@ export default function ClienteDetailPage() {
       {/* Hero del cliente */}
       <div className="relative overflow-hidden rounded-3xl border border-gray-100 bg-white p-5 md:p-7">
         <span className="pointer-events-none absolute -right-16 -top-20 h-64 w-64 rounded-full bg-gradient-to-br from-brand-blue/20 to-emerald-400/10 blur-3xl" />
+        {/* Menú de 3 puntos (arriba a la derecha) */}
+        <div className="absolute right-3 top-3 z-20">
+          <button onClick={() => setMenuOpen((o) => !o)} aria-label="Más opciones"
+            className="flex h-9 w-9 items-center justify-center rounded-full text-brand-gray transition-colors hover:bg-gray-100 hover:text-brand-dark">
+            <MoreVertical className="h-5 w-5" strokeWidth={2} />
+          </button>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 z-20 mt-1 w-44 overflow-hidden rounded-xl border border-gray-100 bg-white py-1 shadow-lg">
+                <button onClick={() => { setMenuOpen(false); openEdit(); }}
+                  className="block w-full px-4 py-2 text-left text-sm text-brand-dark hover:bg-gray-50">
+                  Modificar datos
+                </button>
+              </div>
+            </>
+          )}
+        </div>
         <div className="relative flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-4 md:gap-5">
             <div className="flex h-20 w-20 flex-shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br from-brand-blue to-emerald-500 text-3xl font-black text-white shadow-lg shadow-brand-blue/25">
@@ -296,6 +349,31 @@ export default function ClienteDetailPage() {
           <p className="relative mt-4 rounded-2xl bg-brand-light px-4 py-3 text-sm text-brand-dark">{client.notes}</p>
         )}
       </div>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setEditing(false)}>
+          <div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-brand-dark">Editar datos del cliente</h3>
+            <label className="block text-xs font-medium text-brand-gray">Nombre
+              <input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className={`${inputClass} mt-1 w-full`} />
+            </label>
+            <label className="block text-xs font-medium text-brand-gray">Celular
+              <input type="tel" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} className={`${inputClass} mt-1 w-full`} />
+            </label>
+            <label className="block text-xs font-medium text-brand-gray">Correo
+              <input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className={`${inputClass} mt-1 w-full`} />
+            </label>
+            <label className="block text-xs font-medium text-brand-gray">Notas
+              <textarea rows={3} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className={`${inputClass} mt-1 w-full resize-y`} />
+            </label>
+            {editError && <p className="text-xs text-red-500">{editError}</p>}
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setEditing(false)} className={ghostButton}>Cancelar</button>
+              <button onClick={saveEdit} disabled={savingEdit} className={primaryButton}>{savingEdit ? "Guardando…" : "Guardar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Metricas */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">

@@ -11,10 +11,11 @@ import { buildConfirmWhatsAppUrl } from "@/lib/whatsapp-confirm";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ChevronLeft, ChevronRight, Plus, CalendarX, Sun } from "lucide-react";
 import { Segmented, primaryButton } from "@/components/ui/premium";
+import { useBackToClose } from "@/lib/use-back-to-close";
 
 interface Barber { id: string; name: string; role?: string; also_attends_clients?: boolean; }
 interface Service { id: string; name: string; price: number; duration: number; }
-interface Client { id: string; name: string; }
+interface Client { id: string; name: string; phone?: string | null; email?: string | null; }
 
 interface Appointment {
   id: string;
@@ -159,6 +160,11 @@ export default function CalendarioPage() {
   const [savingBlock, setSavingBlock] = useState(false);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  // Las vacaciones se ven como bloqueos de todo el dia pero se cambian en Mi negocio > Vacaciones.
+  const openBlockEditor = (b: any) => {
+    if (String(b?.id || "").startsWith("vac-")) { showToast("Son vacaciones del profesional: se cambian en Mi negocio > Vacaciones", "success"); return; }
+    setEditingBlock(b);
+  };
   const { tenant, loading: tenantLoading } = useTenant();
   const { user, effectiveRole } = useAuth();
   const router = useRouter();
@@ -312,6 +318,8 @@ export default function CalendarioPage() {
   const [showPopup, setShowPopup] = useState(false);
   const [popupTab, setPopupTab] = useState<"service" | "event">("service");
   const [popupData, setPopupData] = useState({ barberId: "", startTime: "", endTime: "", barberName: "" });
+  // Dia de la columna tocada en la vista de varios dias; null = el dia que se esta viendo (`date`).
+  const [popupDay, setPopupDay] = useState<string | null>(null);
   const [dropIndicator, setDropIndicator] = useState<{ barberId: string; y: number } | null>(null);
   // Moving an EXISTING appointment via touch (long-press + drag), mirrors the native
   // HTML5 drag used on desktop (draggable/onDragStart/onDrop), which has no touch
@@ -376,6 +384,47 @@ export default function CalendarioPage() {
       .catch(() => setGroupWeekActive(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantLoading, tenant?.id]);
+
+  // Cupos por bloque (solo Kinesiologia): si es mayor a 1, las citas que coinciden en el tiempo
+  // se muestran una al lado de la otra en vez de encimadas. Con 1 no cambia nada.
+  const [slotCap, setSlotCap] = useState(1);
+  useEffect(() => {
+    if (tenantLoading) return;
+    const t = getActiveTenantId();
+    fetch(`/api/settings/slot-capacity${t ? `?tenantId=${t}` : ""}`)
+      .then((r) => r.json())
+      .then((d) => setSlotCap(d?.eligible ? Math.max(1, Number(d?.max) || 1) : 1))
+      .catch(() => setSlotCap(1));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
+  // Ancho minimo de cada dia en la vista de 1/3/7 dias: con cupos hace falta mas para que quepan lado a lado.
+  const colMin = slotCap > 1 ? 120 + slotCap * 60 : 110;
+  const laneLayout = (list: any[]): Record<string, { lane: number; cols: number }> => {
+    const toMin = (t: string) => { const m = t?.match(/(\d{2}):(\d{2})/); return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : 0; };
+    const items = list.map((a) => ({ id: a.id as string, s: toMin(a.start_time), e: toMin(a.end_time) })).sort((a, b) => a.s - b.s || a.e - b.e);
+    const out: Record<string, { lane: number; cols: number }> = {};
+    let cluster: typeof items = [];
+    let clusterEnd = -1;
+    const flush = () => {
+      const laneEnds: number[] = [];
+      for (const it of cluster) {
+        let lane = laneEnds.findIndex((end) => end <= it.s);
+        if (lane === -1) { lane = laneEnds.length; laneEnds.push(it.e); } else laneEnds[lane] = it.e;
+        out[it.id] = { lane, cols: 1 };
+      }
+      // Con cupos por bloque cada cita ocupa 1/cupo del ancho aunque este sola: asi queda a la vista
+      // el espacio donde cae el siguiente cliente (y se puede tocar para agendarlo).
+      for (const it of cluster) out[it.id].cols = Math.max(slotCap, laneEnds.length);
+      cluster = [];
+    };
+    for (const it of items) {
+      if (cluster.length && it.s >= clusterEnd) { flush(); clusterEnd = -1; }
+      cluster.push(it);
+      clusterEnd = Math.max(clusterEnd, it.e);
+    }
+    if (cluster.length) flush();
+    return out;
+  };
 
   // Cuando hay un profesional elegido (vista 1/3/7 dias), se pide el rango completo de
   // dias de una sola vez en vez de un fetch por dia -- ver dateFrom/dateTo en
@@ -523,23 +572,27 @@ export default function CalendarioPage() {
     setDragEndY(Math.max(0, e.clientY - rect.top));
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (fromLeave = false) => {
     if (!dragging || !dragBarberId) { setDragging(false); return; }
     
     const minY = Math.min(dragStartY, dragEndY);
     const maxY = Math.max(dragStartY, dragEndY);
     
-    // Minimum 15min (16px)
-    if (maxY - minY < 10) { setDragging(false); return; }
+    // Un clic simple (sin arrastrar) tambien abre el popup de Agendar / Bloquear, igual que el
+    // toque en el celular: parte con 45 min y se ajusta ahi mismo.
+    const isClick = maxY - minY < 10;
+    // Si el mouse solo salio de la columna sin soltar, no se abre nada.
+    if (isClick && fromLeave) { setDragging(false); return; }
 
     const startTime = yToTime(minY);
-    const endTime = yToTime(maxY);
+    const endTime = isClick ? yToTime(minY + HOUR_HEIGHT * 0.75) : yToTime(maxY);
     const barber = displayBarbers.find((b) => b.id === dragBarberId);
 
     // Calculate popup position: if barber is in the right half, show popup on left
     const barberIndex = displayBarbers.findIndex((b) => b.id === dragBarberId);
     const isRightSide = barberIndex >= displayBarbers.length / 2;
     setPopupPosition(isRightSide ? "left" : "right");
+    setPopupDay(null);
 
     setPopupData({
       barberId: dragBarberId,
@@ -561,8 +614,9 @@ export default function CalendarioPage() {
 
   // Open the creation popup explicitly (used by the "Agendar" button — reliable on mobile
   // where drag-to-create requires an awkward long-press).
-  const openCreatePopup = (barberId: string, startTime: string, endTime: string) => {
+  const openCreatePopup = (barberId: string, startTime: string, endTime: string, day?: string) => {
     const barber = displayBarbers.find((b) => b.id === barberId);
+    setPopupDay(day || null);
     setPopupPosition("right");
     setPopupData({ barberId, startTime, endTime, barberName: barber?.name || "" });
     setShowPopup(true);
@@ -664,11 +718,26 @@ export default function CalendarioPage() {
     }, 400);
   };
 
-  const handleTouchEnd = () => {
+  // Cuando se abre el cuadro con un toque, se ignora el "clic" fantasma que el celular dispara justo
+  // despues sobre el fondo (si no, el cuadro se cerraba solo o tomaba otro bloque).
+  const popupOpenedAt = useRef(0);
+  useBackToClose(showPopup, () => setShowPopup(false));
+  useBackToClose(!!selectedApptId, () => setSelectedApptId(null));
+  useBackToClose(!!editingBlock, () => setEditingBlock(null));
+
+  const handleTouchEnd = (e?: React.TouchEvent) => {
     if (longPressTimer.current) clearTimeout(longPressTimer.current);
     if (!touchRef.current || !touchRef.current.activated) {
+      // Toque corto (sin mover el dedo ni mantener): abre "Agendar / Bloquear" en ese
+      // profesional y a esa hora. Mover el dedo es scroll y cancela touchRef antes de llegar aqui.
+      const tap = touchRef.current;
       touchRef.current = null;
       setDragging(false);
+      if (tap && !showPopup) {
+        e?.preventDefault();
+        popupOpenedAt.current = Date.now();
+        openCreatePopup(tap.barberId, yToTime(tap.startY), yToTime(tap.startY + HOUR_HEIGHT * 0.75));
+      }
       return;
     }
     handleMouseUp();
@@ -678,12 +747,19 @@ export default function CalendarioPage() {
   // Create appointment from popup
   const handleCreate = async () => {
     setCreating(true);
+    const day = popupDay || date;
 
     if (popupTab === "service") {
       if (!selectedService) { showToast("Selecciona un servicio", "error"); setCreating(false); return; }
+      // Escribiste un nombre pero no elegiste ni añadiste al cliente: antes la cita quedaba sin cliente.
+      if (clientSearch.trim().length >= 2 && !selectedClient) {
+        showToast("Elige al cliente de la lista o toca \"Añadir como cliente nuevo\" antes de crear la cita", "error");
+        setCreating(false);
+        return;
+      }
       
-      const startISO = `${date}T${popupData.startTime}:00`;
-      const endISO = `${date}T${popupData.endTime}:00`;
+      const startISO = `${day}T${popupData.startTime}:00`;
+      const endISO = `${day}T${popupData.endTime}:00`;
 
       const res = await fetch("/api/appointments", {
         method: "POST",
@@ -691,7 +767,7 @@ export default function CalendarioPage() {
         body: JSON.stringify({
           clientId: selectedClient || undefined,
           barberId: popupData.barberId,
-          date,
+          date: day,
           startTime: startISO,
           endTime: endISO,
           serviceIds: [selectedService],
@@ -713,7 +789,7 @@ export default function CalendarioPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           barberId: popupData.barberId,
-          date,
+          date: day,
           allDay: false,
           startTime: popupData.startTime,
           endTime: popupData.endTime,
@@ -851,7 +927,7 @@ export default function CalendarioPage() {
         setSelectedClient(data.id);
         setClientSearch(data.name);
         setFilteredClients([]);
-        showToast("Cliente creado", "success");
+        showToast("Cliente guardado. Ahora toca \"Crear\" para agendar la cita", "success");
       } else {
         showToast(data.error || "Error al crear cliente", "error");
       }
@@ -1110,7 +1186,7 @@ export default function CalendarioPage() {
                       <button
                         key={bl.id}
                         type="button"
-                        onClick={() => setEditingBlock({
+                        onClick={() => openBlockEditor({
                           id: bl.id,
                           barberId: bl.barber_id,
                           reason: bl.reason || "",
@@ -1204,7 +1280,7 @@ export default function CalendarioPage() {
           (2 a 4 personas), TODOS agrupados: cada profesional con sus dias juntos. */}
       {view === "calendario" && multiDay && (loading ? <Spinner /> : (
         <div className={`overflow-x-auto rounded-3xl border border-gray-100 bg-white shadow-sm ${mobileGrid ? "block" : "hidden md:block"}`}>
-          <div style={{ minWidth: Math.max(800, 56 + multiPros.length * rangeDates.length * 110) }}>
+          <div style={{ minWidth: Math.max(800, 56 + multiPros.length * rangeDates.length * colMin) }}>
             {multiPros.length > 1 && (
               <div className="flex border-b border-gray-200 bg-white sticky top-0 z-10">
                 <div className="w-14 flex-shrink-0 border-r border-gray-100" />
@@ -1229,7 +1305,7 @@ export default function CalendarioPage() {
                   const label = new Date(d + "T12:00:00").toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" });
                   const lastOfGroup = multiPros.length > 1 && di === rangeDates.length - 1;
                   return (
-                    <div key={`${pro.id}-${d}`} className={`flex-1 p-2 text-center min-w-[110px] ${lastOfGroup ? "border-r-2 border-gray-300" : "border-r border-gray-100"} ${isColTodayHeader ? "bg-blue-50" : ""}`}>
+                    <div key={`${pro.id}-${d}`} className={`flex-1 p-2 text-center ${lastOfGroup ? "border-r-2 border-gray-300" : "border-r border-gray-100"} ${isColTodayHeader ? "bg-blue-50" : ""}`} style={{ minWidth: colMin }}>
                       <p className={`text-[11px] font-medium truncate mt-0.5 ${isColTodayHeader ? "text-blue-700" : "text-gray-700"}`}>{label}</p>
                     </div>
                   );
@@ -1248,14 +1324,30 @@ export default function CalendarioPage() {
                 rangeDates.map((d, di) => {
                   const dayAppts = appointments.filter((a: any) => a.date === d && a.barber_id === pro.id);
                   const dayBlocks = rangeBlocks.filter((bl) => bl.date === d && bl.barber_id === pro.id);
+                  const dayLanes = slotCap > 1 ? laneLayout(dayAppts) : null;
                   const isColToday = d === todayInChile();
                   const lastOfGroup = multiPros.length > 1 && di === rangeDates.length - 1;
                   // Con un solo profesional se mantiene el azul de siempre; con varios, un color por profesional.
                   const color = multiPros.length > 1 ? barberColors[pi % barberColors.length] : { bg: "bg-blue-100", border: "border-l-blue-500", text: "text-blue-800" };
                   return (
-                    <div key={`${pro.id}-${d}`} className={`flex-1 relative min-w-[110px] ${lastOfGroup ? "border-r-2 border-gray-300" : "border-r border-gray-50"}`}>
+                    <div
+                      key={`${pro.id}-${d}`}
+                      className={`flex-1 relative ${lastOfGroup ? "border-r-2 border-gray-300" : "border-r border-gray-100"}`}
+                      style={{ minWidth: colMin }}
+                      onClick={(e) => {
+                        // Un clic (o toque) en un espacio vacio abre Agendar/Bloquear para ESE profesional,
+                        // ESE dia y a la hora tocada. Las citas y bloqueos tienen su propio clic.
+                        if (!(e.target as HTMLElement).closest("[data-slot]")) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const y = Math.max(0, e.clientY - rect.top);
+                        popupOpenedAt.current = Date.now();
+                        openCreatePopup(pro.id, yToTime(y), yToTime(y + HOUR_HEIGHT * 0.75), d);
+                      }}
+                    >
                       {hours.map((h) => (
-                        <div key={h} className="h-16 border-b border-gray-50" />
+                        <div key={h} data-slot className="relative h-16 cursor-pointer border-b border-gray-200/70 hover:bg-gray-50/70">
+                          <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-gray-200/50" />
+                        </div>
                       ))}
                       {isColToday && nowMinutes >= START_HOUR * 60 && nowMinutes <= END_HOUR * 60 && (
                         <div
@@ -1280,7 +1372,7 @@ export default function CalendarioPage() {
                             key={block.id}
                             className="absolute left-1 right-1 rounded-md bg-gray-100 border border-gray-200 px-1.5 py-1 overflow-hidden z-[5] cursor-pointer hover:bg-gray-200/70"
                             style={{ top: `${top}px`, height: `${Math.max(height, 24)}px` }}
-                            onClick={() => setEditingBlock({
+                            onClick={() => openBlockEditor({
                               id: block.id,
                               barberId: block.barber_id,
                               reason: block.reason || "",
@@ -1306,7 +1398,15 @@ export default function CalendarioPage() {
                             key={appt.id}
                             onClick={() => openApptDetails(appt.id)}
                             className={`absolute left-1 right-1 rounded-lg border-l-[3px] shadow-sm ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10`}
-                            style={getBlockStyle(appt)}
+                            style={(() => {
+                              const base: any = getBlockStyle(appt);
+                              const l = dayLanes?.[appt.id];
+                              if (l && l.cols > 1) {
+                                const w = 100 / l.cols;
+                                return { ...base, left: `calc(${w * (l.lane % l.cols)}% + 2px)`, width: `calc(${w}% - 4px)`, right: "auto" };
+                              }
+                              return base;
+                            })()}
                           >
                             <p className="flex items-center gap-1 text-[11px] font-bold">
                               <span className="truncate">{appt.client?.name || "Cliente"}</span>
@@ -1323,7 +1423,7 @@ export default function CalendarioPage() {
                         );
                       })}
                       {dayAppts.length === 0 && dayBlocks.length === 0 && (
-                        <p className="absolute inset-x-0 top-4 text-center text-[11px] text-gray-300">Sin citas</p>
+                        <p className="pointer-events-none absolute inset-x-0 top-4 text-center text-[11px] text-gray-300">Sin citas</p>
                       )}
                     </div>
                   );
@@ -1388,6 +1488,7 @@ export default function CalendarioPage() {
               {/* Barber columns */}
               {displayBarbers.map((barber, bi) => {
                 const barberAppts = appointments.filter((a: any) => a.barber_id === barber.id);
+                const lanes = slotCap > 1 ? laneLayout(barberAppts) : null;
                 const color = barberColors[bi % barberColors.length];
                 const isDragTarget = dragging && dragBarberId === barber.id;
 
@@ -1395,15 +1496,15 @@ export default function CalendarioPage() {
                   <div
                     key={barber.id}
                     data-barber-column={barber.id}
-                    className="flex-1 relative border-r border-gray-50 min-w-[120px] select-none"
+                    className="flex-1 relative border-r border-gray-100 min-w-[120px] select-none"
                     onMouseDown={(e) => handleMouseDown(e, barber.id)}
                     onMouseMove={(e) => {
                       handleMouseMove(e);
                       const rect = e.currentTarget.getBoundingClientRect();
                       setHoverInfo({ barberId: barber.id, y: Math.max(0, e.clientY - rect.top) });
                     }}
-                    onMouseUp={handleMouseUp}
-                    onMouseLeave={() => { if (dragging) handleMouseUp(); setHoverInfo(null); }}
+                    onMouseUp={() => handleMouseUp()}
+                    onMouseLeave={() => { if (dragging) handleMouseUp(true); setHoverInfo(null); }}
                     onTouchStart={(e) => handleTouchStart(e, barber.id)}
                     onTouchEnd={handleTouchEnd}
                     onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; 
@@ -1423,7 +1524,9 @@ export default function CalendarioPage() {
                   >
                     {/* Hour grid lines */}
                     {hours.map((h) => (
-                      <div key={h} className="h-16 border-b border-gray-50 hover:bg-gray-50/50" />
+                      <div key={h} className="relative h-16 border-b border-gray-200/70 hover:bg-gray-50/50">
+                        <div className="pointer-events-none absolute inset-x-0 top-1/2 border-t border-dashed border-gray-200/50" />
+                      </div>
                     ))}
 
                     {/* Out-of-hours shading. Greys out the parts of the day OUTSIDE this
@@ -1558,7 +1661,15 @@ export default function CalendarioPage() {
                           openApptDetails(appt.id);
                         }}
                         className={`absolute left-1 right-1 rounded-lg border-l-[3px] shadow-sm ${color.bg} ${color.border} ${color.text} px-1.5 py-1 overflow-hidden cursor-pointer hover:shadow-md hover:brightness-95 transition-all z-10 group ${movingApptId === appt.id ? "opacity-40 ring-2 ring-blue-500" : ""}`}
-                        style={getBlockStyle(appt)}
+                        style={(() => {
+                          const base: any = getBlockStyle(appt);
+                          const l = lanes?.[appt.id];
+                          if (l && l.cols > 1) {
+                            const w = 100 / l.cols;
+                            return { ...base, left: `calc(${w * l.lane}% + 2px)`, width: `calc(${w}% - 4px)`, right: "auto" };
+                          }
+                          return base;
+                        })()}
                       >
                         <p className="flex items-center gap-1 text-[11px] font-bold">
                             <span className="truncate">{appt.client?.name || "Cliente"}</span>
@@ -1642,7 +1753,7 @@ export default function CalendarioPage() {
                             // lectura y la unica forma de actuar sobre el bloqueo era la X
                             // roja siempre visible. Ahora abre un panel con nombre, duracion
                             // y eliminar — sin la X.
-                            setEditingBlock({
+                            openBlockEditor({
                               id: block.id,
                               barberId: block.barber_id,
                               reason: block.reason || "",
@@ -1721,7 +1832,7 @@ export default function CalendarioPage() {
 
       {/* Google Calendar style popup - positioned beside the selection */}
       {showPopup && (
-        <div className="fixed inset-0 z-50" onClick={() => setShowPopup(false)}>
+        <div className="fixed inset-0 z-50" onClick={() => { if (Date.now() - popupOpenedAt.current > 400) setShowPopup(false); }}>
           <div
             className={`fixed top-20 bg-white rounded-2xl shadow-2xl border border-gray-200 w-[90vw] md:w-96 animate-scale-in max-h-[80vh] overflow-y-auto ${
               popupPosition === "left" ? "left-4 md:left-16" : "right-4 md:right-8"
@@ -1730,19 +1841,25 @@ export default function CalendarioPage() {
           >
             {/* Header */}
             <div className="flex items-center justify-between p-4 border-b">
-              <h3 className="font-bold text-lg">Cita</h3>
+              <h3 className="font-bold text-lg">Agendar / Bloquear</h3>
               <button onClick={() => setShowPopup(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
             </div>
+
+            {popupDay && (
+              <p className="px-4 pt-3 text-sm font-medium capitalize text-gray-700">
+                {new Date(popupDay + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
+              </p>
+            )}
 
             {/* Tabs */}
             <div className="flex gap-4 px-4 pt-3 border-b">
               <button onClick={() => setPopupTab("service")}
                 className={`pb-2 text-sm font-medium border-b-2 transition-colors ${popupTab === "service" ? "border-brand-blue text-brand-blue" : "border-transparent text-gray-500"}`}>
-                Servicio
+                Agendar
               </button>
               <button onClick={() => setPopupTab("event")}
                 className={`pb-2 text-sm font-medium border-b-2 transition-colors ${popupTab === "event" ? "border-brand-blue text-brand-blue" : "border-transparent text-gray-500"}`}>
-                Evento / Bloqueo
+                Bloquear
               </button>
             </div>
 
@@ -1809,11 +1926,15 @@ export default function CalendarioPage() {
                       onChange={(e) => { setClientSearch(e.target.value); setSelectedClient(""); searchClients(e.target.value); }}
                       placeholder="Buscar cliente..."
                       className="w-full border rounded-xl px-3 py-2.5 text-sm" />
+                    {selectedClient && <p className="mt-1 text-xs font-medium text-emerald-600">✓ Cliente listo. Toca "Crear" para guardar la cita.</p>}
                     {clientSearch.length >= 2 && !selectedClient && (
                       <div className="absolute z-10 w-full mt-1 bg-white border rounded-xl shadow-lg max-h-40 overflow-y-auto">
                         {filteredClients.map((c) => (
                           <button key={c.id} onClick={() => { setSelectedClient(c.id); setClientSearch(c.name); }}
-                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">{c.name}</button>
+                            className="w-full text-left px-3 py-2 text-sm hover:bg-gray-50">
+                            <span className="block font-medium text-gray-800">{c.name}</span>
+                            <span className="block text-[11px] text-gray-500">{c.phone || "Sin celular"}{c.email ? ` · ${c.email}` : ""}</span>
+                          </button>
                         ))}
                         {/* Create the client right here instead of leaving the calendar. */}
                         {showNewClientForm ? (
@@ -2015,6 +2136,8 @@ export default function CalendarioPage() {
                           const params = new URLSearchParams();
                           if (apptDetails.client?.id) params.set("clientId", apptDetails.client.id);
                           if (apptDetails.barber?.id) params.set("barberId", apptDetails.barber.id);
+                          // La cita viaja al POS para que quede completada al cobrar.
+                          if (apptDetails.id) params.set("appointmentId", apptDetails.id);
                           const svcIds = (apptDetails.services || [])
                             .map((s: any) => s.service?.id)
                             .filter(Boolean);

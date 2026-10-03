@@ -22,6 +22,8 @@ const SOURCE_LABELS: Record<string, string> = {
   walk_in: "Pasó por fuera",
   instagram: "Instagram",
   tiktok: "TikTok",
+  facebook: "Facebook",
+  referral: "Referido de un amigo/conocido",
   google_maps: "Google Maps",
   promotion: "Promoción",
   influencer: "Influencer",
@@ -31,6 +33,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const EMPTY_SOURCE_BUCKETS = () => ({
   link: [] as any[], walk_in: [] as any[], instagram: [] as any[], tiktok: [] as any[],
+  facebook: [] as any[], referral: [] as any[],
   google_maps: [] as any[], promotion: [] as any[], influencer: [] as any[],
   manual: [] as any[], unknown: [] as any[],
 });
@@ -56,13 +59,27 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ summary: [], monthly: [], clientsBySource: EMPTY_SOURCE_BUCKETS() });
   }
 
-  let query = supabase
-    .from("clients")
-    .select("id, name, email, phone, acquisition_source, acquisition_detail, created_at")
-    .order("created_at", { ascending: true });
-  if (tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
-
-  const { data: clients } = await query;
+  // Supabase devuelve como maximo 1.000 filas por consulta; sin paginar, solo se leian
+  // los primeros 1.000 clientes (los mas antiguos/importados) y los nuevos nunca se
+  // contaban. Se lee por paginas hasta traer todos. El orden incluye "id" para que las
+  // paginas no se solapen entre si cuando varios clientes comparten created_at.
+  const PAGE = 1000;
+  const clients: any[] = [];
+  for (let from = 0; ; from += PAGE) {
+    let query = supabase
+      .from("clients")
+      .select("id, name, email, phone, acquisition_source, acquisition_detail, created_at")
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
+      .range(from, from + PAGE - 1);
+    if (tenantId !== "ALL") query = query.eq("tenant_id", tenantId);
+    const { data, error } = await query;
+    if (error) {
+      return NextResponse.json({ error: "No se pudieron leer los clientes" }, { status: 500 });
+    }
+    clients.push(...(data || []));
+    if (!data || data.length < PAGE) break;
+  }
 
   // Agrupa clientes por origen.
   const bySource: Record<string, Array<{ id: string; name: string; email: string | null; phone: string | null; firstVisit: string; detail: string | null }>> = EMPTY_SOURCE_BUCKETS();

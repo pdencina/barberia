@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { sendBookingConfirmation } from "@/lib/resend";
 import { tryConsumeQuota } from "@/lib/message-quota";
+import { isSlotFull, exceededAfterInsert } from "@/lib/capacity";
+import { parseWallClock } from "@/lib/wallclock";
+import { isOnVacation } from "@/lib/vacations";
+import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
 
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -51,20 +55,19 @@ export async function POST(req: NextRequest) {
   const serviceNames = resolvedServices.map((s) => s.name).join(" + ");
 
   // Calculate end time
-  const start = new Date(startTime);
+  const start = parseWallClock(startTime);
   const end = new Date(start.getTime() + totalDuration * 60000);
 
-  // Check for conflicts (double booking prevention)
-  const { data: conflicts } = await supabase
-    .from("appointments")
-    .select("id")
-    .eq("barber_id", barberId)
-    .eq("date", date)
-    .in("status", ["scheduled", "confirmed", "in_progress"])
-    .lt("start_time", end.toISOString())
-    .gt("end_time", start.toISOString());
-
-  if (conflicts && conflicts.length > 0) {
+  // Check for conflicts (double booking prevention). Con "cupos por bloque" (solo
+  // kinesiologia) un horario admite varias citas hasta llegar al cupo.
+  if (await isOnVacation(supabase, barberId, date)) {
+    return NextResponse.json({ error: "El profesional no atiende ese día. Selecciona otra fecha." }, { status: 409 });
+  }
+  const { data: barberForCap } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
+  if (isBeyondWindow(date, await getWindowDays(supabase, barberForCap?.tenant_id))) {
+    return NextResponse.json({ error: "Esa fecha todavía no está disponible para reservar. Elige una más cercana." }, { status: 409 });
+  }
+  if (await isSlotFull(supabase, barberId, barberForCap?.tenant_id, date, start, end)) {
     return NextResponse.json({ error: "Horario no disponible. Selecciona otro." }, { status: 409 });
   }
 
@@ -132,6 +135,18 @@ export async function POST(req: NextRequest) {
 
   if (error) {
     return NextResponse.json({ error: "Error creando la cita" }, { status: 500 });
+  }
+
+  // Dos personas pueden reservar el ultimo cupo a la vez: si nos pasamos, esta cita se deshace.
+  if (await exceededAfterInsert(supabase, barberId, tenantId, date, start, end)) {
+    await supabase.from("appointments").delete().eq("id", appointment!.id);
+    return NextResponse.json({ error: "Horario no disponible. Selecciona otro." }, { status: 409 });
+  }
+
+  // Marca de "primer profesional disponible" (migracion 095): sirve para medir el cumplimiento
+  // semanal de las metas. Si la columna aun no existe, simplemente no se marca.
+  if (body.autoAssigned === true) {
+    await supabase.from("appointments").update({ auto_assigned: true }).eq("id", appointment!.id);
   }
 
   // Add services to appointment

@@ -37,6 +37,8 @@ export default function BookingPage() {
   const [services, setServices] = useState<Service[]>([]);
   const [barbers, setBarbers] = useState<Barber[]>([]);
   const [slots, setSlots] = useState<string[]>([]);
+  // Cupos que quedan por hora (solo negocios de Kinesiologia con mas de 1 cliente por bloque).
+  const [spots, setSpots] = useState<Record<string, number>>({});
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
@@ -70,6 +72,10 @@ export default function BookingPage() {
   const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
 
   const [closedDays, setClosedDays] = useState<number[]>([]);
+  // Fechas puntuales en que el profesional esta de vacaciones.
+  const [closedDates, setClosedDates] = useState<string[]>([]);
+  // true cuando el cliente uso "Primer profesional disponible" (la cita se marca como asignada sola).
+  const [autoAssigned, setAutoAssigned] = useState(false);
   const [closedDaysLoaded, setClosedDaysLoaded] = useState(false);
   const [tenantSlugState, setTenantSlugState] = useState<string>("");
 
@@ -158,7 +164,7 @@ export default function BookingPage() {
     setClosedDaysLoaded(false);
     fetch(`/api/public/barber-days?barberId=${selectedBarber.id}`)
       .then((r) => r.json())
-      .then((data) => setClosedDays(Array.isArray(data?.closedDays) ? data.closedDays : []))
+      .then((data) => { setClosedDays(Array.isArray(data?.closedDays) ? data.closedDays : []); setClosedDates(Array.isArray(data?.closedDates) ? data.closedDates : []); })
       .catch(() => setClosedDays([]))
       .finally(() => setClosedDaysLoaded(true));
   }, [selectedBarber]);
@@ -180,11 +186,12 @@ export default function BookingPage() {
     if (selectedDate) {
       // Keep the user's pick unless it falls on a day this professional doesn't attend.
       const [y, m, dd] = selectedDate.split("-").map(Number);
-      if (!closedDays.includes(new Date(y, m - 1, dd).getDay())) return;
+      if (!closedDays.includes(new Date(y, m - 1, dd).getDay()) && !closedDates.includes(selectedDate)) return;
     }
     let d = new Date();
-    for (let i = 0; i < 14; i++) {
-      if (!closedDays.includes(d.getDay())) {
+    for (let i = 0; i < (businessInfo?.booking_window_days ?? 60); i++) {
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (!closedDays.includes(d.getDay()) && !closedDates.includes(ds)) {
         // Local date string, not UTC (toISOString shifted "today" to tomorrow in the
         // evening in Chile, which is exactly the "no aparece el dia actual" report).
         setSelectedDate(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
@@ -192,7 +199,7 @@ export default function BookingPage() {
       }
       d.setDate(d.getDate() + 1);
     }
-  }, [closedDaysLoaded, closedDays]);
+  }, [closedDaysLoaded, closedDays, closedDates]);
 
   // Fetch slots when barber or date changes
   useEffect(() => {
@@ -203,10 +210,32 @@ export default function BookingPage() {
         `/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${totalDuration}`
       )
         .then((r) => r.json())
-        .then((data) => setSlots(data.slots || []))
+        .then((data) => { setSlots(data.slots || []); setSpots(data.spots || {}); })
         .finally(() => { setLoadingSlots(false); preselectSlot.current = ""; });
     }
   }, [selectedBarber, selectedDate, selectedServices]);
+
+  // Con cupos por bloque otras personas pueden tomar un cupo mientras miras la lista: se refresca
+  // sola cada 15 s (solo cuando el negocio usa cupos) y si tu hora se llena, se te avisa.
+  const hasSpots = Object.keys(spots).length > 0;
+  useEffect(() => {
+    if (!hasSpots || step !== "datetime" || !selectedBarber || !selectedDate || selectedServices.length === 0) return;
+    const id = setInterval(() => {
+      fetch(`/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${totalDuration}`)
+        .then((r) => r.json())
+        .then((data) => {
+          const fresh: string[] = data.slots || [];
+          setSlots(fresh);
+          setSpots(data.spots || {});
+          setSelectedSlot((cur) => {
+            if (cur && !fresh.includes(cur)) { setError("Esa hora se acaba de llenar. Elige otra."); return ""; }
+            return cur;
+          });
+        })
+        .catch(() => {});
+    }, 15000);
+    return () => clearInterval(id);
+  }, [hasSpots, step, selectedBarber, selectedDate, selectedServices, totalDuration]);
 
   const handleBook = async () => {
     setError("");
@@ -256,6 +285,7 @@ export default function BookingPage() {
         clientEmail: clientEmail || null,
         clientPhone: clientPhone || null,
         notes: notes || null,
+        autoAssigned,
       }),
     });
 
@@ -277,11 +307,12 @@ export default function BookingPage() {
   const toLocalDateStr = (d: Date) =>
     `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   const dateOptions: string[] = [];
-  for (let i = 0; i < 14; i++) {
+  for (let i = 0; i < (businessInfo?.booking_window_days ?? 14); i++) {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    // Skip closed days
+    // Skip closed days (y las fechas de vacaciones del profesional)
     if (closedDays.includes(d.getDay())) continue;
+    if (closedDates.includes(toLocalDateStr(d))) continue;
     dateOptions.push(toLocalDateStr(d));
   }
 
@@ -295,6 +326,7 @@ export default function BookingPage() {
 
   const handleTimePick = (p: TimePick) => {
     preselectSlot.current = p.slot;
+    setAutoAssigned(!!p.auto);
     setSelectedBarber({ id: p.barber.id, name: p.barber.name, avatar_url: p.barber.avatar_url, bio: null, specialties: null, intro_video_url: null, years_experience: null });
     setSelectedServices(p.services.map((sv) => ({ id: sv.id, name: sv.name, description: sv.description, price: sv.price, duration: sv.duration })));
     setSelectedDate(p.date);
@@ -459,7 +491,7 @@ export default function BookingPage() {
 
         {/* Vista por horario: servicio → día y hora → profesional disponible */}
         {step === "barber" && activeView === "time" && (
-          <TimeFirstFlow tenantSlug={tenantSlugState} closedWeekdays={closedWeekdays} onPick={handleTimePick} />
+          <TimeFirstFlow tenantSlug={tenantSlugState} closedWeekdays={closedWeekdays} windowDays={businessInfo?.booking_window_days ?? null} onPick={handleTimePick} />
         )}
 
         {/* Step 1: Barber (PRIMERO) */}
@@ -474,6 +506,7 @@ export default function BookingPage() {
                 const res = await fetch(`/api/public/first-available?date=${selectedDate || toLocalDateStr(new Date())}${tenantSlugState ? `&tenant=${tenantSlugState}` : ""}`);
                 const data = await res.json();
                 if (data.barber) {
+                  setAutoAssigned(true);
                   setSelectedBarber(data.barber);
                   setSelectedServices([]);
                   setStep("service");
@@ -491,7 +524,7 @@ export default function BookingPage() {
               {barbers.map((b) => (
                 <button
                   key={b.id}
-                  onClick={() => { setSelectedBarber(b); setSelectedServices([]); setStep("service"); }}
+                  onClick={() => { setAutoAssigned(false); setSelectedBarber(b); setSelectedServices([]); setStep("service"); }}
                   className="flex flex-col items-center p-5 rounded-2xl border border-gray-200 hover:border-brand-blue hover:shadow-lg transition-all text-center group"
                 >
                   {b.avatar_url ? (
@@ -643,6 +676,13 @@ export default function BookingPage() {
                         }`}
                       >
                         {time}
+                        {spots[slot] != null && (
+                          <span className={`block text-[10px] leading-tight ${
+                            selectedSlot === slot ? "font-normal text-white/80" : spots[slot] === 1 ? "font-semibold text-red-500" : "font-normal text-brand-gray"
+                          }`}>
+                            {spots[slot]} {spots[slot] === 1 ? "cupo" : "cupos"}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -650,8 +690,10 @@ export default function BookingPage() {
               )}
             </div>
 
+            {error && <p className="mt-4 text-sm text-red-500 text-center">{error}</p>}
+
             <button
-              onClick={() => setStep("details")}
+              onClick={() => { setError(""); setStep("details"); }}
               disabled={!selectedSlot}
               className="w-full mt-6 py-3 rounded-xl bg-brand-blue text-white font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >

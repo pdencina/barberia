@@ -1,3 +1,4 @@
+import { accountingColumnsAvailable, fetchMonthTx } from "@/lib/accounting";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
@@ -31,6 +32,7 @@ const esc = (v: any) =>
 
 const SOURCE_LABELS: Record<string, string> = {
   link: "Reserva por link", walk_in: "Pasó por fuera", instagram: "Instagram", tiktok: "TikTok",
+  facebook: "Facebook", referral: "Referido de un amigo/conocido",
   google_maps: "Google Maps", promotion: "Promoción", influencer: "Influencer",
   manual: "Agendado manualmente", unknown: "Sin registrar",
 };
@@ -88,29 +90,21 @@ export async function GET(req: NextRequest) {
   const pct = (a: number, b: number) => (b > 0 ? Math.round((a / b) * 100) : 0);
 
   // ---------- Datos del mes ----------
-  const { data: incomeTx } = await scoped(supabase
-    .from("transactions")
-    .select("id, total, subtotal, discount, payment_method, barber_id, client_id, coupon_id, created_at")
-    .eq("type", "income").eq("status", "completed")
-    .gte("created_at", cur.startUtc).lt("created_at", cur.endUtc));
-  const income: any[] = incomeTx || [];
-
-  const { data: expenseTx } = await scoped(supabase
-    .from("transactions")
-    .select("id, total")
-    .eq("type", "expense").eq("status", "completed")
-    .gte("created_at", cur.startUtc).lt("created_at", cur.endUtc));
-  const expenses: any[] = expenseTx || [];
+  // Ingresos y egresos se cuentan por su fecha contable ("Corresponde al mes"); ver src/lib/accounting.ts.
+  const acc = await accountingColumnsAvailable(supabase);
+  const rng = (r: { first: string; last: string; startUtc: string; endUtc: string }) =>
+    ({ first: r.first, last: r.last, startIso: r.startUtc, endIso: r.endUtc });
+  const income: any[] = await fetchMonthTx(supabase, {
+    select: "id, total, subtotal, discount, payment_method, barber_id, client_id, coupon_id, created_at",
+    type: "income", range: rng(cur), scope: scoped, acc,
+  });
+  const expenses: any[] = await fetchMonthTx(supabase, {
+    select: "id, total", type: "expense", range: rng(cur), scope: scoped, acc,
+  });
 
   // Mes anterior (solo totales, para las comparaciones).
-  const { data: prevIncomeTx } = await scoped(supabase
-    .from("transactions").select("total")
-    .eq("type", "income").eq("status", "completed")
-    .gte("created_at", prev.startUtc).lt("created_at", prev.endUtc));
-  const { data: prevExpenseTx } = await scoped(supabase
-    .from("transactions").select("total")
-    .eq("type", "expense").eq("status", "completed")
-    .gte("created_at", prev.startUtc).lt("created_at", prev.endUtc));
+  const prevIncomeTx = await fetchMonthTx(supabase, { select: "total", type: "income", range: rng(prev), scope: scoped, acc });
+  const prevExpenseTx = await fetchMonthTx(supabase, { select: "total", type: "expense", range: rng(prev), scope: scoped, acc });
   const { count: prevNewClients } = await scoped(supabase
     .from("clients").select("id", { count: "exact", head: true })
     .gte("created_at", prev.startUtc).lt("created_at", prev.endUtc));

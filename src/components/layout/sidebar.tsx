@@ -14,7 +14,7 @@ import {
   Tablet, CreditCard, Tag, Settings, LogOut, Scissors, Menu, X,
   Heart, Bell, Zap, Image, Star, ChevronLeft, ChevronRight, ChevronDown,
   MessageCircle, Clock, FileText, UserCircle, PiggyBank, ClipboardList,
-  Building2, ShieldCheck, Ticket, Percent, KeyRound,
+  Building2, ShieldCheck, Ticket, Percent, KeyRound, Truck, Briefcase, Plane,
 } from "lucide-react";
 
 interface NavItem {
@@ -61,6 +61,7 @@ const sections: NavSection[] = [
       },
       { name: "Agenda", href: "/dashboard/agenda", icon: Calendar, minRole: "receptionist" },
       { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart, minRole: "receptionist" },
+      { name: "Solicitud de insumos", href: "/dashboard/solicitud", icon: ClipboardList, minRole: "receptionist", feature: "inventory" },
       { name: "Caja", href: "/dashboard/caja", icon: Wallet, minRole: "admin", feature: "cash_register" },
     ],
   },
@@ -97,17 +98,26 @@ const sections: NavSection[] = [
     items: [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin" },
+      {
+        name: "Mi negocio", href: "/dashboard/mi-negocio", icon: Briefcase, minRole: "admin",
+        // Fase 6: lo que se administra del negocio, junto en un solo menu.
+        children: [
+          { name: "Vacaciones", href: "/dashboard/vacaciones", icon: Plane, minRole: "admin" },
+          { name: "Comisiones", href: "/dashboard/comisiones", icon: Percent, minRole: "barber", feature: "commissions" },
+          { name: "Arriendo", href: "/dashboard/arriendo", icon: KeyRound, minRole: "admin", feature: "rental" },
+          { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
+          { name: "Proveedores", href: "/dashboard/proveedores", icon: Truck, minRole: "admin" },
+          { name: "Remuneraciones", href: "/dashboard/remuneraciones", icon: FileText, minRole: "super_admin" }, // oculto a los negocios hasta terminar las pruebas
+        ],
+      },
       { name: "Precios", href: "/dashboard/precios", icon: Tag, minRole: "super_admin" },
       { name: "Galería", href: "/dashboard/galeria", icon: Image, minRole: "admin" },
       { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin" },
       {
         name: "Configuración", href: "/dashboard/configuracion", icon: Settings, minRole: "admin",
-        // Comisiones/Arriendo/Terminal POS/Servicios/Inventario son hijos de Configuracion.
+        // Terminal POS e Inventario son hijos de Configuracion (Comisiones, Arriendo, Servicios y Proveedores ahora viven en Mi negocio).
         children: [
-          { name: "Comisiones", href: "/dashboard/comisiones", icon: Percent, minRole: "barber", feature: "commissions" },
-          { name: "Arriendo", href: "/dashboard/arriendo", icon: KeyRound, minRole: "admin", feature: "rental" },
           { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin", feature: "pos" },
-          { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
           { name: "Inventario", href: "/dashboard/inventario", icon: Package, minRole: "admin", feature: "inventory" },
           { name: "Plan y facturación", href: "/dashboard/configuracion/facturacion", icon: CreditCard, minRole: "admin" },
         ],
@@ -198,7 +208,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
       "/dashboard/boletas", "/dashboard/cupones", "/dashboard/configuracion",
       // Nico's request: receptionist also gets Caja, Profesionales (schedules only) and
       // Inventario (read-only, changes gated behind the admin PIN).
-      "/dashboard/caja", "/dashboard/barberos", "/dashboard/inventario",
+      "/dashboard/caja", "/dashboard/barberos", "/dashboard/inventario", "/dashboard/solicitud",
       // Cada usuario (tambien recepcion) puede entrar a Mi Perfil a elegir su propio tema.
       "/dashboard/mi-perfil",
     ],

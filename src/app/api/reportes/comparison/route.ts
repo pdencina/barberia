@@ -1,3 +1,4 @@
+import { accountingColumnsAvailable, fetchMonthTx } from "@/lib/accounting";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
@@ -17,6 +18,7 @@ export async function GET(req: NextRequest) {
 
   const months: Array<{ month: number; year: number; label: string; income: number; expenses: number }> = [];
 
+  const acc = await accountingColumnsAvailable(supabase);
   for (let i = 5; i >= 0; i--) {
     const d = new Date();
     d.setMonth(d.getMonth() - i);
@@ -25,17 +27,12 @@ export async function GET(req: NextRequest) {
     const startDate = new Date(year, month - 1, 1).toISOString();
     const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
 
-    const { data: incomeTx } = await scoped(supabase
-      .from("transactions")
-      .select("total")
-      .eq("type", "income").eq("status", "completed")
-      .gte("created_at", startDate).lte("created_at", endDate));
+    const first = `${year}-${String(month).padStart(2, "0")}-01`;
+    const last = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+    const mr = { first, last, startIso: startDate, endIso: endDate };
 
-    const { data: expenseTx } = await scoped(supabase
-      .from("transactions")
-      .select("total")
-      .eq("type", "expense").eq("status", "completed")
-      .gte("created_at", startDate).lte("created_at", endDate));
+    const incomeTx = await fetchMonthTx(supabase, { select: "total", type: "income", range: mr, scope: scoped, acc, endOp: "lte" });
+    const expenseTx = await fetchMonthTx(supabase, { select: "total", type: "expense", range: mr, scope: scoped, acc, endOp: "lte" });
 
     const monthNames = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
 

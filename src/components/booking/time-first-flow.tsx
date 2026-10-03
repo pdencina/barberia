@@ -8,7 +8,7 @@ import { formatCurrency } from "@/lib/utils";
 // y al final el profesional disponible en esa hora.
 interface Svc { id: string; name: string; description: string | null; price: number; duration: number }
 interface BarberOpt { id: string; name: string; avatar_url: string | null; services: Svc[]; duration: number; price: number }
-export interface TimePick { barber: BarberOpt; services: Svc[]; date: string; slot: string }
+export interface TimePick { barber: BarberOpt; services: Svc[]; date: string; slot: string; auto?: boolean }
 
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 const WD = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
@@ -16,7 +16,7 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const ds = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const hhmm = (slot: string) => slot.slice(11, 16);
 
-export default function TimeFirstFlow({ tenantSlug, closedWeekdays, onPick }: { tenantSlug: string; closedWeekdays: number[]; onPick: (p: TimePick) => void }) {
+export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, onPick }: { tenantSlug: string; closedWeekdays: number[]; windowDays?: number | null; onPick: (p: TimePick) => void }) {
   const [phase, setPhase] = useState<"services" | "time" | "pro">("services");
   const [services, setServices] = useState<Svc[]>([]);
   const [loadingServices, setLoadingServices] = useState(true);
@@ -30,9 +30,9 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, onPick }: { 
 
   const days = useMemo(() => {
     const out: Date[] = [];
-    for (let i = 0; i < 28; i++) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + i); out.push(d); }
+    for (let i = 0; i < (windowDays ?? 28); i++) { const d = new Date(); d.setHours(12, 0, 0, 0); d.setDate(d.getDate() + i); out.push(d); }
     return out;
-  }, []);
+  }, [windowDays]);
 
   useEffect(() => {
     fetch(`/api/public/services?tenant=${encodeURIComponent(tenantSlug)}`)
@@ -71,7 +71,23 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, onPick }: { 
     { label: "Noche", items: slots.filter((s) => Number(s.slot.slice(11, 13)) >= 18) },
   ].filter((g) => g.items.length > 0);
 
-  const pickBarber = (b: BarberOpt, slot: string) => onPick({ barber: b, services: b.services, date, slot });
+  const pickBarber = (b: BarberOpt, slot: string, auto = false) => onPick({ barber: b, services: b.services, date, slot, auto });
+  const [autoBusy, setAutoBusy] = useState(false);
+  // "Primer profesional disponible": el negocio decide con su regla (Configuracion > Preferencias de reserva).
+  const pickAuto = async (slot: string, ids: string[]) => {
+    if (autoBusy) return;
+    setAutoBusy(true);
+    try {
+      const r = await fetch(`/api/public/first-available?tenant=${encodeURIComponent(tenantSlug)}&date=${date}&slot=${encodeURIComponent(slot)}&candidates=${ids.join(",")}`);
+      const d = await r.json();
+      const id = d?.barber?.id && ids.includes(d.barber.id) ? d.barber.id : ids[0];
+      const b = barbers[id];
+      if (b) pickBarber(b, slot, true);
+    } catch {
+      const b = barbers[ids[0]];
+      if (b) pickBarber(b, slot, true);
+    } finally { setAutoBusy(false); }
+  };
 
   const chooseSlot = (s: { slot: string; barberIds: string[] }) => {
     const opts = s.barberIds.map((id) => barbers[id]).filter(Boolean);
@@ -132,6 +148,13 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, onPick }: { 
         <h2 className="text-2xl font-bold mb-1">Elige tu profesional</h2>
         <p className="text-brand-gray mb-6">Disponibles a las {hhmm(chosen.slot)}</p>
         <div className="space-y-3">
+          {chosen.barberIds.length > 1 && (
+            <button onClick={() => pickAuto(chosen.slot, chosen.barberIds)} disabled={autoBusy}
+              className="w-full rounded-2xl border-2 border-brand-blue bg-brand-blue/10 p-4 text-center transition hover:bg-brand-blue/20 disabled:opacity-60">
+              <p className="font-bold text-brand-blue">{autoBusy ? "Asignando…" : "Primer profesional disponible"}</p>
+              <p className="text-xs text-brand-gray">Te asignamos a quien esté libre a esa hora</p>
+            </button>
+          )}
           {chosen.barberIds.map((id) => barbers[id]).filter(Boolean).map((b) => (
             <button key={b.id} onClick={() => pickBarber(b, chosen.slot)}
               className="flex w-full items-center gap-3 rounded-2xl border border-gray-200 bg-white p-4 text-left transition hover:border-brand-blue hover:shadow-md">

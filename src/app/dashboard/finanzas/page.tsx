@@ -21,6 +21,10 @@ interface Transaction {
   items: Array<{ description: string; total: number }>;
   assigned_to: "professional" | "reception" | "business" | null;
   barber_id: string | null;
+  // Fecha contable ("Corresponde al mes", dia 1) y quien registro el movimiento (migracion 090).
+  // Vacios en los movimientos de antes: se entiende "el mes de su fecha de creacion" / "sin dato".
+  accounting_month?: string | null;
+  created_by_name?: string | null;
 }
 
 interface Barber {
@@ -33,6 +37,7 @@ const paymentMethodLabels: Record<string, string> = {
   debit_card: "Debito",
   credit_card: "Credito",
   transfer: "Transferencia",
+  mixed: "Mixto",
 };
 
 // Punto 5 (Pablo): "a quien corresponde" el movimiento, para saber donde repercute.
@@ -63,6 +68,28 @@ const emptyFormData = {
   notes: "",
   assignedTo: "" as "" | "professional" | "reception" | "business",
   barberId: "",
+  accountingMonth: "", // "" = el mes de hoy
+};
+
+// Tabla compacta: celdas mas angostas y texto un punto mas chico para que las 9 columnas entren sin scroll.
+const thc = "whitespace-nowrap px-3 py-2.5 text-left text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-gray";
+const thcR = "whitespace-nowrap px-3 py-2.5 text-right text-[10px] font-semibold uppercase tracking-[0.08em] text-brand-gray";
+const tdc = "px-3 py-2.5 text-[13px] text-brand-dark";
+const tdcR = "px-3 py-2.5 text-right text-[13px] font-semibold tabular-nums";
+
+const MONTH_NAMES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
+const CL_TZ = "America/Santiago";
+// Mes (YYYY-MM) de un instante, en hora de Chile.
+const monthOf = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: CL_TZ, year: "numeric", month: "2-digit" }).format(new Date(iso)).slice(0, 7);
+const monthLabel = (ym: string) => `${MONTH_NAMES[parseInt(ym.slice(5, 7), 10) - 1]} ${ym.slice(0, 4)}`;
+// Hoy y los 14 meses anteriores (para "Corresponde al mes" y el filtro por mes).
+const monthOptions = (): Array<{ value: string; label: string }> => {
+  const [y, m] = todayInChile().split("-").map(Number);
+  return Array.from({ length: 15 }, (_, i) => {
+    const d = new Date(Date.UTC(y, m - 1 - i, 1));
+    const v = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
+    return { value: v, label: monthLabel(v) };
+  });
 };
 
 export default function FinanzasPage() {
@@ -75,6 +102,14 @@ export default function FinanzasPage() {
   const [quickRange, setQuickRange] = useState<string>("month");
   const [dateFrom, setDateFrom] = useState(() => chileDateOffset(-30));
   const [dateTo, setDateTo] = useState(() => todayInChile());
+  // "" = filtrar por fechas; "YYYY-MM" = solo lo que CORRESPONDE a ese mes (fecha contable).
+  const [monthFilter, setMonthFilter] = useState("");
+  // Filtros sobre lo que ya esta cargado (""= todos). Los cuadros de arriba y la exportacion usan lo filtrado.
+  const [fBarber, setFBarber] = useState("");
+  const [fMethod, setFMethod] = useState("");
+  const [fAssigned, setFAssigned] = useState("");
+  const [fCreator, setFCreator] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   // Punto 5: null = creando una transaccion nueva; con id = editando una existente
@@ -114,8 +149,11 @@ export default function FinanzasPage() {
     setLoading(true);
     const params = new URLSearchParams();
     if (filter !== "all") params.set("type", filter);
-    if (dateFrom) params.set("from", dateFrom);
-    if (dateTo) params.set("to", dateTo);
+    if (monthFilter) params.set("month", monthFilter);
+    else {
+      if (dateFrom) params.set("from", dateFrom);
+      if (dateTo) params.set("to", dateTo);
+    }
     const t = getActiveTenantId();
     if (t) params.set("tenantId", t);
     try {
@@ -134,21 +172,61 @@ export default function FinanzasPage() {
     if (tenantLoading) return;
     fetchTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, dateFrom, dateTo, tenantLoading, tenant?.id]);
+  }, [filter, dateFrom, dateTo, monthFilter, tenantLoading, tenant?.id]);
 
-  const totalIncome = transactions
+  const visible = transactions.filter((t) =>
+    (!fBarber || t.barber_id === fBarber) &&
+    (!fMethod || t.payment_method === fMethod) &&
+    (!fAssigned || (fAssigned === "none" ? !t.assigned_to : t.assigned_to === fAssigned)) &&
+    (!fCreator || (fCreator === "none" ? !t.created_by_name : t.created_by_name === fCreator))
+  );
+  const hasFilters = !!(fBarber || fMethod || fAssigned || fCreator);
+  const clearFilters = () => { setFBarber(""); setFMethod(""); setFAssigned(""); setFCreator(""); };
+  // Opciones: solo lo que aparece en los movimientos cargados.
+  const barberOptions = Array.from(new Map(transactions.filter((t) => t.barber_id && t.barber?.name).map((t) => [t.barber_id as string, t.barber!.name])).entries());
+  const methodOptions = Array.from(new Set(transactions.map((t) => t.payment_method)));
+  const creatorOptions = Array.from(new Set(transactions.map((t) => t.created_by_name).filter(Boolean))) as string[];
+
+  const totalIncome = visible
     .filter((t) => t.type === "income")
     .reduce((sum, t) => sum + Number(t.total), 0);
-  const totalExpenses = transactions
+  const totalExpenses = visible
     .filter((t) => t.type === "expense")
     .reduce((sum, t) => sum + Number(t.total), 0);
   const balance = totalIncome - totalExpenses;
-  const rangeLabel = QUICK_RANGES.find((r) => r.key === quickRange)?.label || null;
+  const rangeLabel = monthFilter ? monthLabel(monthFilter) : QUICK_RANGES.find((r) => r.key === quickRange)?.label || null;
 
   const applyQuickRange = (key: string, days: number) => {
     setQuickRange(key);
     setDateFrom(chileDateOffset(-days));
     setDateTo(todayInChile());
+  };
+
+  // Descarga lo que se ve en pantalla (mismos filtros) como CSV, que abre directo en Excel.
+  const exportCsv = () => {
+    const q = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const head = ["Hora", "Fecha", "Tipo", "Descripción", "Profesional / Corresponde a", "Emitido por", "Cliente", "Método de pago", "Monto", "Corresponde al mes"];
+    const rows = visible.map((t) => {
+      const d = new Date(t.created_at);
+      return [
+        d.toLocaleTimeString("es-CL", { timeZone: CL_TZ, hour: "2-digit", minute: "2-digit" }),
+        d.toLocaleDateString("es-CL", { timeZone: CL_TZ }),
+        t.type === "income" ? "Ingreso" : "Egreso",
+        t.items?.map((i: any) => String(i.description).replace(" (gasto fijo)", "")).join(", ") || t.notes || "",
+        t.barber?.name || (t.assigned_to ? assignedToLabels[t.assigned_to] : ""),
+        t.created_by_name || "",
+        t.client?.name || "",
+        paymentMethodLabels[t.payment_method] || t.payment_method,
+        (t.type === "expense" ? -1 : 1) * Number(t.total),
+        monthLabel((t.accounting_month || "").slice(0, 7) || monthOf(t.created_at)),
+      ].map(q).join(";");
+    });
+    const blob = new Blob(["\uFEFF" + [head.map(q).join(";"), ...rows].join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `ingresos-egresos-${monthFilter || `${dateFrom}_${dateTo}`}.csv`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   };
 
   const closeModal = () => {
@@ -172,6 +250,7 @@ export default function FinanzasPage() {
           notes: formData.notes,
           assignedTo: formData.assignedTo || null,
           barberId: formData.assignedTo === "professional" ? formData.barberId || null : null,
+          accountingMonth: formData.accountingMonth || todayInChile().slice(0, 7),
           tenantId: getActiveTenantId() || undefined,
         }),
       });
@@ -204,6 +283,7 @@ export default function FinanzasPage() {
       notes: t.notes || "",
       assignedTo: t.assigned_to || "",
       barberId: t.barber_id || "",
+      accountingMonth: (t.accounting_month || "").slice(0, 7) || monthOf(t.created_at),
     });
     setOpenMenuId(null);
     setShowModal(true);
@@ -236,16 +316,21 @@ export default function FinanzasPage() {
         title="Ingresos y egresos"
         subtitle="Todos los movimientos del negocio, en el periodo que elijas."
         actions={
-          <button
-            onClick={() => {
-              setEditingId(null);
-              setFormData(emptyFormData);
-              setShowModal(true);
-            }}
-            className={primaryButton}
-          >
-            <Plus className="h-4 w-4" strokeWidth={2.5} /> Nueva transacción
-          </button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={exportCsv} disabled={visible.length === 0} className={ghostButton}>
+              Exportar a Excel
+            </button>
+            <button
+              onClick={() => {
+                setEditingId(null);
+                setFormData(emptyFormData);
+                setShowModal(true);
+              }}
+              className={primaryButton}
+            >
+              <Plus className="h-4 w-4" strokeWidth={2.5} /> Nueva transacción
+            </button>
+          </div>
         }
       />
 
@@ -273,7 +358,7 @@ export default function FinanzasPage() {
         />
       </div>
 
-      {/* Filters */}
+      {/* Una sola fila: tipo, periodo y filtros (plegados). */}
       <div className="flex flex-wrap items-center gap-3">
         <Segmented
           value={filter}
@@ -284,64 +369,114 @@ export default function FinanzasPage() {
             { value: "expense", label: "Egresos" },
           ]}
         />
-        {/* Item 38: atajos de rango en vez de tener que escribir fechas a mano cada vez. */}
-        <Segmented
-          size="sm"
-          value={quickRange as any}
-          onChange={(k) => {
-            const r = QUICK_RANGES.find((x) => x.key === k);
-            if (r) applyQuickRange(r.key, r.days);
-          }}
-          options={QUICK_RANGES.map((r) => ({ value: r.key, label: r.label }))}
-        />
-        <div className="flex items-center gap-2 rounded-2xl border border-gray-100 bg-white px-3.5 py-2 text-sm text-brand-gray">
+
+        {/* Periodo: un solo selector (rangos rapidos, mes al que corresponde o fechas a mano). */}
+        <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm text-brand-gray">
           <CalendarDays className="h-4 w-4 flex-shrink-0" strokeWidth={1.75} />
-          <input
-            type="date"
-            value={dateFrom}
-            onChange={(e) => { setQuickRange("custom"); setDateFrom(e.target.value); }}
+          <select
+            value={monthFilter ? `month:${monthFilter}` : quickRange === "custom" ? "custom" : `range:${quickRange}`}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v.startsWith("month:")) { setMonthFilter(v.slice(6)); return; }
+              setMonthFilter("");
+              if (v === "custom") { setQuickRange("custom"); return; }
+              const r = QUICK_RANGES.find((x) => x.key === v.slice(6));
+              if (r) applyQuickRange(r.key, r.days);
+            }}
             className="bg-transparent text-sm text-brand-dark outline-none"
-          />
-          <span>→</span>
-          <input
-            type="date"
-            value={dateTo}
-            onChange={(e) => { setQuickRange("custom"); setDateTo(e.target.value); }}
-            className="bg-transparent text-sm text-brand-dark outline-none"
-          />
+          >
+            <optgroup label="Período">
+              {QUICK_RANGES.map((r) => <option key={r.key} value={`range:${r.key}`}>{r.label}</option>)}
+              <option value="custom">Fechas a elegir…</option>
+            </optgroup>
+            <optgroup label="Corresponde al mes">
+              {monthOptions().map((o) => <option key={o.value} value={`month:${o.value}`}>{o.label}</option>)}
+            </optgroup>
+          </select>
         </div>
+        {!monthFilter && quickRange === "custom" && (
+          <div className="flex items-center gap-2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-sm text-brand-gray">
+            <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="bg-transparent text-sm text-brand-dark outline-none" />
+            <span>→</span>
+            <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="bg-transparent text-sm text-brand-dark outline-none" />
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-colors ${hasFilters ? "border-brand-blue/50 text-brand-blue" : "border-gray-100 bg-white text-brand-gray hover:text-brand-dark"}`}
+        >
+          Filtros{hasFilters ? ` (${[fBarber, fMethod, fAssigned, fCreator].filter(Boolean).length})` : ""}
+        </button>
+        {hasFilters && (
+          <button type="button" onClick={clearFilters} className="text-xs font-semibold text-brand-blue hover:underline">
+            Limpiar
+          </button>
+        )}
       </div>
 
+      {showFilters && (
+        <div className="grid grid-cols-1 gap-3 rounded-2xl border border-gray-100 bg-white p-4 sm:grid-cols-2 lg:grid-cols-4">
+          {([
+            { label: "Profesional", value: fBarber, set: setFBarber, options: barberOptions.map(([id, name]) => ({ value: id, label: name })) },
+            { label: "Método de pago", value: fMethod, set: setFMethod, options: methodOptions.map((m) => ({ value: m, label: paymentMethodLabels[m] || m })) },
+            { label: "Corresponde a", value: fAssigned, set: setFAssigned, options: [
+              { value: "professional", label: assignedToLabels.professional }, { value: "reception", label: assignedToLabels.reception },
+              { value: "business", label: assignedToLabels.business }, { value: "none", label: "Sin especificar" },
+            ] },
+            { label: "Emitido por", value: fCreator, set: setFCreator, options: [...creatorOptions.map((n) => ({ value: n, label: n })), { value: "none", label: "Sin dato" }] },
+          ]).map((f) => (
+            <div key={f.label}>
+              <label className="mb-1 block text-[11px] font-semibold text-brand-gray">{f.label}</label>
+              <select value={f.value} onChange={(e) => f.set(e.target.value)} className={`${inputClass} !py-2 text-sm`}>
+                <option value="">Todos</option>
+                {f.options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Table */}
-      <Panel flush title="Movimientos" subtitle={loading ? undefined : `${transactions.length} registro${transactions.length === 1 ? "" : "s"}`}>
+      <Panel flush title="Movimientos" subtitle={loading ? undefined : `${visible.length} registro${visible.length === 1 ? "" : "s"}${hasFilters ? ` de ${transactions.length}` : ""}`}>
         <div className={ts.wrap}>
           <table className={ts.table}>
             <thead className={ts.thead}>
               <tr>
-                <th className={ts.th}>Fecha</th>
-                <th className={ts.th}>Tipo</th>
-                <th className={ts.th}>Descripción</th>
-                <th className={ts.th}>Cliente / Profesional</th>
-                <th className={ts.th}>Corresponde a</th>
-                <th className={ts.th}>Método</th>
-                <th className={ts.thRight}>Monto</th>
+                <th className={thc}>Hora</th>
+                <th className={thc}>Fecha</th>
+                <th className={thc}>Tipo</th>
+                <th className={thc}>Descripción</th>
+                <th className={thc}>Profesional / Corresponde a</th>
+                <th className={thc}>Emitido por</th>
+                <th className={thc}>Cliente</th>
+                <th className={thc}>Método de pago</th>
+                <th className={thcR}>Monto</th>
                 {isAdmin && <th className="w-10 px-3 py-3"></th>}
               </tr>
             </thead>
             <tbody className={ts.tbody}>
               {loading ? (
-                <tr><td colSpan={isAdmin ? 8 : 7}><Spinner /></td></tr>
-              ) : transactions.length === 0 ? (
+                <tr><td colSpan={isAdmin ? 10 : 9}><Spinner /></td></tr>
+              ) : visible.length === 0 ? (
                 <tr>
-                  <td colSpan={isAdmin ? 8 : 7} className="px-5 py-12 text-center text-sm text-brand-gray">
+                  <td colSpan={isAdmin ? 10 : 9} className="px-5 py-12 text-center text-sm text-brand-gray">
                     No hay transacciones en este periodo
                   </td>
                 </tr>
               ) : (
-                transactions.map((t) => (
+                visible.map((t) => (
                   <tr key={t.id} className={ts.tr}>
-                    <td className={`${ts.td} whitespace-nowrap tabular-nums text-brand-gray`}>{new Date(t.created_at).toLocaleDateString("es-CL")}</td>
-                    <td className={ts.td}>
+                    <td className={`${tdc} whitespace-nowrap tabular-nums text-brand-gray`}>{new Date(t.created_at).toLocaleTimeString("es-CL", { timeZone: CL_TZ, hour: "2-digit", minute: "2-digit" })}</td>
+                    <td className={`${tdc} whitespace-nowrap tabular-nums text-brand-gray`}>
+                      {new Date(t.created_at).toLocaleDateString("es-CL", { timeZone: CL_TZ })}
+                      {/* Si corresponde a otro mes que el de su registro, se avisa (ej. egreso de septiembre cargado en octubre). */}
+                      {t.accounting_month && t.accounting_month.slice(0, 7) !== monthOf(t.created_at) && (
+                        <span className="mt-0.5 block text-[10px] font-semibold text-amber-600">Corresponde a {monthLabel(t.accounting_month.slice(0, 7))}</span>
+                      )}
+                    </td>
+                    <td className={tdc}>
                       <span
                         className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-semibold ${
                           t.type === "income" ? "bg-emerald-500/10 text-emerald-500" : "bg-red-500/10 text-red-500"
@@ -351,15 +486,16 @@ export default function FinanzasPage() {
                         {t.type === "income" ? "Ingreso" : "Egreso"}
                       </span>
                     </td>
-                    <td className={`${ts.td} max-w-[260px] truncate`}>{t.items?.map((i: any) => i.description).join(", ") || t.notes || "-"}</td>
-                    <td className={ts.td}>{t.client?.name || t.barber?.name || "-"}</td>
-                    <td className={`${ts.td} text-brand-gray`}>{t.assigned_to ? assignedToLabels[t.assigned_to] : "-"}</td>
-                    <td className={ts.td}>
+                    <td className={`${tdc} max-w-[220px] truncate`}>{t.items?.map((i: any) => String(i.description).replace(" (gasto fijo)", "")).join(", ") || t.notes || "-"}</td>
+                    <td className={`${tdc} max-w-[130px] truncate`}>{t.barber?.name || (t.assigned_to ? assignedToLabels[t.assigned_to] : "-")}</td>
+                    <td className={`${tdc} max-w-[130px] truncate text-brand-gray`} title={t.created_by_name || undefined}>{t.created_by_name || "-"}</td>
+                    <td className={`${tdc} max-w-[130px] truncate`}>{t.client?.name || "-"}</td>
+                    <td className={tdc}>
                       <span className="rounded-full bg-black/5 px-2.5 py-1 text-[11px] font-medium text-brand-gray dark:bg-white/10">
                         {paymentMethodLabels[t.payment_method] || t.payment_method}
                       </span>
                     </td>
-                    <td className={`${ts.tdRight} whitespace-nowrap ${t.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
+                    <td className={`${tdcR} whitespace-nowrap ${t.type === "income" ? "text-emerald-500" : "text-red-500"}`}>
                       {t.type === "expense" ? "−" : "+"}
                       {formatCurrency(Number(t.total))}
                     </td>
@@ -468,6 +604,17 @@ export default function FinanzasPage() {
                     <option value="transfer">Transferencia</option>
                   </select>
                 </div>
+              </div>
+              <div>
+                <label className="mb-1.5 block text-xs font-semibold text-brand-gray">Corresponde al mes</label>
+                <select
+                  value={formData.accountingMonth || todayInChile().slice(0, 7)}
+                  onChange={(e) => setFormData({ ...formData, accountingMonth: e.target.value })}
+                  className={inputClass}
+                >
+                  {monthOptions().map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+                <p className="mt-1 text-[11px] text-brand-gray">Define en qué cierre mensual e informe cuenta este movimiento, aunque lo registres después.</p>
               </div>
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-brand-gray">Notas</label>

@@ -5,6 +5,8 @@ import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
+import { ReceptionistGreeting } from "@/components/ui/receptionist-greeting";
+import { useCajaLockEnabled } from "@/components/caja/caja-lock";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 
@@ -20,6 +22,9 @@ interface CajaData {
     totalExpense: number;
     expectedCash: number;
     rentalCashToBarber?: number;
+    withdrawalsTotal?: number;
+    adjustmentsTotal?: number;
+    cashCap?: number | null;
     transactionCount: number;
   };
   transactions: Array<{
@@ -33,7 +38,13 @@ interface CajaData {
     barber_id?: string | null;
     barberName?: string | null;
     services?: string;
+    issuedByName?: string | null;
+    origin?: string | null;
+    cashAmount?: number;
+    barberTakesCash?: boolean;
   }>;
+  withdrawals?: Array<{ id: string; amount: number; note: string | null; created_by_name: string | null; created_at: string }>;
+  adjustments?: Array<{ id: string; amount: number; note: string; created_by_name: string | null; created_at: string; declared_cash: number | null }>;
 }
 
 const paymentLabels: Record<string, string> = {
@@ -60,6 +71,10 @@ export default function CajaPage() {
 
   // Filter the daily movements by professional.
   const [barberFilter, setBarberFilter] = useState<string>("all");
+  // Origen del movimiento (Standby / Punto de venta / Retiros y ajustes): para saber de donde viene cada uno al cuadrar.
+  const [originFilter, setOriginFilter] = useState<string>("all");
+  // Orden por hora: "asc" = del primero al ultimo (el efectivo acumulado se lee de arriba hacia abajo), "desc" = lo mas reciente arriba.
+  const [timeOrder, setTimeOrder] = useState<"asc" | "desc">("asc");
 
   // Ver dias anteriores (Punto Nico, 25-sep), solo Administrador: la caja de "hoy" sigue
   // siendo lo unico que se puede abrir/cerrar/reabrir, pero se puede consultar el historial
@@ -93,6 +108,67 @@ export default function CajaPage() {
   const [editForm, setEditForm] = useState({ barberId: "", serviceName: "", amount: "", paymentMethod: "cash", tip: "" });
   const [editPin, setEditPin] = useState("");
   const [savingEdit, setSavingEdit] = useState(false);
+
+  // Apagar caja (Fase 5): oculta montos y acciones; se enciende con el PIN de la recepcionista. Es
+  // distinto de cerrar la caja del dia. El bloqueo vive en este navegador.
+  const lockKey = `caja_off_${tenant?.id || "x"}`;
+  const lockEnabled = useCajaLockEnabled(); // solo si el administrador lo activo en Configuracion
+  const [lockReady, setLockReady] = useState(false);
+  const [locked, setLocked] = useState(false);
+  const [unlockPin, setUnlockPin] = useState("");
+  const [unlockError, setUnlockError] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
+  useEffect(() => {
+    if (tenantLoading) return;
+    try { setLocked(localStorage.getItem(lockKey) === "1"); } catch {}
+    setLockReady(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id]);
+  const lockCaja = () => { try { localStorage.setItem(lockKey, "1"); } catch {} setLocked(true); setUnlockPin(""); setUnlockError(""); };
+  const unlockCaja = async () => {
+    if (unlockPin.length !== 4 || unlocking) return;
+    setUnlocking(true); setUnlockError("");
+    try {
+      const res = await fetch("/api/caja/desbloquear", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin: unlockPin }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok || !d.valid) { setUnlockError(d.error || "PIN incorrecto"); return; }
+      try { localStorage.removeItem(lockKey); } catch {}
+      setLocked(false); setUnlockPin("");
+    } finally { setUnlocking(false); }
+  };
+
+  // Descuento por planilla: recepcion o el administrador ingresa el codigo que genero el profesional.
+  const [planillaCode, setPlanillaCode] = useState("");
+  const [planillaBusy, setPlanillaBusy] = useState(false);
+  const [planillaPending, setPlanillaPending] = useState<Array<{ id: string; barber_name: string; product_name: string; quantity: number; total: number; over_limit: boolean }>>([]);
+  const loadPlanilla = () => { fetch("/api/planilla").then((r) => r.json()).then((d) => setPlanillaPending(d?.pending || [])).catch(() => {}); };
+  const approvePlanilla = async (confirmOver = false) => {
+    const code = planillaCode.trim().toUpperCase();
+    if (code.length !== 6 || planillaBusy) return;
+    setPlanillaBusy(true);
+    try {
+      const res = await fetch("/api/planilla/aprobar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, confirmOver }) });
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 409 && d.needsConfirm) {
+        setPlanillaBusy(false);
+        const ok = await confirm({ title: "Supera el 15%", message: d.message, confirmText: "Confirmar igual", variant: "warning" });
+        if (ok) await approvePlanilla(true);
+        return;
+      }
+      if (!res.ok) throw new Error(d.error || "No se pudo aprobar");
+      showToast(`Descuento por planilla aprobado (${formatCurrency(d.total)})`, "success");
+      if (d.movementSaved === false) showToast(`El stock bajó, pero no se pudo anotar el movimiento de inventario: ${d.movementError || "error"}`, "error");
+      if (d.ledgerSaved === false) showToast(`No se pudo anotar en el libro del profesional: ${d.ledgerError || "error"}`, "error");
+      setPlanillaCode(""); loadPlanilla();
+    } catch (e: any) {
+      showToast(e?.message || "No se pudo aprobar", "error");
+    } finally { setPlanillaBusy(false); }
+  };
+  const rejectPlanilla = async (id: string) => {
+    const res = await fetch("/api/planilla", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
+    if (res.ok) { showToast("Descuento rechazado", "success"); loadPlanilla(); }
+  };
+  useEffect(() => { if (!tenantLoading) loadPlanilla(); }, [tenantLoading, tenant?.id]);
 
   const getActiveTenantId = () => {
     if (tenant?.id) return tenant.id;
@@ -387,7 +463,28 @@ export default function CajaPage() {
     }
   };
 
-  if (loading) return <Spinner />;
+  if (loading || !lockReady || lockEnabled === null) return <Spinner />;
+
+  if (lockEnabled && locked) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center p-4">
+        <div className="w-full max-w-xs text-center">
+          <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-gray-100 flex items-center justify-center text-2xl">🔒</div>
+          <h1 className="text-xl font-bold text-gray-900">Caja apagada</h1>
+          <p className="text-sm text-gray-500 mt-1 mb-5">Ingresa el PIN de recepción para encenderla.</p>
+          <input type="password" inputMode="numeric" maxLength={4} value={unlockPin} autoFocus
+            onChange={(e) => setUnlockPin(e.target.value.replace(/\D/g, "").slice(0, 4))}
+            onKeyDown={(e) => { if (e.key === "Enter") unlockCaja(); }}
+            placeholder="••••" className="w-full border border-gray-200 rounded-xl px-4 py-3 text-center text-2xl tracking-[0.5em]" />
+          {unlockError && <p className="text-red-500 text-sm mt-2">{unlockError}</p>}
+          <button onClick={unlockCaja} disabled={unlockPin.length !== 4 || unlocking}
+            className="w-full mt-4 py-3 bg-brand-blue text-white rounded-xl font-bold disabled:opacity-40">
+            {unlocking ? "Verificando…" : "Encender caja"}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   const todayLabel = new Date().toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const selectedDateLabel = new Intl.DateTimeFormat("es-CL", {
@@ -398,9 +495,16 @@ export default function CajaPage() {
     <div className="p-4 md:p-6 space-y-4 md:space-y-6 max-w-4xl mx-auto">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
+          <ReceptionistGreeting className="mb-0.5" />
           <h1 className="text-xl md:text-2xl font-bold text-gray-900">Caja Diaria</h1>
           <p className="text-gray-500 text-sm">{isToday ? todayLabel : selectedDateLabel}</p>
         </div>
+        {lockEnabled && (
+          <button type="button" onClick={lockCaja}
+            className="px-3 py-2 rounded-lg text-sm font-medium bg-white border border-gray-200 text-gray-600 hover:bg-gray-50">
+            🔒 Apagar caja
+          </button>
+        )}
         {/* Punto Nico (25-sep): ver e historiar dias anteriores, solo Administrador. */}
         {isAdmin && (
           <div className="flex flex-wrap items-center gap-2">
@@ -462,6 +566,33 @@ export default function CajaPage() {
         </div>
       </div>
 
+      {/* Descuento por planilla: aprobar con el codigo del profesional */}
+      {isToday && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
+          <h3 className="font-bold text-gray-800">Descuento por planilla</h3>
+          <p className="text-xs text-gray-500 mb-3">Ingresa el código que te da el profesional. Recién ahí se descuenta el stock y se anota en su libro.</p>
+          <div className="flex gap-2">
+            <input value={planillaCode} onChange={(e) => setPlanillaCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
+              onKeyDown={(e) => { if (e.key === "Enter") approvePlanilla(); }}
+              placeholder="CÓDIGO" className="w-40 border border-gray-200 rounded-xl px-3 py-2 text-center font-mono tracking-widest" />
+            <button onClick={() => approvePlanilla()} disabled={planillaCode.length !== 6 || planillaBusy}
+              className="px-4 py-2 bg-brand-blue text-white rounded-xl text-sm font-medium disabled:opacity-40">
+              {planillaBusy ? "Aprobando…" : "Aprobar"}
+            </button>
+          </div>
+          {planillaPending.length > 0 && (
+            <ul className="mt-3 divide-y text-sm">
+              {planillaPending.map((p) => (
+                <li key={p.id} className="py-2 flex items-center justify-between gap-2">
+                  <span className="text-gray-700">{p.barber_name} · {p.product_name} x{p.quantity} · {formatCurrency(Number(p.total))}{p.over_limit && <span className="ml-1 text-amber-600">(supera 15%)</span>}</span>
+                  <button onClick={() => rejectPlanilla(p.id)} className="text-xs text-red-500 hover:underline">Rechazar</button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       {/* Open register — solo aplica al dia de hoy */}
       {isToday && !data?.register && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6">
@@ -503,6 +634,16 @@ export default function CajaPage() {
               <p className="text-xl font-bold text-blue-600">{formatCurrency(data.summary.expectedCash)}</p>
             </div>
           </div>
+          {!!data.summary.adjustmentsTotal && data.summary.adjustmentsTotal !== 0 && (
+            <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+              Ajuste de caja del administrador: {data.summary.adjustmentsTotal > 0 ? "+" : "-"}{formatCurrency(Math.abs(data.summary.adjustmentsTotal))} (efectivo real declarado tras revisar un reporte); ya está incluido en el esperado.
+            </div>
+          )}
+          {!!data.summary.withdrawalsTotal && data.summary.withdrawalsTotal > 0 && (
+            <div className="rounded-lg border border-indigo-200 bg-indigo-50 px-4 py-2 text-sm text-indigo-800">
+              Se retiraron {formatCurrency(data.summary.withdrawalsTotal)} a la caja fuerte (reducción de efectivo); ya están descontados del esperado.
+            </div>
+          )}
 
           {/* Additional stats */}
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-4">
@@ -602,37 +743,91 @@ export default function CajaPage() {
             </div>
           )}
 
-          {/* Transaction list — full breakdown for daily reconciliation */}
+          {/* Movimientos del dia — TODOS, con quien los emitio y desde donde (Standby, Punto de venta, retiros, ajustes),
+              y el efectivo que deberia haber en caja despues de cada uno. Asi quien cierra la caja puede seguir el rastro
+              completo aunque los movimientos los haya hecho otra persona en otro horario. */}
           {(() => {
-            const filtered = data.transactions.filter((t) =>
-              barberFilter === "all" ? true : (t.barber_id || "none") === barberFilter
-            );
-            // Barbers that actually have movements today, for the filter dropdown.
+            type Row = {
+              key: string; kind: "open" | "tx" | "withdrawal" | "adjustment"; at: number; tx?: any;
+              label: string; amount: number; sign: "+" | "-" | ""; method: string; by: string | null; origin: string; originKey: string;
+              barber: string | null; barberId: string | null; tip: number; cashDelta: number;
+            };
+            const rows: Row[] = [];
+            if (data.register) {
+              rows.push({
+                key: "open", kind: "open", at: new Date(data.register.opened_at || data.register.created_at || 0).getTime(), label: "Apertura de caja",
+                amount: Number(data.summary.openingAmount), sign: "", method: "Efectivo", by: data.register.opened_by_profile?.name || null,
+                origin: "Caja", originKey: "caja", barber: null, barberId: null, tip: 0, cashDelta: Number(data.summary.openingAmount),
+              });
+            }
+            for (const t of data.transactions) {
+              const cashLike = t.payment_method === "cash" || (t.payment_method === "mixed" && Number(t.cashAmount) > 0);
+              const cash = Number(t.cashAmount ?? t.total);
+              const delta = !cashLike ? 0 : t.type === "income" ? (t.barberTakesCash ? 0 : cash) : -cash;
+              // Origen: lo guardado en la venta; en movimientos antiguos se deduce: egresos = Finanzas, "[Manual]" = manual.
+              const originKey = t.origin === "standby" ? "standby" : t.origin === "pos" ? "pos" : t.origin === "manual" || String(t.notes || "").startsWith("[Manual]") ? "manual"
+                : t.type === "expense" ? "finanzas" : "otro";
+              rows.push({
+                key: t.id, kind: "tx", tx: t, at: new Date(t.created_at).getTime(),
+                label: t.services || t.notes || (t.type === "income" ? "Venta" : "Gasto"), amount: Number(t.total), sign: t.type === "income" ? "+" : "-",
+                method: paymentLabels[t.payment_method] || t.payment_method, by: t.issuedByName || null,
+                origin: originKey === "standby" ? "Standby" : originKey === "pos" ? "Punto de venta" : originKey === "manual" ? "Manual" : originKey === "finanzas" ? "Finanzas" : "Sin dato", originKey,
+                barber: t.barberName || null, barberId: t.barber_id || null, tip: Number(t.tip_amount || 0), cashDelta: delta,
+              });
+            }
+            for (const w of data.withdrawals || []) {
+              rows.push({
+                key: `w-${w.id}`, kind: "withdrawal", at: new Date(w.created_at).getTime(), label: w.note || "Retiro a la caja fuerte", amount: Number(w.amount), sign: "-",
+                method: "Efectivo", by: w.created_by_name, origin: "Retiro", originKey: "ajustes", barber: null, barberId: null, tip: 0, cashDelta: -Number(w.amount),
+              });
+            }
+            for (const a of data.adjustments || []) {
+              rows.push({
+                key: `a-${a.id}`, kind: "adjustment", at: new Date(a.created_at).getTime(), label: `Ajuste de caja: ${a.note}`, amount: Math.abs(Number(a.amount)), sign: Number(a.amount) < 0 ? "-" : "+",
+                method: "Efectivo", by: a.created_by_name, origin: "Ajuste", originKey: "ajustes", barber: null, barberId: null, tip: 0, cashDelta: Number(a.amount),
+              });
+            }
+            rows.sort((x, y) => x.at - y.at);
+            // Efectivo que deberia haber en caja despues de cada movimiento (acumulado).
+            let running = 0;
+            const withBalance = rows.map((r) => { running += r.cashDelta; return { ...r, balance: running }; });
+
+            const filteredAsc = withBalance.filter((r) => {
+              if (barberFilter !== "all" && (r.kind !== "tx" || (r.barberId || "none") !== barberFilter)) return false;
+              if (originFilter !== "all" && r.kind !== "open" && r.originKey !== originFilter) return false;
+              return true;
+            });
+            const filtered = timeOrder === "asc" ? filteredAsc : [...filteredAsc].reverse();
             const barbersWithMovements = Array.from(
-              new Map(
-                data.transactions
-                  .filter((t) => t.barberName)
-                  .map((t) => [t.barber_id, t.barberName])
-              ).entries()
+              new Map(data.transactions.filter((t) => t.barberName).map((t) => [t.barber_id, t.barberName])).entries()
             ) as [string, string][];
+            const colors: Record<string, string> = { standby: "bg-indigo-50 text-indigo-700", pos: "bg-sky-50 text-sky-700", manual: "bg-violet-50 text-violet-700", finanzas: "bg-rose-50 text-rose-700", ajustes: "bg-amber-50 text-amber-700", caja: "bg-gray-100 text-gray-600", otro: "bg-gray-100 text-gray-500" };
 
             return (
               <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
                 <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3">
                   <h3 className="font-bold text-gray-800">Movimientos del Dia ({filtered.length})</h3>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button type="button" onClick={() => setTimeOrder(timeOrder === "asc" ? "desc" : "asc")}
+                      className="border rounded-lg px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50" title="Cambiar el orden por hora">
+                      {timeOrder === "asc" ? "Hora ↑ primeros primero" : "Hora ↓ últimos primero"}
+                    </button>
+                    <select value={originFilter} onChange={(e) => setOriginFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs">
+                      <option value="all">Todo origen</option>
+                      <option value="standby">Standby</option>
+                      <option value="pos">Punto de venta</option>
+                      <option value="manual">Manual</option>
+                      <option value="finanzas">Finanzas (egresos)</option>
+                      <option value="ajustes">Retiros y ajustes</option>
+                    </select>
                     {barbersWithMovements.length > 0 && (
-                      <select value={barberFilter} onChange={(e) => setBarberFilter(e.target.value)}
-                        className="border rounded-lg px-2 py-1.5 text-xs">
+                      <select value={barberFilter} onChange={(e) => setBarberFilter(e.target.value)} className="border rounded-lg px-2 py-1.5 text-xs">
                         <option value="all">Todos los profesionales</option>
-                        {barbersWithMovements.map(([id, name]) => (
-                          <option key={id} value={id}>{name}</option>
-                        ))}
+                        {barbersWithMovements.map(([id, name]) => (<option key={id} value={id}>{name}</option>))}
                       </select>
                     )}
                     {isToday && (
-                      <button onClick={() => setShowManualModal(true)}
-                        className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 font-medium">
+                      <button onClick={() => setShowManualModal(true)} className="px-3 py-1.5 bg-indigo-600 text-white text-xs rounded-lg hover:bg-indigo-700 font-medium">
                         + Registrar movimiento
                       </button>
                     )}
@@ -642,62 +837,68 @@ export default function CajaPage() {
                   <p className="p-6 text-center text-gray-400">Sin movimientos</p>
                 ) : (
                   <div className="overflow-x-auto">
-                    <table className="w-full text-sm min-w-[640px]">
+                    <table className="w-full text-sm min-w-[860px]">
                       <thead className="bg-gray-50 border-b text-left">
                         <tr>
+                          <th className="p-3 font-medium text-gray-600 cursor-pointer select-none whitespace-nowrap" onClick={() => setTimeOrder(timeOrder === "asc" ? "desc" : "asc")} title="Cambiar el orden por hora">
+                            Hora {timeOrder === "asc" ? "↑" : "↓"}
+                          </th>
+                          <th className="p-3 font-medium text-gray-600">Origen</th>
+                          <th className="p-3 font-medium text-gray-600">Emitido por</th>
                           <th className="p-3 font-medium text-gray-600">Profesional</th>
-                          <th className="p-3 font-medium text-gray-600">Hora</th>
-                          <th className="p-3 font-medium text-gray-600">Servicio</th>
-                          <th className="p-3 font-medium text-gray-600 text-right">Precio</th>
+                          <th className="p-3 font-medium text-gray-600">Detalle</th>
+                          <th className="p-3 font-medium text-gray-600 text-right">Monto</th>
                           <th className="p-3 font-medium text-gray-600">Metodo</th>
                           <th className="p-3 font-medium text-gray-600 text-right">Propina</th>
+                          <th className="p-3 font-medium text-gray-600 text-right" title="Efectivo que deberia haber en caja despues de este movimiento">Efectivo en caja</th>
                           <th className="p-3 w-10" />
                         </tr>
                       </thead>
                       <tbody className="divide-y">
-                        {filtered.map((t) => (
-                          <tr key={t.id} className="hover:bg-gray-50">
-                            <td className="p-3">
-                              <div className="flex items-center gap-2">
-                                <span className={`w-2 h-2 rounded-full flex-shrink-0 ${t.type === "income" ? "bg-green-500" : "bg-red-500"}`} />
-                                {t.barberName || <span className="text-gray-400">—</span>}
-                              </div>
-                            </td>
-                            <td className="p-3 text-gray-500">
-                              {new Date(t.created_at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}
-                            </td>
-                            <td className="p-3">{t.services || t.notes || (t.type === "income" ? "Venta" : "Gasto")}</td>
-                            <td className={`p-3 text-right font-medium ${t.type === "income" ? "text-green-600" : "text-red-600"}`}>
-                              {t.type === "income" ? "+" : "-"}{formatCurrency(Number(t.total))}
-                            </td>
-                            <td className="p-3 text-gray-600">{paymentLabels[t.payment_method] || t.payment_method}</td>
-                            <td className="p-3 text-right text-gray-600">{t.tip_amount ? formatCurrency(Number(t.tip_amount)) : "—"}</td>
-                            <td className="p-3 text-right relative" ref={openMenuId === t.id ? menuRef : undefined}>
-                              <button type="button" onClick={() => setOpenMenuId(openMenuId === t.id ? null : t.id)}
-                                disabled={deletingId === t.id}
-                                className="w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center text-gray-500 disabled:opacity-50"
-                                aria-label="Mas acciones">
-                                {deletingId === t.id ? "…" : "⋮"}
-                              </button>
-                              {openMenuId === t.id && (
-                                <div className="absolute right-3 top-10 z-10 bg-white rounded-lg shadow-lg border border-gray-100 py-1 w-36 text-left">
-                                  <button onClick={() => handleMenuEdit(t)}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
-                                    Modificar
-                                  </button>
-                                  <button onClick={() => handleMenuDelete(t)}
-                                    className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-                                    Eliminar
-                                  </button>
+                        {filtered.map((r) => {
+                          const t = r.tx;
+                          return (
+                            <tr key={r.key} className="hover:bg-gray-50">
+                              <td className="p-3 text-gray-500 whitespace-nowrap">{new Date(r.at).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}</td>
+                              <td className="p-3"><span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${colors[r.originKey]}`}>{r.origin}</span></td>
+                              <td className="p-3 text-gray-700">{r.by || <span className="text-gray-300">—</span>}</td>
+                              <td className="p-3">
+                                <div className="flex items-center gap-2">
+                                  {r.kind === "tx" && <span className={`w-2 h-2 rounded-full flex-shrink-0 ${r.sign === "+" ? "bg-green-500" : "bg-red-500"}`} />}
+                                  {r.barber || <span className="text-gray-300">—</span>}
                                 </div>
-                              )}
-                            </td>
-                          </tr>
-                        ))}
+                              </td>
+                              <td className="p-3 max-w-[260px] truncate" title={r.label}>{r.label}</td>
+                              <td className={`p-3 text-right font-medium whitespace-nowrap ${r.sign === "+" ? "text-green-600" : r.sign === "-" ? "text-red-600" : "text-gray-700"}`}>
+                                {r.sign}{formatCurrency(r.amount)}
+                              </td>
+                              <td className="p-3 text-gray-600">{r.method}</td>
+                              <td className="p-3 text-right text-gray-600">{r.tip ? formatCurrency(r.tip) : "—"}</td>
+                              <td className={`p-3 text-right font-semibold whitespace-nowrap ${r.balance < 0 ? "text-red-600" : "text-gray-800"}`}>{formatCurrency(r.balance)}</td>
+                              <td className="p-3 text-right relative" ref={t && openMenuId === t.id ? menuRef : undefined}>
+                                {t && (
+                                  <>
+                                    <button type="button" onClick={() => setOpenMenuId(openMenuId === t.id ? null : t.id)} disabled={deletingId === t.id}
+                                      className="w-8 h-8 rounded-full hover:bg-gray-200 flex items-center justify-center text-gray-500 disabled:opacity-50" aria-label="Mas acciones">
+                                      {deletingId === t.id ? "…" : "⋮"}
+                                    </button>
+                                    {openMenuId === t.id && (
+                                      <div className="absolute right-3 top-10 z-10 bg-white rounded-lg shadow-lg border border-gray-100 py-1 w-36 text-left">
+                                        <button onClick={() => handleMenuEdit(t)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Modificar</button>
+                                        <button onClick={() => handleMenuDelete(t)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Eliminar</button>
+                                      </div>
+                                    )}
+                                  </>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
                       </tbody>
                     </table>
                   </div>
                 )}
+                <p className="px-4 py-2.5 text-[11px] text-gray-400 border-t">"Efectivo en caja" suma la apertura y cada movimiento en efectivo, en orden. Si una fila no coincide con lo que hay de verdad, ahí empezó la diferencia.</p>
               </div>
             );
           })()}

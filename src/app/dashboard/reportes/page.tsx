@@ -7,6 +7,8 @@ import {
   ChevronLeft, ChevronRight, FileDown, Coins, Percent, KeyRound, TrendingDown, PiggyBank, Receipt, CalendarCheck, UserPlus,
 } from "lucide-react";
 import { PageHeader, StatCard, Panel, tableStyles as ts, primaryButton } from "@/components/ui/premium";
+import { useAuth } from "@/lib/auth-context";
+import { MonthClosePanel } from "@/components/finance/month-close-panel";
 
 interface ReportData {
   summary: {
@@ -40,6 +42,7 @@ const paymentMethodLabels: Record<string, string> = {
 };
 
 export default function ReportesPage() {
+  const { isAtLeast } = useAuth();
   const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
   const [month, setMonth] = useState(chileMonth);
   const [year, setYear] = useState(chileYear);
@@ -308,42 +311,31 @@ export default function ReportesPage() {
           </div>
         </Panel>
 
-        {/* Detalle de Egresos (Punto 18) */}
-        <Panel flush title="Detalle de egresos" className="md:col-span-2">
+        {/* Detalle de egresos: lista simple (concepto y monto), sin columnas de relleno. */}
+        <Panel title="Detalle de egresos">
           {(!data.expensesDetail || data.expensesDetail.length === 0) ? (
-            <p className="py-10 text-center text-sm text-brand-gray">Sin egresos manuales en este periodo</p>
+            <p className="py-8 text-center text-sm text-brand-gray">Sin egresos en este periodo</p>
           ) : (
-            <div className={ts.wrap}>
-              <table className={ts.table}>
-                <thead className={ts.thead}>
-                  <tr>
-                    <th className={ts.th}>Concepto</th>
-                    <th className={ts.thCenter}>Cantidad</th>
-                    <th className={ts.thRight}>Total</th>
-                  </tr>
-                </thead>
-                <tbody className={ts.tbody}>
-                  {data.expensesDetail.map((row, i) => (
-                    <tr key={i} className={ts.tr}>
-                      <td className={ts.td}>{row.name}</td>
-                      <td className={ts.tdCenter}>{row.count}</td>
-                      <td className={`${ts.tdRight} text-red-500`}>{formatCurrency(row.total)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-                <tfoot>
-                  <tr className="border-t border-gray-100 bg-brand-blue/[0.04]">
-                    <td className="px-5 py-3.5 text-sm font-bold text-brand-dark">Total egresos</td>
-                    <td className="px-5 py-3.5 text-center font-bold tabular-nums text-brand-dark">
-                      {data.expensesDetail.reduce((sum, r) => sum + r.count, 0)}
-                    </td>
-                    <td className="px-5 py-3.5 text-right font-bold tabular-nums text-red-500">{formatCurrency(data.summary.totalExpenses)}</td>
-                  </tr>
-                </tfoot>
-              </table>
+            <div>
+              <ul className="divide-y divide-gray-100">
+                {data.expensesDetail.map((row, i) => (
+                  <li key={i} className="flex items-baseline justify-between gap-4 py-2.5">
+                    {/* El sufijo " (gasto fijo)" es de registros guardados antes del cambio de nombre. */}
+                    <span className="min-w-0 truncate text-sm text-brand-dark">{row.name.replace(" (gasto fijo)", "")}</span>
+                    <span className="shrink-0 text-sm font-medium tabular-nums text-red-500">{formatCurrency(row.total)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-1 flex items-baseline justify-between gap-4 border-t border-gray-200 pt-3">
+                <span className="text-sm font-bold text-brand-dark">Total egresos</span>
+                <span className="text-base font-bold tabular-nums text-red-500">{formatCurrency(data.summary.totalExpenses)}</span>
+              </div>
             </div>
           )}
         </Panel>
+
+        {/* Gastos del mes y cerrar / reabrir (solo administrador), al lado de los egresos. */}
+        {isAtLeast("admin") && <MonthClosePanel month={month} year={year} onChanged={fetchReport} />}
       </div>
     </div>
   );

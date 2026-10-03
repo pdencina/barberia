@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import { BookingRuleCard } from "@/components/settings/booking-rule-card";
+
 import { useState, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
@@ -87,6 +89,124 @@ export default function ConfiguracionPage() {
       showToast(e?.message || "No se pudo guardar", "error");
     } finally {
       setSavingCalView(false);
+    }
+  };
+
+  // Clientes por bloque (solo Kinesiologia): cuantos clientes atiende un profesional a la vez.
+  const [cap, setCap] = useState<{ eligible: boolean; max: number; limit: number } | null>(null);
+  const [savingCap, setSavingCap] = useState(false);
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/settings/slot-capacity?tenantId=${tenantId}`)
+      .then((r) => r.json())
+      .then((d) => setCap({ eligible: !!d?.eligible, max: Number(d?.max) || 1, limit: Number(d?.limit) || 6 }))
+      .catch(() => setCap(null));
+  }, [tenantId]);
+  const handleCapChange = async (next: number) => {
+    if (!tenantId || savingCap || !cap) return;
+    setSavingCap(true);
+    try {
+      const res = await fetch("/api/settings/slot-capacity", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId, max: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo guardar");
+      setCap({ ...cap, max: next });
+      showToast(next === 1 ? "Un cliente por bloque" : `Hasta ${next} clientes por bloque`, "success");
+    } catch (e: any) {
+      showToast(e?.message || "No se pudo guardar", "error");
+    } finally {
+      setSavingCap(false);
+    }
+  };
+
+  // Caja y Standby (Fase 5): Standby nuevo (apagado por defecto) y tope de efectivo antes de pedir una reduccion.
+  const [cajaSec, setCajaSec] = useState<{ standbyV2: boolean; cashCap: number | null; cajaLock?: boolean; migrationMissing?: boolean } | null>(null);
+  const [capInput, setCapInput] = useState("");
+  const [savingCajaSec, setSavingCajaSec] = useState(false);
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/settings/caja-seguridad?tenantId=${tenantId}`)
+      .then((r) => r.json())
+      .then((d) => { setCajaSec({ standbyV2: !!d?.standbyV2, cashCap: d?.cashCap ?? null, cajaLock: !!d?.cajaLock, migrationMissing: !!d?.migrationMissing }); setCapInput(d?.cashCap ? String(d.cashCap) : ""); })
+      .catch(() => setCajaSec(null));
+  }, [tenantId]);
+  const saveCajaSec = async (patch: { standbyV2?: boolean; cashCap?: number | null; cajaLock?: boolean }, okMsg: string) => {
+    if (!tenantId || savingCajaSec) return;
+    setSavingCajaSec(true);
+    try {
+      const res = await fetch("/api/settings/caja-seguridad", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId, ...patch }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo guardar");
+      setCajaSec((c) => (c ? { ...c, ...patch } : c));
+      showToast(okMsg, "success");
+    } catch (e: any) {
+      showToast(e?.message || "No se pudo guardar", "error");
+    } finally {
+      setSavingCajaSec(false);
+    }
+  };
+
+  // Libro de movimientos del profesional (Arriendo y Comision): interruptor por negocio, apagado por defecto.
+  const [ledger, setLedger] = useState<{ enabled: boolean; migrationMissing: boolean } | null>(null);
+  const [savingLedger, setSavingLedger] = useState(false);
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/settings/pro-ledger?tenantId=${tenantId}`)
+      .then((r) => r.json())
+      .then((d) => setLedger({ enabled: !!d?.enabled, migrationMissing: !!d?.migrationMissing }))
+      .catch(() => setLedger(null));
+  }, [tenantId]);
+  const handleLedgerToggle = async (next: boolean) => {
+    if (!tenantId || savingLedger || !ledger) return;
+    setSavingLedger(true);
+    try {
+      const res = await fetch("/api/settings/pro-ledger", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId, enabled: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo guardar");
+      setLedger({ ...ledger, enabled: next });
+      showToast(next ? "Libro de movimientos activado" : "Libro de movimientos desactivado", "success");
+    } catch (e: any) {
+      showToast(e?.message || "No se pudo guardar", "error");
+    } finally {
+      setSavingLedger(false);
+    }
+  };
+
+  // Correo al que llegan las solicitudes de insumos (vacio = el correo del administrador).
+  const [supplyEmail, setSupplyEmail] = useState({ value: "", fallback: "", loaded: false, migrationMissing: false });
+  const [savingSupplyEmail, setSavingSupplyEmail] = useState(false);
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/settings/supply-email?tenantId=${tenantId}`)
+      .then((r) => r.json())
+      .then((d) => setSupplyEmail({ value: d?.email || "", fallback: d?.fallback || "", loaded: !d?.error, migrationMissing: !!d?.migrationMissing }))
+      .catch(() => {});
+  }, [tenantId]);
+  const saveSupplyEmail = async () => {
+    if (!tenantId || savingSupplyEmail) return;
+    setSavingSupplyEmail(true);
+    try {
+      const res = await fetch("/api/settings/supply-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tenantId, email: supplyEmail.value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "No se pudo guardar");
+      showToast("Correo para solicitudes de insumos guardado", "success");
+    } catch (e: any) {
+      showToast(e?.message || "No se pudo guardar", "error");
+    } finally {
+      setSavingSupplyEmail(false);
     }
   };
 
@@ -870,6 +990,137 @@ export default function ConfiguracionPage() {
               </span>
             </span>
           </label>
+        </div>
+      )}
+
+      {/* Preferencias de reserva (Fase 6): regla de "Primer profesional disponible". Solo administrador. */}
+      {isAdmin && <BookingRuleCard />}
+
+      {/* Caja y Standby (Fase 5). Solo administrador. */}
+      {isAdmin && cajaSec && (
+        <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
+          <div>
+            <h2 className="font-bold text-brand-dark">Caja y Standby</h2>
+            <p className="text-xs text-brand-gray">Standby con servicios y productos, y aviso para llevar el efectivo a la caja fuerte</p>
+          </div>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" checked={cajaSec.standbyV2} disabled={savingCajaSec}
+              onChange={(e) => saveCajaSec({ standbyV2: e.target.checked }, e.target.checked ? "Standby nuevo activado" : "Standby de siempre activado")}
+              className="mt-1 h-4 w-4 rounded border-gray-300" />
+            <span>
+              <span className="block text-sm font-medium text-brand-dark">Standby nuevo</span>
+              <span className="block text-xs text-brand-gray">Saluda al profesional y le muestra sus servicios y los productos de venta. Si lo apagas, vuelve el Standby de siempre.</span>
+            </span>
+          </label>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input type="checkbox" checked={!!cajaSec.cajaLock} disabled={savingCajaSec}
+              onChange={(e) => saveCajaSec({ cajaLock: e.target.checked }, e.target.checked ? "Apagar caja con PIN activado" : "Apagar caja con PIN desactivado")}
+              className="mt-1 h-4 w-4 rounded border-gray-300" />
+            <span>
+              <span className="block text-sm font-medium text-brand-dark">Apagar y encender la caja con PIN</span>
+              <span className="block text-xs text-brand-gray">La Caja y el Punto de Venta se pueden apagar (se oculta todo) y solo se encienden con el PIN de recepción o del administrador. Si lo desactivas, no aparece el botón "Apagar caja".</span>
+            </span>
+          </label>
+          <div>
+            <label className="block text-sm font-medium text-brand-dark mb-1">Tope de efectivo en caja</label>
+            <div className="flex gap-2">
+              <input type="number" min={0} value={capInput} onChange={(e) => setCapInput(e.target.value)} placeholder="Sin tope"
+                className="w-44 border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+              <button type="button" disabled={savingCajaSec}
+                onClick={() => saveCajaSec({ cashCap: capInput.trim() === "" ? null : Number(capInput) }, capInput.trim() === "" ? "Sin tope de efectivo" : "Tope guardado")}
+                className="px-4 py-2 bg-brand-blue text-white rounded-xl text-sm font-medium disabled:opacity-50">Guardar</button>
+            </div>
+            <p className="text-xs text-brand-gray mt-1">Cuando el efectivo pase este monto, se le pedirá a quien esté en caja llevar el excedente a la caja fuerte. Vacío = sin aviso.</p>
+          </div>
+          {cajaSec.migrationMissing && <p className="text-xs text-red-500">Falta aplicar la migración 094 en la base de datos.</p>}
+        </div>
+      )}
+
+      {/* Clientes por bloque: solo administrador y solo negocios de Kinesiologia. */}
+      {isAdmin && cap?.eligible && (
+        <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
+          <div>
+            <h2 className="font-bold text-brand-dark">Clientes por bloque</h2>
+            <p className="text-xs text-brand-gray">Cuántos clientes puede atender un profesional a la vez en el mismo horario</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {Array.from({ length: cap.limit }, (_, i) => i + 1).map((n) => (
+              <button
+                key={n}
+                type="button"
+                disabled={savingCap}
+                onClick={() => handleCapChange(n)}
+                className={`w-10 h-10 rounded-xl text-sm font-semibold border transition-colors ${
+                  cap.max === n ? "bg-brand-blue text-white border-brand-blue" : "border-gray-200 text-brand-dark hover:bg-gray-50"
+                }`}
+              >
+                {n}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-brand-gray">
+            {cap.max === 1 ? "Un cliente por horario (lo normal)." : `Cada horario admite hasta ${cap.max} clientes. En el link de reserva se muestra cuántos cupos quedan.`}
+          </p>
+        </div>
+      )}
+
+      {/* Solicitud de insumos: a que correo llega. Solo administrador. */}
+      {isAdmin && supplyEmail.loaded && (
+        <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
+          <div>
+            <h2 className="font-bold text-brand-dark">Solicitud de insumos</h2>
+            <p className="text-xs text-brand-gray">Correo al que le llega a quien administra lo que recepción pide comprar</p>
+          </div>
+          {supplyEmail.migrationMissing ? (
+            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-700">Falta una actualización de la base de datos (migración 092) para poder elegir el correo.</p>
+          ) : (
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                type="email"
+                value={supplyEmail.value}
+                onChange={(e) => setSupplyEmail({ ...supplyEmail, value: e.target.value })}
+                placeholder={supplyEmail.fallback || "correo@ejemplo.com"}
+                className="w-full max-w-sm rounded-xl border border-gray-200 px-3 py-2 text-sm"
+              />
+              <button
+                onClick={saveSupplyEmail}
+                disabled={savingSupplyEmail}
+                className="rounded-xl bg-brand-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {savingSupplyEmail ? "Guardando…" : "Guardar"}
+              </button>
+              <p className="w-full text-[11px] text-brand-gray">Si lo dejas vacío, se usa el correo del administrador{supplyEmail.fallback ? ` (${supplyEmail.fallback})` : ""}.</p>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Libro de movimientos del profesional (Arriendo y Comision). Solo administrador. */}
+      {isAdmin && ledger && (
+        <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
+          <div>
+            <h2 className="font-bold text-brand-dark">Arriendo y Comisión</h2>
+            <p className="text-xs text-brand-gray">Cómo se calcula lo que se le paga o cobra a cada profesional</p>
+          </div>
+          {ledger.migrationMissing ? (
+            <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-700">Falta una actualización de la base de datos (migración 091) para poder activarlo.</p>
+          ) : (
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={ledger.enabled}
+                disabled={savingLedger}
+                onChange={(e) => handleLedgerToggle(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300"
+              />
+              <span>
+                <span className="block text-sm font-medium text-brand-dark">Usar el libro de movimientos</span>
+                <span className="block text-xs text-brand-gray">
+                  Suma y resta propinas, comisión por productos, consumibles, dinero a favor, descuentos y movimientos manuales con una misma regla. Apagado, Arriendo y Comisiones calculan como siempre.
+                </span>
+              </span>
+            </label>
+          )}
         </div>
       )}
 
