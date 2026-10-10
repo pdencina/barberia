@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase, createAdminSupabase } from "@/lib/supabase/server";
 import { Sidebar } from "@/components/layout/sidebar";
+import { MobileTabBar } from "@/components/layout/mobile-tab-bar";
 import { ToastWrapper } from "@/components/providers/toast-wrapper";
 import { AuthWrapper } from "@/components/providers/auth-wrapper";
 import { SuspendedGate } from "@/components/layout/suspended-gate";
@@ -27,9 +28,23 @@ export default async function DashboardLayout({
   // Single query: profile + tenant name via join (was two sequential round-trips).
   const { data: profile } = await createAdminSupabase()
     .from("profiles")
-    .select("name, role, tenant_id, tenant:tenants(name, status)")
+    .select("name, role, tenant_id, tenant:tenants(name, status, admin_email, must_change_password, temp_password, created_at)")
     .eq("id", user.id)
     .single();
+
+  // Primer ingreso de un negocio nuevo: obliga a crear una clave propia (dos veces) antes de
+  // entrar. Solo aplica al administrador del negocio, mientras la clave temporal siga vigente,
+  // y a negocios creados desde el 10-oct-2026 para no pedirsela de golpe a los que ya operan.
+  const t = profile?.tenant as any;
+  if (
+    profile?.role === "admin" &&
+    t?.must_change_password === true &&
+    t?.temp_password &&
+    t?.admin_email?.toLowerCase() === user.email?.toLowerCase() &&
+    new Date(t.created_at) >= new Date("2026-10-10T00:00:00-03:00")
+  ) {
+    redirect("/cambiar-clave");
+  }
 
   const tenantName = (profile?.tenant as any)?.name || "";
   // Negocio suspendido por falta de pago: se bloquea el panel (salvo Plan y facturacion).
@@ -62,7 +77,7 @@ export default async function DashboardLayout({
         <AppLock />
         <div className="flex h-screen dark:bg-gray-950">
           <Sidebar userName={profile?.name || user.email || ""} userRole={profile?.role || "barber"} tenantName={tenantName} isSoloBusiness={isSoloBusiness} />
-          <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 pt-[4.5rem] lg:pt-0">
+          <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 pt-[4.5rem] pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:pt-0 lg:pb-0">
             <TenantOverrideBanner />
             <TrialBanner />
             <ErrorBoundary>
@@ -72,6 +87,7 @@ export default async function DashboardLayout({
             </ErrorBoundary>
             {!isSuspended && <PushNotificationPrompt />}
             {!isSuspended && <QuickActions userRole={profile?.role || "barber"} />}
+            {!isSuspended && <MobileTabBar role={profile?.role || "barber"} />}
             {!isSuspended && <CommandPalette />}
           </main>
         </div>

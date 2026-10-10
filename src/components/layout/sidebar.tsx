@@ -6,6 +6,8 @@ import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
+import { useNotificationCenter } from "@/lib/use-notification-center";
+import { NotificationBell } from "@/components/layout/notification-bell";
 import { Role } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import {
@@ -30,6 +32,9 @@ interface NavItem {
   // del plan contratado (no del rol). Cuando el plan del negocio no incluye esta feature,
   // el item se muestra bloqueado con la misma insignia "PRO" que ya existia para roles.
   feature?: string;
+  // Basic es 1 profesional con agenda, mensajes y reportes basicos (tabla de precios): estos
+  // modulos se muestran bloqueados solo en Basic. Starter/Pro/Enterprise no cambian.
+  basicLocked?: boolean;
 }
 
 interface NavSection {
@@ -43,7 +48,7 @@ const sections: NavSection[] = [
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, minRole: "admin" },
       { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck, minRole: "barber" },
-      { name: "Standby", href: "/dashboard/standby", icon: Zap, minRole: "barber" },
+      { name: "Standby", href: "/dashboard/standby", icon: Zap, minRole: "barber", basicLocked: true },
     ],
   },
   {
@@ -60,7 +65,7 @@ const sections: NavSection[] = [
         ],
       },
       { name: "Agenda", href: "/dashboard/agenda", icon: Calendar, minRole: "receptionist" },
-      { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart, minRole: "receptionist" },
+      { name: "Punto de Venta", href: "/dashboard/pos", icon: ShoppingCart, minRole: "receptionist", basicLocked: true },
       { name: "Solicitud de insumos", href: "/dashboard/solicitud", icon: ClipboardList, minRole: "receptionist", feature: "inventory" },
       { name: "Caja", href: "/dashboard/caja", icon: Wallet, minRole: "admin", feature: "cash_register" },
     ],
@@ -74,8 +79,8 @@ const sections: NavSection[] = [
         // Metricas, Fidelidad y Retencion anidadas bajo Clientes.
         children: [
           { name: "Métricas", href: "/dashboard/clientes/metricas", icon: BarChart3, minRole: "receptionist" },
-          { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star, minRole: "admin", feature: "loyalty" },
-          { name: "Retención", href: "/dashboard/retencion", icon: Heart, minRole: "admin" },
+          { name: "Fidelidad", href: "/dashboard/fidelidad", icon: Star, minRole: "admin", feature: "loyalty", basicLocked: true },
+          { name: "Retención", href: "/dashboard/retencion", icon: Heart, minRole: "admin", basicLocked: true },
         ],
       },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle, minRole: "admin" },
@@ -85,11 +90,11 @@ const sections: NavSection[] = [
   {
     title: "Finanzas",
     items: [
-      { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign, minRole: "admin" },
-      { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin" },
+      { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign, minRole: "admin", basicLocked: true },
+      { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin", basicLocked: true },
       { name: "Facturas", href: "/dashboard/facturas", icon: FileText, minRole: "admin", feature: "invoices" },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: ClipboardList, minRole: "admin" },
-      { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: PiggyBank, minRole: "barber" },
+      { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: PiggyBank, minRole: "barber", basicLocked: true },
     ],
   },
   {
@@ -103,25 +108,26 @@ const sections: NavSection[] = [
         // Fase 6: lo que se administra del negocio, junto en un solo menu.
         children: [
           { name: "Vacaciones", href: "/dashboard/vacaciones", icon: Plane, minRole: "admin" },
-          { name: "Comisiones", href: "/dashboard/comisiones", icon: Percent, minRole: "barber", feature: "commissions" },
-          { name: "Arriendo", href: "/dashboard/arriendo", icon: KeyRound, minRole: "admin", feature: "rental" },
+          { name: "Comisiones", href: "/dashboard/comisiones", icon: Percent, minRole: "barber", feature: "commissions", basicLocked: true },
+          { name: "Arriendo", href: "/dashboard/arriendo", icon: KeyRound, minRole: "admin", feature: "rental", basicLocked: true },
           { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
-          { name: "Proveedores", href: "/dashboard/proveedores", icon: Truck, minRole: "admin" },
+          { name: "Proveedores", href: "/dashboard/proveedores", icon: Truck, minRole: "admin", basicLocked: true },
           { name: "Remuneraciones", href: "/dashboard/remuneraciones", icon: FileText, minRole: "super_admin" }, // oculto a los negocios hasta terminar las pruebas
         ],
       },
       { name: "Precios", href: "/dashboard/precios", icon: Tag, minRole: "super_admin" },
       { name: "Galería", href: "/dashboard/galeria", icon: Image, minRole: "admin" },
-      { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin" },
+      { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin", basicLocked: true },
       {
         name: "Configuración", href: "/dashboard/configuracion", icon: Settings, minRole: "admin",
         // Terminal POS e Inventario son hijos de Configuracion (Comisiones, Arriendo, Servicios y Proveedores ahora viven en Mi negocio).
         children: [
-          { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin", feature: "pos" },
+          { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin", feature: "pos", basicLocked: true },
           { name: "Inventario", href: "/dashboard/inventario", icon: Package, minRole: "admin", feature: "inventory" },
           { name: "Plan y facturación", href: "/dashboard/configuracion/facturacion", icon: CreditCard, minRole: "admin" },
         ],
       },
+      { name: "Avisos", href: "/dashboard/avisos", icon: Bell, minRole: "barber" },
       { name: "Mi Perfil", href: "/dashboard/mi-perfil", icon: UserCircle, minRole: "barber" },
     ],
   },
@@ -187,6 +193,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
   // datos cruzados. Se usa el tenant del contexto (que si respeta el override) cuando hay
   // uno activo, y se cae al valor del servidor en cualquier otro caso.
   const { tenant: overrideTenant, isOverriding, hasPlanFeature } = useTenant();
+  const notifCenter = useNotificationCenter();
   const effectiveTenantName = isOverriding && overrideTenant ? overrideTenant.name : tenantName;
   // Punto 15 (Pablo): el espacio de la foto en la esquina inferior izquierda siempre
   // mostraba solo iniciales, nunca la foto real, aunque el profesional ya tuviera una
@@ -210,12 +217,12 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
       // Inventario (read-only, changes gated behind the admin PIN).
       "/dashboard/caja", "/dashboard/barberos", "/dashboard/inventario", "/dashboard/solicitud",
       // Cada usuario (tambien recepcion) puede entrar a Mi Perfil a elegir su propio tema.
-      "/dashboard/mi-perfil",
+      "/dashboard/mi-perfil", "/dashboard/avisos",
     ],
     barber: [
       "/dashboard/standby", "/dashboard/mi-agenda", "/dashboard/calendario",
       "/dashboard/clientes", "/dashboard/mi-billetera",
-      "/dashboard/mi-perfil",
+      "/dashboard/mi-perfil", "/dashboard/avisos",
     ],
   };
 
@@ -227,6 +234,8 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
   const processItem = (item: NavItem): (NavItem & { locked?: boolean }) | null => {
     if (isSoloBusiness && SOLO_BUSINESS_HIDDEN_ROUTES.includes(item.href)) return null;
     if (TEMP_HIDDEN_ROUTES.includes(item.href)) return null;
+    // "Avisos" solo aparece si el negocio activó el centro de avisos.
+    if (item.href === "/dashboard/avisos" && !notifCenter.enabled) return null;
 
     // Seguridad/UX (Nico, 26-sep): "Super Admin" es un rol, no algo que se desbloquee
     // pagando un plan — antes, un admin/recepcion/profesional que no fuera super_admin
@@ -243,7 +252,9 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     // Item 34 (Nico, 26-sep): "matriz de accesos por plan" — ademas del rol, un item puede
     // requerir una feature que el plan del negocio no incluya (ej. Caja en Basic/Starter).
     // super_admin sin tenant activo (hasPlanFeature devuelve true sin tenant) ve todo.
-    const planLocked = !!item.feature && !hasPlanFeature(item.feature);
+    const planLocked =
+      (!!item.feature && !hasPlanFeature(item.feature)) ||
+      (!!item.basicLocked && overrideTenant?.plan === "basic");
     const locked = roleLocked || planLocked;
 
     // Para roles con whitelist explicita (receptionist/barber): un item bloqueado POR ROL
@@ -284,6 +295,13 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
       const parentItem = active.items.find((i) => i.children?.some((c) => c.href === pathname));
       if (parentItem) setOpenItems((prev) => ({ ...prev, [parentItem.href]: true }));
     }
+  }, []);
+
+  // El botón "Más" de la barra inferior (celular) abre este mismo menú.
+  useEffect(() => {
+    const open = () => setMobileOpen(true);
+    window.addEventListener("rb:open-menu", open);
+    return () => window.removeEventListener("rb:open-menu", open);
   }, []);
 
   const toggleCollapse = () => {
@@ -442,6 +460,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
           <img src="/logo-horizontal.png" alt="re-booking" className="h-7 w-auto dark:hidden" />
           <img src="/logo-horizontal-white.png" alt="re-booking" className="h-7 w-auto hidden dark:block" />
         </Link>
+        <NotificationBell className="ml-auto" />
       </div>
 
       {/* Mobile overlay */}
@@ -499,8 +518,9 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
 
         {/* Tenant name */}
         {!collapsed && effectiveTenantName && (
-          <div className="px-4 pt-3 pb-1">
+          <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1">
             <p className="truncate text-[13px] font-semibold tracking-tight text-brand-dark">{effectiveTenantName}</p>
+            <NotificationBell className="flex-shrink-0" />
           </div>
         )}
 
