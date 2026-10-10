@@ -181,11 +181,16 @@ export default function InventarioPage() {
     };
 
     if (editingProductId) {
-      await fetch(`/api/products/${editingProductId}`, {
+      const res = await fetch(`/api/products/${editingProductId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        showToast(err.error || "No se pudo guardar el producto", "error");
+        return;
+      }
       showToast("Producto actualizado", "success");
     } else {
       // Don't block on the client-side tenant here. If the tenant context hasn't loaded

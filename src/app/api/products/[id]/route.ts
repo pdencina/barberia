@@ -6,7 +6,8 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const supabase = createAdminSupabase();
-  const body = await req.json();
+  // El navegador manda tenantId (solo sirve al crear); no es columna de products y hacia fallar todo el guardado.
+  const { tenantId: _ignored, ...body } = await req.json();
 
   // If price is being changed, log it
   if (body.price !== undefined) {
