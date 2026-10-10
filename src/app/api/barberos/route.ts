@@ -137,7 +137,17 @@ export async function POST(req: NextRequest) {
     if (authError.message.includes("already") || authError.message.includes("exists")) {
       return NextResponse.json({ error: "Ya existe una cuenta con ese email. Usa otro email o edita el profesional existente." }, { status: 409 });
     }
-    return NextResponse.json({ error: authError.message }, { status: 500 });
+    // Queda el detalle completo en los registros de Vercel. Antes, cuando el sistema de acceso devolvia un error sin
+    // texto, el usuario veia solo "{}" y no habia forma de saber que pasaba.
+    console.error("[barberos] createUser fallo:", JSON.stringify({ message: authError.message, status: (authError as any).status, code: (authError as any).code, name: authError.name }));
+    const raw = String(authError.message || "").trim();
+    const readable = !raw || raw === "{}" || raw === "[object Object]";
+    return NextResponse.json({
+      error: readable
+        ? `No se pudo crear el acceso del usuario (el sistema de acceso respondió con un error sin detalle${(authError as any).status ? `, código ${(authError as any).status}` : ""}). Intenta de nuevo en un minuto; si sigue igual, avisa a soporte con la hora exacta.`
+        : raw,
+      code: (authError as any).code || null,
+    }, { status: 500 });
   }
 
   // Update phone and tenant in profile
@@ -158,19 +168,24 @@ export async function POST(req: NextRequest) {
 
     // Use upsert: if trigger already created the profile, update it.
     // If not, create it with all the data.
-    const { error: profileError } = await adminSupabase
-      .from("profiles")
-      .upsert({
-        id: authData.user.id,
-        name,
-        email,
-        role: userRole,
-        phone: phone || null,
-        tenant_id: resolvedTenantId || null,
-        active: true,
-        booking_slug: bookingSlug,
-        birth_date: birthDate,
-      }, { onConflict: "id" });
+    const profileRow: Record<string, any> = {
+      id: authData.user.id,
+      name,
+      email,
+      role: userRole,
+      phone: phone || null,
+      tenant_id: resolvedTenantId || null,
+      active: true,
+      booking_slug: bookingSlug,
+      birth_date: birthDate,
+    };
+    let { error: profileError } = await adminSupabase.from("profiles").upsert(profileRow, { onConflict: "id" });
+    // Tolera que falte la migracion 080 (birth_date): reintenta sin esa columna en vez de fallar.
+    if (profileError && /birth_date/i.test(profileError.message || "")) {
+      console.error("[barberos] falta la migracion 080 (birth_date); creando sin fecha de nacimiento");
+      delete profileRow.birth_date;
+      ({ error: profileError } = await adminSupabase.from("profiles").upsert(profileRow, { onConflict: "id" }));
+    }
 
     // If the profile couldn't be created, we'd be left with an orphaned auth user
     // (can log in but has no role/tenant → treated wrong by the app). Roll back the
