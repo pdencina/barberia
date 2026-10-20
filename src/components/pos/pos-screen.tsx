@@ -74,12 +74,14 @@ export interface StandbyCtx { barber: { id: string; name: string }; onExit: () =
 
 // En el Punto de Venta del computador general (sin Standby) la pantalla se puede apagar con "Apagar caja" y se enciende con
 // el PIN de recepcion o del administrador (el mismo bloqueo de la pantalla Caja). El Standby tiene su propio PIN.
-export default function PosScreen({ standby }: { standby?: StandbyCtx }) {
-  if (standby) return <PosScreenInner standby={standby} />;
+// `belowBar`: hay una barra propia encima (pestañas Vender/Revision del administrador en Standby) y se le descuenta ese alto.
+// Sin barra, el POS ocupa todo el alto: antes siempre se descontaban 4rem y quedaba una franja vacia bajo Cobrar.
+export default function PosScreen({ standby, belowBar }: { standby?: StandbyCtx; belowBar?: boolean }) {
+  if (standby) return <PosScreenInner standby={standby} belowBar={belowBar} />;
   return <CajaLockGate>{(lock) => <PosScreenInner onLock={lock} />}</CajaLockGate>;
 }
 
-function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: () => void }) {
+function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; onLock?: () => void; belowBar?: boolean }) {
   const [services, setServices] = useState<Service[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -616,7 +618,7 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
   };
 
   return (
-    <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-4rem)]">
+    <div className={`flex flex-col lg:flex-row ${belowBar ? "lg:h-[calc(100vh-4rem)]" : "lg:h-screen"}`}>
       {/* Left: Items */}
       <div className="flex-1 p-4 lg:p-6 overflow-y-auto">
         {standby ? (

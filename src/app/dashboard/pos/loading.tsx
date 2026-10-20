@@ -1,6 +1,6 @@
 export default function POSLoading() {
   return (
-    <div className="flex flex-col lg:flex-row lg:h-[calc(100vh-4rem)] animate-pulse">
+    <div className="flex flex-col lg:flex-row lg:h-screen animate-pulse">
       {/* Left: Products */}
       <div className="flex-1 p-4 lg:p-6">
         <div className="flex gap-2 mb-4">
