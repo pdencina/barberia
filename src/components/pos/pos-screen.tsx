@@ -747,6 +747,11 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
                 <Monogram name={item.name} tone={isService ? "teal" : "amber"} />
                 <p className="relative min-w-0 flex-1 line-clamp-2 text-[15px] font-semibold leading-tight text-brand-dark">{item.name}</p>
                 <div className="relative flex shrink-0 items-center gap-2.5">
+                  {inCart && (
+                    <span className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-brand-blue px-1.5 text-xs font-bold text-white shadow-md">
+                      ×{inCart.quantity}
+                    </span>
+                  )}
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                       lowStock ? "bg-red-500/15 text-red-500" : "bg-black/5 text-brand-gray dark:bg-white/10"
@@ -756,11 +761,6 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
                   </span>
                   <p className="text-xl font-extrabold tracking-tight text-brand-blue tabular-nums">{formatCurrency(Number(item.price))}</p>
                 </div>
-                {inCart && (
-                  <span className="absolute right-2 top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-blue px-1.5 text-[11px] font-bold text-white shadow-md">
-                    ×{inCart.quantity}
-                  </span>
-                )}
               </button>
             );
           };
