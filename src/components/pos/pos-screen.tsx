@@ -816,7 +816,7 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
       </div>
 
       {/* Right: Cart */}
-      <div className="flex w-full flex-col border-t border-gray-100 bg-gradient-to-b from-brand-white to-brand-light lg:max-h-screen lg:w-[440px] lg:border-l lg:border-t-0">
+      <div className="flex w-full flex-col border-t border-gray-100 bg-gradient-to-b from-brand-white to-brand-light lg:min-h-0 lg:overflow-y-auto lg:w-[440px] lg:border-l lg:border-t-0">
         {/* Encabezado: titulo + total en vivo, profesional y cliente */}
         <div className="space-y-3 border-b border-gray-100 px-4 pb-3 pt-4">
           <div className="flex items-center justify-between">
@@ -1018,7 +1018,7 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
         </div>
 
         {/* Items de la venta */}
-        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3">
+        <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-3 lg:min-h-[168px]">
           {cart.length === 0 ? (
             <div className="flex h-full min-h-[200px] flex-col items-center justify-center text-center">
               <div className="relative mb-4">
@@ -1070,7 +1070,7 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
           )}
         </div>
 
-        <div className="space-y-3 border-t border-gray-100 bg-brand-white p-4">
+        <div className="space-y-3 border-t border-gray-100 bg-brand-white p-4 [@media(max-height:800px)]:space-y-2 [@media(max-height:800px)]:p-3">
           {/* Cupon + descuento manual */}
           <div className="space-y-1.5">
             <div className="relative">
@@ -1246,7 +1246,7 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
                 ? splitPayments.reduce((s, p) => s + (parseInt(p.amount) || 0), 0) !== total
                 : !paymentMethod)
             }
-            className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-brand-blue to-emerald-500 py-3.5 text-base font-bold text-white shadow-lg shadow-brand-blue/25 transition-all hover:brightness-110 hover:shadow-xl active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:brightness-100"
+            className="group relative w-full overflow-hidden rounded-2xl bg-gradient-to-r from-brand-blue to-emerald-500 py-3.5 [@media(max-height:800px)]:py-2.5 text-base font-bold text-white shadow-lg shadow-brand-blue/25 transition-all hover:brightness-110 hover:shadow-xl active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none disabled:hover:brightness-100"
           >
             <span className="flex items-center justify-center gap-2">
               {processing ? "Procesando..." : mpPaymentStatus === "waiting" ? "Esperando pago en máquina..." : (
