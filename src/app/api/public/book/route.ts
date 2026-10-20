@@ -1,6 +1,6 @@
 import { isTenantSuspended, isBarberTenantSuspended, TENANT_SUSPENDED_MESSAGE } from "@/lib/tenant-suspension";
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { sendBookingConfirmation } from "@/lib/resend";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { isSlotFull, exceededAfterInsert } from "@/lib/capacity";
@@ -9,6 +9,8 @@ import { isOnVacation } from "@/lib/vacations";
 import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
 import { notify } from "@/lib/notify";
 import { sanitizeAttribution, isAdTrackingEnabled } from "@/lib/ad-tracking";
+
+const isValidEmail = (e: unknown) => typeof e === "string" && /^\S+@\S+\.\S+$/.test(e.trim());
 
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -21,6 +23,15 @@ export async function POST(req: NextRequest) {
   // Validate required fields
   if (ids.length === 0 || !barberId || !date || !startTime || !clientName) {
     return NextResponse.json({ error: "Campos requeridos faltantes" }, { status: 400 });
+  }
+
+  // El correo es obligatorio para quien reserva online. El personal con sesion (agenda del
+  // profesional, clientes sin correo) queda fuera de la regla.
+  if (!isValidEmail(clientEmail)) {
+    const caller = await getCurrentUserRoleAndTenant();
+    if (!caller.role) {
+      return NextResponse.json({ error: "El correo es obligatorio" }, { status: 400 });
+    }
   }
 
   // Get services details
