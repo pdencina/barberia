@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { BUILTIN_SOURCES, loadCustomSources } from "@/lib/client-sources";
 
 export async function GET(
   req: NextRequest,
@@ -135,6 +136,17 @@ export async function PATCH(
   }
   if (body.notes !== undefined) update.notes = body.notes ? String(body.notes) : null;
   if (Array.isArray(body.personality_tags)) update.personality_tags = body.personality_tags.map((t: any) => String(t)).slice(0, 30);
+
+  // Origen del cliente ("¿De donde viene?"): uno de los de siempre o uno que creo su negocio.
+  // El "link"/"manual" historicos no se pueden elegir, pero se respetan si ya estan guardados.
+  if (body.acquisition_source !== undefined) {
+    const src = String(body.acquisition_source || "");
+    const valid = [...BUILTIN_SOURCES.map((x) => x.code), ...(await loadCustomSources(supabase, existing.tenant_id)).map((x) => x.code)];
+    const current = (await supabase.from("clients").select("acquisition_source").eq("id", params.id).maybeSingle()).data?.acquisition_source;
+    if (!valid.includes(src) && src !== current) return NextResponse.json({ error: "Origen no válido" }, { status: 400 });
+    update.acquisition_source = src;
+    update.acquisition_detail = (src === "promotion" || src === "influencer") && body.acquisition_detail ? String(body.acquisition_detail).trim().slice(0, 100) || null : null;
+  }
 
   // Consentimiento para promociones y "no contactar" (Ley 21.719, migracion 101).
   const consentKeys: string[] = [];
