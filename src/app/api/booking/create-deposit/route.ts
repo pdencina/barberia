@@ -13,6 +13,8 @@ import { createAdminSupabase } from "@/lib/supabase/server";
  * 4. Client pays on MP
  * 5. Webhook confirms → appointment changes to "confirmed"
  */
+const isValidEmail = (e: unknown) => typeof e === "string" && /^\S+@\S+\.\S+$/.test(e.trim());
+
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
@@ -28,7 +30,7 @@ export async function POST(req: NextRequest) {
     notes,
   } = body;
 
-  if (!barberId || !serviceIds?.length || !date || !startTime || !clientName || !totalPrice) {
+  if (!barberId || !serviceIds?.length || !date || !startTime || !clientName || !isValidEmail(clientEmail) || !totalPrice) {
     return NextResponse.json({ error: "Campos requeridos faltantes" }, { status: 400 });
   }
 

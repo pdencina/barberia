@@ -288,7 +288,7 @@ export default function BookingPage() {
           date: selectedDate,
           startTime: selectedSlot,
           clientName,
-          clientEmail: clientEmail || null,
+          clientEmail: clientEmail.trim(),
           clientPhone: clientPhone || null,
           notes: notes || null,
           totalPrice,
@@ -318,7 +318,7 @@ export default function BookingPage() {
         date: selectedDate,
         startTime: selectedSlot,
         clientName,
-        clientEmail: clientEmail || null,
+        clientEmail: clientEmail.trim(),
         clientPhone: clientPhone || null,
         notes: notes || null,
         autoAssigned,
@@ -806,7 +806,7 @@ export default function BookingPage() {
 
             <div className="space-y-4">
               <div>
-                <label className="text-sm text-brand-gray mb-1 block">Email</label>
+                <label className="text-sm text-brand-gray mb-1 block">Email *</label>
                 <input
                   type="email"
                   value={clientEmail}
@@ -823,6 +823,7 @@ export default function BookingPage() {
                     }
                   }}
                   placeholder="tu@email.com (para confirmacion)"
+                  required
                   className="w-full rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-3 text-brand-dark placeholder:text-brand-gray focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/20 focus:outline-none"
                 />
                 {clientFound && (
@@ -876,7 +877,7 @@ export default function BookingPage() {
 
             <button
               onClick={handleBook}
-              disabled={!clientName.trim() || !clientPhone.trim() || submitting}
+              disabled={!clientName.trim() || !clientPhone.trim() || !/^\S+@\S+\.\S+$/.test(clientEmail.trim()) || submitting}
               className="w-full mt-6 py-4 rounded-xl bg-brand-blue text-white font-bold text-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
               {submitting ? "Procesando..." : depositRequired ? `Pagar abono ${formatCurrency(Math.ceil(totalPrice * depositPercentage / 100))}` : "Confirmar Cita"}
