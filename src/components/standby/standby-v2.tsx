@@ -94,7 +94,7 @@ function AdminShell({ admin, pin, onExit }: { admin: { id: string; name: string 
       </div>
       {/* La venta queda montada (no se pierde el carrito al cambiar de pestaña). */}
       <div className={tab === "vender" ? "" : "hidden"}>
-        <PosScreen standby={{ barber: admin, onExit, onReview: () => setTab("revision") }} />
+        <PosScreen belowBar standby={{ barber: admin, onExit, onReview: () => setTab("revision") }} />
       </div>
       {tab === "revision" && <StandbyAdmin admin={admin} pin={pin} onExit={onExit} />}
     </div>
