@@ -9,6 +9,8 @@ import {
   Wallet, Receipt, CalendarCheck, UserX, Clock, Scissors, Upload, StickyNote, TrendingUp, Percent, UserCheck,
 } from "lucide-react";
 import { Panel, StatCard, primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
+import SourceSelect from "@/components/clients/source-select";
+import { SOURCE_LABELS } from "@/lib/client-sources";
 
 interface ClientData {
   client: {
@@ -20,6 +22,9 @@ interface ClientData {
     created_at: string;
     marketing_consent?: boolean | null;
     do_not_contact?: boolean | null;
+    tenant_id?: string | null;
+    acquisition_source?: string | null;
+    acquisition_detail?: string | null;
   };
   stats: {
     totalSpent: number;
@@ -96,16 +101,27 @@ export default function ClienteDetailPage() {
   // Editar datos del cliente (nombre, celular, correo, notas)
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState<{ name: string; phone: string; email: string; notes: string; marketing_consent: boolean; do_not_contact: boolean }>({ name: "", phone: "", email: "", notes: "", marketing_consent: false, do_not_contact: false });
+  const [editForm, setEditForm] = useState<{ name: string; phone: string; email: string; notes: string; marketing_consent: boolean; do_not_contact: boolean; source: string; sourceDetail: string }>({ name: "", phone: "", email: "", notes: "", marketing_consent: false, do_not_contact: false, source: "walk_in", sourceDetail: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState("");
 
   const openEdit = () => {
     if (!data) return;
     const c = data.client;
-    setEditForm({ name: c.name || "", phone: c.phone || "", email: c.email || "", notes: c.notes || "", marketing_consent: c.marketing_consent === true, do_not_contact: c.do_not_contact === true });
+    setEditForm({ name: c.name || "", phone: c.phone || "", email: c.email || "", notes: c.notes || "", marketing_consent: c.marketing_consent === true, do_not_contact: c.do_not_contact === true, source: c.acquisition_source || "walk_in", sourceDetail: c.acquisition_detail || "" });
     setEditError("");
     setEditing(true);
+  };
+
+  // El origen solo se manda si la persona lo cambió: así un cliente sin origen registrado
+  // (o "Reserva por link") no pasa a "Pasó por fuera" solo por guardar otros datos.
+  const buildEditBody = () => {
+    const { source, sourceDetail, ...rest } = editForm;
+    const c = data?.client;
+    const sourceChanged = source !== (c?.acquisition_source || "walk_in");
+    const detailChanged = sourceDetail !== (c?.acquisition_detail || "");
+    if (!sourceChanged && !detailChanged) return rest;
+    return { ...rest, acquisition_source: source, acquisition_detail: sourceDetail };
   };
 
   const saveEdit = async () => {
@@ -116,7 +132,7 @@ export default function ClienteDetailPage() {
     try {
       const res = await fetch(`/api/clients/${params.id}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify(buildEditBody()),
       });
       const r = await res.json().catch(() => ({}));
       if (!res.ok) { setEditError(r?.error || "No se pudo guardar"); return; }
@@ -369,6 +385,23 @@ export default function ClienteDetailPage() {
             <label className="block text-xs font-medium text-brand-gray">Notas
               <textarea rows={3} value={editForm.notes} onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })} className={`${inputClass} mt-1 w-full resize-y`} />
             </label>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-brand-gray">¿De dónde viene este cliente?</label>
+              <SourceSelect
+                value={editForm.source}
+                tenantId={data?.client.tenant_id}
+                onChange={(code) => setEditForm({ ...editForm, source: code, sourceDetail: (code === "promotion" || code === "influencer") ? editForm.sourceDetail : "" })}
+                extraOption={data?.client.acquisition_source && !["walk_in", "instagram", "tiktok", "facebook", "referral", "google_maps", "promotion", "influencer"].includes(data.client.acquisition_source) && !data.client.acquisition_source.startsWith("c_")
+                  ? { code: data.client.acquisition_source, label: SOURCE_LABELS[data.client.acquisition_source] || data.client.acquisition_source } : undefined}
+                className={`${inputClass} w-full`}
+              />
+              {(editForm.source === "promotion" || editForm.source === "influencer") && (
+                <input type="text" value={editForm.sourceDetail}
+                  onChange={(e) => setEditForm({ ...editForm, sourceDetail: e.target.value })}
+                  placeholder={editForm.source === "promotion" ? "Código de descuento (opcional)" : "@influencer (opcional)"}
+                  className={`${inputClass} w-full`} />
+              )}
+            </div>
             <div className="space-y-2 rounded-xl bg-brand-light p-3">
               <p className="text-xs font-semibold text-brand-dark">Mensajes y promociones</p>
               <label className="flex items-start gap-2 text-xs text-brand-gray">

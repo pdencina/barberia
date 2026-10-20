@@ -6,9 +6,10 @@ import { BUILTIN_SOURCES } from "@/lib/client-sources";
 // "¿Como nos conocio?": las opciones de siempre + las que cada negocio crea con "+ Crear otra opcion".
 // Lo usan la ficha de clientes y el POS, asi la opcion nueva aparece en los dos y en las metricas.
 const NEW = "__new__";
+type SourceOptionLite = { code: string; label: string };
 
 export default function SourceSelect({
-  value, onChange, tenantId, className, walkInLabel, ariaLabel,
+  value, onChange, tenantId, className, walkInLabel, ariaLabel, extraOption,
 }: {
   value: string;
   onChange: (code: string) => void;
@@ -16,6 +17,7 @@ export default function SourceSelect({
   className?: string;
   walkInLabel?: string;
   ariaLabel?: string;
+  extraOption?: SourceOptionLite;
 }) {
   const [custom, setCustom] = useState<{ code: string; label: string }[]>([]);
   const [creating, setCreating] = useState(false);
@@ -52,6 +54,7 @@ export default function SourceSelect({
         onChange={(e) => { if (e.target.value === NEW) { setCreating(true); setError(""); } else { setCreating(false); onChange(e.target.value); } }}
         className={className}
       >
+        {extraOption && <option value={extraOption.code}>{extraOption.label}</option>}
         {BUILTIN_SOURCES.map((s) => (
           <option key={s.code} value={s.code}>{s.code === "walk_in" && walkInLabel ? walkInLabel : s.label}</option>
         ))}
