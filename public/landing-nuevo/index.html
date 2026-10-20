@@ -93,7 +93,7 @@
   /* --- Celular: scroll y menu (20 oct.) ---
      El documento traia html/body con height:100% y overflow-x:hidden: en el navegador del celular el
      cuerpo quedaba como una caja con scroll propia y no dejaba deslizar. Aqui el que hace scroll es la pagina. */
-  html { height: auto !important; overflow-x: hidden; }
+  html { height: auto !important; overflow-x: hidden; scroll-behavior: smooth; }
   body { height: auto !important; min-height: 100%; overflow-x: clip !important; overflow-y: visible !important; }
   section[id] { scroll-margin-top: 64px; }
   #lnd-burger { display: none; }
@@ -101,7 +101,7 @@
   @media (max-width: 1000px) {
     header > div { padding: 10px 14px !important; padding-right: 68px !important; gap: 10px !important; }
     header img { height: 30px !important; }
-    header [data-hdr-login] { display: none !important; }
+    header [data-hdr-login] { font-size: 14.5px !important; }
     header a[data-ripple] { padding: 9px 14px !important; font-size: 13.5px !important; }
     #lnd-burger { display: flex; position: fixed; top: 7px; right: 12px; z-index: 60; width: 44px; height: 44px; border-radius: 12px; border: 1px solid #DFD8CE; background: #fff; align-items: center; justify-content: center; flex-direction: column; gap: 5px; padding: 0; cursor: pointer; -webkit-tap-highlight-color: transparent; box-shadow: 0 4px 14px -8px rgba(10,110,107,.5); }
     #lnd-burger span { display: block; width: 20px; height: 2px; border-radius: 2px; background: #14403E; transition: transform .2s ease, opacity .2s ease; }
@@ -112,6 +112,11 @@
     #lnd-menu.open { opacity: 1; transform: none; pointer-events: auto; visibility: visible; }
     #lnd-menu a { display: block; padding: 15px 4px; font-size: 17px; font-weight: 600; color: #10201F; border-bottom: 1px solid #ECE6DD; font-family: Karla, system-ui, sans-serif; }
     #lnd-menu a.lnd-cta { margin-top: 14px; text-align: center; border: 0; border-radius: 12px; background: #0A6E6B; color: #fff; padding: 14px 18px; font-family: "Bricolage Grotesque", Georgia, sans-serif; }
+  }
+  /* En celulares angostos no cabe "Comenzar ahora" junto a "Iniciar sesion" y las 3 lineas: el boton grande
+     esta justo debajo en la portada y tambien dentro del menu. */
+  @media (max-width: 480px) {
+    header > div > a[href="#precios"] { display: none !important; }
   }
 </style>
 </helmet>
@@ -125,7 +130,7 @@
   <a href="#integracion">Integraciones</a>
   <a href="#precios">Precios</a>
   <a href="/login">Iniciar sesión</a>
-  <a href="#" class="lnd-cta">Comenzar ahora</a>
+  <a href="#precios" class="lnd-cta">Comenzar ahora</a>
 </nav>
 
   <div data-decolayer="" aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 100%; height: 100vh; overflow: hidden; pointer-events: none; z-index: 0;">
@@ -245,7 +250,7 @@
       </nav>
       <div style="flex: 1;"></div>
       <a href="/login" data-hdr-login="" style="flex: 0 0 auto; white-space: nowrap; font-size: 14.5px; font-weight: 600; color: #10201F;" style-hover="color:#0B9490">Iniciar sesión</a>
-      <a href="#" style="flex: 0 0 auto; white-space: nowrap; font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 14.5px; font-weight: 600; color: #fff; background: #0A6E6B; padding: 11px 20px; border-radius: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 6px 16px -6px rgba(10,110,107,.6); transition: transform .16s ease, box-shadow .16s ease, background .16s ease; position: relative; overflow: hidden;" data-ripple="" style-hover="background:#0A6E6B;transform:translateY(-1px);box-shadow:0 10px 22px -8px rgba(10,110,107,.75)" style-active="transform:translateY(1px)">Comenzar ahora</a>
+      <a href="#precios" style="flex: 0 0 auto; white-space: nowrap; font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 14.5px; font-weight: 600; color: #fff; background: #0A6E6B; padding: 11px 20px; border-radius: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 6px 16px -6px rgba(10,110,107,.6); transition: transform .16s ease, box-shadow .16s ease, background .16s ease; position: relative; overflow: hidden;" data-ripple="" style-hover="background:#0A6E6B;transform:translateY(-1px);box-shadow:0 10px 22px -8px rgba(10,110,107,.75)" style-active="transform:translateY(1px)">Comenzar ahora</a>
     </div>
   </header>
 
@@ -259,7 +264,7 @@
         </div>
         <h1 data-reveal="" style="font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: clamp(38px, 7.6vw, 86px); line-height: .98; letter-spacing: -.036em; font-weight: 700; margin: 24px 0 0; text-wrap: pretty;">Todo tu negocio.<br><span style="color: #0A6E6B;">Un solo sistema.</span></h1>
         <div data-reveal="" style="display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px;">
-          <a href="#" style="font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 16px; font-weight: 600; color: #fff; background: #0A6E6B; padding: 15px 26px; border-radius: 12px; box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 12px 26px -12px rgba(10,110,107,.8); transition: transform .16s ease, box-shadow .16s ease, background .16s ease; position: relative; overflow: hidden;" data-ripple="" style-hover="background:#0A6E6B;transform:translateY(-2px);box-shadow:0 18px 34px -14px rgba(10,110,107,.85)" style-active="transform:translateY(0)">Comenzar ahora</a>
+          <a href="#precios" style="font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 16px; font-weight: 600; color: #fff; background: #0A6E6B; padding: 15px 26px; border-radius: 12px; box-shadow: 0 1px 0 rgba(255,255,255,.3) inset, 0 12px 26px -12px rgba(10,110,107,.8); transition: transform .16s ease, box-shadow .16s ease, background .16s ease; position: relative; overflow: hidden;" data-ripple="" style-hover="background:#0A6E6B;transform:translateY(-2px);box-shadow:0 18px 34px -14px rgba(10,110,107,.85)" style-active="transform:translateY(0)">Comenzar ahora</a>
           <a href="https://youtu.be/819xE6DHPTs" target="_blank" rel="noopener noreferrer" style="font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 16px; font-weight: 600; color: #14403E; background: #fff; border: 1px solid #DFD8CE; padding: 15px 24px; border-radius: 12px; display: inline-flex; align-items: center; gap: 10px; transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease;" style-hover="border-color:#0B9490;transform:translateY(-2px);box-shadow:0 12px 24px -14px rgba(16,32,31,.45)" style-active="transform:translateY(0)">
             <span style="width: 22px; height: 22px; border-radius: 50%; background: #E6F2F1; display: inline-flex; align-items: center; justify-content: center; color: #0A6E6B; font-size: 9px;">▶</span>
             Ver cómo funciona
