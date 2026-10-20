@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
-import { Sparkles, Package, Search, Plus, Minus, Trash2, ShoppingBag, Tag, Lock, Check, Star, Banknote, CreditCard, ArrowLeftRight, ArrowRight, ArrowUp, ArrowDown, LayoutGrid, User } from "lucide-react";
+import { Sparkles, Package, Search, Plus, Minus, Trash2, ShoppingBag, Tag, Lock, Check, Star, Banknote, CreditCard, ArrowLeftRight, ArrowRight, ArrowUp, ArrowDown, LayoutGrid, User, ChevronDown } from "lucide-react";
 import { SaleCelebration } from "@/components/pos/sale-celebration";
 import { CashReductionPrompt } from "@/components/pos/cash-reduction-prompt";
 import { StandbyHeader } from "@/components/standby/standby-header";
@@ -105,6 +105,8 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [couponError, setCouponError] = useState("");
+  // Cupón y descuento manual van plegados para dar espacio al detalle de la venta.
+  const [showDiscountTools, setShowDiscountTools] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("");
   const [splitMode, setSplitMode] = useState(false);
   const [splitPayments, setSplitPayments] = useState<Array<{ method: string; amount: string }>>([
@@ -1063,7 +1065,20 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
         </div>
 
         <div className="space-y-3 border-t border-gray-100 bg-brand-white p-4 [@media(max-height:800px)]:space-y-2 [@media(max-height:800px)]:p-3">
-          {/* Cupon + descuento manual */}
+          {/* Cupon + descuento manual (plegable) */}
+          <button
+            type="button"
+            onClick={() => setShowDiscountTools((v) => !v)}
+            aria-expanded={showDiscountTools}
+            className="flex w-full items-center justify-between rounded-xl px-1 py-1 text-xs font-semibold text-brand-gray transition-colors hover:text-brand-dark"
+          >
+            <span className="flex items-center gap-2">
+              <Tag className="h-3.5 w-3.5" strokeWidth={1.75} /> Cupón y descuento
+              {discount > 0 && <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-600">Aplicado</span>}
+            </span>
+            <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${showDiscountTools ? "rotate-180" : ""}`} strokeWidth={2} />
+          </button>
+          {showDiscountTools && (
           <div className="space-y-1.5">
             <div className="relative">
               <Tag className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-gray" strokeWidth={1.75} />
@@ -1095,6 +1110,7 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
               )}
             </div>
           </div>
+          )}
           {couponError && <p className="text-xs text-red-500">{couponError}</p>}
 
           {/* Resumen tipo recibo */}
