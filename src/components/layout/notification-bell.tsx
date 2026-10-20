@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Bell } from "lucide-react";
 import { useNotificationCenter } from "@/lib/use-notification-center";
 import { cn } from "@/lib/utils";
+import { noticeHref } from "@/lib/appt-link";
 
 interface Item { id: string; kind: string; title: string; body: string | null; url: string | null; requires_ack: boolean; read_at: string | null; ack_at: string | null; created_at: string }
 
@@ -44,7 +45,8 @@ export function NotificationBell({ className }: { className?: string }) {
   const tap = async (it: Item) => {
     if (!it.read_at) await post({ action: "read", ids: [it.id] });
     setOpen(false);
-    if (it.url) router.push(it.url);
+    const href = noticeHref(it.kind, it.url);
+    if (href) router.push(href);
   };
   const markAll = async () => { await post({ action: "read", all: true }); load(); };
 
