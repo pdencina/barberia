@@ -1,5 +1,6 @@
 "use client";
 
+import { noticeHref } from "@/lib/appt-link";
 import { useCallback, useEffect, useState } from "react";
 import { Bell, Send, SlidersHorizontal, Inbox } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
@@ -123,7 +124,7 @@ export default function AvisosPage() {
                 {it.requires_ack && !it.ack_at && <button onClick={() => post({ action: "ack", id: it.id })} className="rounded-lg bg-brand-blue px-3 py-2 text-sm font-semibold text-white">Entendido</button>}
                 {it.requires_ack && it.ack_at && <span className="text-xs font-semibold text-emerald-600">✓ Confirmado</span>}
                 {!it.read_at && !it.requires_ack && <button onClick={() => post({ action: "read", ids: [it.id] })} className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-dark">Marcar leído</button>}
-                {it.url && <a href={it.url} className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-dark">Abrir</a>}
+                {it.url && <a href={noticeHref(it.kind, it.url) || it.url} className="rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-brand-dark">Abrir</a>}
               </div>
             </div>
           ))}

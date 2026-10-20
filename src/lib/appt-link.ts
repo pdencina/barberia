@@ -10,3 +10,11 @@ export function apptDayLabel(date: string): string {
   if (isNaN(d.getTime())) return "";
   return d.toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short", timeZone: "UTC" }).replace(/\./g, "");
 }
+
+// Avisos de citas guardados antes de existir el link con la cita apuntan a Agenda / Mi agenda:
+// se llevan al Calendario (sin cita puntual, porque esos avisos no guardaron cual era).
+export function noticeHref(kind: string, url: string | null): string | null {
+  if (!url) return url;
+  if (kind.startsWith("appointment_") && (url === "/dashboard/agenda" || url === "/dashboard/mi-agenda")) return "/dashboard/calendario";
+  return url;
+}
