@@ -437,7 +437,17 @@ export default function CalendarioPage() {
         if (cancelled || !Array.isArray(list) || list.length === 0) return;
         setBarberServices(list);
         // Lo mas pedido por ese profesional queda elegido de entrada.
-        setSelectedService((cur) => (list.some((x: Service) => x.id === cur) && cur ? cur : list[0].id));
+        const keep = !!selectedService && list.some((x: Service) => x.id === selectedService);
+        setSelectedService(keep ? selectedService : list[0].id);
+        if (!keep) {
+          // El servicio de entrada era el mas corto de TODO el negocio (puede no ser de este profesional, ej. 5 min):
+          // si la hora de termino venia de esa duracion, se recalcula con el servicio que quedo elegido.
+          const old = services.find((x) => x.id === selectedService);
+          const next: Service = list[0];
+          const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
+          setPopupData((p) => (old && toMin(p.endTime) - toMin(p.startTime) === old.duration
+            ? { ...p, endTime: addMinutesToTime(p.startTime, next.duration) } : p));
+        }
       })
       .catch(() => {});
     return () => { cancelled = true; };
