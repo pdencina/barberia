@@ -4,10 +4,7 @@ import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
-import {
-  Sparkles, Package, Search, Plus, Minus, Trash2, ShoppingBag, Tag, Lock, Check, Star,
-  Banknote, CreditCard, ArrowLeftRight, ArrowRight, ArrowUp, ArrowDown,
-} from "lucide-react";
+import { Sparkles, Package, Search, Plus, Minus, Trash2, ShoppingBag, Tag, Lock, Check, Star, Banknote, CreditCard, ArrowLeftRight, ArrowRight, ArrowUp, ArrowDown, LayoutGrid, User } from "lucide-react";
 import { SaleCelebration } from "@/components/pos/sale-celebration";
 import { CashReductionPrompt } from "@/components/pos/cash-reduction-prompt";
 import { StandbyHeader } from "@/components/standby/standby-header";
@@ -702,17 +699,18 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
 
           {/* Filtro por categoria (solo servicios) */}
           {activeTab === "services" && serviceCategories.length > 0 && (
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+            <div className="-mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1.5">
               {["all", ...serviceCategories].map((cat) => (
                 <button
                   key={cat}
                   onClick={() => setCategoryFilter(cat)}
-                  className={`whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  className={`flex items-center gap-2.5 whitespace-nowrap rounded-2xl border px-5 py-3 text-sm font-semibold transition-all ${
                     categoryFilter === cat
-                      ? "border-transparent bg-brand-blue text-white shadow-md shadow-brand-blue/25"
-                      : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/50 hover:text-brand-dark"
+                      ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25"
+                      : "border-gray-100 bg-brand-light text-brand-gray hover:border-brand-blue/40 hover:text-brand-dark"
                   }`}
                 >
+                  {cat === "all" ? <LayoutGrid className="h-[18px] w-[18px]" strokeWidth={1.75} /> : <User className="h-[18px] w-[18px]" strokeWidth={1.75} />}
                   {cat === "all" ? "Todos" : cat}
                 </button>
               ))}
@@ -736,7 +734,7 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
               <button
                 key={item.id}
                 onClick={() => addToCart(item, type)}
-                className={`group relative overflow-hidden rounded-2xl border p-4 text-left transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.97] ${
+                className={`group relative flex items-center gap-3 overflow-hidden rounded-2xl border px-3.5 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 active:scale-[0.98] ${
                   inCart
                     ? "border-brand-blue bg-brand-blue/[0.06] shadow-lg shadow-brand-blue/10 ring-1 ring-brand-blue/40"
                     : "border-gray-100 bg-white hover:border-brand-blue/40 hover:shadow-lg hover:shadow-black/5"
@@ -744,21 +742,9 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
               >
                 {/* brillo sutil al pasar el cursor */}
                 <span className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-brand-blue/15 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100" />
-                <div className="relative flex items-start justify-between">
-                  <Monogram name={item.name} tone={isService ? "teal" : "amber"} />
-                  {inCart ? (
-                    <span className="flex h-6 min-w-[24px] items-center justify-center rounded-full bg-brand-blue px-1.5 text-xs font-bold text-white shadow-md">
-                      ×{inCart.quantity}
-                    </span>
-                  ) : (
-                    <span className="flex h-7 w-7 scale-75 items-center justify-center rounded-full bg-brand-blue/10 text-brand-blue opacity-0 transition-all duration-200 group-hover:scale-100 group-hover:opacity-100">
-                      <Plus className="h-4 w-4" strokeWidth={2.25} />
-                    </span>
-                  )}
-                </div>
-                <p className="relative mt-3 line-clamp-2 min-h-[2.5em] text-[15px] font-semibold leading-tight text-brand-dark">{item.name}</p>
-                <div className="relative mt-2 flex items-end justify-between gap-2">
-                  <p className="text-xl font-extrabold tracking-tight text-brand-blue tabular-nums">{formatCurrency(Number(item.price))}</p>
+                <Monogram name={item.name} tone={isService ? "teal" : "amber"} />
+                <p className="relative min-w-0 flex-1 line-clamp-2 text-[15px] font-semibold leading-tight text-brand-dark">{item.name}</p>
+                <div className="relative flex shrink-0 items-center gap-2.5">
                   <span
                     className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${
                       lowStock ? "bg-red-500/15 text-red-500" : "bg-black/5 text-brand-gray dark:bg-white/10"
@@ -766,7 +752,13 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
                   >
                     {isService ? `${(item as Service).duration} min` : `Stock ${stock}`}
                   </span>
+                  <p className="text-xl font-extrabold tracking-tight text-brand-blue tabular-nums">{formatCurrency(Number(item.price))}</p>
                 </div>
+                {inCart && (
+                  <span className="absolute right-2 top-1.5 flex h-5 min-w-[20px] items-center justify-center rounded-full bg-brand-blue px-1.5 text-[11px] font-bold text-white shadow-md">
+                    ×{inCart.quantity}
+                  </span>
+                )}
               </button>
             );
           };
@@ -779,7 +771,7 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
 
           if (!grouped) {
             return (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
                 {filteredItems.map(renderCard)}
               </div>
             );
@@ -801,11 +793,11 @@ function PosScreenInner({ standby, onLock }: { standby?: StandbyCtx; onLock?: ()
                 <div key={g.label}>
                   <div className="mb-3 flex items-center gap-3">
                     <span className="h-1.5 w-1.5 rounded-full bg-brand-blue" />
-                    <h3 className="text-[11px] font-bold uppercase tracking-[0.14em] text-brand-dark">{g.label}</h3>
+                    <h3 className="text-sm font-bold uppercase tracking-[0.14em] text-brand-dark">{g.label}</h3>
                     <span className="rounded-full bg-brand-blue/10 px-2 py-0.5 text-[10px] font-semibold text-brand-blue">{g.items.length}</span>
                     <div className="h-px flex-1 bg-gradient-to-r from-brand-blue/25 to-transparent" />
                   </div>
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2 2xl:grid-cols-3">
                     {g.items.map(renderCard)}
                   </div>
                 </div>
