@@ -1,3 +1,4 @@
+import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { isTenantSuspended, isBarberTenantSuspended, TENANT_SUSPENDED_MESSAGE } from "@/lib/tenant-suspension";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
@@ -236,8 +237,8 @@ export async function POST(req: NextRequest) {
       userIds: [barberId], // the professional who got the appointment
       roles: ["admin", "receptionist"], // + reception/admins of this business
       title: "🚀 ¡Te agendaron una cita!",
-      body: `${clientName} reservó ${serviceNames} a las ${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}.`,
-      url: "/dashboard/agenda",
+      body: `${clientName} reservó ${serviceNames} el ${apptDayLabel(start.toISOString().slice(0, 10))} a las ${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}.`,
+      url: apptNoticeUrl(appointment!.id, start.toISOString().slice(0, 10)),
     });
   } catch (e) {
     console.error("Error sending push:", e);

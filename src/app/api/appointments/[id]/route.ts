@@ -1,3 +1,4 @@
+import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
@@ -111,7 +112,7 @@ export async function PATCH(
       await notify({
         tenantId: b.tenant_id, kind: "appointment_changed", userIds: [b.barber_id],
         title: cancelled ? "Cita cancelada" : "Cita cambiada de hora",
-        body: `${who}${hhmm ? ` - ${hhmm}` : ""}`, url: "/dashboard/mi-agenda", createdBy: session.userId,
+        body: `${who}${hhmm ? ` - ${apptDayLabel(String(update.date || b.date))} ${hhmm}` : ""}`, url: apptNoticeUrl(params.id, String(update.date || b.date).slice(0, 10)), createdBy: session.userId,
       });
     }
   } catch (e) {

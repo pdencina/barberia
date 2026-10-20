@@ -1,3 +1,4 @@
+import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
@@ -55,8 +56,8 @@ export async function POST(req: NextRequest) {
       tenantId: a.tenant_id, kind: "appointment_changed",
       userIds: a.barber_id ? [a.barber_id] : [], roles: ["admin", "receptionist"],
       title: "😕 Se canceló una cita",
-      body: `${who} canceló${hhmm ? ` su hora de las ${hhmm}` : " su cita"}. El espacio quedó libre.`,
-      url: "/dashboard/mi-agenda",
+      body: `${who} canceló${hhmm ? ` su hora del ${apptDayLabel(String(a.date))} a las ${hhmm}` : " su cita"}. El espacio quedó libre.`,
+      url: apptNoticeUrl(appointmentId, String(a.date).slice(0, 10)),
     });
   } catch (e) {
     console.error("aviso de cancelacion:", e);
