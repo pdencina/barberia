@@ -41,6 +41,7 @@ export default function ConfiguracionPage() {
   const [hours, setHours] = useState<DaySchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<"negocio" | "horario" | "reservas" | "mensajes" | "equipo" | "cuenta">("negocio");
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
   // For a super_admin (no own tenant): let them pick which business to configure,
@@ -615,6 +616,26 @@ export default function ConfiguracionPage() {
     <div className="p-3 md:p-6 space-y-3 md:space-y-3 md:space-y-6 animate-fade-in max-w-3xl">
       <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Configuracion</h1>
 
+      {/* Pestañas: cada tema en su propia pantalla corta */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist">
+        {([
+          { key: "negocio", label: "Negocio", show: true },
+          { key: "horario", label: "Horario", show: true },
+          { key: "reservas", label: "Reservas", show: isAdmin },
+          { key: "mensajes", label: "Mensajes y avisos", show: true },
+          { key: "equipo", label: "Equipo y caja", show: isAdmin },
+          { key: "cuenta", label: "Apariencia y cuenta", show: true },
+        ] as const).filter((t) => t.show).map((t) => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+            className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+              tab === t.key ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25" : "border border-gray-200 dark:border-white/10 bg-white dark:bg-brand-white text-brand-gray hover:border-brand-blue/40 hover:text-brand-dark"
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Preferencias de reservas: banner, logo, Google Maps y tipo de vista */}
       {isAdmin && (
         <a href="/dashboard/configuracion/reservas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
@@ -627,6 +648,9 @@ export default function ConfiguracionPage() {
         </a>
       )}
 
+      </div>
+
+      <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Publicidad: de que anuncio viene cada reserva por link (migracion 112, apagado por defecto) */}
       {isAdmin && (
         <a href="/dashboard/origen-de-reservas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
@@ -639,6 +663,9 @@ export default function ConfiguracionPage() {
         </a>
       )}
 
+      </div>
+
+      <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Booking Link */}
       <div className="bg-gradient-to-r from-brand-blue/5 to-brand-accent/5 rounded-2xl border border-brand-blue/20 p-4 md:p-6 space-y-3">
         <div className="flex items-center gap-2">
@@ -667,6 +694,9 @@ export default function ConfiguracionPage() {
         </p>
       </div>
 
+      </div>
+
+      <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Business Data */}
       <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
         <div className="flex items-center gap-2">
@@ -735,6 +765,9 @@ export default function ConfiguracionPage() {
         </div>
       </div>
 
+      </div>
+
+      <div className={tab === "horario" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Per-day Schedule */}
       <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
         <div className="flex items-center gap-2">
@@ -812,6 +845,9 @@ export default function ConfiguracionPage() {
         </p>
       </div>
 
+      </div>
+
+      <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Deposit / Abono Config
           (Configuracion de terminales de cobro con tarjeta: ver /dashboard/terminal-pos.
           Antes vivia aqui duplicado con otra pagina vieja separada, se unifico todo alla.) */}
@@ -905,6 +941,9 @@ export default function ConfiguracionPage() {
         )}
       </div>
 
+      </div>
+
+      <div className={tab === "mensajes" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Cupo de mensajeria (Nico, 27-sep): barra de uso tipo "limites de Claude" para
           WhatsApp y correo. Visible para todo el que entra a Configuracion (afecta el dia
           a dia de todo el equipo), pero "Comprar mas" solo tiene sentido para quien decide
@@ -978,6 +1017,9 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Calendario: vista de varios dias para TODOS los profesionales. Solo administrador y solo
           si el negocio tiene entre 2 y 4 profesionales (con mas, la vista se veria recargada). */}
       {isAdmin && calView?.eligible && (
@@ -1007,15 +1049,27 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Preferencias de reserva (Fase 6): regla de "Primer profesional disponible". Solo administrador. */}
       {isAdmin && <BookingRuleCard />}
 
+      </div>
+
+      <div className={tab === "mensajes" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Avisos y notificaciones (centro de avisos). Solo administrador. */}
       {isAdmin && <NotificationsCard />}
 
+      </div>
+
+      <div className={tab === "equipo" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Barra inferior del celular por cargo. Solo administrador. */}
       {isAdmin && <TeamTabBarCard />}
 
+      </div>
+
+      <div className={tab === "equipo" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Caja y Standby (Fase 5). Solo administrador. */}
       {isAdmin && cajaSec && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
@@ -1056,6 +1110,9 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Clientes por bloque: solo administrador y solo negocios de Kinesiologia. */}
       {isAdmin && cap?.eligible && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
@@ -1084,6 +1141,9 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "mensajes" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Solicitud de insumos: a que correo llega. Solo administrador. */}
       {isAdmin && supplyEmail.loaded && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
@@ -1115,6 +1175,9 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "equipo" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Libro de movimientos del profesional (Arriendo y Comision). Solo administrador. */}
       {isAdmin && ledger && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
@@ -1144,6 +1207,9 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "cuenta" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Tema (Punto Nico, 25-sep): solo Administrador — a diferencia del resto de esta
           pagina (admin + recepcion), el tema es de todo el negocio: lo elige el admin y
           lo ven todos los que trabajan ahi, asi que se restringe a admin/super_admin. */}
@@ -1192,6 +1258,9 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "cuenta" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Privacidad: cambiar contraseña */}
       <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
         <div className="flex items-center gap-2">
@@ -1234,13 +1303,17 @@ export default function ConfiguracionPage() {
         </button>
       </div>
 
-      {/* Save */}
-      <div className="flex justify-end">
-        <button onClick={handleSave} disabled={saving}
-          className="px-8 py-3 bg-brand-blue text-white rounded-xl font-medium hover:bg-brand-blue/90 transition-colors disabled:opacity-50 shadow-sm">
-          {saving ? "Guardando..." : "Guardar Configuracion"}
-        </button>
       </div>
+
+      {/* Save: datos y horario del negocio. Las demas pestañas guardan en su propia tarjeta. */}
+      {(tab === "negocio" || tab === "horario") && (
+        <div className="sticky bottom-20 z-10 flex justify-end lg:bottom-3">
+          <button onClick={handleSave} disabled={saving}
+            className="px-8 py-3 bg-brand-blue text-white rounded-xl font-medium hover:bg-brand-blue/90 transition-colors disabled:opacity-50 shadow-lg">
+            {saving ? "Guardando..." : "Guardar Configuracion"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

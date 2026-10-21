@@ -21,6 +21,7 @@ export default function MiPerfilPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<"datos" | "apariencia" | "seguridad">("datos");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
   const router = useRouter();
@@ -258,6 +259,23 @@ export default function MiPerfilPage() {
     <div className="p-3 md:p-6 max-w-2xl space-y-3 md:space-y-6 animate-fade-in">
       <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Mi Perfil</h1>
 
+      {/* Pestañas */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist">
+        {([
+          { key: "datos", label: "Mis datos" },
+          { key: "apariencia", label: "Apariencia" },
+          { key: "seguridad", label: "Seguridad y avisos" },
+        ] as const).map((t) => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+            className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+              tab === t.key ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25" : "border border-gray-200 bg-white text-gray-500 hover:border-brand-blue/40 hover:text-gray-800"
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className={tab === "datos" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Basic info */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <div className="flex items-center gap-4">
@@ -328,14 +346,20 @@ export default function MiPerfilPage() {
         </>)}
 
         <button onClick={handleSave} disabled={saving}
-          className="w-full py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-brand-blue/90 disabled:opacity-50">
+          className="sticky bottom-20 z-10 w-full py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium shadow-lg hover:bg-brand-blue/90 disabled:opacity-50 lg:bottom-3">
           {saving ? "Guardando..." : "Guardar cambios"}
         </button>
       </div>
 
+      </div>
+
+      <div className={tab === "apariencia" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Barra inferior del celular (solo se ve en el celular) */}
       {!isSuper && <MyTabBarCard />}
 
+      </div>
+
+      <div className={tab === "apariencia" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Mi tema: cada usuario elige el suyo; "Igual que el negocio" usa el del administrador. */}
       <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-5 space-y-3">
         <h3 className="font-bold text-brand-dark">Mi tema</h3>
@@ -364,6 +388,9 @@ export default function MiPerfilPage() {
         </div>
       </div>
 
+      </div>
+
+      <div className={tab === "datos" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Link de agenda */}
       {!isSuper && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-3">
@@ -381,6 +408,9 @@ export default function MiPerfilPage() {
       </div>
       )}
 
+      </div>
+
+      <div className={tab === "datos" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* PIN */}
       {!isSuper && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-3">
@@ -395,6 +425,9 @@ export default function MiPerfilPage() {
       </div>
       )}
 
+      </div>
+
+      <div className={tab === "seguridad" ? "space-y-3 md:space-y-6" : "hidden"}>
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5 space-y-3">
         <h3 className="font-bold text-brand-dark">Seguridad</h3>
         <div className="space-y-2">
@@ -427,6 +460,9 @@ export default function MiPerfilPage() {
         )}
       </div>
 
+      </div>
+
+      <div className={tab === "seguridad" ? "space-y-3 md:space-y-6" : "hidden"}>
       {inApp && pushAvailable && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
           <div className="flex items-center justify-between gap-3">
@@ -449,6 +485,9 @@ export default function MiPerfilPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "seguridad" ? "space-y-3 md:space-y-6" : "hidden"}>
       {inApp && bioAvailable && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
           <div className="flex items-center justify-between gap-3">
@@ -469,6 +508,9 @@ export default function MiPerfilPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "seguridad" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Eliminar cuenta */}
       {!isSuper && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
@@ -481,6 +523,8 @@ export default function MiPerfilPage() {
         </button>
       </div>
       )}
+
+      </div>
 
       {showDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
