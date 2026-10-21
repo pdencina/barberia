@@ -41,6 +41,9 @@ export default function FidelidadPage() {
   const [selectedReward, setSelectedReward] = useState("");
   const { showToast } = useToast();
   const { confirm } = useConfirm();
+  // Crear / editar recompensa (id = null: nueva)
+  const [rewardForm, setRewardForm] = useState<{ id: string | null; name: string; description: string; points: string; discount: string } | null>(null);
+  const [savingReward, setSavingReward] = useState(false);
   const { tenant, loading: tenantLoading } = useTenant();
 
   const getActiveTenantId = () => {
@@ -137,6 +140,32 @@ export default function FidelidadPage() {
     } else {
       showToast(data.error || "Error al canjear", "error");
     }
+  };
+
+  const saveReward = async () => {
+    if (!rewardForm) return;
+    const name = rewardForm.name.trim();
+    const points = parseInt(rewardForm.points);
+    const discount = parseInt(rewardForm.discount || "0");
+    if (!name) { showToast("Escribe el nombre de la recompensa", "error"); return; }
+    if (!(points >= 1)) { showToast("Los puntos deben ser 1 o más", "error"); return; }
+    if (!(discount >= 0)) { showToast("El descuento no es válido", "error"); return; }
+    setSavingReward(true);
+    try {
+      const isEdit = !!rewardForm.id;
+      const res = await fetch("/api/loyalty/rewards", {
+        method: isEdit ? "PATCH" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(isEdit
+          ? { id: rewardForm.id, name, description: rewardForm.description || name, points_required: points, discount_value: discount }
+          : { name, description: rewardForm.description || name, points_required: points, discount_value: discount, tenantId: getActiveTenantId() || undefined }),
+      });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(d.error || "No se pudo guardar", "error"); return; }
+      showToast(isEdit ? "Recompensa actualizada" : "Recompensa creada", "success");
+      setRewardForm(null);
+      fetchData();
+    } finally { setSavingReward(false); }
   };
 
   if (loading) return <Spinner />;
@@ -237,20 +266,8 @@ export default function FidelidadPage() {
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-bold text-gray-800">Recompensas Disponibles</h3>
-              <button onClick={async () => {
-                const name = prompt("Nombre de la recompensa (ej: Corte gratis)");
-                if (!name) return;
-                const points = prompt("Puntos requeridos");
-                if (!points) return;
-                const discount = prompt("Valor del descuento ($)");
-                await fetch("/api/loyalty/rewards", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ name, points_required: parseInt(points), discount_value: parseInt(discount || "0"), description: name, tenantId: getActiveTenantId() || undefined }),
-                });
-                showToast("Recompensa creada", "success");
-                fetchData();
-              }} className="text-xs px-3 py-1 bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90">
+              <button onClick={() => setRewardForm({ id: null, name: "", description: "", points: "", discount: "" })}
+                className="text-xs px-3 py-1 bg-brand-blue text-white rounded-lg hover:bg-brand-blue/90">
                 + Agregar
               </button>
             </div>
@@ -259,12 +276,14 @@ export default function FidelidadPage() {
                 <div key={r.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div>
                     <p className="font-medium text-gray-900">{r.name}</p>
-                    <p className="text-xs text-gray-500">{r.description} · Descuento: {formatCurrency(Number(r.discount_value))}</p>
+                    <p className="text-xs text-gray-500">{r.description && r.description !== r.name ? `${r.description} · ` : ""}Descuento: {formatCurrency(Number(r.discount_value))}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <span className="px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-sm font-bold">
                       {r.points_required} pts
                     </span>
+                    <button onClick={() => setRewardForm({ id: r.id, name: r.name, description: r.description && r.description !== r.name ? r.description : "", points: String(r.points_required), discount: String(Number(r.discount_value)) })}
+                      className="rounded-lg border border-gray-200 px-2.5 py-1 text-xs font-medium text-gray-600 hover:border-brand-blue/40 hover:text-brand-blue">Editar</button>
                     <button onClick={async () => {
                       const ok = await confirm({ title: "Eliminar recompensa", message: `Eliminar "${r.name}"?`, confirmText: "Eliminar", variant: "warning" });
                       if (!ok) return;
@@ -337,6 +356,34 @@ export default function FidelidadPage() {
           </div>
         </div>
       </div>
+
+      {rewardForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setRewardForm(null)}>
+          <div className="w-full max-w-md space-y-3 rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-gray-900">{rewardForm.id ? "Editar recompensa" : "Nueva recompensa"}</h3>
+            <label className="block text-xs font-medium text-gray-500">Nombre
+              <input value={rewardForm.name} onChange={(e) => setRewardForm({ ...rewardForm, name: e.target.value })} placeholder="Ej: Corte gratis" maxLength={80} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" />
+            </label>
+            <label className="block text-xs font-medium text-gray-500">Beneficio (lo que recibe el cliente)
+              <textarea value={rewardForm.description} onChange={(e) => setRewardForm({ ...rewardForm, description: e.target.value })} rows={2} maxLength={200}
+                placeholder="Ej: $5.000 de descuento en tu próximo servicio" className="mt-1 w-full resize-y rounded-lg border px-3 py-2 text-sm" />
+            </label>
+            <div className="grid grid-cols-2 gap-3">
+              <label className="block text-xs font-medium text-gray-500">Puntos que cuesta
+                <input type="number" min={1} value={rewardForm.points} onChange={(e) => setRewardForm({ ...rewardForm, points: e.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" />
+              </label>
+              <label className="block text-xs font-medium text-gray-500">Descuento ($)
+                <input type="number" min={0} value={rewardForm.discount} onChange={(e) => setRewardForm({ ...rewardForm, discount: e.target.value })} className="mt-1 w-full rounded-lg border px-3 py-2 text-sm" />
+              </label>
+            </div>
+            <p className="text-[11px] text-gray-400">Al canjear, el cliente recibe un cupón por ese monto en pesos y se le descuentan los puntos. Los cambios no afectan canjes ya hechos.</p>
+            <div className="flex justify-end gap-2 pt-1">
+              <button onClick={() => setRewardForm(null)} className="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100">Cancelar</button>
+              <button onClick={saveReward} disabled={savingReward} className="rounded-lg bg-brand-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">{savingReward ? "Guardando…" : "Guardar"}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
