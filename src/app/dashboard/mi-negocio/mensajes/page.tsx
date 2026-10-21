@@ -15,6 +15,33 @@ import { setWhatsAppConfigCache } from "@/lib/use-whatsapp-config";
 
 type TextField = "confirm_text" | "deposit_text" | "transfer_text" | "welcome_text" | "info_text";
 
+// Estos dos componentes viven FUERA de la pagina: si se definen adentro, React los toma por componentes nuevos en cada
+// letra escrita, vuelve a montar los cuadros de texto y el teclado del celular se cierra a cada tecla.
+function Vars({ field, onInsert }: { field: TextField; onInsert: (field: TextField, key: string) => void }) {
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {WHATSAPP_VARIABLES.map((v) => (
+        <button key={v.key} type="button" onClick={() => onInsert(field, v.key)} title={v.label}
+          className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-brand-gray hover:border-brand-blue/50 hover:text-brand-dark">
+          {`{${v.key}}`}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function Card({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-brand-white md:p-5">
+      <div>
+        <h2 className="font-bold text-brand-dark">{title}</h2>
+        {desc && <p className="text-xs text-brand-gray">{desc}</p>}
+      </div>
+      {children}
+    </div>
+  );
+}
+
 // Mi negocio > Mensajes de WhatsApp: el administrador cambia el texto del WhatsApp de confirmacion
 // (Calendario y Mi Agenda) y activa, si quiere, abono, datos de transferencia, informacion del servicio y bienvenida.
 // Todo lo extra viene apagado: sin tocar nada, los mensajes quedan como siempre.
@@ -63,27 +90,6 @@ export default function MensajesWhatsAppPage() {
     } catch (e: any) { showToast(e?.message || "No se pudo guardar", "error"); } finally { setSaving(false); }
   };
 
-  const Vars = ({ field }: { field: TextField }) => (
-    <div className="flex flex-wrap gap-1.5">
-      {WHATSAPP_VARIABLES.map((v) => (
-        <button key={v.key} type="button" onClick={() => insertVar(field, v.key)} title={v.label}
-          className="rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-brand-gray hover:border-brand-blue/50 hover:text-brand-dark">
-          {`{${v.key}}`}
-        </button>
-      ))}
-    </div>
-  );
-
-  const Card = ({ title, desc, children }: { title: string; desc?: string; children: React.ReactNode }) => (
-    <div className="space-y-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-brand-white md:p-5">
-      <div>
-        <h2 className="font-bold text-brand-dark">{title}</h2>
-        {desc && <p className="text-xs text-brand-gray">{desc}</p>}
-      </div>
-      {children}
-    </div>
-  );
-
   if (!loaded) return <div className="flex justify-center p-10"><Spinner /></div>;
 
   return (
@@ -98,7 +104,7 @@ export default function MensajesWhatsAppPage() {
       <Card title="Mensaje de confirmación" desc="Va siempre. Puedes cambiar las palabras; las variables ponen el cliente, el negocio, el servicio, el profesional, el día, el mes y la hora.">
         <textarea ref={(el) => { refs.current.confirm_text = el; }} rows={5} maxLength={700} value={cfg.confirm_text}
           onChange={(e) => set("confirm_text", e.target.value)} className={`${inputClass} w-full resize-y`} />
-        <Vars field="confirm_text" />
+        <Vars field="confirm_text" onInsert={insertVar} />
         <button type="button" onClick={() => set("confirm_text", DEFAULT_CONFIRM_TEXT)} className={ghostButton}>Volver al mensaje original</button>
       </Card>
 
@@ -133,7 +139,7 @@ export default function MensajesWhatsAppPage() {
         {cfg.info_enabled && (
           <>
             <textarea ref={(el) => { refs.current.info_text = el; }} rows={3} maxLength={700} value={cfg.info_text} onChange={(e) => set("info_text", e.target.value)} className={`${inputClass} w-full resize-y`} />
-            <Vars field="info_text" />
+            <Vars field="info_text" onInsert={insertVar} />
           </>
         )}
       </Card>
@@ -146,7 +152,7 @@ export default function MensajesWhatsAppPage() {
         {cfg.welcome_enabled && (
           <>
             <textarea ref={(el) => { refs.current.welcome_text = el; }} rows={3} maxLength={500} value={cfg.welcome_text} onChange={(e) => set("welcome_text", e.target.value)} className={`${inputClass} w-full resize-y`} />
-            <Vars field="welcome_text" />
+            <Vars field="welcome_text" onInsert={insertVar} />
           </>
         )}
       </Card>
