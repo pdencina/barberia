@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
   // "Quien esta inactivo" sale de la MISMA funcion que usa la pantalla de Retencion
   // (lib/retention): mismo corte de dias, misma ventana desde el inicio real del negocio y
   // sin clientes que ya tienen una cita por venir.
-  const { inactive: inactiveClients } = await getInactiveClients(supabase, tenantId, days || 30, { includeNever: includeNever === true, maxDays: Number(maxDays) > 0 ? Number(maxDays) : null });
+  const { inactive: inactiveClients } = await getInactiveClients(supabase, tenantId, Number.isFinite(Number(days)) ? Math.max(0, Number(days)) : 30, { includeNever: includeNever === true, maxDays: Number(maxDays) > 0 ? Number(maxDays) : null });
   const bookingUrl = await tenantBookingUrl(supabase, tenantId);
 
   // Detalle del cupon (del propio negocio) para el correo: sin esto el correo decia

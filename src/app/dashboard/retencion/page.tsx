@@ -19,10 +19,10 @@ interface InactiveClient {
   daysSinceVisit: number;
 }
 
-const DAY_PRESETS = [15, 30, 45, 60, 90, 120, 180, 365];
-// Rangos rapidos: "entre N y M dias sin venir" (max null = sin tope).
+// Rangos rapidos: "entre N y M dias sin venir" (max null = sin tope). Tambien se pueden escribir a mano.
 const RANGE_PRESETS: Array<{ min: number; max: number | null }> = [
-  { min: 15, max: 30 }, { min: 30, max: 45 }, { min: 45, max: 60 }, { min: 60, max: 90 }, { min: 90, max: 180 }, { min: 180, max: 365 }, { min: 365, max: null },
+  { min: 0, max: 15 }, { min: 15, max: 30 }, { min: 30, max: 45 }, { min: 45, max: 60 },
+  { min: 60, max: 90 }, { min: 90, max: 180 }, { min: 180, max: 365 }, { min: 365, max: null },
 ];
 type SortKey = "days_desc" | "days_asc" | "name";
 
@@ -33,21 +33,15 @@ export default function RetencionPage() {
   // no "dejaron de venir": se suman solo si se pide. Lo que se ve en pantalla es lo mismo que recibe el envio masivo.
   const [includeNever, setIncludeNever] = useState(false);
   // Rango y orden: "entre 15 y 30 dias" y de mas a menos tiempo sin venir (o al reves).
-  const [maxDays, setMaxDays] = useState<number | null>(null);
-  const [maxInput, setMaxInput] = useState("");
+  const [maxDays, setMaxDays] = useState<number | null>(30);
+  const [maxInput, setMaxInput] = useState("30");
+  const [minInput, setMinInput] = useState("15");
   const [sortBy, setSortBy] = useState<SortKey>("days_desc");
   const [bookingUrl, setBookingUrl] = useState("");
   const [previewTab, setPreviewTab] = useState<"whatsapp" | "email">("whatsapp");
   const [msgPreview, setMsgPreview] = useState<{ whatsapp: string; emailSubject: string; emailHtml: string } | null>(null);
   const [quotaRefresh, setQuotaRefresh] = useState(0);
-  const [days, setDays] = useState(30);
-  // Punto 12 (Pablo): "Personalizado..." ponia days=0, y el input numerico solo se
-  // mostraba mientras days===0 — apenas se escribia un numero valido, days dejaba de
-  // ser 0 y esa misma condicion hacia desaparecer el input a mitad de tipeo ("me saca
-  // de la seleccion"). El modo personalizado ahora es un estado propio, independiente
-  // del valor de days que dispara la busqueda.
-  const [isCustomDays, setIsCustomDays] = useState(false);
-  const [customDaysInput, setCustomDaysInput] = useState("");
+  const [days, setDays] = useState(15);
   const [loading, setLoading] = useState(true);
   const [coupons, setCoupons] = useState<Array<{ code: string; description: string; discount_type?: string; discount_value?: number }>>([]);
   const [selectedCoupon, setSelectedCoupon] = useState("");
@@ -212,7 +206,7 @@ export default function RetencionPage() {
 
   const sortedClients = [...clients].sort((a, b) =>
     sortBy === "name" ? a.name.localeCompare(b.name, "es") : sortBy === "days_asc" ? a.daysSinceVisit - b.daysSinceVisit : b.daysSinceVisit - a.daysSinceVisit);
-  const rangeLabel = maxDays ? `${days}–${maxDays} días` : `${days}+ días`;
+  const rangeLabel = maxDays != null ? `${days}–${maxDays} días` : `${days}+ días`;
 
   // Mismos numeros que usa el envio: un correo / un telefono se cuenta una sola vez.
   const withEmail = new Set(clients.filter((c) => c.email).map((c) => c.email!.trim().toLowerCase())).size;
@@ -242,8 +236,8 @@ export default function RetencionPage() {
       {/* Metricas */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total de clientes" value={stats.total} Icon={Users} tone="teal" hint="Registrados en tu negocio" />
-        <StatCard label={`Inactivos (${rangeLabel})`} value={stats.inactive} Icon={UserMinus} tone="amber" hint="Sin visita ni cita por venir" />
-        <StatCard label="% inactivos" value={`${stats.percentage}%`} Icon={Percent} tone={stats.percentage >= 30 ? "red" : "green"} hint="Del total de clientes" />
+        <StatCard label={`Sin venir (${rangeLabel})`} value={stats.inactive} Icon={UserMinus} tone="amber" hint="Sin visita ni cita por venir" />
+        <StatCard label="% del total" value={`${stats.percentage}%`} Icon={Percent} tone={stats.percentage >= 30 ? "red" : "green"} hint="Del total de clientes" />
         <StatCard label="Contactables" value={stats.contactable} Icon={HeartHandshake} tone="green" hint="Con correo o teléfono" />
       </div>
 
@@ -251,69 +245,31 @@ export default function RetencionPage() {
       <Panel title="A quién y qué decirles">
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-xs font-semibold text-brand-gray">Días sin visita</p>
-            <div className="-mx-1 flex flex-wrap gap-2 px-1">
-              {DAY_PRESETS.map((d) => {
-                const active = !isCustomDays && !maxDays && days === d;
-                return (
-                  <button
-                    key={d}
-                    onClick={() => { setIsCustomDays(false); setDays(d); setMaxDays(null); setMaxInput(""); }}
-                    className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${
-                      active ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/40"
-                    }`}
-                  >
-                    {d} días
-                  </button>
-                );
-              })}
-              {/* Punto 12 (Pablo): el modo personalizado es un estado propio, para que el input
-                  no desaparezca mientras se escribe. */}
-              <button
-                onClick={() => { setIsCustomDays(true); setCustomDaysInput(""); }}
-                className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${
-                  isCustomDays ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/40"
-                }`}
-              >
-                Personalizado
-              </button>
-              {isCustomDays && (
-                <input
-                  type="number"
-                  min={1}
-                  max={999}
-                  placeholder="Días"
-                  value={customDaysInput}
-                  onChange={(e) => setCustomDaysInput(e.target.value)}
-                  onBlur={() => { const v = parseInt(customDaysInput); if (v > 0) setDays(v); }}
-                  onKeyDown={(e) => { if (e.key !== "Enter") return; const v = parseInt(customDaysInput); if (v > 0) setDays(v); }}
-                  className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue"
-                />
-              )}
-            </div>
-          </div>
-
-          <div>
-            <p className="mb-2 text-xs font-semibold text-brand-gray">O un rango: entre … y … días sin venir</p>
+            <p className="mb-2 text-xs font-semibold text-brand-gray">Días sin venir (elige un rango o escríbelo)</p>
             <div className="-mx-1 flex flex-wrap items-center gap-2 px-1">
               {RANGE_PRESETS.map((r) => {
-                const active = !isCustomDays && days === r.min && (r.max ?? null) === maxDays;
+                const active = days === r.min && (r.max ?? null) === maxDays;
                 return (
                   <button key={`${r.min}-${r.max}`}
-                    onClick={() => { setIsCustomDays(false); setDays(r.min); setMaxDays(r.max); setMaxInput(r.max ? String(r.max) : ""); }}
+                    onClick={() => { setDays(r.min); setMaxDays(r.max); setMinInput(String(r.min)); setMaxInput(r.max ? String(r.max) : ""); }}
                     className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${active ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/40"}`}>
                     {r.max ? `${r.min}–${r.max} días` : `${r.min}+ días`}
                   </button>
                 );
               })}
-              <span className="ml-1 flex items-center gap-1.5 text-sm text-brand-gray">
-                Hasta
-                <input type="number" min={days} max={999} placeholder="sin tope" value={maxInput} onChange={(e) => setMaxInput(e.target.value)}
-                  onBlur={() => { const v = parseInt(maxInput); setMaxDays(v >= days ? v : null); if (!(v >= days)) setMaxInput(""); }}
-                  onKeyDown={(e) => { if (e.key !== "Enter") return; const v = parseInt(maxInput); setMaxDays(v >= days ? v : null); }}
-                  className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue" />
-                días
-              </span>
+            </div>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-brand-gray">
+              Entre
+              <input type="number" min={0} max={999} value={minInput} onChange={(e) => setMinInput(e.target.value)}
+                onBlur={() => { const v = parseInt(minInput); if (v >= 0) { setDays(v); if (maxDays && maxDays < v) { setMaxDays(null); setMaxInput(""); } } else setMinInput(String(days)); }}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue" />
+              y
+              <input type="number" min={days} max={999} placeholder="sin tope" value={maxInput} onChange={(e) => setMaxInput(e.target.value)}
+                onBlur={() => { const v = parseInt(maxInput); if (v >= days) setMaxDays(v); else { setMaxDays(null); setMaxInput(""); } }}
+                onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
+                className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue" />
+              días sin venir
             </div>
           </div>
 
@@ -348,7 +304,7 @@ export default function RetencionPage() {
           <span>
             <span className="block font-medium text-brand-dark">Incluir a quienes nunca han venido</span>
             <span className="block text-xs text-brand-gray">
-              Son clientes nuevos o importados sin ninguna visita registrada: no "dejaron de venir", solo llevan {days}+ días registrados.
+              Son clientes nuevos o importados sin ninguna visita registrada: no "dejaron de venir", solo llevan {rangeLabel} registrados.
               {stats.neverVisited > 0 && (includeNever ? ` Hay ${stats.neverVisited} en esta lista.` : ` Hay ${stats.neverVisited} que no se muestran ni reciben mensajes.`)}
             </span>
           </span>
@@ -379,7 +335,7 @@ export default function RetencionPage() {
       </Panel>
 
       {/* Lista */}
-      <Panel title={`Clientes inactivos (${clients.length})`} subtitle={`${rangeLabel} sin venir`} flush
+      <Panel title={`Clientes en este rango (${clients.length})`} subtitle={`${rangeLabel} sin venir`} flush
         action={
           <label className="flex items-center gap-2 text-xs font-semibold text-brand-gray">
             Ordenar

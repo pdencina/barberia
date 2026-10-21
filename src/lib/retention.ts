@@ -1,5 +1,6 @@
 import type { createAdminSupabase } from "@/lib/supabase/server";
 import { todayInChile, toChileDateStr, daysBetweenDateStrs } from "@/lib/utils";
+import { fetchAllRows } from "@/lib/accounting";
 
 // Fuente UNICA de "quien esta inactivo" — la usan la pantalla de Retencion y el envio
 // masivo, para que el numero que ves en pantalla sea exactamente el que recibe el mensaje
@@ -37,15 +38,16 @@ export async function getInactiveClients(
   const includeNever = opts.includeNever !== false;
   // Ley 21.719: no se escribe a quien pidio no ser contactado ni a quien rechazo las promociones (migracion 101).
   // Si la migracion aun no esta, se trabaja como antes (sin esa marca).
+  // Supabase entrega como maximo 1.000 filas por consulta: se lee por paginas para no perder clientes ni visitas
+  // (antes un negocio con mas de 1.000 clientes quedaba con una parte al azar y sus visitas "desaparecian").
   let optedOut = new Set<string>();
-  let { data: clients, error: clientsErr } = await supabase
-    .from("clients")
-    .select("id, name, email, phone, created_at, marketing_consent, do_not_contact")
-    .eq("tenant_id", tenantId);
-  if (clientsErr) {
-    ({ data: clients } = await supabase.from("clients").select("id, name, email, phone, created_at").eq("tenant_id", tenantId) as any);
-  } else {
-    optedOut = new Set((clients || []).filter((c: any) => c.do_not_contact === true || c.marketing_consent === false).map((c: any) => c.id));
+  let clients: any[];
+  try {
+    clients = await fetchAllRows(() => supabase.from("clients").select("id, name, email, phone, created_at, marketing_consent, do_not_contact").eq("tenant_id", tenantId));
+    optedOut = new Set(clients.filter((c: any) => c.do_not_contact === true || c.marketing_consent === false).map((c: any) => c.id));
+  } catch {
+    // Falta la migracion 101: se trabaja como antes (sin esa marca).
+    clients = await fetchAllRows(() => supabase.from("clients").select("id, name, email, phone, created_at").eq("tenant_id", tenantId));
   }
   if (!clients || clients.length === 0) return { total: 0, inactive: [], neverVisited: 0 };
 
@@ -56,30 +58,38 @@ export async function getInactiveClients(
     .single();
   const retentionStartDate: string | null = tenantRow?.retention_start_date || tenantRow?.created_at || null;
 
-  const clientIds = clients.map((c) => c.id);
-
-  let apptQuery = supabase
-    .from("appointments")
-    .select("client_id, date")
-    .eq("status", "completed")
-    .in("client_id", clientIds)
-    .order("date", { ascending: false });
-  if (retentionStartDate) apptQuery = apptQuery.gte("date", retentionStartDate);
-  const { data: appointments } = await apptQuery;
-
+  // Una VISITA es un dia en que el cliente tuvo una cita completada o una venta cobrada (despues del inicio real del negocio).
+  // Se usan las dos porque no todo el que viene tiene cita: un cobro directo en el Punto de Venta tambien es una visita.
+  // Se cuenta un dia una sola vez (una cita cobrada en caja genera cita completada y venta).
+  const visitDays = new Set<string>();
   const lastVisitMap: Record<string, string> = {};
   const visitCountMap: Record<string, number> = {};
-  for (const a of appointments || []) {
-    if (!lastVisitMap[a.client_id]) lastVisitMap[a.client_id] = a.date;
-    visitCountMap[a.client_id] = (visitCountMap[a.client_id] || 0) + 1;
-  }
+  const addVisit = (clientId: string | null, day: string | null) => {
+    if (!clientId || !day) return;
+    const key = `${clientId}|${day}`;
+    if (visitDays.has(key)) return;
+    visitDays.add(key);
+    visitCountMap[clientId] = (visitCountMap[clientId] || 0) + 1;
+    if (!lastVisitMap[clientId] || day > lastVisitMap[clientId]) lastVisitMap[clientId] = day;
+  };
 
-  const { data: future } = await supabase
-    .from("appointments")
-    .select("client_id")
-    .in("client_id", clientIds)
-    .in("status", ["scheduled", "confirmed", "in_progress"])
-    .gte("date", todayInChile());
+  const appointments = await fetchAllRows(() => {
+    let q = supabase.from("appointments").select("id, client_id, date").eq("tenant_id", tenantId).eq("status", "completed").not("client_id", "is", null);
+    if (retentionStartDate) q = q.gte("date", retentionStartDate);
+    return q;
+  });
+  for (const a of appointments) addVisit(a.client_id, a.date);
+
+  const sales = await fetchAllRows(() => {
+    let q = supabase.from("transactions").select("id, client_id, created_at").eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed").not("client_id", "is", null);
+    if (retentionStartDate) q = q.gte("created_at", retentionStartDate);
+    return q;
+  });
+  for (const t of sales) addVisit(t.client_id, toChileDateStr(t.created_at));
+
+  const future = await fetchAllRows(() =>
+    supabase.from("appointments").select("id, client_id").eq("tenant_id", tenantId).in("status", ["scheduled", "confirmed", "in_progress"]).gte("date", todayInChile()).not("client_id", "is", null)
+  );
   const upcoming = new Set((future || []).map((f: any) => f.client_id));
 
   const today = todayInChile();
