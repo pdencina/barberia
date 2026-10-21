@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
-import { todayInChile } from "@/lib/utils";
+import { fetchAllRows } from "@/lib/accounting";
+import { loadVisitInfo } from "@/lib/retention";
 
-// GET: Get all clients with phones for WhatsApp broadcast
+// GET: clientes con telefono para la lista de difusion de WhatsApp, con su ultima visita REAL.
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
@@ -17,61 +18,28 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([]);
   }
 
-  // Get clients with phone numbers, scoped to this business.
-  let query = supabase
-    .from("clients")
-    .select("id, name, phone, email")
-    .not("phone", "is", null)
-    .eq("tenant_id", tenantId);
-  query = query.neq("phone", "").order("name");
-
-  const { data: clients } = await query;
-
-  // Ultima visita REAL de cada cliente. Mismo criterio que la pantalla de Retencion: solo
-  // visitas completadas y posteriores a tenants.retention_start_date (o a la creacion del
-  // negocio) — las anteriores son datos de importacion/pruebas y no son confiables.
-  const clientIds = (clients || []).map((c) => c.id);
-  const { data: tenantRow } = await supabase
-    .from("tenants")
-    .select("retention_start_date, created_at")
-    .eq("id", tenantId)
-    .single();
-  const retentionStartDate = tenantRow?.retention_start_date || tenantRow?.created_at || null;
-
-  const lastVisits: Record<string, string> = {};
-  const upcoming = new Set<string>();
-  if (clientIds.length > 0) {
-    let doneQuery = supabase
-      .from("appointments")
-      .select("client_id, date")
-      .in("client_id", clientIds)
-      .eq("status", "completed")
-      .order("date", { ascending: false });
-    if (retentionStartDate) doneQuery = doneQuery.gte("date", retentionStartDate);
-    const { data: appointments } = await doneQuery;
-    for (const appt of appointments || []) {
-      if (!lastVisits[appt.client_id]) lastVisits[appt.client_id] = appt.date;
-    }
-
-    // Clientes con una cita por venir (agendada/confirmada): NO son "inactivos" aunque su
-    // ultima visita sea vieja, y no tiene sentido pedirles que vuelvan.
-    const { data: future } = await supabase
-      .from("appointments")
-      .select("client_id")
-      .in("client_id", clientIds)
-      .in("status", ["scheduled", "confirmed", "in_progress"])
-      .gte("date", todayInChile());
-    for (const f of future || []) upcoming.add(f.client_id);
+  // Clientes con telefono de ESTE negocio. Se leen por paginas: Supabase entrega como maximo 1.000 filas por consulta y,
+  // antes, un negocio con mas clientes quedaba con 1.000 al azar (y la pantalla mostraba "1000").
+  // Ley 21.719: se excluye a quien pidio no ser contactado o rechazo las promociones (migracion 101; si falta, se omite).
+  const base = () => supabase.from("clients").select("id, name, phone, email").not("phone", "is", null).neq("phone", "").eq("tenant_id", tenantId);
+  let clients: any[];
+  try {
+    clients = await fetchAllRows(() => supabase.from("clients").select("id, name, phone, email, marketing_consent, do_not_contact").not("phone", "is", null).neq("phone", "").eq("tenant_id", tenantId));
+    clients = clients.filter((c) => c.do_not_contact !== true && c.marketing_consent !== false);
+  } catch {
+    clients = await fetchAllRows(base);
   }
+  clients.sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
 
-  const result = (clients || []).map((c) => ({
+  // Ultima visita REAL (cita completada o venta cobrada, desde el inicio real del negocio): mismo calculo que Retencion.
+  const { lastVisitMap, upcoming } = await loadVisitInfo(supabase, tenantId);
+
+  return NextResponse.json(clients.map((c) => ({
     id: c.id,
     name: c.name,
     phone: c.phone,
     email: c.email,
-    lastVisit: lastVisits[c.id] || null,
+    lastVisit: lastVisitMap[c.id] || null,
     hasUpcoming: upcoming.has(c.id),
-  }));
-
-  return NextResponse.json(result);
+  })));
 }

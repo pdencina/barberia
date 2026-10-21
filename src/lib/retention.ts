@@ -26,31 +26,16 @@ export interface RetentionClient {
   hasUpcoming: boolean;
 }
 
-export async function getInactiveClients(
-  supabase: ReturnType<typeof createAdminSupabase>,
-  tenantId: string,
-  days: number,
-  // includeNever: true (por defecto, como siempre) cuenta tambien a quien NUNCA tuvo una visita registrada (clientes nuevos o
-  // importados): su reloj parte en la fecha de registro y no significa que "dejaron de venir". La pantalla de Retencion y el
-  // envio masivo piden false para hablarle solo a quien SI vino alguna vez, y avisan cuantos quedan fuera.
-  opts: { includeNever?: boolean; maxDays?: number | null } = {}
-): Promise<{ total: number; inactive: RetentionClient[]; neverVisited: number }> {
-  const includeNever = opts.includeNever !== false;
-  // Ley 21.719: no se escribe a quien pidio no ser contactado ni a quien rechazo las promociones (migracion 101).
-  // Si la migracion aun no esta, se trabaja como antes (sin esa marca).
-  // Supabase entrega como maximo 1.000 filas por consulta: se lee por paginas para no perder clientes ni visitas
-  // (antes un negocio con mas de 1.000 clientes quedaba con una parte al azar y sus visitas "desaparecian").
-  let optedOut = new Set<string>();
-  let clients: any[];
-  try {
-    clients = await fetchAllRows(() => supabase.from("clients").select("id, name, email, phone, created_at, marketing_consent, do_not_contact").eq("tenant_id", tenantId));
-    optedOut = new Set(clients.filter((c: any) => c.do_not_contact === true || c.marketing_consent === false).map((c: any) => c.id));
-  } catch {
-    // Falta la migracion 101: se trabaja como antes (sin esa marca).
-    clients = await fetchAllRows(() => supabase.from("clients").select("id, name, email, phone, created_at").eq("tenant_id", tenantId));
-  }
-  if (!clients || clients.length === 0) return { total: 0, inactive: [], neverVisited: 0 };
-
+/**
+ * Visitas REALES de los clientes de un negocio, leidas por paginas (sin el tope de 1.000 filas) y filtradas por negocio.
+ * Compartida por Retencion, el envio masivo y la pantalla de WhatsApp, para que las tres muestren lo mismo.
+ */
+export async function loadVisitInfo(supabase: ReturnType<typeof createAdminSupabase>, tenantId: string): Promise<{
+  retentionStartDate: string | null;
+  lastVisitMap: Record<string, string>;
+  visitCountMap: Record<string, number>;
+  upcoming: Set<string>;
+}> {
   const { data: tenantRow } = await supabase
     .from("tenants")
     .select("retention_start_date, created_at")
@@ -91,6 +76,35 @@ export async function getInactiveClients(
     supabase.from("appointments").select("id, client_id").eq("tenant_id", tenantId).in("status", ["scheduled", "confirmed", "in_progress"]).gte("date", todayInChile()).not("client_id", "is", null)
   );
   const upcoming = new Set((future || []).map((f: any) => f.client_id));
+  return { retentionStartDate, lastVisitMap, visitCountMap, upcoming };
+}
+
+export async function getInactiveClients(
+  supabase: ReturnType<typeof createAdminSupabase>,
+  tenantId: string,
+  days: number,
+  // includeNever: true (por defecto, como siempre) cuenta tambien a quien NUNCA tuvo una visita registrada (clientes nuevos o
+  // importados): su reloj parte en la fecha de registro y no significa que "dejaron de venir". La pantalla de Retencion y el
+  // envio masivo piden false para hablarle solo a quien SI vino alguna vez, y avisan cuantos quedan fuera.
+  opts: { includeNever?: boolean; maxDays?: number | null } = {}
+): Promise<{ total: number; inactive: RetentionClient[]; neverVisited: number }> {
+  const includeNever = opts.includeNever !== false;
+  // Ley 21.719: no se escribe a quien pidio no ser contactado ni a quien rechazo las promociones (migracion 101).
+  // Si la migracion aun no esta, se trabaja como antes (sin esa marca).
+  // Supabase entrega como maximo 1.000 filas por consulta: se lee por paginas para no perder clientes ni visitas
+  // (antes un negocio con mas de 1.000 clientes quedaba con una parte al azar y sus visitas "desaparecian").
+  let optedOut = new Set<string>();
+  let clients: any[];
+  try {
+    clients = await fetchAllRows(() => supabase.from("clients").select("id, name, email, phone, created_at, marketing_consent, do_not_contact").eq("tenant_id", tenantId));
+    optedOut = new Set(clients.filter((c: any) => c.do_not_contact === true || c.marketing_consent === false).map((c: any) => c.id));
+  } catch {
+    // Falta la migracion 101: se trabaja como antes (sin esa marca).
+    clients = await fetchAllRows(() => supabase.from("clients").select("id, name, email, phone, created_at").eq("tenant_id", tenantId));
+  }
+  if (!clients || clients.length === 0) return { total: 0, inactive: [], neverVisited: 0 };
+
+  const { retentionStartDate, lastVisitMap, visitCountMap, upcoming } = await loadVisitInfo(supabase, tenantId);
 
   const today = todayInChile();
   const inactive = clients
