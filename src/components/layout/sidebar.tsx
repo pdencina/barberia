@@ -113,6 +113,7 @@ const sections: NavSection[] = [
           { name: "Arriendo", href: "/dashboard/arriendo", icon: KeyRound, minRole: "admin", feature: "rental", basicLocked: true },
           { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
           { name: "Proveedores", href: "/dashboard/proveedores", icon: Truck, minRole: "admin", basicLocked: true },
+          { name: "Mensajes de WhatsApp", href: "/dashboard/mi-negocio/mensajes", icon: MessageCircle, minRole: "admin" },
           { name: "Remuneraciones", href: "/dashboard/remuneraciones", icon: FileText, minRole: "super_admin" }, // oculto a los negocios hasta terminar las pruebas
         ],
       },
