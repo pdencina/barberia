@@ -11,6 +11,8 @@ FROM clients WHERE name ~* '(^|\s)(null|undefined)(\s|$)' ORDER BY created_at DE
 
 -- 2) RESPALDO de los nombres originales (no pisa uno ya guardado).
 CREATE TABLE IF NOT EXISTS clients_nombres_respaldo (id uuid PRIMARY KEY, name_original text NOT NULL, respaldado_at timestamptz NOT NULL DEFAULT now());
+-- Datos personales: la tabla queda protegida (solo el servidor la lee; las llaves publicas del navegador no).
+ALTER TABLE clients_nombres_respaldo ENABLE ROW LEVEL SECURITY;
 INSERT INTO clients_nombres_respaldo (id, name_original)
 SELECT id, name FROM clients WHERE name ~* '(^|\s)(null|undefined)(\s|$)'
 ON CONFLICT (id) DO NOTHING;
