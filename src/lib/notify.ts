@@ -10,7 +10,8 @@ import { sendPush } from "@/lib/push";
 export type NotifyKind =
   | "appointment_new" | "appointment_changed" | "client_arrived"
   | "planilla_created" | "planilla_approved"
-  | "announcement" | "cash_problem" | "supply_request";
+  | "announcement" | "cash_problem" | "supply_request"
+  | "cash_closed" | "cash_mismatch";
 
 // `essential`: no se puede silenciar. `generic`: texto para pantalla bloqueada (sin nombres ni montos).
 export const NOTIFY_KINDS: Record<NotifyKind, { label: string; essential: boolean; generic: { title: string; body: string } }> = {
@@ -22,6 +23,8 @@ export const NOTIFY_KINDS: Record<NotifyKind, { label: string; essential: boolea
   announcement:        { label: "Avisos del administrador", essential: true, generic: { title: "Nuevo aviso de tu negocio", body: "Abre la app para leerlo." } },
   cash_problem:        { label: "Problemas de caja", essential: true, generic: { title: "Se reportó un problema de caja", body: "Revísalo en la app." } },
   supply_request:      { label: "Solicitudes de insumos", essential: false, generic: { title: "Nueva solicitud de insumos", body: "Revísala en la app." } },
+  cash_closed:         { label: "Cierre de caja (cuadró)", essential: false, generic: { title: "Se cerró una caja", body: "Abre la app para ver el detalle." } },
+  cash_mismatch:       { label: "Cierre de caja con diferencia", essential: true, generic: { title: "Una caja cerró con diferencia", body: "Revísala en la app." } },
 };
 
 export interface NotifyInput {
@@ -36,6 +39,7 @@ export interface NotifyInput {
   pushBody?: string;
   requiresAck?: boolean;
   groupId?: string;
+  professionalId?: string | null;   // profesional al que se refiere el aviso (cita): se filtra segun lo que cada persona eligio recibir
   createdBy?: string | null;
   createdByName?: string | null;
 }
@@ -51,6 +55,14 @@ function chileHHMM(): string {
 export function inQuietHours(now: string, start?: string | null, end?: string | null): boolean {
   if (!start || !end || start === end) return false;
   return start < end ? now >= start && now < end : now >= start || now < end; // cruza medianoche (22:00 a 08:00)
+}
+
+// ¿Esta persona quiere el aviso de una cita de ese profesional? (el aviso de SU propia cita siempre llega)
+export function wantsProfessional(pref: { pro_filter_mode?: string; pro_filter_ids?: string[] } | undefined, userId: string, professionalId: string): boolean {
+  const mode = pref?.pro_filter_mode || "all";
+  if (mode === "all" || userId === professionalId) return true;
+  if (mode === "selected") return (pref?.pro_filter_ids || []).includes(professionalId);
+  return false; // "own": solo las suyas
 }
 
 export interface NotifyResult { stored: number; pushed: number; centerEnabled: boolean }
@@ -84,10 +96,18 @@ export async function notify(input: NotifyInput): Promise<NotifyResult> {
     }
 
     // Preferencias de cada persona
-    const { data: prefsRows } = await supabase.from("notification_preferences").select("user_id, muted_kinds, quiet_start, quiet_end, hide_details").in("user_id", recipients);
+    // Con la migracion 114 vienen tambien los profesionales elegidos; sin ella se reintenta sin esas columnas.
+    let prefsRows: any[] | null = null;
+    const withFilter = await supabase.from("notification_preferences").select("user_id, muted_kinds, quiet_start, quiet_end, hide_details, pro_filter_mode, pro_filter_ids").in("user_id", recipients);
+    if (!withFilter.error) prefsRows = withFilter.data as any[];
+    else prefsRows = ((await supabase.from("notification_preferences").select("user_id, muted_kinds, quiet_start, quiet_end, hide_details").in("user_id", recipients)).data as any[]) || [];
     const prefs = new Map<string, any>((prefsRows || []).map((p: any) => [p.user_id, p]));
     if (!meta.essential) {
       recipients = recipients.filter((id) => !(prefs.get(id)?.muted_kinds || []).includes(input.kind));
+    }
+    // "De que profesionales quiero recibir avisos": todos (por defecto), solo los mios o los mios + algunos.
+    if (input.professionalId) {
+      recipients = recipients.filter((id) => wantsProfessional(prefs.get(id), id, input.professionalId as string));
     }
     if (recipients.length === 0) return out;
 

@@ -10,7 +10,10 @@ import { cn } from "@/lib/utils";
 
 interface Item { id: string; kind: string; title: string; body: string | null; url: string | null; requires_ack: boolean; read_at: string | null; ack_at: string | null; created_by_name: string | null; created_at: string }
 interface Sent { groupId: string; title: string; body: string | null; requiresAck: boolean; createdAt: string; total: number; read: number; acked: number }
-interface Prefs { mutedKinds: string[]; quietStart: string; quietEnd: string; hideDetails: boolean; kinds: Array<{ key: string; label: string; essential: boolean }> }
+interface Prefs {
+  mutedKinds: string[]; quietStart: string; quietEnd: string; hideDetails: boolean; kinds: Array<{ key: string; label: string; essential: boolean }>;
+  canFilter?: boolean; proFilterMode?: "all" | "own" | "selected"; proFilterIds?: string[]; professionals?: Array<{ id: string; name: string }>; filterMigrationMissing?: boolean;
+}
 interface Person { id: string; name: string; role: string }
 
 const notify = () => window.dispatchEvent(new Event("rb:notifications-changed"));
@@ -48,7 +51,7 @@ export default function AvisosPage() {
       const r = await fetch("/api/notificaciones/preferencias", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(prefs) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "No se pudo guardar");
-      showToast("Preferencias guardadas", "success");
+      showToast(d.warning || "Preferencias guardadas", d.warning ? "error" : "success");
     } catch (e: any) { showToast(e?.message || "No se pudo guardar", "error"); } finally { setSavingPrefs(false); }
   };
 
@@ -135,6 +138,39 @@ export default function AvisosPage() {
         <div className="space-y-4 rounded-xl border border-gray-100 bg-white p-4">
           {!prefs ? <p className="text-sm text-brand-gray">Cargando…</p> : (
             <>
+              {prefs.canFilter && (
+                <div className="space-y-2">
+                  <div>
+                    <p className="text-sm font-semibold text-brand-dark">¿De qué profesionales quieres recibir avisos de citas?</p>
+                    <p className="text-xs text-brand-gray">Nuevas citas y citas canceladas o cambiadas. Los avisos de caja, planilla y del administrador no dependen de esto.</p>
+                  </div>
+                  {([
+                    { v: "all", t: "De todos los profesionales", d: "Como hasta ahora." },
+                    { v: "own", t: "Solo las mías", d: "Solo las citas donde yo soy el profesional." },
+                    { v: "selected", t: "Las mías y las de profesionales que elija", d: "Marca abajo de quiénes." },
+                  ] as const).map((o) => (
+                    <label key={o.v} className="flex items-start gap-3 rounded-lg border border-gray-100 p-2.5">
+                      <input type="radio" name="pro-filter" className="mt-1" checked={(prefs.proFilterMode || "all") === o.v} onChange={() => setPrefs({ ...prefs, proFilterMode: o.v })} />
+                      <span><span className="block text-sm font-medium text-brand-dark">{o.t}</span><span className="block text-xs text-brand-gray">{o.d}</span></span>
+                    </label>
+                  ))}
+                  {prefs.proFilterMode === "selected" && (
+                    <div className="grid gap-1 rounded-lg bg-gray-50 p-2.5 sm:grid-cols-2">
+                      {(prefs.professionals || []).map((p) => {
+                        const on = (prefs.proFilterIds || []).includes(p.id);
+                        return (
+                          <label key={p.id} className="flex items-center gap-2 py-1 text-sm text-brand-dark">
+                            <input type="checkbox" className="h-4 w-4" checked={on}
+                              onChange={(e) => setPrefs({ ...prefs, proFilterIds: e.target.checked ? [...(prefs.proFilterIds || []), p.id] : (prefs.proFilterIds || []).filter((x) => x !== p.id) })} />
+                            {p.name}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
+                  {prefs.filterMigrationMissing && <p className="text-xs text-red-500">Falta aplicar la migración 114 en la base de datos: por ahora recibes avisos de todos.</p>}
+                </div>
+              )}
               <div>
                 <p className="mb-1 text-sm font-semibold text-brand-dark">¿Qué avisos quieres recibir?</p>
                 <div className="space-y-1">

@@ -233,7 +233,7 @@ export async function POST(req: NextRequest) {
   // call passed no recipient, so /api/push/send rejected it and nobody was notified.
   try {
     await notify({
-      tenantId, kind: "appointment_new",
+      tenantId, kind: "appointment_new", professionalId: barberId,
       userIds: [barberId], // the professional who got the appointment
       roles: ["admin", "receptionist"], // + reception/admins of this business
       title: "🚀 ¡Te agendaron una cita!",

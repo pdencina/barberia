@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
-import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
+import { todayInChile, chileDayBoundsUtc, formatCurrency } from "@/lib/utils";
+import { notify } from "@/lib/notify";
 import { tenantHasFeature } from "@/lib/plan-features";
 import { getWithdrawals, getCashCap, getAdjustments } from "@/lib/cash-withdrawals";
 
@@ -318,5 +319,29 @@ export async function PATCH(req: NextRequest) {
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Aviso a los administradores: se cerro la caja (y si hubo diferencia en la cuadratura). Quien cierra no se avisa a si mismo.
+  // Nunca rompe el cierre.
+  try {
+    const [{ data: biz }, { data: closer }, branch] = await Promise.all([
+      supabase.from("tenants").select("name").eq("id", tenantId).maybeSingle(),
+      caller.userId ? supabase.from("profiles").select("name").eq("id", caller.userId).maybeSingle() : Promise.resolve({ data: null }),
+      (register as any).branch_id ? supabase.from("branches").select("name").eq("id", (register as any).branch_id).maybeSingle() : Promise.resolve({ data: null }),
+    ]);
+    const where = (branch as any)?.data?.name || (biz as any)?.name || "tu negocio";
+    const who = (closer as any)?.name || "Alguien del equipo";
+    const diff = Math.round(difference);
+    const counted = formatCurrency(Number(closingAmount) || 0);
+    const expected = formatCurrency(Math.round(expectedAmount));
+    const result = diff === 0 ? "Cuadró exacto." : diff > 0 ? `Sobran ${formatCurrency(diff)}.` : `Faltan ${formatCurrency(-diff)}.`;
+    await notify({
+      tenantId, kind: diff === 0 ? "cash_closed" : "cash_mismatch", roles: ["admin"],
+      title: diff === 0 ? `🔒 Caja cerrada · ${where}` : `⚠️ Caja cerrada con diferencia · ${where}`,
+      body: `Cerró ${who}. Contado ${counted}, esperado ${expected}. ${result}`,
+      url: "/dashboard/caja", createdBy: caller.userId,
+    });
+  } catch (e) {
+    console.error("aviso de cierre de caja:", e);
+  }
   return NextResponse.json(data);
 }
