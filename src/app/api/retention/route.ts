@@ -8,7 +8,8 @@ export async function GET(req: NextRequest) {
   // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
   // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
   const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
-  const days = Math.max(1, parseInt(searchParams.get("days") || "30") || 30);
+  const daysRaw = parseInt(searchParams.get("days") || "");
+  const days = Number.isFinite(daysRaw) ? Math.max(0, daysRaw) : 30; // 0 = "0 a N dias": incluye a quien vino hoy
 
   if (!tenantId || tenantId === "ALL") {
     return NextResponse.json({ clients: [], stats: { total: 0, inactive: 0, percentage: 0, contactable: 0 } });
