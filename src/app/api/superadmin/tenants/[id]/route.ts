@@ -55,7 +55,7 @@ const EDITABLE_FIELDS = [
   "whatsapp_quota_override", "email_quota_override",
   // Rubro del negocio y carga de documentos en la ficha de cliente (Nico, 28-sep,
   // migracion 078).
-  "business_category", "client_files_enabled",
+  "business_category",
 ] as const;
 
 // PATCH: editar datos de una empresa (Punto de Pablo, 25-sep). El slug NO es editable
