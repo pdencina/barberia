@@ -3,6 +3,7 @@ import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/ser
 import { tenantBookingUrl } from "@/lib/retention";
 import { sendRetentionEmail } from "@/lib/resend";
 import { tryConsumeQuota } from "@/lib/message-quota";
+import { buildRetentionWhatsApp } from "@/lib/retention-message";
 
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -90,14 +91,7 @@ export async function POST(req: NextRequest) {
     const phone = client.phone.replace(/\D/g, "").replace(/^0/, "56");
     const whatsappPhone = phone.startsWith("56") ? phone : `56${phone}`;
 
-    let whatsappMessage = message || `Hola ${client.name}! Te extrañamos. Agenda tu proxima cita.`;
-    if (couponDetails) {
-      const discount = couponDetails.discount_type === "percentage"
-        ? `${couponDetails.discount_value}%`
-        : `$${Number(couponDetails.discount_value).toLocaleString("es-CL")}`;
-      whatsappMessage += `\n\nTenemos un cupon de descuento para ti: ${couponDetails.code} (${discount} off)`;
-    }
-    whatsappMessage += `\n\nAgenda aqui: ${bookingUrl}`;
+    const whatsappMessage = buildRetentionWhatsApp({ clientName: client.name, message, coupon: couponDetails as any, bookingUrl });
 
     const whatsappUrl = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 

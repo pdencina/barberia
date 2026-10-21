@@ -5,6 +5,7 @@ import { getInactiveClients, dedupeBy, tenantBookingUrl } from "@/lib/retention"
 import { formatPhoneCL } from "@/lib/phone";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { tenantHasFeature } from "@/lib/plan-features";
+import { buildRetentionWhatsApp } from "@/lib/retention-message";
 
 // POST: Send retention message to inactive clients OF THIS BUSINESS.
 //
@@ -17,7 +18,7 @@ import { tenantHasFeature } from "@/lib/plan-features";
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { days, couponCode, message, type, preview } = body; // type: 'email' | 'whatsapp'
+  const { days, couponCode, message, type, preview, includeNever } = body; // type: 'email' | 'whatsapp'
 
   // Resolve and REQUIRE a single tenant. This is the fix for the cross-business leak:
   // the query below used to hit every client of every business (service-role bypasses
@@ -43,7 +44,7 @@ export async function POST(req: NextRequest) {
   // "Quien esta inactivo" sale de la MISMA funcion que usa la pantalla de Retencion
   // (lib/retention): mismo corte de dias, misma ventana desde el inicio real del negocio y
   // sin clientes que ya tienen una cita por venir.
-  const { inactive: inactiveClients } = await getInactiveClients(supabase, tenantId, days || 30);
+  const { inactive: inactiveClients } = await getInactiveClients(supabase, tenantId, days || 30, { includeNever: includeNever === true });
   const bookingUrl = await tenantBookingUrl(supabase, tenantId);
 
   // Detalle del cupon (del propio negocio) para el correo: sin esto el correo decia
@@ -129,9 +130,7 @@ export async function POST(req: NextRequest) {
       }
       const phone = c.phone!.replace(/\D/g, "").replace(/^0/, "56");
       const whatsappPhone = phone.startsWith("56") ? phone : `56${phone}`;
-      let msg = message || `Hola ${c.name}! Te extrañamos.`;
-      if (couponCode) msg += `\n\nUsa tu cupon: ${couponCode}`;
-      msg += `\n\nAgenda: ${bookingUrl}`;
+      const msg = buildRetentionWhatsApp({ clientName: c.name, message, coupon: coupon as any, bookingUrl });
 
       links.push({
         name: c.name,

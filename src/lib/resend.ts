@@ -284,7 +284,8 @@ interface SendRetentionEmailParams {
   bookingUrl?: string | null;
 }
 
-export async function sendRetentionEmail(params: SendRetentionEmailParams) {
+// Arma el correo de retencion (asunto + HTML). Lo usa el envio real y la vista previa de Retencion.
+export function buildRetentionEmail(params: SendRetentionEmailParams): { subject: string; html: string } {
   const { to, couponCode, couponDescription, discountType, discountValue } = params;
   // El nombre y el mensaje los escribe el negocio/cliente: se escapan antes de ir al HTML.
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -324,11 +325,16 @@ export async function sendRetentionEmail(params: SendRetentionEmailParams) {
     <div style="text-align:center;margin:26px 0 4px;"><a href="${bookingUrl}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:13px 32px;border-radius:10px;font-weight:700;font-size:15px;">Agendar ahora</a></div>`,
   });
 
+  return { subject: `Te extrañamos ${params.clientName}! | re-booking`, html };
+}
+
+export async function sendRetentionEmail(params: SendRetentionEmailParams) {
+  const { subject, html } = buildRetentionEmail(params);
   const resend = getResendClient();
   await resend.emails.send({
     from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
-    to,
-    subject: `Te extrañamos ${params.clientName}! | re-booking`,
+    to: params.to,
+    subject,
     html,
   });
 }
