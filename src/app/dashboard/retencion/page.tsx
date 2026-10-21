@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, UserMinus, Percent, Mail, MessageCircle, HeartHandshake, Send } from "lucide-react";
+import { Users, UserMinus, Percent, Mail, MessageCircle, HeartHandshake, Send, Eye } from "lucide-react";
 import { PageHeader, StatCard, Panel, primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
 import { MessageQuotaBar } from "@/components/dashboard/message-quota-bar";
 import { formatPhoneCL } from "@/lib/phone";
@@ -23,7 +23,13 @@ const DAY_PRESETS = [15, 30, 45, 60, 90, 120, 180, 365];
 
 export default function RetencionPage() {
   const [clients, setClients] = useState<InactiveClient[]>([]);
-  const [stats, setStats] = useState({ total: 0, inactive: 0, percentage: 0, contactable: 0 });
+  const [stats, setStats] = useState({ total: 0, inactive: 0, percentage: 0, contactable: 0, neverVisited: 0 });
+  // Por defecto solo clientes que SI vinieron alguna vez. Los que nunca tuvieron una visita registrada (nuevos o importados)
+  // no "dejaron de venir": se suman solo si se pide. Lo que se ve en pantalla es lo mismo que recibe el envio masivo.
+  const [includeNever, setIncludeNever] = useState(false);
+  const [bookingUrl, setBookingUrl] = useState("");
+  const [previewTab, setPreviewTab] = useState<"whatsapp" | "email">("whatsapp");
+  const [msgPreview, setMsgPreview] = useState<{ whatsapp: string; emailSubject: string; emailHtml: string } | null>(null);
   const [quotaRefresh, setQuotaRefresh] = useState(0);
   const [days, setDays] = useState(30);
   // Punto 12 (Pablo): "Personalizado..." ponia days=0, y el input numerico solo se
@@ -34,7 +40,7 @@ export default function RetencionPage() {
   const [isCustomDays, setIsCustomDays] = useState(false);
   const [customDaysInput, setCustomDaysInput] = useState("");
   const [loading, setLoading] = useState(true);
-  const [coupons, setCoupons] = useState<Array<{ code: string; description: string }>>([]);
+  const [coupons, setCoupons] = useState<Array<{ code: string; description: string; discount_type?: string; discount_value?: number }>>([]);
   const [selectedCoupon, setSelectedCoupon] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -51,7 +57,7 @@ export default function RetencionPage() {
       const previewRes = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", preview: true }),
+        body: JSON.stringify({ days, includeNever, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", preview: true }),
       });
       const preview = await previewRes.json();
       if (!previewRes.ok) { showToast(preview.error || "No se pudo preparar el envio", "error"); return; }
@@ -69,7 +75,7 @@ export default function RetencionPage() {
       const res = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, couponCode: selectedCoupon || null, message: customMessage || null, type: "email" }),
+        body: JSON.stringify({ days, includeNever, couponCode: selectedCoupon || null, message: customMessage || null, type: "email" }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Error al enviar", "error"); return; }
@@ -92,7 +98,7 @@ export default function RetencionPage() {
   const copyForBroadcast = async () => {
     setBulkSending(true);
     try {
-      const body = { days, couponCode: selectedCoupon || null, message: customMessage || null, type: "whatsapp" };
+      const body = { days, includeNever, couponCode: selectedCoupon || null, message: customMessage || null, type: "whatsapp" };
       const previewRes = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -115,8 +121,11 @@ export default function RetencionPage() {
       if (!res.ok) { showToast(data.error || "Error al preparar la lista", "error"); return; }
       if (data.links && data.links.length > 0) {
         const phones = data.links.map((l: any) => formatPhoneCL(l.phone)).join("\n");
-        const msg = customMessage || "Te extrañamos! Agenda tu cita.";
-        const fullText = `MENSAJE:\n${msg}${selectedCoupon ? `\n\nCupon: ${selectedCoupon}` : ""}\n\n---\nDESTINATARIOS (${data.links.length}):\n${phones}`;
+        // Mismo texto que ve el cliente, pero sin nombre propio (la misma lista de difusion le llega a todos).
+        const generic = await fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, clientName: "" }) })
+          .then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        const msg = generic?.whatsapp || customMessage || "Te extrañamos! Agenda tu cita.";
+        const fullText = `MENSAJE:\n${msg}\n\n---\nDESTINATARIOS (${data.links.length}):\n${phones}`;
         await navigator.clipboard.writeText(fullText);
         showToast(
           data.quotaExceeded
@@ -138,18 +147,29 @@ export default function RetencionPage() {
   const fetchData = async () => {
     setLoading(true);
     const [retRes, coupRes] = await Promise.all([
-      fetch(`/api/retention?days=${days}`),
+      fetch(`/api/retention?days=${days}${includeNever ? "&includeNever=1" : ""}`),
       fetch("/api/cupones"),
     ]);
     const retData = await retRes.json();
     const coupData = await coupRes.json();
     setClients(retData.clients || []);
-    setStats(retData.stats || { total: 0, inactive: 0, percentage: 0, contactable: 0 });
+    setStats(retData.stats || { total: 0, inactive: 0, percentage: 0, contactable: 0, neverVisited: 0 });
+    setBookingUrl(retData.bookingUrl || "");
     setCoupons(Array.isArray(coupData) ? coupData : []);
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [days]);
+  useEffect(() => { fetchData(); }, [days, includeNever]);
+
+  // Vista previa de lo que recibira el cliente (se actualiza al cambiar cupon o mensaje).
+  const sampleName = clients[0]?.name || "Matías Pérez";
+  useEffect(() => {
+    const t = setTimeout(() => {
+      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, clientName: sampleName }) })
+        .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.whatsapp) setMsgPreview(d); }).catch(() => {});
+    }, 350);
+    return () => clearTimeout(t);
+  }, [selectedCoupon, customMessage, sampleName]);
 
   const notifyClient = async (clientId: string, type: "email" | "whatsapp") => {
     setSendingId(`${clientId}-${type}`);
@@ -179,8 +199,9 @@ export default function RetencionPage() {
     }
   };
 
-  const withEmail = clients.filter((c) => c.email).length;
-  const withPhone = clients.filter((c) => c.phone).length;
+  // Mismos numeros que usa el envio: un correo / un telefono se cuenta una sola vez.
+  const withEmail = new Set(clients.filter((c) => c.email).map((c) => c.email!.trim().toLowerCase())).size;
+  const withPhone = new Set(clients.filter((c) => c.phone).map((c) => c.phone!.replace(/\D/g, ""))).size;
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6 animate-fade-in">
@@ -263,7 +284,7 @@ export default function RetencionPage() {
               <select value={selectedCoupon} onChange={(e) => setSelectedCoupon(e.target.value)} className={inputClass}>
                 <option value="">Sin cupón</option>
                 {coupons.map((c: any) => (
-                  <option key={c.code} value={c.code}>{c.code} - {c.description}</option>
+                  <option key={c.code} value={c.code}>{c.code}{c.discount_value != null ? ` · ${c.discount_type === "percentage" ? `${c.discount_value}%` : `$${Number(c.discount_value).toLocaleString("es-CL")}`} de descuento` : ""}{c.description ? ` · ${c.description}` : ""}</option>
                 ))}
               </select>
             </div>
@@ -279,6 +300,43 @@ export default function RetencionPage() {
             </div>
           </div>
         </div>
+      </Panel>
+
+      {/* Quien entra en la lista */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-4 text-sm shadow-sm dark:border-white/10 dark:bg-brand-white">
+        <label className="flex items-start gap-3">
+          <input type="checkbox" checked={includeNever} onChange={(e) => setIncludeNever(e.target.checked)} className="mt-1 h-5 w-5" />
+          <span>
+            <span className="block font-medium text-brand-dark">Incluir a quienes nunca han venido</span>
+            <span className="block text-xs text-brand-gray">
+              Son clientes nuevos o importados sin ninguna visita registrada: no "dejaron de venir", solo llevan {days}+ días registrados.
+              {stats.neverVisited > 0 && (includeNever ? ` Hay ${stats.neverVisited} en esta lista.` : ` Hay ${stats.neverVisited} que no se muestran ni reciben mensajes.`)}
+            </span>
+          </span>
+        </label>
+        <p className="mt-2 text-xs text-brand-gray">Lo que ves abajo es exactamente a quién le llegará el email masivo o la lista de difusión.</p>
+      </div>
+
+      {/* Vista previa */}
+      <Panel title="Así lo recibirá el cliente" subtitle={`Ejemplo con ${sampleName.split(" ")[0]}. No envía nada ni gasta cupo.`}>
+        <div className="mb-3 inline-flex rounded-xl border border-gray-100 bg-brand-light p-1 text-sm">
+          {(["whatsapp", "email"] as const).map((k) => (
+            <button key={k} onClick={() => setPreviewTab(k)}
+              className={`flex items-center gap-1.5 rounded-lg px-4 py-1.5 font-semibold transition-all ${previewTab === k ? "bg-brand-blue text-white shadow" : "text-brand-gray"}`}>
+              {k === "whatsapp" ? <MessageCircle className="h-4 w-4" /> : <Mail className="h-4 w-4" />} {k === "whatsapp" ? "WhatsApp" : "Correo"}
+            </button>
+          ))}
+        </div>
+        {!msgPreview ? <p className="text-sm text-brand-gray"><Eye className="mr-1 inline h-4 w-4" />Preparando vista previa…</p> : previewTab === "whatsapp" ? (
+          <div className="max-w-md rounded-2xl rounded-tl-sm bg-[#E7FFDB] p-3 text-sm text-gray-800 shadow-sm">
+            <p className="whitespace-pre-wrap break-words">{msgPreview.whatsapp}</p>
+          </div>
+        ) : (
+          <div>
+            <p className="mb-2 text-xs text-brand-gray">Asunto: <span className="font-medium text-brand-dark">{msgPreview.emailSubject}</span></p>
+            <iframe title="Vista previa del correo" sandbox="" srcDoc={msgPreview.emailHtml} className="h-[520px] w-full rounded-xl border border-gray-200 bg-white" />
+          </div>
+        )}
       </Panel>
 
       {/* Lista */}
@@ -314,11 +372,11 @@ export default function RetencionPage() {
                     <p className="text-[10px] uppercase tracking-wide text-brand-gray">{c.totalVisits === 1 ? "visita" : "visitas"}</p>
                   </div>
                   <div className="hidden w-28 text-center md:block">
-                    <p className="text-sm font-semibold text-brand-dark">{c.lastVisit ? new Date(c.lastVisit + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }) : "Nunca"}</p>
+                    <p className="text-sm font-semibold text-brand-dark">{c.lastVisit ? new Date(c.lastVisit + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }) : "Sin visitas"}</p>
                     <p className="text-[10px] uppercase tracking-wide text-brand-gray">última visita</p>
                   </div>
                   <span className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-bold tabular-nums ${tone}`}>
-                    {c.daysSinceVisit} {c.daysSinceVisit === 1 ? "día" : "días"}
+                    {c.lastVisit ? "" : "Registrado hace "}{c.daysSinceVisit} {c.daysSinceVisit === 1 ? "día" : "días"}
                   </span>
                   <div className="flex flex-shrink-0 gap-2">
                     {c.phone && (

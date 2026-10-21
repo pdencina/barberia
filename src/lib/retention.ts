@@ -28,8 +28,13 @@ export interface RetentionClient {
 export async function getInactiveClients(
   supabase: ReturnType<typeof createAdminSupabase>,
   tenantId: string,
-  days: number
-): Promise<{ total: number; inactive: RetentionClient[] }> {
+  days: number,
+  // includeNever: true (por defecto, como siempre) cuenta tambien a quien NUNCA tuvo una visita registrada (clientes nuevos o
+  // importados): su reloj parte en la fecha de registro y no significa que "dejaron de venir". La pantalla de Retencion y el
+  // envio masivo piden false para hablarle solo a quien SI vino alguna vez, y avisan cuantos quedan fuera.
+  opts: { includeNever?: boolean } = {}
+): Promise<{ total: number; inactive: RetentionClient[]; neverVisited: number }> {
+  const includeNever = opts.includeNever !== false;
   // Ley 21.719: no se escribe a quien pidio no ser contactado ni a quien rechazo las promociones (migracion 101).
   // Si la migracion aun no esta, se trabaja como antes (sin esa marca).
   let optedOut = new Set<string>();
@@ -42,7 +47,7 @@ export async function getInactiveClients(
   } else {
     optedOut = new Set((clients || []).filter((c: any) => c.do_not_contact === true || c.marketing_consent === false).map((c: any) => c.id));
   }
-  if (!clients || clients.length === 0) return { total: 0, inactive: [] };
+  if (!clients || clients.length === 0) return { total: 0, inactive: [], neverVisited: 0 };
 
   const { data: tenantRow } = await supabase
     .from("tenants")
@@ -96,7 +101,8 @@ export async function getInactiveClients(
     .filter((c) => !c.hasUpcoming && c.daysSinceVisit >= days && !optedOut.has(c.id))
     .sort((a, b) => b.daysSinceVisit - a.daysSinceVisit);
 
-  return { total: clients.length, inactive };
+  const neverVisited = inactive.filter((c) => !c.lastVisit).length;
+  return { total: clients.length, inactive: includeNever ? inactive : inactive.filter((c) => !!c.lastVisit), neverVisited };
 }
 
 /** Deja un solo cliente por correo / telefono (dos fichas con el mismo dato no reciben doble mensaje). */
