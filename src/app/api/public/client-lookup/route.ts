@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { cleanClientName } from "@/lib/client-name";
 
 // Public endpoint to look up a client by email or phone
 // Used in the booking page for autocompletion
@@ -29,7 +30,8 @@ export async function GET(req: NextRequest) {
   const { data } = await query.order("created_at", { ascending: true }).limit(1).maybeSingle();
 
   if (data) {
-    return NextResponse.json({ found: true, client: data });
+    // El formulario de reserva usa este nombre para autocompletar: sin "null" de importaciones antiguas.
+    return NextResponse.json({ found: true, client: { ...data, name: cleanClientName(data.name) || data.name } });
   }
 
   return NextResponse.json({ found: false });

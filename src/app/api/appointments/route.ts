@@ -1,3 +1,4 @@
+import { cleanClientName } from "@/lib/client-name";
 import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createAdminSupabase, resolveTenantForRequest, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
@@ -148,7 +149,7 @@ export async function POST(req: NextRequest) {
     await notify({
       tenantId: resolvedTenantId, kind: "appointment_new", userIds: [barberId], professionalId: barberId,
       title: "🚀 ¡Te agendaron una cita!",
-      body: `${client?.name || "Cliente"} reservó el ${apptDayLabel(start.toISOString().slice(0, 10))} a las ${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}.`,
+      body: `${cleanClientName(client?.name) || "Cliente"} reservó el ${apptDayLabel(start.toISOString().slice(0, 10))} a las ${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}.`,
       url: apptNoticeUrl(appointment.id, start.toISOString().slice(0, 10)),
     });
     if (barber?.email) {

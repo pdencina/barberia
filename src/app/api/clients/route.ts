@@ -1,3 +1,4 @@
+import { cleanClientName } from "@/lib/client-name";
 import { BUILTIN_SOURCES, loadCustomSources } from "@/lib/client-sources";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentTenantId, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
@@ -55,7 +56,8 @@ export async function POST(req: NextRequest) {
   if (!session.userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { name, email, phone, notes, source, sourceDetail } = body;
+  const { name: rawName, email, phone, notes, source, sourceDetail } = body;
+  const name = cleanClientName(rawName) || String(rawName || "").trim();
   // El negocio sale de la sesion; resolveTenantForRequest valida (y corrige) lo que mande el navegador.
   const { tenantId: tenantFromSession } = await resolveTenantForRequest(body.tenantId || null);
   const tenantId = tenantFromSession && tenantFromSession !== "ALL" ? tenantFromSession : null;
