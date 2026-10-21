@@ -110,7 +110,7 @@ export async function PATCH(
       const hhmm = String((update.start_time || b.start_time) || "").match(/(\d{2}:\d{2})/)?.[1] || "";
       const who = b.client?.name || "Cliente";
       await notify({
-        tenantId: b.tenant_id, kind: "appointment_changed", userIds: [b.barber_id],
+        tenantId: b.tenant_id, kind: "appointment_changed", userIds: [b.barber_id], professionalId: b.barber_id,
         title: cancelled ? "Cita cancelada" : "Cita cambiada de hora",
         body: `${who}${hhmm ? ` - ${apptDayLabel(String(update.date || b.date))} ${hhmm}` : ""}`, url: apptNoticeUrl(params.id, String(update.date || b.date).slice(0, 10)), createdBy: session.userId,
       });

@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
       clientId ? supabase.from("clients").select("name").eq("id", clientId).single() : Promise.resolve({ data: null }),
     ]);
     await notify({
-      tenantId: resolvedTenantId, kind: "appointment_new", userIds: [barberId],
+      tenantId: resolvedTenantId, kind: "appointment_new", userIds: [barberId], professionalId: barberId,
       title: "🚀 ¡Te agendaron una cita!",
       body: `${client?.name || "Cliente"} reservó el ${apptDayLabel(start.toISOString().slice(0, 10))} a las ${start.toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" })}.`,
       url: apptNoticeUrl(appointment.id, start.toISOString().slice(0, 10)),

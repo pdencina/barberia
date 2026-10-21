@@ -220,7 +220,7 @@ export async function POST(req: NextRequest) {
       const { data: barberRow } = await supabase.from("profiles").select("name, email").eq("id", barberId).single();
       const startDateForMsg = new Date(startDate);
       await notify({
-        tenantId, kind: "appointment_new",
+        tenantId, kind: "appointment_new", professionalId: barberId,
         userIds: [barberId],
         roles: ["admin", "receptionist"],
         title: "Nueva Cita Agendada",

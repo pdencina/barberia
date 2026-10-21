@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const hhmm = String(a.start_time || "").match(/(\d{2}:\d{2})/)?.[1] || "";
     const who = (Array.isArray(a.client) ? a.client[0]?.name : a.client?.name) || "Un cliente";
     await notify({
-      tenantId: a.tenant_id, kind: "appointment_changed",
+      tenantId: a.tenant_id, kind: "appointment_changed", professionalId: a.barber_id || null,
       userIds: a.barber_id ? [a.barber_id] : [], roles: ["admin", "receptionist"],
       title: "😕 Se canceló una cita",
       body: `${who} canceló${hhmm ? ` su hora del ${apptDayLabel(String(a.date))} a las ${hhmm}` : " su cita"}. El espacio quedó libre.`,
