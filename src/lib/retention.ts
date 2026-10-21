@@ -32,7 +32,7 @@ export async function getInactiveClients(
   // includeNever: true (por defecto, como siempre) cuenta tambien a quien NUNCA tuvo una visita registrada (clientes nuevos o
   // importados): su reloj parte en la fecha de registro y no significa que "dejaron de venir". La pantalla de Retencion y el
   // envio masivo piden false para hablarle solo a quien SI vino alguna vez, y avisan cuantos quedan fuera.
-  opts: { includeNever?: boolean } = {}
+  opts: { includeNever?: boolean; maxDays?: number | null } = {}
 ): Promise<{ total: number; inactive: RetentionClient[]; neverVisited: number }> {
   const includeNever = opts.includeNever !== false;
   // Ley 21.719: no se escribe a quien pidio no ser contactado ni a quien rechazo las promociones (migracion 101).
@@ -98,7 +98,7 @@ export async function getInactiveClients(
         hasUpcoming: upcoming.has(client.id),
       };
     })
-    .filter((c) => !c.hasUpcoming && c.daysSinceVisit >= days && !optedOut.has(c.id))
+    .filter((c) => !c.hasUpcoming && c.daysSinceVisit >= days && (!opts.maxDays || c.daysSinceVisit <= opts.maxDays) && !optedOut.has(c.id))
     .sort((a, b) => b.daysSinceVisit - a.daysSinceVisit);
 
   const neverVisited = inactive.filter((c) => !c.lastVisit).length;

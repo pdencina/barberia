@@ -20,6 +20,11 @@ interface InactiveClient {
 }
 
 const DAY_PRESETS = [15, 30, 45, 60, 90, 120, 180, 365];
+// Rangos rapidos: "entre N y M dias sin venir" (max null = sin tope).
+const RANGE_PRESETS: Array<{ min: number; max: number | null }> = [
+  { min: 15, max: 30 }, { min: 30, max: 45 }, { min: 45, max: 60 }, { min: 60, max: 90 }, { min: 90, max: 180 }, { min: 180, max: 365 }, { min: 365, max: null },
+];
+type SortKey = "days_desc" | "days_asc" | "name";
 
 export default function RetencionPage() {
   const [clients, setClients] = useState<InactiveClient[]>([]);
@@ -27,6 +32,10 @@ export default function RetencionPage() {
   // Por defecto solo clientes que SI vinieron alguna vez. Los que nunca tuvieron una visita registrada (nuevos o importados)
   // no "dejaron de venir": se suman solo si se pide. Lo que se ve en pantalla es lo mismo que recibe el envio masivo.
   const [includeNever, setIncludeNever] = useState(false);
+  // Rango y orden: "entre 15 y 30 dias" y de mas a menos tiempo sin venir (o al reves).
+  const [maxDays, setMaxDays] = useState<number | null>(null);
+  const [maxInput, setMaxInput] = useState("");
+  const [sortBy, setSortBy] = useState<SortKey>("days_desc");
   const [bookingUrl, setBookingUrl] = useState("");
   const [previewTab, setPreviewTab] = useState<"whatsapp" | "email">("whatsapp");
   const [msgPreview, setMsgPreview] = useState<{ whatsapp: string; emailSubject: string; emailHtml: string } | null>(null);
@@ -57,7 +66,7 @@ export default function RetencionPage() {
       const previewRes = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, includeNever, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", preview: true }),
+        body: JSON.stringify({ days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", preview: true }),
       });
       const preview = await previewRes.json();
       if (!previewRes.ok) { showToast(preview.error || "No se pudo preparar el envio", "error"); return; }
@@ -75,7 +84,7 @@ export default function RetencionPage() {
       const res = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, includeNever, couponCode: selectedCoupon || null, message: customMessage || null, type: "email" }),
+        body: JSON.stringify({ days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "email" }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Error al enviar", "error"); return; }
@@ -98,7 +107,7 @@ export default function RetencionPage() {
   const copyForBroadcast = async () => {
     setBulkSending(true);
     try {
-      const body = { days, includeNever, couponCode: selectedCoupon || null, message: customMessage || null, type: "whatsapp" };
+      const body = { days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "whatsapp" };
       const previewRes = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -147,7 +156,7 @@ export default function RetencionPage() {
   const fetchData = async () => {
     setLoading(true);
     const [retRes, coupRes] = await Promise.all([
-      fetch(`/api/retention?days=${days}${includeNever ? "&includeNever=1" : ""}`),
+      fetch(`/api/retention?days=${days}${maxDays ? `&maxDays=${maxDays}` : ""}${includeNever ? "&includeNever=1" : ""}`),
       fetch("/api/cupones"),
     ]);
     const retData = await retRes.json();
@@ -159,7 +168,9 @@ export default function RetencionPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [days, includeNever]);
+  useEffect(() => { fetchData(); }, [days, maxDays, includeNever]);
+  // Si "desde" pasa a ser mayor que "hasta", se quita el tope.
+  useEffect(() => { if (maxDays && maxDays < days) { setMaxDays(null); setMaxInput(""); } }, [days, maxDays]);
 
   // Vista previa de lo que recibira el cliente (se actualiza al cambiar cupon o mensaje).
   const sampleName = clients[0]?.name || "Matías Pérez";
@@ -199,6 +210,10 @@ export default function RetencionPage() {
     }
   };
 
+  const sortedClients = [...clients].sort((a, b) =>
+    sortBy === "name" ? a.name.localeCompare(b.name, "es") : sortBy === "days_asc" ? a.daysSinceVisit - b.daysSinceVisit : b.daysSinceVisit - a.daysSinceVisit);
+  const rangeLabel = maxDays ? `${days}–${maxDays} días` : `${days}+ días`;
+
   // Mismos numeros que usa el envio: un correo / un telefono se cuenta una sola vez.
   const withEmail = new Set(clients.filter((c) => c.email).map((c) => c.email!.trim().toLowerCase())).size;
   const withPhone = new Set(clients.filter((c) => c.phone).map((c) => c.phone!.replace(/\D/g, ""))).size;
@@ -227,7 +242,7 @@ export default function RetencionPage() {
       {/* Metricas */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total de clientes" value={stats.total} Icon={Users} tone="teal" hint="Registrados en tu negocio" />
-        <StatCard label={`Inactivos (${days}+ días)`} value={stats.inactive} Icon={UserMinus} tone="amber" hint="Sin visita ni cita por venir" />
+        <StatCard label={`Inactivos (${rangeLabel})`} value={stats.inactive} Icon={UserMinus} tone="amber" hint="Sin visita ni cita por venir" />
         <StatCard label="% inactivos" value={`${stats.percentage}%`} Icon={Percent} tone={stats.percentage >= 30 ? "red" : "green"} hint="Del total de clientes" />
         <StatCard label="Contactables" value={stats.contactable} Icon={HeartHandshake} tone="green" hint="Con correo o teléfono" />
       </div>
@@ -239,11 +254,11 @@ export default function RetencionPage() {
             <p className="mb-2 text-xs font-semibold text-brand-gray">Días sin visita</p>
             <div className="-mx-1 flex flex-wrap gap-2 px-1">
               {DAY_PRESETS.map((d) => {
-                const active = !isCustomDays && days === d;
+                const active = !isCustomDays && !maxDays && days === d;
                 return (
                   <button
                     key={d}
-                    onClick={() => { setIsCustomDays(false); setDays(d); }}
+                    onClick={() => { setIsCustomDays(false); setDays(d); setMaxDays(null); setMaxInput(""); }}
                     className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${
                       active ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/40"
                     }`}
@@ -275,6 +290,30 @@ export default function RetencionPage() {
                   className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue"
                 />
               )}
+            </div>
+          </div>
+
+          <div>
+            <p className="mb-2 text-xs font-semibold text-brand-gray">O un rango: entre … y … días sin venir</p>
+            <div className="-mx-1 flex flex-wrap items-center gap-2 px-1">
+              {RANGE_PRESETS.map((r) => {
+                const active = !isCustomDays && days === r.min && (r.max ?? null) === maxDays;
+                return (
+                  <button key={`${r.min}-${r.max}`}
+                    onClick={() => { setIsCustomDays(false); setDays(r.min); setMaxDays(r.max); setMaxInput(r.max ? String(r.max) : ""); }}
+                    className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${active ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/40"}`}>
+                    {r.max ? `${r.min}–${r.max} días` : `${r.min}+ días`}
+                  </button>
+                );
+              })}
+              <span className="ml-1 flex items-center gap-1.5 text-sm text-brand-gray">
+                Hasta
+                <input type="number" min={days} max={999} placeholder="sin tope" value={maxInput} onChange={(e) => setMaxInput(e.target.value)}
+                  onBlur={() => { const v = parseInt(maxInput); setMaxDays(v >= days ? v : null); if (!(v >= days)) setMaxInput(""); }}
+                  onKeyDown={(e) => { if (e.key !== "Enter") return; const v = parseInt(maxInput); setMaxDays(v >= days ? v : null); }}
+                  className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue" />
+                días
+              </span>
             </div>
           </div>
 
@@ -340,7 +379,17 @@ export default function RetencionPage() {
       </Panel>
 
       {/* Lista */}
-      <Panel title={`Clientes inactivos (${clients.length})`} subtitle="Ordenados del más antiguo al más reciente" flush>
+      <Panel title={`Clientes inactivos (${clients.length})`} subtitle={`${rangeLabel} sin venir`} flush
+        action={
+          <label className="flex items-center gap-2 text-xs font-semibold text-brand-gray">
+            Ordenar
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)} className="rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm font-medium text-brand-dark">
+              <option value="days_desc">Más días sin venir primero</option>
+              <option value="days_asc">Menos días sin venir primero</option>
+              <option value="name">Nombre (A–Z)</option>
+            </select>
+          </label>
+        }>
         {loading ? (
           <Spinner />
         ) : clients.length === 0 ? (
@@ -349,11 +398,11 @@ export default function RetencionPage() {
               <HeartHandshake className="h-6 w-6" strokeWidth={1.5} />
             </div>
             <p className="text-sm font-semibold text-brand-dark">¡Todos al día!</p>
-            <p className="mt-1 text-xs text-brand-gray">No hay clientes con {days} días o más sin volver.</p>
+            <p className="mt-1 text-xs text-brand-gray">No hay clientes con {rangeLabel} sin volver.</p>
           </div>
         ) : (
           <div className="divide-y divide-gray-50 px-2 pb-2 md:px-3">
-            {clients.map((c) => {
+            {sortedClients.map((c) => {
               const initials = c.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
               const tone = c.daysSinceVisit >= 60 ? "bg-red-500/15 text-red-500" : c.daysSinceVisit >= 30 ? "bg-amber-500/15 text-amber-500" : "bg-brand-light text-brand-gray";
               return (
