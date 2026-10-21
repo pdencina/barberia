@@ -88,7 +88,9 @@ export async function POST(req: NextRequest) {
   // "influencer" aceptan un detalle opcional (codigo de descuento / @handle).
   // Ademas de los de siempre vale cualquier origen que el negocio haya creado ("+ Crear otra opcion").
   const VALID_SOURCES = [...BUILTIN_SOURCES.map((x) => x.code), ...(await loadCustomSources(supabase, resolvedTenantId)).map((x) => x.code)];
-  const acquisitionSource = VALID_SOURCES.includes(source) ? source : "walk_in";
+  // Si no se eligio ninguno queda SIN REGISTRAR (null): no se inventa "Paso por fuera" para clientes que ya venian de antes,
+  // porque eso inflaria esa metrica.
+  const acquisitionSource = VALID_SOURCES.includes(source) ? source : null;
   const acquisitionDetail = (source === "promotion" || source === "influencer") ? (sourceDetail || null) : null;
 
   const { data, error } = await supabase

@@ -9,7 +9,7 @@ const NEW = "__new__";
 type SourceOptionLite = { code: string; label: string };
 
 export default function SourceSelect({
-  value, onChange, tenantId, className, walkInLabel, ariaLabel, extraOption,
+  value, onChange, tenantId, className, walkInLabel, ariaLabel, extraOption, unknownLabel,
 }: {
   value: string;
   onChange: (code: string) => void;
@@ -18,6 +18,8 @@ export default function SourceSelect({
   walkInLabel?: string;
   ariaLabel?: string;
   extraOption?: SourceOptionLite;
+  // Si se indica, la primera opcion es "Sin registrar" (valor ""): no se inventa un origen cuando no se sabe.
+  unknownLabel?: string;
 }) {
   const [custom, setCustom] = useState<{ code: string; label: string }[]>([]);
   const [creating, setCreating] = useState(false);
@@ -54,6 +56,7 @@ export default function SourceSelect({
         onChange={(e) => { if (e.target.value === NEW) { setCreating(true); setError(""); } else { setCreating(false); onChange(e.target.value); } }}
         className={className}
       >
+        {unknownLabel && <option value="">{unknownLabel}</option>}
         {extraOption && <option value={extraOption.code}>{extraOption.label}</option>}
         {BUILTIN_SOURCES.map((s) => (
           <option key={s.code} value={s.code}>{s.code === "walk_in" && walkInLabel ? walkInLabel : s.label}</option>
