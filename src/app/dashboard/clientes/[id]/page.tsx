@@ -95,14 +95,14 @@ export default function ClienteDetailPage() {
   // Editar datos del cliente (nombre, celular, correo, notas)
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
-  const [editForm, setEditForm] = useState<{ name: string; phone: string; email: string; notes: string; marketing_consent: boolean; do_not_contact: boolean; source: string; sourceDetail: string }>({ name: "", phone: "", email: "", notes: "", marketing_consent: false, do_not_contact: false, source: "walk_in", sourceDetail: "" });
+  const [editForm, setEditForm] = useState<{ name: string; phone: string; email: string; notes: string; marketing_consent: boolean; do_not_contact: boolean; source: string; sourceDetail: string }>({ name: "", phone: "", email: "", notes: "", marketing_consent: false, do_not_contact: false, source: "", sourceDetail: "" });
   const [savingEdit, setSavingEdit] = useState(false);
   const [editError, setEditError] = useState("");
 
   const openEdit = () => {
     if (!data) return;
     const c = data.client;
-    setEditForm({ name: c.name || "", phone: c.phone || "", email: c.email || "", notes: c.notes || "", marketing_consent: c.marketing_consent === true, do_not_contact: c.do_not_contact === true, source: c.acquisition_source || "walk_in", sourceDetail: c.acquisition_detail || "" });
+    setEditForm({ name: c.name || "", phone: c.phone || "", email: c.email || "", notes: c.notes || "", marketing_consent: c.marketing_consent === true, do_not_contact: c.do_not_contact === true, source: c.acquisition_source || "", sourceDetail: c.acquisition_detail || "" });
     setEditError("");
     setEditing(true);
   };
@@ -112,7 +112,7 @@ export default function ClienteDetailPage() {
   const buildEditBody = () => {
     const { source, sourceDetail, ...rest } = editForm;
     const c = data?.client;
-    const sourceChanged = source !== (c?.acquisition_source || "walk_in");
+    const sourceChanged = source !== (c?.acquisition_source || "");
     const detailChanged = sourceDetail !== (c?.acquisition_detail || "");
     if (!sourceChanged && !detailChanged) return rest;
     return { ...rest, acquisition_source: source, acquisition_detail: sourceDetail };
@@ -336,6 +336,7 @@ export default function ClienteDetailPage() {
             <div className="space-y-2">
               <label className="block text-xs font-medium text-brand-gray">¿De dónde viene este cliente?</label>
               <SourceSelect
+                unknownLabel="Sin registrar"
                 value={editForm.source}
                 tenantId={data?.client.tenant_id}
                 onChange={(code) => setEditForm({ ...editForm, source: code, sourceDetail: (code === "promotion" || code === "influencer") ? editForm.sourceDetail : "" })}

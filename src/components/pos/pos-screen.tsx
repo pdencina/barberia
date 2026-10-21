@@ -100,7 +100,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const [addingClient, setAddingClient] = useState(false);
   const [newClientPhone, setNewClientPhone] = useState("");
   const [newClientEmail, setNewClientEmail] = useState("");
-  const [newClientSource, setNewClientSource] = useState("walk_in");
+  const [newClientSource, setNewClientSource] = useState(""); // "" = Sin registrar
   const [savingClient, setSavingClient] = useState(false);
   const [clientPoints, setClientPoints] = useState(0);
   const [redeemedPoints, setRedeemedPoints] = useState(0);
@@ -904,7 +904,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                       setAddingClient(false);
                       setNewClientPhone("");
                       setNewClientEmail("");
-                      setNewClientSource("walk_in");
+                      setNewClientSource("");
                       showToast(`Cliente "${created.name}" agregado`, "success");
                     }
                   } finally {
@@ -958,7 +958,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                             onChange={setNewClientSource}
                             tenantId={getActiveTenantId()}
                             ariaLabel="¿Cómo nos conoció?"
-                            walkInLabel="¿Cómo nos conoció? · Pasó por fuera"
+                            unknownLabel="¿Cómo nos conoció? · Sin registrar"
                             className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-xs outline-none transition focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10"
                           />
                           <div className="flex gap-2">

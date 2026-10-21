@@ -141,11 +141,16 @@ export async function PATCH(
   // El "link"/"manual" historicos no se pueden elegir, pero se respetan si ya estan guardados.
   if (body.acquisition_source !== undefined) {
     const src = String(body.acquisition_source || "");
+    if (src === "") {
+      // "Sin registrar": se borra el origen (no se inventa uno).
+      update.acquisition_source = null; update.acquisition_detail = null;
+    } else {
     const valid = [...BUILTIN_SOURCES.map((x) => x.code), ...(await loadCustomSources(supabase, existing.tenant_id)).map((x) => x.code)];
     const current = (await supabase.from("clients").select("acquisition_source").eq("id", params.id).maybeSingle()).data?.acquisition_source;
     if (!valid.includes(src) && src !== current) return NextResponse.json({ error: "Origen no válido" }, { status: 400 });
     update.acquisition_source = src;
     update.acquisition_detail = (src === "promotion" || src === "influencer") && body.acquisition_detail ? String(body.acquisition_detail).trim().slice(0, 100) || null : null;
+    }
   }
 
   // Consentimiento para promociones y "no contactar" (Ley 21.719, migracion 101).

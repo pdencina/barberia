@@ -28,7 +28,7 @@ export default function ClientesPage() {
   const [showModal, setShowModal] = useState(false);
   const [moreOpen, setMoreOpen] = useState(false);
   const importInputRef = useRef<HTMLInputElement>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", phone: "", notes: "", source: "walk_in", sourceDetail: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", phone: "", notes: "", source: "", sourceDetail: "" });
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState("");
@@ -105,7 +105,7 @@ export default function ClientesPage() {
       }
       showToast("Cliente creado exitosamente", "success");
       setShowModal(false);
-      setFormData({ name: "", email: "", phone: "", notes: "", source: "walk_in", sourceDetail: "" });
+      setFormData({ name: "", email: "", phone: "", notes: "", source: "", sourceDetail: "" });
       fetchClients(search);
     } catch (err) {
       console.error("Error creating client:", err);
@@ -415,6 +415,7 @@ export default function ClientesPage() {
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">¿Cómo nos visitó?</label>
                 <SourceSelect
+                  unknownLabel="Sin registrar"
                   value={formData.source}
                   tenantId={tenant?.id}
                   onChange={(code) => setFormData({ ...formData, source: code, sourceDetail: (code === "promotion" || code === "influencer") ? formData.sourceDetail : "" })}

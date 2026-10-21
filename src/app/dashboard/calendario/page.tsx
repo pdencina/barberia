@@ -1119,7 +1119,7 @@ export default function CalendarioPage() {
       const res = await fetch("/api/clients", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone: newClientPhone.trim(), email: newClientEmail.trim(), source: "walk_in", tenantId: getActiveTenantId() || undefined }),
+        body: JSON.stringify({ name, phone: newClientPhone.trim(), email: newClientEmail.trim(), tenantId: getActiveTenantId() || undefined }),
       });
       const data = await res.json();
       if (res.ok && data.id) {
