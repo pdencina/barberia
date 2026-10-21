@@ -9,6 +9,7 @@ import { parseWallClock } from "@/lib/wallclock";
 import { isOnVacation } from "@/lib/vacations";
 import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
 import { notify } from "@/lib/notify";
+import { cleanClientName } from "@/lib/client-name";
 import { sanitizeAttribution, isAdTrackingEnabled } from "@/lib/ad-tracking";
 
 const isValidEmail = (e: unknown) => typeof e === "string" && /^\S+@\S+\.\S+$/.test(e.trim());
@@ -16,7 +17,9 @@ const isValidEmail = (e: unknown) => typeof e === "string" && /^\S+@\S+\.\S+$/.t
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
-  const { serviceIds, serviceId, barberId, date, startTime, clientName, clientEmail, clientPhone, notes, marketingConsent } = body;
+  const { serviceIds, serviceId, barberId, date, startTime, clientName: rawClientName, clientEmail, clientPhone, notes, marketingConsent } = body;
+  // Sin "null"/"undefined" en el nombre (el formulario puede traerlo de una ficha importada con ese texto).
+  const clientName = cleanClientName(rawClientName) || String(rawClientName || "").trim();
 
   // Support both single serviceId and array serviceIds
   const ids: string[] = serviceIds || (serviceId ? [serviceId] : []);
