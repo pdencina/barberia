@@ -17,7 +17,10 @@ export async function GET(req: NextRequest) {
   // La logica de "quien esta inactivo" vive en lib/retention (compartida con el envio masivo).
   // includeNever=1 suma a quien NUNCA tuvo una visita registrada (clientes nuevos o importados); por defecto no.
   const includeNever = searchParams.get("includeNever") === "1";
-  const { total, inactive: all, neverVisited } = await getInactiveClients(supabase, tenantId, days, { includeNever });
+  // maxDays (opcional): rango "entre N y M dias sin venir".
+  const maxRaw = parseInt(searchParams.get("maxDays") || "");
+  const maxDays = Number.isFinite(maxRaw) && maxRaw >= days ? maxRaw : null;
+  const { total, inactive: all, neverVisited } = await getInactiveClients(supabase, tenantId, days, { includeNever, maxDays });
 
   // Una fila por persona: dos fichas con el mismo correo (o el mismo telefono, si no tienen correo) se muestran una sola vez.
   const digits = (t: string | null) => (t || "").replace(/\D/g, "");
