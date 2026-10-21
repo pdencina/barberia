@@ -35,6 +35,7 @@ export default function EditProfessionalPage() {
   const [data, setData] = useState<Professional | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [tab, setTab] = useState<"datos" | "trabajo" | "horario" | "servicios" | "presentacion" | "cuenta">("datos");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
@@ -251,6 +252,26 @@ export default function EditProfessionalPage() {
         </div>
       </div>
 
+      {/* Pestañas: todo en una pantalla corta, sin deslizar hasta el final para guardar */}
+      <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist">
+        {([
+          { key: "datos", label: "Datos personales", show: true },
+          { key: "trabajo", label: "Modalidad de trabajo", show: !isReceptionistProfile },
+          { key: "horario", label: "Horario", show: !isReceptionistProfile },
+          { key: "servicios", label: "Servicios", show: !isReceptionistProfile },
+          { key: "presentacion", label: "Presentación", show: !isReceptionistProfile },
+          { key: "cuenta", label: "Cuenta y rol", show: true },
+        ] as const).filter((t) => t.show).map((t) => (
+          <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
+            className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
+              tab === t.key ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25" : "border border-gray-200 bg-white text-gray-500 hover:border-brand-blue/40 hover:text-gray-800"
+            }`}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <div className={tab === "datos" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Personal booking link */}
       {!isReceptionistProfile && (
       <div className="bg-brand-light border border-brand-blue/20 rounded-2xl p-4">
@@ -410,7 +431,10 @@ export default function EditProfessionalPage() {
         ) : null}
       </div>
 
+      </div>
+
       {!isReceptionistProfile && (<>
+      <div className={tab === "trabajo" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Work mode selector */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Modalidad de Trabajo</h2>
@@ -531,6 +555,9 @@ export default function EditProfessionalPage() {
         </div>
       )}
 
+      </div>
+
+      <div className={tab === "horario" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Work Schedule */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Horario de Trabajo</h2>
@@ -538,6 +565,9 @@ export default function EditProfessionalPage() {
         <BarberScheduleEditor barberId={params.id as string} showToast={showToast} />
       </div>
 
+      </div>
+
+      <div className={tab === "servicios" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Services assignment */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Servicios que ofrece</h2>
@@ -545,6 +575,9 @@ export default function EditProfessionalPage() {
         <BarberServicesEditor barberId={params.id as string} showToast={showToast} />
       </div>
 
+      </div>
+
+      <div className={tab === "presentacion" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Presentacion (visible en booking) */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Presentacion (visible en booking)</h2>
@@ -590,8 +623,10 @@ export default function EditProfessionalPage() {
         </div>
       </div>
 
+      </div>
       </>)}
 
+      <div className={tab === "cuenta" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Change Role */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
         <h2 className="font-bold text-gray-800">Rol del Usuario</h2>
@@ -629,11 +664,17 @@ export default function EditProfessionalPage() {
         <p className="text-xs text-gray-400">Requiere PIN de administrador para confirmar el cambio.</p>
       </div>
 
-      {/* Save */}
-      <button onClick={save} disabled={saving}
-        className="w-full py-3 bg-brand-blue text-white rounded-xl font-bold hover:opacity-90 disabled:opacity-50 transition-all active:scale-[0.98]">
-        {saving ? "Guardando..." : "Guardar Cambios"}
-      </button>
+      </div>
+
+      {/* Save: siempre a la vista en las pestañas de datos. Horario, Servicios y Cuenta tienen su propio boton. */}
+      {(tab === "datos" || tab === "trabajo" || tab === "presentacion") && (
+        <div className="sticky bottom-20 z-10 lg:bottom-3">
+          <button onClick={save} disabled={saving}
+            className="w-full py-3 bg-brand-blue text-white rounded-xl font-bold shadow-lg hover:opacity-90 disabled:opacity-50 transition-all active:scale-[0.98]">
+            {saving ? "Guardando..." : "Guardar Cambios"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }
