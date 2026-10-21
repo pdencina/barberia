@@ -39,7 +39,7 @@ export default function PrivacidadPage() {
 <p>re-booking cumple dos roles diferentes según los datos de que se trate. Esto es importante para saber ante quién ejerces tus derechos.</p>
 <table>
 <tr><th>Datos</th><th>Quién decide para qué se usan</th><th>Papel de re-booking</th></tr>
-<tr><td><b>Datos de los clientes de cada negocio</b> (nombre, teléfono, correo, citas, compras, notas, fotos, documentos, puntos de fidelidad)</td><td>Cada <b>negocio</b></td><td><b>Encargado</b>: los tratamos solo por cuenta y según las instrucciones del negocio.</td></tr>
+<tr><td><b>Datos de los clientes de cada negocio</b> (nombre, teléfono, correo, citas, compras, notas, fotos, puntos de fidelidad)</td><td>Cada <b>negocio</b></td><td><b>Encargado</b>: los tratamos solo por cuenta y según las instrucciones del negocio.</td></tr>
 <tr><td><b>Datos del equipo del negocio</b> (profesionales, recepción) para operar el negocio: horarios, comisiones, ventas por profesional, remuneraciones si el negocio lo activa</td><td>Cada <b>negocio</b></td><td><b>Encargado</b></td></tr>
 <tr><td><b>Cuenta y acceso a la plataforma</b>: correo, clave, rol, PIN, sesiones, registros de seguridad</td><td><b>re-booking</b> (y el negocio respecto de su equipo)</td><td><b>Responsable</b> (para seguridad y acceso) y encargado (para los datos del equipo)</td></tr>
 <tr><td><b>Suscripción y facturación</b> del negocio: nombre del contacto, correo, plan, pagos</td><td><b>re-booking</b></td><td><b>Responsable</b></td></tr>
@@ -56,7 +56,7 @@ export default function PrivacidadPage() {
 <tr><td>Identificación y contacto</td><td>Nombre, apellidos, correo electrónico, teléfono, RUT (solo si el negocio lo usa para boletas o remuneraciones)</td><td>Administradores, equipo, clientes</td></tr>
 <tr><td>Perfil profesional (opcional)</td><td>Foto, biografía, Instagram, especialidades, años de experiencia, enlace de agenda</td><td>Profesionales</td></tr>
 <tr><td>Agenda y reservas</td><td>Servicio, profesional, fecha y hora, estado de la cita, notas de la cita</td><td>Clientes, profesionales</td></tr>
-<tr><td>Ficha del cliente</td><td>Notas, etiquetas de perfil, preferencias, fotos y documentos que el negocio cargue, historial de visitas, puntos de fidelidad, consentimiento para promociones</td><td>Clientes</td></tr>
+<tr><td>Ficha del cliente</td><td>Notas, etiquetas de perfil, preferencias, fotos que el negocio cargue, historial de visitas, puntos de fidelidad, consentimiento para promociones</td><td>Clientes</td></tr>
 <tr><td>Ventas y caja</td><td>Servicios y productos vendidos, montos, descuentos, medio de pago, quién emitió la venta, boletas</td><td>Clientes, equipo</td></tr>
 <tr><td>Equipo y pagos al equipo</td><td>Rol, horarios, vacaciones, comisiones, arriendo de sillón, y, si el negocio activa remuneraciones, datos laborales y previsionales</td><td>Equipo</td></tr>
 <tr><td>Suscripción del negocio</td><td>Datos de contacto, plan, estado de pago. <b>No guardamos números de tarjeta</b>: los procesa Mercado Pago.</td><td>Administradores</td></tr>
@@ -80,14 +80,8 @@ export default function PrivacidadPage() {
 
 <h2>5. Datos sensibles</h2>
 <h3>5.1 Datos de salud</h3>
-<p>Algunos negocios que usan re-booking prestan servicios de salud (por ejemplo, kinesiología) y pueden registrar información sobre sus pacientes, como notas de atención o fotos. Estos son <b>datos sensibles</b>. Respecto de ellos:</p>
-<ul>
-<li>El <b>responsable</b> es el negocio o profesional que presta la atención; re-booking actúa como <b>encargado</b>.</li>
-<li>Solo se tratan con el <b>consentimiento explícito</b> del paciente o cuando la ley lo permita o exija. Las fichas clínicas se rigen también por la Ley N° 20.584 sobre derechos y deberes de los pacientes, cuyas reglas de reserva y conservación el negocio debe cumplir.</li>
-<li>No se incluyen en avisos al celular, correos ni exportaciones generales. Los avisos que llegan a la pantalla bloqueada pueden configurarse sin detalles.</li>
-<li>Las fotos nuevas de clientes se guardan en un <b>almacén privado</b> y se muestran mediante enlaces temporales; estamos migrando las anteriores.</li>
-<li>re-booking <b>no es una ficha clínica electrónica certificada</b> ni sustituye las obligaciones del prestador de salud. Los negocios no deben usarlo como único registro clínico.</li>
-</ul>
+<p>re-booking <b>no está diseñado para guardar información clínica</b>. La plataforma no permite subir recetas médicas, exámenes, fichas clínicas ni otros documentos de salud, y los negocios no deben registrar diagnósticos ni resultados en las notas o fotos. Si esto cambia en el futuro, actualizaremos esta política y pediremos los consentimientos que correspondan antes de habilitarlo.</p>
+<p>Los negocios que prestan servicios de salud (por ejemplo, kinesiología) usan re-booking solo para agendar citas y gestionar clientes y ventas, y deben llevar su ficha clínica por sus propios medios. re-booking <b>no es una ficha clínica electrónica</b> ni sustituye las obligaciones del prestador de salud.</p>
 <h3>5.2 Datos biométricos</h3>
 <p>Si activas el bloqueo con <b>Face ID o huella</b> en la app, la verificación ocurre <b>dentro de tu teléfono</b> mediante el sistema de iPhone o Android. re-booking <b>no recibe ni guarda</b> tu rostro ni tu huella; solo recibe la confirmación de que el sistema operativo te reconoció.</p>
 <h3>5.3 Datos de menores de edad</h3>
@@ -105,7 +99,6 @@ export default function PrivacidadPage() {
 <tr><td>Cumplir obligaciones legales (tributarias, contables, laborales del negocio) y atender requerimientos de autoridades</td><td>Obligación legal</td></tr>
 <tr><td>Enviar <b>promociones y mensajes de retención</b> a clientes de un negocio</td><td><b>Consentimiento</b> de la persona (casilla sin marcar por defecto), que se puede retirar en cualquier momento</td></tr>
 <tr><td>Mejorar el servicio con estadísticas agregadas y sin identificar a personas</td><td>Interés legítimo</td></tr>
-<tr><td>Tratar datos de salud de pacientes</td><td>Consentimiento explícito o las excepciones que la ley permita</td></tr>
 </table>
 
 <h2>7. Comunicaciones: lo necesario y lo promocional</h2>
@@ -145,7 +138,6 @@ export default function PrivacidadPage() {
 <tr><td>Tras cancelar la suscripción</td><td>Los mantenemos <b>30 días</b> para que el negocio pueda exportarlos y luego los eliminamos o anonimizamos, salvo lo que la ley obligue a conservar.</td></tr>
 <tr><td>Ventas, boletas y documentos tributarios</td><td><b>6 años</b> (obligación tributaria).</td></tr>
 <tr><td>Datos de clientes inactivos</td><td>Los define cada negocio; sugerimos no más de <b>24 meses</b> sin actividad.</td></tr>
-<tr><td>Fichas con datos de salud</td><td>Según la normativa sanitaria aplicable al prestador (por ejemplo, Ley N° 20.584 y su reglamento).</td></tr>
 <tr><td>Registros de seguridad y auditoría</td><td><b>12</b> meses.</td></tr>
 <tr><td>Token del dispositivo (avisos)</td><td>Hasta que cierres sesión, apagues los avisos o elimines tu cuenta.</td></tr>
 <tr><td>Copias de seguridad</td><td>Rotan automáticamente y las copias antiguas se eliminan.</td></tr>

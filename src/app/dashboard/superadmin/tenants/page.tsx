@@ -20,7 +20,6 @@ interface Tenant {
   whatsapp_quota_override: number | null;
   email_quota_override: number | null;
   business_category: string | null;
-  client_files_enabled: boolean;
   trial_ends_at: string | null;
   active: boolean;
   created_at: string;
@@ -100,7 +99,6 @@ export default function SuperAdminTenantsPage() {
       whatsapp_quota_override: t.whatsapp_quota_override,
       email_quota_override: t.email_quota_override,
       business_category: t.business_category || "",
-      client_files_enabled: !!t.client_files_enabled,
     });
   };
 
@@ -725,15 +723,6 @@ export default function SuperAdminTenantsPage() {
                   ))}
                 </select>
               </div>
-              <label className="flex items-start gap-2 text-sm text-brand-dark cursor-pointer">
-                <input type="checkbox" checked={!!editForm.client_files_enabled}
-                  onChange={(e) => setEditForm({ ...editForm, client_files_enabled: e.target.checked })}
-                  className="mt-0.5" />
-                <span>
-                  Habilitar carga de archivos en la ficha de cliente
-                  <span className="block text-[10px] text-brand-gray">PDF/Word por cliente. Pensado para clinicas, kinesiologia y estetica; para barberia no hace falta.</span>
-                </span>
-              </label>
             </div>
             <div className="flex gap-2 pt-4">
               <button onClick={() => setEditingTenant(null)}

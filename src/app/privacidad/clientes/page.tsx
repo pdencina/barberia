@@ -25,8 +25,8 @@ export default function PrivacidadClientesPage() {
 <h2>2. ¿Qué datos se guardan?</h2>
 <ul>
 <li><b>Los que entregas al reservar:</b> nombre, correo, teléfono, servicio, profesional, fecha y hora.</li>
-<li><b>Los que el negocio agrega al atenderte:</b> historial de visitas y compras, notas, preferencias, puntos de fidelidad y, si corresponde, fotos o documentos.</li>
-<li><b>Datos de salud:</b> si el negocio presta servicios de salud, puede registrar información de tu atención. Solo se hace con tu consentimiento o cuando la ley lo permite.</li>
+<li><b>Los que el negocio agrega al atenderte:</b> historial de visitas y compras, notas, preferencias, puntos de fidelidad y, si corresponde, fotos.</li>
+<li><b>Datos de salud:</b> re-booking no está diseñado para guardar información clínica (recetas, exámenes, fichas) y no permite subir esos documentos.</li>
 </ul>
 
 <h2>3. ¿Para qué se usan?</h2>

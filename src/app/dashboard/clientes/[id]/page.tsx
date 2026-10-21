@@ -5,8 +5,8 @@ import { useParams, useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import {
-  ChevronLeft, MoreVertical, Phone, Mail, MessageCircle, CalendarPlus, Camera, ImageIcon, FileText, Pin, X,
-  Wallet, Receipt, CalendarCheck, UserX, Clock, Scissors, Upload, StickyNote, TrendingUp, Percent, UserCheck,
+  ChevronLeft, MoreVertical, Phone, Mail, MessageCircle, CalendarPlus, Camera, ImageIcon, Pin, X,
+  Wallet, Receipt, CalendarCheck, UserX, Clock, Scissors, StickyNote, TrendingUp, Percent, UserCheck,
 } from "lucide-react";
 import { Panel, StatCard, primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
 import SourceSelect from "@/components/clients/source-select";
@@ -92,12 +92,6 @@ export default function ClienteDetailPage() {
   const [photos, setPhotos] = useState<Array<{ id: string; url: string; caption: string | null; created_at: string; barber: { name: string } | null }>>([]);
   const [uploading, setUploading] = useState(false);
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
-  // Documentos PDF/Word del cliente (Nico, 28-sep). Solo se muestra la seccion si el
-  // negocio tiene habilitada la carga de archivos (tenants.client_files_enabled).
-  const [docsEnabled, setDocsEnabled] = useState(false);
-  const [documents, setDocuments] = useState<Array<{ id: string; file_name: string; size_bytes: number | null; created_at: string; uploaded_by_name: string | null; url: string | null }>>([]);
-  const [uploadingDoc, setUploadingDoc] = useState(false);
-  const [docError, setDocError] = useState("");
   // Editar datos del cliente (nombre, celular, correo, notas)
   const [menuOpen, setMenuOpen] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -146,54 +140,8 @@ export default function ClienteDetailPage() {
     }
   };
 
-  const loadDocuments = async () => {
-    try {
-      const res = await fetch(`/api/clients/${params.id}/documents`, { cache: "no-store" });
-      const d = await res.json();
-      setDocsEnabled(!!d.enabled);
-      setDocuments(Array.isArray(d.documents) ? d.documents : []);
-    } catch {
-      setDocsEnabled(false);
-    }
-  };
-
-  const uploadDocument = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setDocError("");
-    setUploadingDoc(true);
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      const res = await fetch(`/api/clients/${params.id}/documents`, { method: "POST", body: formData });
-      if (res.ok) {
-        await loadDocuments();
-      } else {
-        const r = await res.json().catch(() => ({}));
-        setDocError(r.error || "No se pudo subir el archivo");
-      }
-    } catch {
-      setDocError("No se pudo subir el archivo. Revisa tu conexion.");
-    } finally {
-      setUploadingDoc(false);
-      e.target.value = "";
-    }
-  };
-
-  const deleteDocument = async (documentId: string) => {
-    if (!window.confirm("¿Eliminar este documento? Esta accion no se puede deshacer.")) return;
-    const res = await fetch(`/api/clients/${params.id}/documents?documentId=${documentId}`, { method: "DELETE" });
-    if (res.ok) {
-      setDocuments((prev) => prev.filter((d) => d.id !== documentId));
-    } else {
-      const r = await res.json().catch(() => ({}));
-      setDocError(r.error || "No se pudo eliminar el documento");
-    }
-  };
-
   useEffect(() => {
     if (params.id) {
-      loadDocuments();
       fetch(`/api/clients/${params.id}`)
         .then((r) => r.json())
         .then((d) => { if (d.client) setData(d); })
@@ -519,7 +467,7 @@ export default function ClienteDetailPage() {
                   <Camera className="h-6 w-6" strokeWidth={1.5} />
                 </div>
                 <p className="text-sm font-semibold text-brand-dark">Aún no hay fotos</p>
-                <p className="mt-1 max-w-xs text-xs text-brand-gray">Sube una foto después de cada atención para llevar el registro de su evolución.</p>
+                <p className="mt-1 max-w-xs text-xs text-brand-gray">Sube una foto después de cada atención para llevar el registro.</p>
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
@@ -668,56 +616,6 @@ export default function ClienteDetailPage() {
                   );
                 })}
               </div>
-            </Panel>
-          )}
-
-          {/* Documentos (PDF / Word) — solo si el negocio lo tiene habilitado. */}
-          {docsEnabled && (
-            <Panel
-              title="Documentos"
-              subtitle="Fichas, exámenes o consentimientos (PDF o Word, hasta 10 MB)"
-              action={
-                <label className={`${primaryButton} cursor-pointer !px-3 !py-2 text-xs ${uploadingDoc ? "pointer-events-none opacity-50" : ""}`}>
-                  <Upload className="h-4 w-4" strokeWidth={2} /> {uploadingDoc ? "Subiendo..." : "Subir"}
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    onChange={uploadDocument}
-                    className="hidden"
-                  />
-                </label>
-              }
-            >
-              {docError && <p className="mb-3 text-sm text-red-500">{docError}</p>}
-              {documents.length === 0 ? (
-                <div className="flex flex-col items-center rounded-2xl border border-dashed border-gray-200 py-8 text-center">
-                  <FileText className="mb-2 h-6 w-6 text-brand-gray" strokeWidth={1.5} />
-                  <p className="text-sm text-brand-gray">Sin documentos</p>
-                </div>
-              ) : (
-                <div className="divide-y divide-gray-50">
-                  {documents.map((doc) => (
-                    <div key={doc.id} className="flex items-center gap-3 py-2.5">
-                      <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue">
-                        <FileText className="h-4 w-4" strokeWidth={1.75} />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        {doc.url ? (
-                          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="block truncate text-sm font-semibold text-brand-blue hover:underline">{doc.file_name}</a>
-                        ) : (
-                          <span className="block truncate text-sm font-semibold text-brand-dark">{doc.file_name}</span>
-                        )}
-                        <p className="text-[11px] text-brand-gray">
-                          {new Date(doc.created_at).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" })}
-                          {doc.uploaded_by_name && ` · ${doc.uploaded_by_name}`}
-                          {doc.size_bytes ? ` · ${(doc.size_bytes / 1024 / 1024).toFixed(1)} MB` : ""}
-                        </p>
-                      </div>
-                      <button onClick={() => deleteDocument(doc.id)} className="text-xs font-semibold text-red-500 hover:text-red-400">Eliminar</button>
-                    </div>
-                  ))}
-                </div>
-              )}
             </Panel>
           )}
         </div>
