@@ -90,6 +90,15 @@
   @keyframes sparkle { 0%,100% { transform: scale(.6); opacity: .25; } 50% { transform: scale(1); opacity: 1; } }
   @keyframes marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
 
+
+  /* Boton de descarga de la app (App Store) */
+  .lnd-store-row { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 22px; }
+  .lnd-store { display: inline-flex; align-items: center; gap: 11px; padding: 9px 20px 9px 15px; border-radius: 13px; background: #0E1F1E; color: #fff !important; box-shadow: 0 10px 24px -14px rgba(14,31,30,.7), inset 0 0 0 1px rgba(255,255,255,.12); transition: transform .16s ease, box-shadow .16s ease, background .16s ease; text-decoration: none; }
+  .lnd-store:hover { transform: translateY(-2px); background: #14403E; color: #fff !important; box-shadow: 0 16px 30px -16px rgba(14,31,30,.75), inset 0 0 0 1px rgba(255,255,255,.18); }
+  .lnd-store-txt { display: flex; flex-direction: column; line-height: 1.05; text-align: left; }
+  .lnd-store-txt small { font-family: Karla, system-ui, sans-serif; font-size: 11px; font-weight: 500; letter-spacing: .02em; opacity: .85; }
+  .lnd-store-txt b { font-family: "Bricolage Grotesque", Georgia, sans-serif; font-size: 21px; font-weight: 600; letter-spacing: -.01em; margin-top: 2px; }
+  .lnd-store-note { font-size: 12.5px; color: #6C7A78; }
   /* --- Celular: scroll y menu (20 oct.) ---
      El documento traia html/body con height:100% y overflow-x:hidden: en el navegador del celular el
      cuerpo quedaba como una caja con scroll propia y no dejaba deslizar. Aqui el que hace scroll es la pagina. */
@@ -130,6 +139,7 @@
   <a href="#integracion">Integraciones</a>
   <a href="#precios">Precios</a>
   <a href="/login">Iniciar sesión</a>
+  <a href="https://apps.apple.com/cl/app/re-booking/id6821324388" target="_blank" rel="noopener noreferrer">Obtén la app en App Store</a>
   <a href="#precios" class="lnd-cta">Comenzar ahora</a>
 </nav>
 
@@ -270,6 +280,7 @@
             Ver cómo funciona
           </a>
         </div>
+        <div data-reveal="" class="lnd-store-row"><a class="lnd-store" href="https://apps.apple.com/cl/app/re-booking/id6821324388" target="_blank" rel="noopener noreferrer" aria-label="Obtén la app de re-booking en el App Store"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg><span class="lnd-store-txt"><small>Obtén la app en</small><b>App Store</b></span></a><span class="lnd-store-note">App oficial para iPhone</span></div>
         <div data-reveal="" style="display: flex; gap: 28px; margin-top: 40px; font-size: 13.5px; color: #6C7A78;">
           <span>Sin instalación</span>
           <span>Cancela cuando quieras</span>
@@ -1725,6 +1736,7 @@
       <div style="display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-top: 34px;">
         <a href="#" data-ripple="" style="font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 16px; font-weight: 600; color: #fff; background: #0A6E6B; padding: 15px 26px; border-radius: 12px; box-shadow: 0 12px 26px -12px rgba(10,110,107,.8); transition: transform .16s ease, background .16s ease, box-shadow .16s ease; position: relative; overflow: hidden;" style-hover="background:#085956;transform:translateY(-2px);box-shadow:0 18px 34px -14px rgba(10,110,107,.85)" style-active="transform:translateY(0)">Crear mi cuenta</a>
         <a href="#" style="font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 16px; font-weight: 600; color: #14403E; background: #fff; border: 1px solid #DFD8CE; padding: 15px 24px; border-radius: 12px; transition: transform .16s ease, border-color .16s ease;" style-hover="border-color:#0A6E6B;transform:translateY(-2px)" style-active="transform:translateY(0)">Hablar con ventas</a>
+        <div class="lnd-store-row" style="width: 100%; justify-content: center; margin-top: 8px;"><a class="lnd-store" href="https://apps.apple.com/cl/app/re-booking/id6821324388" target="_blank" rel="noopener noreferrer" aria-label="Obtén la app de re-booking en el App Store"><svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.546 9.103 1.519 12.09 1.013 1.454 2.208 3.09 3.792 3.039 1.52-.065 2.09-.987 3.935-.987 1.831 0 2.35.987 3.96.948 1.637-.026 2.676-1.48 3.676-2.948 1.156-1.688 1.636-3.325 1.662-3.415-.039-.013-3.182-1.221-3.22-4.857-.026-3.04 2.48-4.494 2.597-4.559-1.429-2.09-3.623-2.324-4.39-2.376-2-.156-3.675 1.09-4.61 1.09zM15.53 3.83c.843-1.012 1.4-2.427 1.245-3.83-1.207.052-2.662.805-3.532 1.818-.78.896-1.454 2.338-1.273 3.714 1.338.104 2.715-.688 3.559-1.701"/></svg><span class="lnd-store-txt"><small>Obtén la app en</small><b>App Store</b></span></a></div>
       </div>
     </div>
   </section>
@@ -1737,6 +1749,7 @@
         <a href="#datos" style="color: #5F6E6C;" style-hover="color:#0B9490">Datos</a>
         <a href="#flujo" style="color: #5F6E6C;" style-hover="color:#0B9490">Cómo funciona</a>
         <a href="#precios" style="color: #5F6E6C;" style-hover="color:#0B9490">Precios</a>
+        <a href="https://apps.apple.com/cl/app/re-booking/id6821324388" target="_blank" rel="noopener noreferrer" style="color: #5F6E6C;" style-hover="color:#0B9490">App Store</a>
         <a href="#" style="color: #5F6E6C;" style-hover="color:#0B9490">Soporte</a>
         <a href="#" style="color: #5F6E6C;" style-hover="color:#0B9490">Iniciar sesión</a>
       </div>
