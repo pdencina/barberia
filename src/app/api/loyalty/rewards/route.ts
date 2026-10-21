@@ -40,6 +40,42 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(data);
 }
 
+// PATCH: Editar una recompensa (nombre, beneficio, puntos y descuento). Solo de su propio negocio.
+export async function PATCH(req: NextRequest) {
+  const mgr = await isManagerLevel();
+  if (!mgr.ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const body = await req.json().catch(() => ({} as any));
+  const id = String(body.id || "");
+  if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
+
+  const update: Record<string, any> = {};
+  if (body.name !== undefined) {
+    const name = String(body.name || "").trim().slice(0, 80);
+    if (!name) return NextResponse.json({ error: "El nombre es obligatorio" }, { status: 400 });
+    update.name = name;
+  }
+  if (body.description !== undefined) update.description = String(body.description || "").trim().slice(0, 200) || null;
+  if (body.points_required !== undefined) {
+    const pts = Math.round(Number(body.points_required));
+    if (!Number.isFinite(pts) || pts < 1 || pts > 1_000_000) return NextResponse.json({ error: "Los puntos deben ser un número entre 1 y 1.000.000" }, { status: 400 });
+    update.points_required = pts;
+  }
+  if (body.discount_value !== undefined) {
+    const dv = Math.round(Number(body.discount_value));
+    if (!Number.isFinite(dv) || dv < 0 || dv > 10_000_000) return NextResponse.json({ error: "El descuento no es válido" }, { status: 400 });
+    update.discount_value = dv;
+  }
+  if (Object.keys(update).length === 0) return NextResponse.json({ error: "Nada que actualizar" }, { status: 400 });
+
+  const supabase = createAdminSupabase();
+  let q = supabase.from("loyalty_rewards").update(update).eq("id", id);
+  if (mgr.role !== "super_admin") q = q.eq("tenant_id", mgr.tenantId as string);
+  const { data, error } = await q.select().maybeSingle();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (!data) return NextResponse.json({ error: "Recompensa no encontrada" }, { status: 404 });
+  return NextResponse.json({ success: true, reward: data });
+}
+
 // DELETE: Deactivate a reward
 export async function DELETE(req: NextRequest) {
   const mgr = await isManagerLevel();
