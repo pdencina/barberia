@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatCurrency, todayInChile } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -8,6 +8,9 @@ import {
 } from "lucide-react";
 import { PageHeader, StatCard, Panel, tableStyles as ts, primaryButton } from "@/components/ui/premium";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
+import { AnimatedNumber } from "@/components/ui/animated-number";
+import { cacheKey, readCache, writeCache } from "@/lib/swr-cache";
 import { MonthClosePanel } from "@/components/finance/month-close-panel";
 
 interface ReportData {
@@ -42,7 +45,8 @@ const paymentMethodLabels: Record<string, string> = {
 };
 
 export default function ReportesPage() {
-  const { isAtLeast } = useAuth();
+  const { user, isAtLeast } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
   const [chileYear, chileMonth] = todayInChile().split("-").map(Number);
   const [month, setMonth] = useState(chileMonth);
   const [year, setYear] = useState(chileYear);
@@ -50,13 +54,19 @@ export default function ReportesPage() {
   const [loading, setLoading] = useState(true);
   const [comparison, setComparison] = useState<Array<{ label: string; income: number; expenses: number }>>([]);
 
+  // Cache de lectura en memoria (por usuario, negocio y mes): al volver a la pantalla o a un mes ya visto se muestra al tiro
+  // y las cifras se animan cuando llega lo actualizado. skipSpinnerRef lo activa solo la carga automatica, no "onChanged".
+  const reportKey = cacheKey(["reportes-monthly", user?.id, tenant?.id, String(year), String(month)]);
+  const skipSpinnerRef = useRef(false);
   const fetchReport = async () => {
-    setLoading(true);
+    if (!skipSpinnerRef.current) setLoading(true);
+    skipSpinnerRef.current = false;
     try {
       const res = await fetch(`/api/reportes/monthly?month=${month}&year=${year}`);
       const result = await res.json();
       if (result.summary) {
         setData(result);
+        writeCache(reportKey, result, "memory");
       }
     } catch (err) {
       console.error("Error fetching report:", err);
@@ -65,13 +75,25 @@ export default function ReportesPage() {
     }
   };
 
-  useEffect(() => { fetchReport(); }, [month, year]);
+  useEffect(() => {
+    if (tenantLoading) return;
+    const cached = readCache<ReportData>(reportKey, undefined, "memory");
+    if (cached?.summary) { setData(cached); setLoading(false); skipSpinnerRef.current = true; }
+    fetchReport();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [month, year, tenantLoading, tenant?.id, user?.id]);
 
   useEffect(() => {
+    if (tenantLoading) return;
+    const ck = cacheKey(["reportes-comparison", user?.id, tenant?.id]);
+    const cached = readCache<Array<{ label: string; income: number; expenses: number }>>(ck, undefined, "memory");
+    if (cached) setComparison(cached);
     fetch("/api/reportes/comparison")
       .then((r) => r.json())
-      .then((d) => setComparison(Array.isArray(d) ? d : []));
-  }, []);
+      .then((d) => {
+        if (Array.isArray(d)) { setComparison(d); writeCache(ck, d, "memory"); } else setComparison([]);
+      });
+  }, [tenantLoading, tenant?.id, user?.id]);
 
   const changeMonth = (delta: number) => {
     let m = month + delta;
@@ -133,40 +155,40 @@ export default function ReportesPage() {
           hero
           className="col-span-2 lg:col-span-2"
           label="Movimiento total (bruto)"
-          value={formatCurrency(data.summary.totalIncome)}
+          value={<AnimatedNumber value={data.summary.totalIncome} format={formatCurrency} />}
           Icon={Coins}
           hint="Incluye ventas de arrendatarios"
         />
         <StatCard
           label="Ingresos comisión"
-          value={formatCurrency(data.summary.incomeCommission)}
+          value={<AnimatedNumber value={data.summary.incomeCommission} format={formatCurrency} />}
           Icon={Percent}
           tone="violet"
           hint="Ingresa al salón"
         />
         <StatCard
           label="Ingresos arriendo"
-          value={formatCurrency(data.summary.incomeRental)}
+          value={<AnimatedNumber value={data.summary.incomeRental} format={formatCurrency} />}
           Icon={KeyRound}
           tone="amber"
           hint="No ingresa al salón"
         />
         <StatCard
           label="Egresos"
-          value={formatCurrency(data.summary.totalExpenses)}
+          value={<AnimatedNumber value={data.summary.totalExpenses} format={formatCurrency} />}
           Icon={TrendingDown}
           tone="red"
         />
         <StatCard
           label="Utilidad salón"
-          value={formatCurrency(data.summary.salonNetIncome)}
+          value={<AnimatedNumber value={data.summary.salonNetIncome} format={formatCurrency} />}
           Icon={PiggyBank}
           tone="green"
           hint="Comisión − egresos"
         />
-        <StatCard label="Transacciones" value={data.summary.totalTransactions} Icon={Receipt} tone="slate" />
-        <StatCard label="Citas completadas" value={data.summary.appointmentsCompleted} Icon={CalendarCheck} tone="teal" />
-        <StatCard label="Clientes nuevos" value={data.summary.newClients} Icon={UserPlus} tone="green" />
+        <StatCard label="Transacciones" value={<AnimatedNumber value={data.summary.totalTransactions} />} Icon={Receipt} tone="slate" />
+        <StatCard label="Citas completadas" value={<AnimatedNumber value={data.summary.appointmentsCompleted} />} Icon={CalendarCheck} tone="teal" />
+        <StatCard label="Clientes nuevos" value={<AnimatedNumber value={data.summary.newClients} />} Icon={UserPlus} tone="green" />
       </div>
 
       {/* Monthly Comparison Chart */}
