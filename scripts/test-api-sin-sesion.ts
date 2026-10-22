@@ -1,5 +1,5 @@
 // Regresion de seguridad: estas rutas GET devolvian datos de TODOS los negocios a cualquiera sin iniciar sesion.
-// Esta prueba llama a las rutas reales sin cookies y exige 401, sin llegar a consultar la base ni la red.
+// Esta prueba llama a las rutas reales sin cookies y exige 401/403, sin llegar a consultar la base ni la red.
 // Ejecutar: npx tsx scripts/test-api-sin-sesion.ts
 process.env.NEXT_PUBLIC_SUPABASE_URL = "https://abc.supabase.co";
 process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-de-prueba";
@@ -13,7 +13,9 @@ let networkCalls = 0;
   throw new Error("la prueba no debe llegar a la red");
 };
 
-const rutas = [
+// Cada ruta con los parametros que antes la dejaban entregar datos (o que hacian que llegara al codigo de la ruta).
+const ID = "11111111-1111-1111-1111-111111111111";
+const rutas: string[] = [
   "appointments",
   "arriendo",
   "business-hours",
@@ -24,6 +26,20 @@ const rutas = [
   "price-history",
   "reportes/comparison",
   "finanzas",
+  // segunda tanda
+  "caja?date=2026-10-20",
+  "appointments/week?start=2026-10-19",
+  "analytics/products?days=3650",
+  "booking-metrics?days=3650",
+  "waitlist?status=all",
+  `barber/blocks?barberId=${ID}`,
+  `barber-services?barberId=${ID}`,
+  `barber-service-assignments?barberId=${ID}`,
+  `mercadopago?barberId=${ID}`,
+  "mercadopago/devices",
+  `mercadopago/status?id=x&barberId=${ID}`,
+  `tuu/status?id=x&barberId=${ID}`,
+  "cupones/validate?code=PRUEBA&amount=1000",
 ];
 
 let fails = 0;
@@ -34,15 +50,18 @@ const t = (name: string, ok: boolean, extra = "") => {
 
 (async () => {
   for (const r of rutas) {
-    const mod = await import(`../src/app/api/${r}/route`);
+    const [ruta, query = ""] = r.split("?");
+    const mod = await import(`../src/app/api/${ruta}/route`);
     // Tambien con un tenantId de otro negocio en la URL: sin sesion tampoco debe servir.
-    for (const qs of ["", "?tenantId=00000000-0000-0000-0000-000000000000"]) {
+    const ajeno = "tenantId=00000000-0000-0000-0000-000000000000";
+    for (const qs of [query ? `?${query}` : "", `?${query ? query + "&" : ""}${ajeno}`]) {
       networkCalls = 0;
-      const res: Response = await mod.GET(new NextRequest(`http://localhost:3000/api/${r}${qs}`));
+      const res: Response = await mod.GET(new NextRequest(`http://localhost:3000/api/${ruta}${qs}`));
       let body: any = null;
       try { body = await res.json(); } catch { /* sin cuerpo JSON */ }
       const sinDatos = body && !Array.isArray(body) && Object.keys(body).length === 1 && typeof body.error === "string";
-      t(`/api/${r}${qs ? " (con tenantId ajeno)" : ""} sin sesion`, res.status === 401 && sinDatos && networkCalls === 0, `status ${res.status}, llamadas a la red: ${networkCalls}`);
+      const cerrada = res.status === 401 || res.status === 403;
+      t(`/api/${ruta}${qs.includes("tenantId") ? " (con tenantId ajeno)" : ""} sin sesion`, cerrada && sinDatos && networkCalls === 0, `status ${res.status}, llamadas a la red: ${networkCalls}`);
     }
   }
   process.exit(fails ? 1 : 0);
