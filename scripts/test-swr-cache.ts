@@ -17,6 +17,7 @@ const t = (name: string, ok: boolean) => { if (!ok) fails++; console.log(`${ok ?
 
 t("sin usuario no hay clave", cacheKey(["dashboard", undefined, "neg", "2026-10-22"]) === null);
 t("sin negocio no hay clave", cacheKey(["dashboard", "u1", null, "2026-10-22"]) === null);
+t("texto vacio (sin busqueda) si forma clave", cacheKey(["clientes", "u1", "neg", ""]) !== null);
 t("con todo hay clave", typeof cacheKey(["dashboard", "u1", "neg", "2026-10-22", "7d"]) === "string");
 t("leer con clave null devuelve null", readCache(null) === null);
 
@@ -56,5 +57,24 @@ t("y no toca claves ajenas", fake.getItem("otra-cosa") === "1");
 let threw = false;
 try { writeCache("rb-cache:a|b", { a: 1 }); readCache("rb-cache:a|b"); clearAppCache(); } catch { threw = true; }
 t("si el navegador bloquea el almacenamiento no se rompe nada", !threw);
+
+// --- almacen en memoria ---
+(globalThis as any).sessionStorage = fake;
+const kM = cacheKey(["clientes", "u1", "negA", "", "1"]);
+writeCache(kM, { clients: [{ id: "a" }] }, "memory");
+t("memoria: ida y vuelta", (readCache<any>(kM, undefined, "memory"))?.clients?.[0]?.id === "a");
+t("memoria: NO queda escrito en sessionStorage", fake.getItem(kM!) === null);
+t("memoria: leer como 'session' no lo encuentra", readCache(kM) === null);
+const m1 = readCache<any>(kM, undefined, "memory"); m1.clients.push({ id: "z" });
+t("memoria: modificar lo leido no altera lo guardado", readCache<any>(kM, undefined, "memory").clients.length === 1);
+const realNow2 = Date.now;
+Date.now = () => realNow2() + 11 * 60 * 1000;
+t("memoria: pasados 10 min se ignora", readCache(kM, undefined, "memory") === null);
+Date.now = realNow2;
+for (let i = 0; i < 45; i++) writeCache(cacheKey(["m", "u", "n", String(i)]), { i }, "memory");
+t("memoria: el mas antiguo salio por el tope", readCache(cacheKey(["m", "u", "n", "0"]), undefined, "memory") === null && readCache<any>(cacheKey(["m", "u", "n", "44"]), undefined, "memory")?.i === 44);
+writeCache(kM, { x: 1 }, "memory");
+clearAppCache();
+t("clearAppCache tambien vacia la memoria", readCache(kM, undefined, "memory") === null);
 
 process.exit(fails ? 1 : 0);
