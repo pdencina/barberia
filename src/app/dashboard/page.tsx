@@ -26,6 +26,7 @@ interface DashboardData {
     reservasHoy: number;
     reservasChange: number;
     ventasHoy: number;
+    ventasPendientes?: number;
     ventasChange: number;
     clientesNuevos: number;
     clientesChange: number;
@@ -305,6 +306,9 @@ export default function DashboardPage() {
           label={isToday ? "Ventas hoy" : "Ventas"}
           value={hideAmount ? "$ ••••••" : formatCurrency(data.stats.ventasHoy)}
           Icon={Wallet}
+          footnote={(data.stats.ventasPendientes || 0) > 0
+            ? `${isToday ? "Proyección del día" : "Proyección"}: ${hideAmount ? "$ ••••••" : formatCurrency(data.stats.ventasHoy + (data.stats.ventasPendientes || 0))}`
+            : undefined}
           delta={{ value: data.stats.ventasChange, suffix: "vs dia anterior" }}
         />
         </Sec>

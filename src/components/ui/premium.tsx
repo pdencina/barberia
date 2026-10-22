@@ -74,6 +74,7 @@ export function StatCard({
   delta,
   className = "",
   labelAction,
+  footnote,
 }: {
   label: string;
   value: ReactNode;
@@ -85,6 +86,8 @@ export function StatCard({
   className?: string;
   /** Solo en la tarjeta destacada: boton junto al titulo (ej. ojito para ocultar el monto). */
   labelAction?: ReactNode;
+  /** Solo en la tarjeta destacada: linea chica y tenue bajo el monto (ej. la proyeccion del dia). */
+  footnote?: ReactNode;
 }) {
   if (hero) {
     return (
@@ -100,7 +103,10 @@ export function StatCard({
           </div>
         </div>
         <div className="relative mt-2 flex items-end justify-between gap-2 md:mt-3 md:block">
+        <div>
         <p className="text-2xl font-black leading-none tracking-tight tabular-nums md:text-4xl">{value}</p>
+        {footnote && <p className="mt-1.5 text-[11px] font-medium text-white/60 md:text-xs">{footnote}</p>}
+        </div>
         <div className="flex flex-wrap items-center gap-2 md:mt-3">
           {delta && (
             <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[11px] font-semibold">
