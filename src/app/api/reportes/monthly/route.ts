@@ -20,11 +20,12 @@ function normalizeName(name: string): string {
 // Una lista larga de ids en .in() supera el largo maximo de la URL y devolvia vacio en
 // silencio con cientos de ventas al mes: se consulta por lotes.
 async function inChunks(ids: string[], fetcher: (chunk: string[]) => PromiseLike<{ data: any[] | null }>, size = 100): Promise<any[]> {
+  // Los lotes se piden a la vez (antes uno tras otro): con cientos de ventas eran decenas de viajes seguidos a la base.
+  const batches: string[][] = [];
+  for (let i = 0; i < ids.length; i += size) batches.push(ids.slice(i, i + size));
+  const results = await Promise.all(batches.map((b) => fetcher(b)));
   const out: any[] = [];
-  for (let i = 0; i < ids.length; i += size) {
-    const { data } = await fetcher(ids.slice(i, i + size));
-    if (data) out.push(...data);
-  }
+  for (const { data } of results) if (data) out.push(...data);
   return out;
 }
 
@@ -63,27 +64,38 @@ export async function GET(req: NextRequest) {
   const acc = await accountingColumnsAvailable(supabase);
   const mr = { first: firstDayStr, last: lastDayStr, startIso: startDate, endIso: endDate };
 
-  // Income / expense transactions (todas las filas, por fecha contable)
-  const incomeTx = await fetchMonthTx(supabase, { select: "total, payment_method, barber_id", type: "income", range: mr, scope: tf, acc });
-  const expenseTx = await fetchMonthTx(supabase, { select: "id, total", type: "expense", range: mr, scope: tf, acc });
+  // Las consultas que no dependen entre si se lanzan juntas (antes eran 5 viajes seguidos a la base).
+  // transaction_items has NO tenant_id column, so it must be scoped through the
+  // transactions of THIS business/period. Without this, "Top servicios" and "Top
+  // productos" mixed sale items from every business. Get this tenant's transaction ids
+  // first and filter items by them.
+  const [incomeTx, expenseTx, { count: appointmentsCompleted }, { count: newClients }, { data: tenantTxIds }] = await Promise.all([
+    // Income / expense transactions (todas las filas, por fecha contable)
+    fetchMonthTx(supabase, { select: "total, payment_method, barber_id", type: "income", range: mr, scope: tf, acc }),
+    fetchMonthTx(supabase, { select: "id, total", type: "expense", range: mr, scope: tf, acc }),
+    // Appointments completed
+    tf(supabase
+      .from("appointments")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "completed")
+      .gte("date", firstDayStr)
+      .lte("date", lastDayStr)),
+    // New clients
+    tf(supabase
+      .from("clients")
+      .select("id", { count: "exact", head: true })
+      .gte("created_at", startDate)
+      .lt("created_at", endDate)),
+    tf(supabase
+      .from("transactions")
+      .select("id")
+      .eq("status", "completed")
+      .gte("created_at", startDate)
+      .lt("created_at", endDate)),
+  ]);
 
   const totalIncome = (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
   const totalExpenses = (expenseTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
-
-  // Appointments completed
-  const { count: appointmentsCompleted } = await tf(supabase
-    .from("appointments")
-    .select("id", { count: "exact", head: true })
-    .eq("status", "completed")
-    .gte("date", firstDayStr)
-    .lte("date", lastDayStr));
-
-  // New clients
-  const { count: newClients } = await tf(supabase
-    .from("clients")
-    .select("id", { count: "exact", head: true })
-    .gte("created_at", startDate)
-    .lt("created_at", endDate));
 
   // Income by payment method
   const methodMap: Record<string, { total: number; count: number }> = {};
@@ -103,16 +115,40 @@ export async function GET(req: NextRequest) {
     barberMap[t.barber_id].count++;
   }
 
-  // Get barber names and work mode
+  const txIdList = (tenantTxIds || []).map((t: any) => t.id);
+  const expenseTxIds = new Set((expenseTx || []).map((t: any) => t.id));
+
+  // Segunda tanda en paralelo: nombres/modo de los profesionales, items de servicios, de productos y de egresos.
   const barberIds = Object.keys(barberMap);
-  let barberProfiles: Record<string, { name: string; work_mode: string; active: boolean }> = {};
-  if (barberIds.length > 0) {
-    const { data: profiles } = await supabase
-      .from("profiles")
-      .select("id, name, work_mode, active")
-      .in("id", barberIds);
-    barberProfiles = Object.fromEntries((profiles || []).map((p) => [p.id, { name: p.name, work_mode: p.work_mode || "commission", active: p.active !== false }]));
-  }
+  const [profilesRes, serviceItems, productItems, expenseItems] = await Promise.all([
+    barberIds.length > 0
+      ? supabase.from("profiles").select("id, name, work_mode, active").in("id", barberIds)
+      : Promise.resolve({ data: [] as any[] }),
+    txIdList.length > 0
+      ? inChunks(txIdList, (c) => supabase
+          .from("transaction_items")
+          .select("description, total, quantity, service_id, transaction_id")
+          .not("service_id", "is", null)
+          .in("transaction_id", c))
+      : Promise.resolve([] as any[]),
+    txIdList.length > 0
+      ? inChunks(txIdList, (c) => supabase
+          .from("transaction_items")
+          .select("description, total, quantity, product_id, transaction_id")
+          .not("product_id", "is", null)
+          .in("transaction_id", c))
+      : Promise.resolve([] as any[]),
+    expenseTxIds.size > 0
+      ? inChunks(Array.from(expenseTxIds) as string[], (c) => supabase
+          .from("transaction_items")
+          .select("description, total, transaction_id")
+          .in("transaction_id", c))
+      : Promise.resolve([] as any[]),
+  ]);
+  // Get barber names and work mode
+  const barberProfiles: Record<string, { name: string; work_mode: string; active: boolean }> = Object.fromEntries(
+    (profilesRes.data || []).map((p: any) => [p.id, { name: p.name, work_mode: p.work_mode || "commission", active: p.active !== false }])
+  );
 
   // Punto 17: agrupar por nombre normalizado para no mostrar la misma persona dos veces
   // cuando su cuenta fue recreada (id viejo desactivado + id nuevo). Se prefiere el modo
@@ -148,46 +184,20 @@ export async function GET(req: NextRequest) {
   const noBarberIncome = (incomeTx || []).filter((t: any) => !t.barber_id).reduce((s: number, t: any) => s + Number(t.total), 0);
   incomeCommission += noBarberIncome;
 
-  // transaction_items has NO tenant_id column, so it must be scoped through the
-  // transactions of THIS business/period. Without this, "Top servicios" and "Top
-  // productos" mixed sale items from every business. Get this tenant's transaction ids
-  // first and filter items by them.
-  const { data: tenantTxIds } = await tf(supabase
-    .from("transactions")
-    .select("id")
-    .eq("status", "completed")
-    .gte("created_at", startDate)
-    .lt("created_at", endDate));
-  const txIdList = (tenantTxIds || []).map((t: any) => t.id);
-
   // Top services (from transaction_items via this tenant's transactions)
   const svcMap: Record<string, { total: number; count: number }> = {};
   const prodMap: Record<string, { total: number; count: number }> = {};
 
-  if (txIdList.length > 0) {
-    const serviceItems = await inChunks(txIdList, (c) => supabase
-      .from("transaction_items")
-      .select("description, total, quantity, service_id, transaction_id")
-      .not("service_id", "is", null)
-      .in("transaction_id", c));
+  for (const item of serviceItems || []) {
+    if (!svcMap[item.description]) svcMap[item.description] = { total: 0, count: 0 };
+    svcMap[item.description].total += Number(item.total);
+    svcMap[item.description].count += item.quantity;
+  }
 
-    for (const item of serviceItems || []) {
-      if (!svcMap[item.description]) svcMap[item.description] = { total: 0, count: 0 };
-      svcMap[item.description].total += Number(item.total);
-      svcMap[item.description].count += item.quantity;
-    }
-
-    const productItems = await inChunks(txIdList, (c) => supabase
-      .from("transaction_items")
-      .select("description, total, quantity, product_id, transaction_id")
-      .not("product_id", "is", null)
-      .in("transaction_id", c));
-
-    for (const item of productItems || []) {
-      if (!prodMap[item.description]) prodMap[item.description] = { total: 0, count: 0 };
-      prodMap[item.description].total += Number(item.total);
-      prodMap[item.description].count += item.quantity;
-    }
+  for (const item of productItems || []) {
+    if (!prodMap[item.description]) prodMap[item.description] = { total: 0, count: 0 };
+    prodMap[item.description].total += Number(item.total);
+    prodMap[item.description].count += item.quantity;
   }
 
   // Punto 18 (Pablo): "incorporar egresos manuales al cierre mensual" — el total ya
@@ -196,19 +206,11 @@ export async function GET(req: NextRequest) {
   // componia. Se agrega el detalle agrupado por descripcion, igual que Top
   // servicios/productos, para que se vea el movimiento financiero completo.
   const expenseMap: Record<string, { total: number; count: number }> = {};
-  const expenseTxIds = new Set((expenseTx || []).map((t: any) => t.id));
-  if (expenseTxIds.size > 0) {
-    const expenseItems = await inChunks(Array.from(expenseTxIds) as string[], (c) => supabase
-      .from("transaction_items")
-      .select("description, total, transaction_id")
-      .in("transaction_id", c));
-
-    for (const item of expenseItems || []) {
-      const label = item.description || "Otro egreso";
-      if (!expenseMap[label]) expenseMap[label] = { total: 0, count: 0 };
-      expenseMap[label].total += Number(item.total);
-      expenseMap[label].count++;
-    }
+  for (const item of expenseItems || []) {
+    const label = item.description || "Otro egreso";
+    if (!expenseMap[label]) expenseMap[label] = { total: 0, count: 0 };
+    expenseMap[label].total += Number(item.total);
+    expenseMap[label].count++;
   }
 
   return NextResponse.json({
