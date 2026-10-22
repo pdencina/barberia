@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
 
 // GET: Check a TUU remote payment request's status by idempotencyKey.
 // TUU status lifecycle (docs): Pending(0) -> Sent(1) -> Processing(3) -> Completed(5)
@@ -26,6 +26,9 @@ const STATUS_MAP: Record<string, string> = {
 };
 
 export async function GET(req: NextRequest) {
+  // SEGURIDAD: sin sesion cualquiera podia llamar esto (consulta el estado de un cobro con tarjeta).
+  const guard = await requireRole(["admin", "super_admin", "receptionist", "barber"]);
+  if (!guard.ok) return guard.response;
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const idempotencyKey = searchParams.get("id");
