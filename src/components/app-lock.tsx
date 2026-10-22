@@ -1,5 +1,6 @@
 "use client";
 
+import { clearAppCache } from "@/lib/swr-cache";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -47,6 +48,7 @@ export function AppLock() {
 
   const logout = async () => {
     try { localStorage.removeItem("tenant_override"); } catch {}
+    clearAppCache();
     await createClient().auth.signOut();
     setLocked(false);
     router.push("/login");

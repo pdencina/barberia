@@ -1,5 +1,6 @@
 "use client";
 
+import { clearAppCache } from "@/lib/swr-cache";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -42,6 +43,7 @@ export default function LoginPage() {
     // Also drop any leftover super_admin tenant override from a previous session in
     // this browser, so the incoming user never inherits another business's context.
     try { localStorage.removeItem("tenant_override"); } catch {}
+    clearAppCache();
     await supabase.auth.signOut();
 
     const { error, data: authData } = await supabase.auth.signInWithPassword({

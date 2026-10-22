@@ -1,5 +1,6 @@
 "use client";
 
+import { clearAppCache } from "@/lib/swr-cache";
 import { useState, useEffect } from "react";
 import { MyTabBarCard } from "@/components/settings/tab-bar-cards";
 import { useAuth } from "@/lib/auth-context";
@@ -121,6 +122,7 @@ export default function MiPerfilPage() {
       if (!res.ok) return setMailMsg({ ok: false, text: r.error || "No se pudo cambiar el correo." });
       setMailMsg({ ok: true, text: "Correo cambiado. Vuelve a entrar con el correo nuevo." });
       setTimeout(async () => {
+        clearAppCache();
         await createClient().auth.signOut();
         router.push("/login");
         router.refresh();
@@ -153,6 +155,7 @@ export default function MiPerfilPage() {
         return;
       }
       try { localStorage.removeItem("tenant_override"); } catch {}
+      clearAppCache();
       await createClient().auth.signOut();
       router.push("/login");
       router.refresh();

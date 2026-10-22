@@ -1,5 +1,6 @@
 "use client";
 
+import { clearAppCache } from "@/lib/swr-cache";
 import { disableNativePush } from "@/lib/native-push";
 import { useState, useEffect } from "react";
 import Link from "next/link";
@@ -353,6 +354,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     // other business's data (real leak: an Estudio Levels admin saw Saray Business
     // clients and services because of a leftover override).
     try { localStorage.removeItem("tenant_override"); localStorage.removeItem("rb_tab_prefs"); } catch {}
+    clearAppCache();
     // En la app movil, este telefono deja de recibir los avisos de quien cierra sesion.
     await disableNativePush().catch(() => {});
     await supabase.auth.signOut();
