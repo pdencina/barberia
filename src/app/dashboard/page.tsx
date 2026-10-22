@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback, useRef, type ReactNode } from "react"
 import { useRouter } from "next/navigation";
 import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
+import { AnimatedNumber } from "@/components/ui/animated-number";
+import { cacheKey, readCache, writeCache } from "@/lib/swr-cache";
 import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
@@ -137,15 +139,32 @@ export default function DashboardPage() {
   // Carga del Dashboard. La usan la carga inicial, el refresco automatico de cada 30 s y el boton Actualizar.
   //  - normal: igual que siempre (muestra el giro del grafico salvo que sea "silent").
   //  - strict: solo da por buena una respuesta correcta; si falla, NO toca lo que se ve y devuelve false.
+  // Clave de lo que hay en pantalla: una respuesta mala solo se descarta si ya se ve lo MISMO (mismo dia y rango), no otro dia.
+  const shownKeyRef = useRef<string | null>(null);
   const loadDashboard = useCallback(async (opts?: { silent?: boolean; strict?: boolean }): Promise<boolean> => {
     const params = new URLSearchParams({ date: selectedDate, range: chartRange });
     if (tenant?.id) params.set("tenantId", tenant.id);
-    if (!opts?.silent) setChartLoading(true);
+    // Cache de lectura (por usuario, negocio, dia y rango): si hay algo reciente se muestra al tiro y los numeros
+    // se animan cuando llega lo actualizado. Solo en cargas normales; el refresco silencioso de 30 s y "Actualizar" no la usan.
+    const ckey = cacheKey(["dashboard", user?.id, tenant?.id, selectedDate, chartRange]);
+    if (!opts?.silent) {
+      const cached = readCache<DashboardData>(ckey);
+      if (cached?.stats) {
+        setData(cached);
+        shownKeyRef.current = ckey;
+        setLoading(false);
+      }
+      setChartLoading(true);
+    }
     try {
       const r = await fetch(`/api/dashboard?${params.toString()}`, { cache: "no-store" });
       const d = await r.json();
-      if (opts?.strict && (!r.ok || !d || !d.stats)) return false;
+      const valid = r.ok && !!d && !!d.stats;
+      if (opts?.strict && !valid) return false;
+      // Si la respuesta no sirve y ya hay datos en pantalla (por ejemplo los guardados), no se pisan con un error.
+      if (!valid && ckey && shownKeyRef.current === ckey) return false;
       setData(d);
+      if (valid) { shownKeyRef.current = ckey; writeCache(ckey, d); }
       return true;
     } catch {
       return false;
@@ -153,7 +172,7 @@ export default function DashboardPage() {
       setLoading(false);
       setChartLoading(false);
     }
-  }, [selectedDate, chartRange, tenant?.id]);
+  }, [selectedDate, chartRange, tenant?.id, user?.id]);
 
   useEffect(() => {
     if (tenantLoading) return;
@@ -304,7 +323,7 @@ export default function DashboardPage() {
             </button>
           }
           label={isToday ? "Ventas hoy" : "Ventas"}
-          value={hideAmount ? "$ ••••••" : formatCurrency(data.stats.ventasHoy)}
+          value={hideAmount ? "$ ••••••" : <AnimatedNumber value={data.stats.ventasHoy} format={formatCurrency} />}
           Icon={Wallet}
           footnote={(data.stats.ventasPendientes || 0) > 0
             ? `${isToday ? "Proyección del día" : "Proyección"}: ${hideAmount ? "$ ••••••" : formatCurrency(data.stats.ventasHoy + (data.stats.ventasPendientes || 0))}`
@@ -315,7 +334,7 @@ export default function DashboardPage() {
         <Sec id="reservas" {...secProps}>
         <StatCard
           label={isToday ? "Reservas hoy" : "Reservas"}
-          value={data.stats.reservasHoy}
+          value={<AnimatedNumber value={data.stats.reservasHoy} />}
           Icon={CalendarCheck}
           tone="teal"
           delta={{ value: data.stats.reservasChange }}
@@ -324,7 +343,7 @@ export default function DashboardPage() {
         <Sec id="clientes" {...secProps}>
         <StatCard
           label="Clientes nuevos"
-          value={data.stats.clientesNuevos}
+          value={<AnimatedNumber value={data.stats.clientesNuevos} />}
           Icon={UserPlus}
           tone="green"
           delta={{ value: data.stats.clientesChange }}
@@ -333,7 +352,7 @@ export default function DashboardPage() {
         <Sec id="reagend" {...secProps}>
         <StatCard
           label="Reagendamientos"
-          value={data.stats.reagendamientos}
+          value={<AnimatedNumber value={data.stats.reagendamientos} />}
           Icon={RefreshCw}
           tone="violet"
           delta={{ value: data.stats.reagendamientosChange }}
@@ -342,7 +361,7 @@ export default function DashboardPage() {
         <Sec id="cancel" {...secProps}>
         <StatCard
           label="Cancelaciones"
-          value={data.stats.cancelaciones}
+          value={<AnimatedNumber value={data.stats.cancelaciones} />}
           Icon={CalendarX}
           tone="red"
           delta={{ value: data.stats.cancelacionesChange, invert: true }}
