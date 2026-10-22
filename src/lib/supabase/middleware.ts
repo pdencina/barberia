@@ -1,7 +1,17 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { hasFreshSessionToken } from "@/lib/supabase/token-fresh";
 
 export async function updateSession(request: NextRequest) {
+  // Navegar dentro del panel con la sesion vigente (le quedan mas de 5 min): no se le pregunta a Supabase en cada clic
+  // (costaba ~0,3-0,4 s por pestana). Si el token vence pronto o la cookie no se entiende, sigue la validacion completa de
+  // abajo, que ademas lo refresca. /login queda SIEMPRE con la validacion completa para no crear un bucle de redirecciones si
+  // la sesion fue revocada. Esto solo afecta a la carcasa de /dashboard: los datos salen de /api (que valida por su cuenta) y el
+  // layout vuelve a validar en cada carga completa. Para volver al comportamiento anterior basta borrar este bloque.
+  if (request.nextUrl.pathname.startsWith("/dashboard") && hasFreshSessionToken(request.cookies)) {
+    return NextResponse.next({ request: { headers: request.headers } });
+  }
+
   let response = NextResponse.next({
     request: {
       headers: request.headers,
