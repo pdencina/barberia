@@ -8,6 +8,8 @@ export async function GET(req: NextRequest) {
   // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
   // reemplaza por el negocio real del usuario logueado salvo que sea super_admin.
   const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
+  // SEGURIDAD: sin sesion valida no hay negocio: antes la consulta salia SIN filtro y devolvia datos de todos los negocios.
+  if (!tenantId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const status = searchParams.get("status"); // pending, approved, all
 
   let query = supabase
