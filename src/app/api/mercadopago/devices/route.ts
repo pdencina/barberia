@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
+import { requireRole } from "@/lib/supabase/server";
 
 // GET: List all Point devices for this MP account
 export async function GET() {
+  // SEGURIDAD: sin sesion cualquiera podia llamar esto (lista los lectores de pago de la cuenta de la plataforma).
+  const guard = await requireRole(["admin", "super_admin"]);
+  if (!guard.ok) return guard.response;
   const accessToken = process.env.MP_ACCESS_TOKEN;
 
   if (!accessToken) {

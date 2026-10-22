@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
 
 // Resolve the access token to query an order with. CRITICAL: a MercadoPago order can
 // only be read with the SAME account's token that created it. This used to always use
@@ -47,6 +47,9 @@ async function resolveTokenForBarber(supabase: any, barberId: string | null): Pr
 
 // GET: Check order/payment status (Chile - Orders API)
 export async function GET(req: NextRequest) {
+  // SEGURIDAD: sin sesion cualquiera podia llamar esto (consulta el estado de un cobro con tarjeta).
+  const guard = await requireRole(["admin", "super_admin", "receptionist", "barber"]);
+  if (!guard.ok) return guard.response;
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const orderId = searchParams.get("id");

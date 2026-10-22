@@ -10,6 +10,8 @@ export async function GET(req: NextRequest) {
   const month = searchParams.get("month"); // YYYY-MM
 
   if (!barberId) return NextResponse.json([]);
+  // SEGURIDAD: antes no pedia sesion y entregaba datos de cualquier profesional con solo su id.
+  if (!(await canAccessBarber(barberId))) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   let query = supabase
     .from("barber_blocks")

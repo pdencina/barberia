@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
+  // SEGURIDAD: sin sesion cualquiera podia llamar esto (consulta cupones de descuento).
+  const guard = await requireRole(["admin", "super_admin", "receptionist", "barber"]);
+  if (!guard.ok) return guard.response;
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const code = searchParams.get("code");
