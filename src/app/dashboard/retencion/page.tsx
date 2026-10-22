@@ -380,10 +380,11 @@ export default function RetencionPage() {
                     <p className="text-sm font-semibold text-brand-dark">{c.lastVisit ? new Date(c.lastVisit + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }) : "Sin visitas"}</p>
                     <p className="text-[10px] uppercase tracking-wide text-brand-gray">última visita</p>
                   </div>
-                  <span className={`flex-shrink-0 rounded-full px-3 py-1 text-xs font-bold tabular-nums ${tone}`}>
+                  <span className={`flex-shrink-0 rounded-full px-3 py-1 text-center text-xs font-bold tabular-nums md:min-w-[84px] ${tone}`}>
                     {c.lastVisit ? "" : "Registrado hace "}{c.daysSinceVisit} {c.daysSinceVisit === 1 ? "día" : "días"}
                   </span>
-                  <div className="flex flex-shrink-0 gap-2">
+                  {/* Ancho fijo en pantalla grande: si el cliente no tiene correo (solo WhatsApp) las columnas de la fila siguen alineadas con las demas. */}
+                  <div className="flex flex-shrink-0 gap-2 md:w-[216px]">
                     {c.phone && (
                       <button
                         onClick={() => notifyClient(c.id, "whatsapp")}
