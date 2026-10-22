@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, canAccessBarber } from "@/lib/supabase/server";
 
 // GET: Get assigned services for a barber
 export async function GET(req: NextRequest) {
@@ -8,6 +8,8 @@ export async function GET(req: NextRequest) {
   const barberId = searchParams.get("barberId");
 
   if (!barberId) return NextResponse.json([]);
+  // SEGURIDAD: antes no pedia sesion y entregaba datos de cualquier profesional con solo su id.
+  if (!(await canAccessBarber(barberId))) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   const { data } = await supabase
     .from("barber_service_assignments")
