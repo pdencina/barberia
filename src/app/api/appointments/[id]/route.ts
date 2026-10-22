@@ -4,6 +4,7 @@ import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase
 import { notify } from "@/lib/notify";
 import { getSlotCapacity, isSlotFull } from "@/lib/capacity";
 import { parseWallClock } from "@/lib/wallclock";
+import { clientVisibleChanges, emailClientAboutAppointment } from "@/lib/appointment-client-email";
 
 export async function PATCH(
   req: NextRequest,
@@ -14,7 +15,7 @@ export async function PATCH(
   if (!session.userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const supabase = createAdminSupabase();
   const { data: before } = await supabase.from("appointments")
-    .select("tenant_id, barber_id, status, date, start_time, client:clients(name)").eq("id", params.id).maybeSingle();
+    .select("tenant_id, barber_id, status, date, start_time, client:clients(name), services:appointment_services(service_id)").eq("id", params.id).maybeSingle();
   if (!before) return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
   if (session.role !== "super_admin" && (before as any).tenant_id !== session.tenantId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
@@ -117,6 +118,20 @@ export async function PATCH(
     }
   } catch (e) {
     console.error("aviso de cambio de cita:", e);
+  }
+
+  // Aviso al CLIENTE por correo si le cambian la hora de inicio, el profesional o los servicios (antes no recibia nada).
+  // No se avisa por estirar el bloque, notas internas ni cambios de estado, ni si la cita ya no esta activa.
+  try {
+    const b: any = before;
+    const stillActive = !update.status || ["scheduled", "confirmed", "in_progress"].includes(update.status);
+    const reasons = clientVisibleChanges({
+      before: { start_time: b.start_time, barber_id: b.barber_id, serviceIds: (b.services || []).map((s: any) => s.service_id) },
+      after: { start_time: update.start_time, barber_id: update.barber_id, serviceIds: Array.isArray(body.service_ids) ? body.service_ids : null },
+    });
+    if (stillActive && reasons.length > 0) await emailClientAboutAppointment(supabase, params.id, "updated");
+  } catch (e) {
+    console.error("aviso al cliente por cambio de cita:", e);
   }
   return NextResponse.json(data);
 }

@@ -233,15 +233,19 @@ interface SendBookingConfirmationParams {
 export async function sendBookingConfirmation(params: SendBookingConfirmationParams) {
   const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl } = params;
 
+  // La hora de la cita se guarda como "hora de pared de Chile escrita como UTC": se formatea siempre como UTC para que el
+  // correo muestre la misma hora en cualquier servidor (en Vercel ya era UTC; en uno con hora de Chile se corria 3 horas).
   const dateStr = new Date(date).toLocaleDateString("es-CL", {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
+    timeZone: "UTC",
   });
   const timeStr = new Date(date).toLocaleTimeString("es-CL", {
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "UTC",
   });
 
   const html = mailShell({
@@ -267,6 +271,66 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
     from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
     to,
     subject: `Cita confirmada - ${serviceName} con ${barberName} | re-booking`,
+    html,
+  });
+}
+
+
+// Aviso al cliente cuando el equipo cambia su cita (hora, profesional o servicios). Mismo formato que la confirmacion.
+interface SendAppointmentUpdatedParams {
+  to: string;
+  clientName: string;
+  barberName: string;
+  serviceName: string;
+  date: Date;
+  duration: number;
+  price: number;
+  appointmentId?: string;
+  // Business's own logo (tenants.logo_url). Falls back to the generic re-booking logo.
+  businessLogoUrl?: string | null;
+}
+
+export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParams) {
+  const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl } = params;
+
+  // La hora de la cita se guarda como "hora de pared de Chile escrita como UTC": se formatea siempre como UTC para que el
+  // correo muestre la misma hora en cualquier servidor (en Vercel ya era UTC; en uno con hora de Chile se corria 3 horas).
+  const dateStr = new Date(date).toLocaleDateString("es-CL", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+    timeZone: "UTC",
+  });
+  const timeStr = new Date(date).toLocaleTimeString("es-CL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
+
+  const html = mailShell({
+    label: "Cita modificada",
+    businessLogoUrl,
+    inner: `
+    <p style="font-size:16px;color:#374151;margin:12px 0 20px;">Hola <strong style="color:#111827;">${clientName}</strong>, tu cita fue modificada. Estos son los datos actualizados:</p>
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="border-top:1px solid #EEF0F2;">
+      ${mailRow("Servicio", serviceName)}
+      ${mailRow("Profesional", barberName)}
+      ${mailRow("Fecha", dateStr)}
+      ${mailRow("Hora", timeStr, true)}
+      ${mailRow("Duración", `${duration} minutos`)}
+      <tr><td style="padding:10px 0;font-size:13px;color:#6B7280;">Precio</td><td align="right" style="padding:10px 0;font-size:18px;color:${MAIL_ACCENT};font-weight:800;">$${price.toLocaleString("es-CL")}</td></tr>
+    </table>
+    ${appointmentId ? `<div style="text-align:center;margin:26px 0 6px;"><a href="https://www.re-booking.cl/cancel/${appointmentId}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Cancelar o modificar cita</a></div>` : ""}
+    <p style="text-align:center;font-size:13px;color:#6B7280;margin:14px 0 0;">¿Dudas? Escríbenos al <strong style="color:#111827;">9 4266 6172</strong></p>
+    <p style="text-align:center;font-size:14px;color:#374151;margin:18px 0 0;">¡Te esperamos!</p>`,
+  });
+
+  const resend = getResendClient();
+  await resend.emails.send({
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+    to,
+    subject: `Cita modificada - ${serviceName} con ${barberName} | re-booking`,
     html,
   });
 }

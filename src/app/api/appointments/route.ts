@@ -1,4 +1,5 @@
 import { cleanClientName } from "@/lib/client-name";
+import { emailClientAboutAppointment } from "@/lib/appointment-client-email";
 import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabase, createAdminSupabase, resolveTenantForRequest, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
@@ -171,6 +172,16 @@ export async function POST(req: NextRequest) {
     }
   } catch (e) {
     console.error("Error notifying barber (dashboard booking):", e);
+  }
+
+  // Aviso al CLIENTE por correo (antes solo se avisaba al profesional y el cliente no recibia nada). Si no tiene correo, o el
+  // envio falla, la cita se crea igual: el aviso nunca bloquea al equipo.
+  if (clientId) {
+    try {
+      await emailClientAboutAppointment(supabase, appointment.id, "created");
+    } catch (e) {
+      console.error("Error avisando al cliente de su cita nueva:", e);
+    }
   }
 
   return NextResponse.json(appointment, { status: 201 });
