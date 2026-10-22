@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { MoreVertical } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth-context";
+import { cacheKey, readCache, writeCache } from "@/lib/swr-cache";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyIcons } from "@/components/ui/empty-state";
@@ -42,7 +43,7 @@ export default function ClientesPage() {
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
-  const { role, effectiveRole } = useAuth();
+  const { user, role, effectiveRole } = useAuth();
   // Use effectiveRole (server-provided, reliable on Vercel) for security-sensitive gating.
   const gateRole = effectiveRole || role;
   const isAdmin = gateRole === "admin" || gateRole === "super_admin";
@@ -53,8 +54,13 @@ export default function ClientesPage() {
   // Recepcion, igual que el resto de la vista de negocio.
   const canSeeMetrics = isAdmin || gateRole === "receptionist";
 
+  // Cache de lectura en memoria (por usuario, negocio, busqueda y pagina; nada queda escrito en el navegador). Solo la carga
+  // automatica al abrir la pantalla la usa (skipSpinnerRef); buscar, paginar y las acciones piden todo como siempre.
+  const skipSpinnerRef = useRef(false);
+  const clientsKey = (query: string, p: number) => cacheKey(["clientes", user?.id, tenant?.id, query, String(p)]);
   const fetchClients = async (query: string, p: number = page) => {
-    setLoading(true);
+    if (!skipSpinnerRef.current) setLoading(true);
+    skipSpinnerRef.current = false;
     try {
       const params = new URLSearchParams();
       if (query) params.set("search", query);
@@ -67,6 +73,8 @@ export default function ClientesPage() {
       setTotalPages(data.totalPages || 1);
       setTotalClients(data.total || 0);
       setPage(data.page || 1);
+      // La ruta responde 200 con lista vacia cuando falla la base: una lista vacia no se guarda como dato bueno.
+      if (res.ok && Array.isArray(data.clients) && data.clients.length > 0) writeCache(clientsKey(query, p), data, "memory");
     } catch (err) {
       console.error("Error fetching clients:", err);
     } finally {
@@ -76,8 +84,18 @@ export default function ClientesPage() {
 
   useEffect(() => {
     if (tenantLoading) return;
+    const cached = readCache<any>(clientsKey("", 1), undefined, "memory");
+    if (cached?.clients) {
+      setClients(cached.clients);
+      setTotalPages(cached.totalPages || 1);
+      setTotalClients(cached.total || 0);
+      setPage(cached.page || 1);
+      setLoading(false);
+      skipSpinnerRef.current = true;
+    }
     fetchClients("");
-  }, [tenant?.id, tenantLoading]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenant?.id, tenantLoading, user?.id]);
 
   const handleSearch = (value: string) => {
     setSearch(value);
