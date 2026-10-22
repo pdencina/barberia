@@ -106,6 +106,8 @@ export default function CalendarioPage() {
   const [professionalFilter, setProfessionalFilter] = useState("");
   const [rangeDays, setRangeDays] = useState<1 | 3 | 7>(1);
   const [barbers, setBarbers] = useState<Barber[]>([]);
+  // true cuando ya llego la lista de profesionales (o fallo): los bloqueos/horarios esperan a esto para no pedirse dos veces.
+  const [barbersReady, setBarbersReady] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -412,16 +414,19 @@ export default function CalendarioPage() {
     if (tenantLoading) return;
     const t = getActiveTenantId();
     const params = t ? `?tenantId=${t}` : "";
+    // Los profesionales se aplican apenas llegan (sin esperar a servicios y clientes, que tardan mas): asi los bloqueos y
+    // horarios se piden una sola vez con la lista completa, en vez de una con el usuario solo y otra con todos.
+    fetch(`/api/barberos${params}`).then((r) => r.json())
+      .then((b) => { setBarbers(Array.isArray(b) ? b : []); })
+      .catch(() => { setBarbers([]); })
+      .then(() => setBarbersReady(true));
     Promise.all([
-      fetch(`/api/barberos${params}`).then((r) => r.json()),
       fetch(`/api/services${params}`).then((r) => r.json()),
       fetch(`/api/clients${params}`).then((r) => r.json()),
-    ]).then(([b, s, c]) => {
-      setBarbers(Array.isArray(b) ? b : []);
+    ]).then(([s, c]) => {
       setServices(Array.isArray(s) ? s : []);
       setClients(Array.isArray(c?.clients) ? c.clients : Array.isArray(c) ? c : []);
     }).catch(() => {
-      setBarbers([]);
       setServices([]);
       setClients([]);
     });
@@ -458,7 +463,7 @@ export default function CalendarioPage() {
   // Re-run when the barber identity resolves so the barberId scope is applied.
   useEffect(() => {
     if (tenantLoading) return;
-    fetchAppointments();
+    fetchAppointments(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [date, tenantLoading, tenant?.id, isBarber, user?.id, professionalFilter, rangeDays, groupedAllowed]);
 
@@ -579,7 +584,8 @@ export default function CalendarioPage() {
     return params.toString();
   };
 
-  const fetchAppointments = async () => {
+  // skipBlocks: en la carga automatica (cambio de dia/filtro) los bloqueos ya se piden solos por su propio efecto; solo tras editar hace falta volver a pedirlos.
+  const fetchAppointments = async (skipBlocks = false) => {
     setLoading(true);
     try {
       const params = new URLSearchParams(appointmentsQuery());
@@ -593,7 +599,7 @@ export default function CalendarioPage() {
       setLoading(false);
     }
     // Also refresh blocks
-    setBlocksRefresh((n) => n + 1);
+    if (!skipBlocks) setBlocksRefresh((n) => n + 1);
   };
 
   // Boton Actualizar: vuelve a pedir las citas y los bloqueos de lo que se esta viendo, sin recargar la pagina
@@ -640,6 +646,7 @@ export default function CalendarioPage() {
 
   // Bloqueos: solo del rango visible; se vuelven a pedir al cambiar de dia o tras editar uno.
   useEffect(() => {
+    if (!barbersReady) return;
     if (!barberTargetIds) { setBlocks([]); setRangeBlocks([]); return; }
     let cancelled = false;
     fetch(`/api/calendar/barber-data?include=blocks&barberIds=${barberTargetIds}&from=${rangeFrom}&to=${rangeTo}`)
@@ -653,13 +660,14 @@ export default function CalendarioPage() {
       });
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [barberTargetIds, date, blocksRefresh, rangeDates.join(",")]);
+  }, [barbersReady, barberTargetIds, date, blocksRefresh, rangeDates.join(",")]);
 
   // Horarios: se piden UNA vez por grupo de profesionales (la semana completa); el dia
   // visto se saca de ahi sin volver a la red. Dia de la semana desde el texto de la fecha
   // (evitar new Date(date), que se corre por zona horaria).
   const [allSchedules, setAllSchedules] = useState<Record<string, any[]>>({});
   useEffect(() => {
+    if (!barbersReady) return;
     if (!barberTargetIds) { setAllSchedules({}); return; }
     let cancelled = false;
     fetch(`/api/calendar/barber-data?include=schedules&barberIds=${barberTargetIds}`)
@@ -667,7 +675,7 @@ export default function CalendarioPage() {
       .catch(() => ({ schedules: {} }))
       .then((res) => { if (!cancelled) setAllSchedules(res?.schedules && typeof res.schedules === "object" ? res.schedules : {}); });
     return () => { cancelled = true; };
-  }, [barberTargetIds]);
+  }, [barbersReady, barberTargetIds]);
 
   useEffect(() => {
     const [y, m, d] = date.split("-").map(Number);

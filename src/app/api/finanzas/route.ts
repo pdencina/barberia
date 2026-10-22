@@ -52,7 +52,19 @@ export async function GET(req: NextRequest) {
   }
   if (barberId) query = query.eq("barber_id", barberId);
 
-  const { data: transactions, error } = await query;
+  // Punto 5 (Pablo): al crear/editar un movimiento manual, permitir elegir a que
+  // profesional corresponde. Devuelto junto con la lista de transacciones para no
+  // agregar otro round-trip al abrir el modal.
+  let barbersQuery = supabase
+    .from("profiles")
+    .select("id, name")
+    .eq("role", "barber")
+    .eq("active", true)
+    .order("name");
+  if (tenantId && tenantId !== "ALL") barbersQuery = barbersQuery.eq("tenant_id", tenantId);
+
+  // Se pide a la vez que los movimientos (antes iba despues, un viaje mas a la base).
+  const [{ data: transactions, error }, { data: barbers }] = await Promise.all([query, barbersQuery]);
   if (error) {
     console.error("finanzas GET:", error.message);
     return NextResponse.json({ transactions: [], stats: { totalIncome: 0, totalExpenses: 0, balance: 0, transactionCount: 0 } });
@@ -71,18 +83,6 @@ export async function GET(req: NextRequest) {
   const expenses = (transactions || []).filter((t) => t.type === "expense");
   const totalIncome = income.reduce((s, t) => s + Number(t.total), 0);
   const totalExpenses = expenses.reduce((s, t) => s + Number(t.total), 0);
-
-  // Punto 5 (Pablo): al crear/editar un movimiento manual, permitir elegir a que
-  // profesional corresponde. Devuelto junto con la lista de transacciones para no
-  // agregar otro round-trip al abrir el modal.
-  let barbersQuery = supabase
-    .from("profiles")
-    .select("id, name")
-    .eq("role", "barber")
-    .eq("active", true)
-    .order("name");
-  if (tenantId && tenantId !== "ALL") barbersQuery = barbersQuery.eq("tenant_id", tenantId);
-  const { data: barbers } = await barbersQuery;
 
   return NextResponse.json({
     transactions: transactions || [],
