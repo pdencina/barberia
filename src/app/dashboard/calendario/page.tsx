@@ -109,7 +109,6 @@ export default function CalendarioPage() {
   // true cuando ya llego la lista de profesionales (o fallo): los bloqueos/horarios esperan a esto para no pedirse dos veces.
   const [barbersReady, setBarbersReady] = useState(false);
   const [services, setServices] = useState<Service[]>([]);
-  const [clients, setClients] = useState<Client[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<Array<{ id: string; barber_id: string; date: string; all_day: boolean; start_time: string | null; end_time: string | null; reason: string | null; spots?: number | null }>>([]);
   // Each barber's working hours for the currently viewed weekday, keyed by barber id.
@@ -420,16 +419,11 @@ export default function CalendarioPage() {
       .then((b) => { setBarbers(Array.isArray(b) ? b : []); })
       .catch(() => { setBarbers([]); })
       .then(() => setBarbersReady(true));
-    Promise.all([
-      fetch(`/api/services${params}`).then((r) => r.json()),
-      fetch(`/api/clients${params}`).then((r) => r.json()),
-    ]).then(([s, c]) => {
-      setServices(Array.isArray(s) ? s : []);
-      setClients(Array.isArray(c?.clients) ? c.clients : Array.isArray(c) ? c : []);
-    }).catch(() => {
-      setServices([]);
-      setClients([]);
-    });
+    // La lista completa de clientes ya no se descarga al abrir la agenda (nada la leia: el buscador de clientes de la cita
+    // consulta /api/clients?search=... al escribir).
+    fetch(`/api/services${params}`).then((r) => r.json())
+      .then((s) => { setServices(Array.isArray(s) ? s : []); })
+      .catch(() => { setServices([]); });
   }, [tenant?.id, tenantLoading]);
 
   useEffect(() => {
