@@ -181,6 +181,14 @@ export async function GET(req: NextRequest) {
     .order("start_time", { ascending: true })
     .limit(8));
 
+  // Proyeccion del dia: lo que falta por cobrar de las citas que aun no se completan (agendadas, confirmadas o en curso).
+  // Las completadas ya estan en las ventas, asi que no se cuentan dos veces.
+  const pendingApptsQuery = withTenant(supabase
+    .from("appointments")
+    .select("id, services:appointment_services(price)")
+    .eq("date", todayStr)
+    .in("status", ["scheduled", "confirmed", "in_progress"]));
+
   const chartTxQuery = withTenant(supabase
     .from("transactions")
     .select("total, created_at")
@@ -205,6 +213,7 @@ export async function GET(req: NextRequest) {
     { data: allActiveProducts },
     { data: chartTxRaw },
     { data: prevChartTx },
+    { data: pendingAppts },
   ] = await Promise.all([
     countAppts(todayStr),
     countAppts(yesterdayStr),
@@ -221,9 +230,14 @@ export async function GET(req: NextRequest) {
     productsForStockQuery,
     chartTxQuery,
     incomeIn(prevRangeStartUtc, prevRangeEndUtc),
+    pendingApptsQuery,
   ]);
 
   const todayIncome = (todayTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
+  const pendingIncome = (pendingAppts || []).reduce(
+    (sum: number, a: any) => sum + (a.services || []).reduce((s: number, x: any) => s + Number(x.price || 0), 0),
+    0
+  );
   const yesterdayIncome = (yesterdayTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
 
   const serviceMap: Record<string, number> = {};
@@ -277,6 +291,7 @@ export async function GET(req: NextRequest) {
       reservasHoy: todayApptCount || 0,
       reservasChange: calcChange(todayApptCount || 0, yesterdayApptCount || 0),
       ventasHoy: todayIncome,
+      ventasPendientes: pendingIncome,
       ventasChange: calcChange(todayIncome, yesterdayIncome),
       clientesNuevos: newClientsToday || 0,
       clientesChange: calcChange(newClientsToday || 0, newClientsYesterday || 0),
