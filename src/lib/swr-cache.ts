@@ -1,5 +1,7 @@
 // Cache de lectura del lado del navegador ("mostrar lo ultimo guardado y actualizar por detras").
-// - Solo sessionStorage: se borra al cerrar la pestana y no pasa a otros usuarios del mismo equipo.
+// - Dos almacenes: "session" (sessionStorage: sobrevive a recargar la pagina; se borra al cerrar la pestana) y
+//   "memory" (solo memoria: se pierde al recargar). Las pantallas con datos personales o dinero detallado (clientes,
+//   finanzas, reportes) usan "memory" para que nada quede escrito en el navegador; el Dashboard usa "session".
 // - La clave incluye usuario y negocio (ver cacheKey) y se vacia completa al cerrar sesion (clearAppCache).
 // - Maxima antiguedad: pasado ese tiempo se ignora y la pantalla carga como antes.
 // - Nunca debe usarse para cobrar, cerrar caja ni editar: solo para pantallas de lectura.
@@ -8,20 +10,24 @@ const PREFIX = "rb-cache:";
 const MAX_ENTRIES = 30;
 export const DEFAULT_MAX_AGE_MS = 10 * 60 * 1000;
 
+export type CacheStore = "session" | "memory";
+const memory = new Map<string, string>();
+
 export function cacheKey(parts: Array<string | null | undefined>): string | null {
-  // Sin usuario o sin negocio no hay clave segura: no se usa cache.
-  if (parts.length === 0 || parts.some((p) => !p)) return null;
+  // Sin usuario o sin negocio (null/undefined) no hay clave segura: no se usa cache.
+  // Un texto vacio es valido (por ejemplo "sin busqueda") y forma parte de la clave.
+  if (parts.length === 0 || parts.some((p) => p === null || p === undefined)) return null;
   return PREFIX + parts.join("|");
 }
 
-export function readCache<T>(key: string | null, maxAgeMs: number = DEFAULT_MAX_AGE_MS): T | null {
+export function readCache<T>(key: string | null, maxAgeMs: number = DEFAULT_MAX_AGE_MS, store: CacheStore = "session"): T | null {
   if (!key) return null;
   try {
-    const raw = sessionStorage.getItem(key);
+    const raw = store === "memory" ? memory.get(key) ?? null : sessionStorage.getItem(key);
     if (!raw) return null;
     const { at, data } = JSON.parse(raw);
     if (typeof at !== "number" || Date.now() - at > maxAgeMs) {
-      sessionStorage.removeItem(key);
+      if (store === "memory") memory.delete(key); else sessionStorage.removeItem(key);
       return null;
     }
     return data as T;
@@ -30,8 +36,22 @@ export function readCache<T>(key: string | null, maxAgeMs: number = DEFAULT_MAX_
   }
 }
 
-export function writeCache(key: string | null, data: unknown): void {
+export function writeCache(key: string | null, data: unknown, store: CacheStore = "session"): void {
   if (!key) return;
+  if (store === "memory") {
+    try {
+      memory.set(key, JSON.stringify({ at: Date.now(), data }));
+      // Tope de entradas: Map conserva el orden de insercion, se borran las primeras (mas antiguas).
+      while (memory.size > MAX_ENTRIES) {
+        const first = memory.keys().next().value;
+        if (first === undefined) break;
+        memory.delete(first);
+      }
+    } catch {
+      // ignorar
+    }
+    return;
+  }
   try {
     sessionStorage.setItem(key, JSON.stringify({ at: Date.now(), data }));
     // Tope de entradas: se borran las mas antiguas.
@@ -52,6 +72,7 @@ export function writeCache(key: string | null, data: unknown): void {
 }
 
 export function clearAppCache(): void {
+  memory.clear();
   try {
     const toRemove: string[] = [];
     for (let i = 0; i < sessionStorage.length; i++) {

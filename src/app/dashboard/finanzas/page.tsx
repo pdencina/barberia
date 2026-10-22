@@ -6,6 +6,8 @@ import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/ui/spinner";
+import { AnimatedNumber } from "@/components/ui/animated-number";
+import { cacheKey, readCache, writeCache } from "@/lib/swr-cache";
 import { TrendingUp, TrendingDown, Wallet, Plus, MoreVertical, ArrowUpRight, ArrowDownRight, CalendarDays } from "lucide-react";
 import { PageHeader, StatCard, Panel, Segmented, tableStyles as ts, inputClass, primaryButton, ghostButton } from "@/components/ui/premium";
 
@@ -120,7 +122,7 @@ export default function FinanzasPage() {
   const [formData, setFormData] = useState(emptyFormData);
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
-  const { isAtLeast } = useAuth();
+  const { user, isAtLeast } = useAuth();
   // Punto 5: "solo para el administrador" — gate en la UI (el servidor tambien lo
   // exige en PATCH/DELETE, asi que ocultar el menu no es la unica barrera).
   const isAdmin = isAtLeast("admin");
@@ -145,8 +147,13 @@ export default function FinanzasPage() {
     return "";
   };
 
+  // Cache de lectura en memoria (por usuario, negocio y filtros). Solo la carga automatica la usa (skipSpinnerRef);
+  // tras crear, editar o borrar un movimiento se vuelve a pedir todo como siempre y se actualiza lo guardado.
+  const skipSpinnerRef = useRef(false);
   const fetchTransactions = async () => {
-    setLoading(true);
+    const ckey = cacheKey(["finanzas", user?.id, getActiveTenantId() || null, filter, monthFilter, dateFrom, dateTo]);
+    if (!skipSpinnerRef.current) setLoading(true);
+    skipSpinnerRef.current = false;
     const params = new URLSearchParams();
     if (filter !== "all") params.set("type", filter);
     if (monthFilter) params.set("month", monthFilter);
@@ -161,6 +168,8 @@ export default function FinanzasPage() {
       const data = await res.json();
       setTransactions(data.transactions || []);
       setBarbers(data.barbers || []);
+      // La ruta responde 200 con lista vacia (y sin "barbers") cuando falla la base: eso no se guarda como dato bueno.
+      if (res.ok && Array.isArray(data.transactions) && Array.isArray(data.barbers)) writeCache(ckey, { transactions: data.transactions, barbers: data.barbers }, "memory");
     } catch (err) {
       console.error("Error fetching transactions:", err);
     } finally {
@@ -170,9 +179,12 @@ export default function FinanzasPage() {
 
   useEffect(() => {
     if (tenantLoading) return;
+    const cached = readCache<{ transactions: Transaction[]; barbers: Barber[] }>(
+      cacheKey(["finanzas", user?.id, getActiveTenantId() || null, filter, monthFilter, dateFrom, dateTo]), undefined, "memory");
+    if (cached) { setTransactions(cached.transactions); setBarbers(cached.barbers); setLoading(false); skipSpinnerRef.current = true; }
     fetchTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filter, dateFrom, dateTo, monthFilter, tenantLoading, tenant?.id]);
+  }, [filter, dateFrom, dateTo, monthFilter, tenantLoading, tenant?.id, user?.id]);
 
   const visible = transactions.filter((t) =>
     (!fBarber || t.barber_id === fBarber) &&
@@ -339,20 +351,20 @@ export default function FinanzasPage() {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <StatCard
           label={`Ingresos${rangeLabel ? ` · ${rangeLabel}` : ""}`}
-          value={formatCurrency(totalIncome)}
+          value={<AnimatedNumber value={totalIncome} format={formatCurrency} />}
           Icon={TrendingUp}
           tone="green"
         />
         <StatCard
           label={`Egresos${rangeLabel ? ` · ${rangeLabel}` : ""}`}
-          value={formatCurrency(totalExpenses)}
+          value={<AnimatedNumber value={totalExpenses} format={formatCurrency} />}
           Icon={TrendingDown}
           tone="red"
         />
         <StatCard
           hero
           label={`Balance${rangeLabel ? ` · ${rangeLabel}` : ""}`}
-          value={formatCurrency(balance)}
+          value={<AnimatedNumber value={balance} format={formatCurrency} />}
           Icon={Wallet}
           hint={balance >= 0 ? "Ingresos menos egresos" : "Egresos superan a los ingresos"}
         />

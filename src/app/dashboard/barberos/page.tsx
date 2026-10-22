@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
+import { cacheKey, readCache, writeCache } from "@/lib/swr-cache";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/ui/spinner";
@@ -26,7 +27,7 @@ export default function BarberosPage() {
   const [formData, setFormData] = useState({ name: "", email: "", phone: "", birthDate: "", password: "", role: "barber" });
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
-  const { effectiveRole } = useAuth();
+  const { user, effectiveRole } = useAuth();
   const router = useRouter();
 
   // A receptionist can open this page, but only to edit each professional's work
@@ -44,8 +45,17 @@ export default function BarberosPage() {
     return null;
   };
 
+  // Cache de lectura en memoria (por usuario y negocio). Solo la carga automatica al abrir la pantalla la usa (skipSpinnerRef);
+  // tras crear, desactivar o borrar a alguien se vuelve a pedir todo como siempre.
+  const skipSpinnerRef = useRef(false);
+  const applyBarbers = (all: Barber[]) => {
+    setBarbers(all.filter((b: any) => b.active !== false));
+    setInactiveBarbers(all.filter((b: any) => b.active === false));
+  };
   const fetchBarbers = async () => {
-    setLoading(true);
+    const ckey = cacheKey(["barberos", user?.id, getActiveTenantId()]);
+    if (!skipSpinnerRef.current) setLoading(true);
+    skipSpinnerRef.current = false;
     try {
       const t = getActiveTenantId();
       const params = new URLSearchParams();
@@ -54,8 +64,8 @@ export default function BarberosPage() {
       const res = await fetch(`/api/barberos?${params.toString()}`);
       const data = await res.json();
       const all: Barber[] = Array.isArray(data) ? data : [];
-      setBarbers(all.filter((b: any) => b.active !== false));
-      setInactiveBarbers(all.filter((b: any) => b.active === false));
+      applyBarbers(all);
+      if (res.ok && all.length > 0) writeCache(ckey, all, "memory");
     } catch (err) {
       console.error("Error fetching barbers:", err);
     } finally {
@@ -65,8 +75,11 @@ export default function BarberosPage() {
 
   useEffect(() => {
     if (tenantLoading) return;
+    const cached = readCache<Barber[]>(cacheKey(["barberos", user?.id, getActiveTenantId()]), undefined, "memory");
+    if (cached) { applyBarbers(cached); setLoading(false); skipSpinnerRef.current = true; }
     fetchBarbers();
-  }, [tenantLoading, tenant?.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tenantLoading, tenant?.id, user?.id]);
 
   const [creatingMember, setCreatingMember] = useState(false);
   const handleSubmit = async (e: React.FormEvent) => {
