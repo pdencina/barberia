@@ -1,10 +1,13 @@
 // Mensaje de retencion por WhatsApp. Lo usan el envio individual, la lista masiva y la vista previa de la pantalla de
 // Retencion, para que lo que se ve ANTES de enviar sea exactamente lo que recibe el cliente.
+import { couponKind } from "@/lib/coupon";
 export interface RetentionCoupon { code: string; description?: string | null; discount_type?: string | null; discount_value?: number | null }
 
+// Texto del descuento ("$1.000 de descuento", "20% de descuento"). Un cupon SIN MONTO (solo codigo y texto) no tiene: devuelve "".
 export function couponDiscountText(c: RetentionCoupon | null | undefined): string {
-  if (!c || c.discount_value == null) return "";
-  return c.discount_type === "percentage" ? `${c.discount_value}% de descuento` : `$${Number(c.discount_value).toLocaleString("es-CL")} de descuento`;
+  const kind = couponKind(c);
+  if (!c || kind === "none") return "";
+  return kind === "percentage" ? `${c.discount_value}% de descuento` : `$${Number(c.discount_value).toLocaleString("es-CL")} de descuento`;
 }
 
 export function buildRetentionWhatsApp(opts: { clientName?: string | null; message?: string | null; coupon?: RetentionCoupon | null; bookingUrl: string }): string {
@@ -13,6 +16,9 @@ export function buildRetentionWhatsApp(opts: { clientName?: string | null; messa
   if (opts.coupon) {
     const d = couponDiscountText(opts.coupon);
     msg += `\n\nTenemos un cupón para ti: ${opts.coupon.code}${d ? ` (${d})` : ""}`;
+    // Sin monto, lo que vende es el texto del cupon ("Muestra este cupon en recepcion y no pagas las cejas!"): va en el mensaje.
+    const desc = (opts.coupon.description || "").trim();
+    if (!d && desc) msg += `\n${desc}`;
   }
   msg += `\n\nAgenda aquí: ${opts.bookingUrl}`;
   return msg;

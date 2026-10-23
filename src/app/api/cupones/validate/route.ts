@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
+import { computeCouponDiscount, couponKind } from "@/lib/coupon";
 
 export async function GET(req: NextRequest) {
   // SEGURIDAD: sin sesion cualquiera podia llamar esto (consulta cupones de descuento).
@@ -30,12 +31,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ valid: false, message: `Compra minima: $${Number(coupon.min_purchase).toLocaleString("es-CL")}` });
   }
 
-  let discount = 0;
-  if (coupon.discount_type === "percentage") {
-    discount = Math.round((amount * Number(coupon.discount_value)) / 100);
-  } else {
-    discount = Number(coupon.discount_value);
-  }
+  const discount = computeCouponDiscount(coupon, amount);
 
-  return NextResponse.json({ valid: true, discount, couponId: coupon.id });
+  // noDiscount: cupon sin monto (solo codigo y texto, p. ej. "cejas gratis"): es valido pero no descuenta dinero; el POS muestra
+  // su descripcion para que quien cobra aplique el beneficio.
+  const noDiscount = couponKind(coupon) === "none";
+  return NextResponse.json({ valid: true, discount, couponId: coupon.id, noDiscount, description: noDiscount ? coupon.description || null : undefined });
 }

@@ -107,6 +107,8 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const [couponCode, setCouponCode] = useState("");
   const [discount, setDiscount] = useState(0);
   const [couponError, setCouponError] = useState("");
+  // Cupon valido pero SIN monto (solo codigo y texto, p. ej. "cejas gratis"): no descuenta dinero; se muestra su descripcion para aplicar el beneficio.
+  const [couponNote, setCouponNote] = useState("");
   // Cupón y descuento manual van plegados para dar espacio al detalle de la venta.
   const [showDiscountTools, setShowDiscountTools] = useState(false);
   const [paymentMethod, setPaymentMethod] = useState("");
@@ -282,13 +284,19 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
 
   const applyCoupon = async () => {
     setCouponError("");
+    setCouponNote("");
     if (!couponCode) return;
     try {
       const res = await fetch(`/api/cupones/validate?code=${couponCode}&amount=${subtotal}`);
       const data = await res.json();
       if (data.valid) {
         setDiscount(data.discount);
-        showToast("Cupon aplicado", "success");
+        if (data.noDiscount) {
+          setCouponNote(`Cupón válido${data.description ? `: ${data.description}` : ""}. No descuenta dinero: aplica el beneficio al cobrar.`);
+          showToast("Cupón válido (sin monto)", "success");
+        } else {
+          showToast("Cupon aplicado", "success");
+        }
       } else {
         setCouponError(data.message || "Cupon invalido");
         setDiscount(0);
@@ -321,6 +329,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
       : amount;
     setDiscount(Math.min(discountValue, subtotal));
     setCouponCode("");
+    setCouponNote("");
     setShowPinModal(false);
     setPinInput("");
     setManualDiscountAmount("");
@@ -571,6 +580,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
         setCart([]);
         setDiscount(0);
         setCouponCode("");
+        setCouponNote("");
         setPaymentMethod("");
         setSplitMode(false);
         setSplitPayments([{ method: "debit_card", amount: "" }, { method: "cash", amount: "" }]);
@@ -1088,7 +1098,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                 type="text"
                 placeholder="Código de cupón"
                 value={couponCode}
-                onChange={(e) => setCouponCode(e.target.value)}
+                onChange={(e) => { setCouponCode(e.target.value); setCouponNote(""); }}
                 className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-24 text-sm outline-none transition focus:border-brand-blue focus:ring-4 focus:ring-brand-blue/10"
               />
               <button
@@ -1114,6 +1124,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
           </div>
           )}
           {couponError && <p className="text-xs text-red-500">{couponError}</p>}
+          {couponNote && <p className="rounded-lg bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-600">{couponNote}</p>}
 
           {/* Resumen tipo recibo */}
           <div className="rounded-2xl border border-gray-100 bg-brand-light/60 px-4 py-3">

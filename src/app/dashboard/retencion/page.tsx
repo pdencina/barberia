@@ -1,5 +1,6 @@
 "use client";
 
+import { couponKind } from "@/lib/coupon";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -279,7 +280,7 @@ export default function RetencionPage() {
               <select value={selectedCoupon} onChange={(e) => setSelectedCoupon(e.target.value)} className={inputClass}>
                 <option value="">Sin cupón</option>
                 {coupons.map((c: any) => (
-                  <option key={c.code} value={c.code}>{c.code}{c.discount_value != null ? ` · ${c.discount_type === "percentage" ? `${c.discount_value}%` : `$${Number(c.discount_value).toLocaleString("es-CL")}`} de descuento` : ""}{c.description ? ` · ${c.description}` : ""}</option>
+                  <option key={c.code} value={c.code}>{c.code}{couponKind(c) !== "none" ? ` · ${c.discount_type === "percentage" ? `${c.discount_value}%` : `$${Number(c.discount_value).toLocaleString("es-CL")}`} de descuento` : ""}{c.description ? ` · ${c.description}` : ""}</option>
                 ))}
               </select>
             </div>

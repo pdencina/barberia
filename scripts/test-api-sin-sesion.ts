@@ -64,5 +64,19 @@ const t = (name: string, ok: boolean, extra = "") => {
       t(`/api/${ruta}${qs.includes("tenantId") ? " (con tenantId ajeno)" : ""} sin sesion`, cerrada && sinDatos && networkCalls === 0, `status ${res.status}, llamadas a la red: ${networkCalls}`);
     }
   }
+  // Rutas de escritura: sin sesion tampoco deben editar ni borrar nada.
+  const escritura: Array<{ ruta: string; metodo: "PATCH" | "DELETE"; params: Record<string, string> }> = [
+    { ruta: "cupones/[id]", metodo: "PATCH", params: { id: ID } },
+    { ruta: "cupones/[id]", metodo: "DELETE", params: { id: ID } },
+  ];
+  for (const e of escritura) {
+    const mod = await import(`../src/app/api/${e.ruta}/route`);
+    networkCalls = 0;
+    const init: any = { method: e.metodo, headers: { "content-type": "application/json" } };
+    if (e.metodo === "PATCH") init.body = JSON.stringify({ active: false });
+    const res: Response = await mod[e.metodo](new NextRequest(`http://localhost:3000/api/${e.ruta.replace("[id]", ID)}`, init), { params: e.params });
+    const cerrada = res.status === 401 || res.status === 403;
+    t(`${e.metodo} /api/${e.ruta} sin sesion`, cerrada && networkCalls === 0, `status ${res.status}, llamadas a la red: ${networkCalls}`);
+  }
   process.exit(fails ? 1 : 0);
 })();
