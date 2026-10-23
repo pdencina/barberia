@@ -1,5 +1,6 @@
 "use client";
 
+import { couponKind, couponToDb, type CouponKind } from "@/lib/coupon";
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -87,8 +88,7 @@ export default function CuponesPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           description: formData.description,
-          discount_type: formData.type,
-          discount_value: parseFloat(formData.value),
+          ...couponToDb(formData.type as CouponKind, formData.value),
           min_purchase: parseFloat(formData.min_purchase) || null,
           max_uses: parseInt(formData.max_uses) || null,
           valid_until: formData.valid_until ? new Date(formData.valid_until).toISOString() : null,
@@ -103,8 +103,7 @@ export default function CuponesPage() {
           tenantId: getActiveTenantId(),
           code: formData.code,
           description: formData.description,
-          discountType: formData.type,
-          discountValue: parseFloat(formData.value),
+          ...(() => { const db = couponToDb(formData.type as CouponKind, formData.value); return { discountType: db.discount_type, discountValue: db.discount_value }; })(),
           minPurchase: parseFloat(formData.min_purchase) || null,
           maxUses: parseInt(formData.max_uses) || null,
           validUntil: formData.valid_until || null,
@@ -123,8 +122,8 @@ export default function CuponesPage() {
     setFormData({
       code: c.code,
       description: c.description || "",
-      type: c.discount_type,
-      value: String(c.discount_value),
+      type: couponKind(c),
+      value: couponKind(c) === "none" ? "" : String(c.discount_value),
       min_purchase: c.min_purchase ? String(c.min_purchase) : "",
       max_uses: c.max_uses ? String(c.max_uses) : "",
       valid_until: c.valid_until ? c.valid_until.split("T")[0] : "",
@@ -172,7 +171,7 @@ export default function CuponesPage() {
                 <td className="p-4 font-mono font-medium">{c.code}</td>
                 <td className="p-4">{c.description || "-"}</td>
                 <td className="p-4">
-                  {c.discount_type === "percentage" ? `${c.discount_value}%` : formatCurrency(Number(c.discount_value))}
+                  {couponKind(c) === "none" ? <span className="text-gray-400">Sin monto</span> : c.discount_type === "percentage" ? `${c.discount_value}%` : formatCurrency(Number(c.discount_value))}
                 </td>
                 <td className="p-4 text-right">{c.min_purchase ? formatCurrency(Number(c.min_purchase)) : "-"}</td>
                 <td className="p-4 text-center">{c.used_count}/{c.max_uses || "∞"}</td>
@@ -216,27 +215,34 @@ export default function CuponesPage() {
                   className="w-full border rounded-lg px-3 py-2 font-mono" />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Descripcion</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">{formData.type === "none" ? "Descripcion (lo que vera el cliente)" : "Descripcion"}</label>
                 <input type="text" value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder={formData.type === "none" ? "Ej: Muestra este cupón en recepción y no pagas las cejas" : ""}
                   className="w-full border rounded-lg px-3 py-2" />
+                {formData.type === "none" && (
+                  <p className="mt-1 text-xs text-gray-500">Sin monto ni porcentaje: al cliente le llegan el código y este texto (en WhatsApp y en el correo de Retención).</p>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className={formData.type === "none" ? "col-span-2" : ""}>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Tipo</label>
                   <select value={formData.type}
                     onChange={(e) => setFormData({ ...formData, type: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2">
                     <option value="percentage">Porcentaje</option>
                     <option value="fixed_amount">Monto Fijo</option>
+                    <option value="none">Sin descuento (solo código y texto)</option>
                   </select>
                 </div>
+                {formData.type !== "none" && (
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Valor</label>
                   <input type="number" required min="0" value={formData.value}
                     onChange={(e) => setFormData({ ...formData, value: e.target.value })}
                     className="w-full border rounded-lg px-3 py-2" />
                 </div>
+                )}
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -262,7 +268,7 @@ export default function CuponesPage() {
                 <button type="button" onClick={() => setShowModal(false)}
                   className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancelar</button>
                 <button type="submit"
-                  disabled={!formData.code.trim() || !formData.value || parseFloat(formData.value) <= 0}
+                  disabled={!formData.code.trim() || (formData.type === "none" ? !formData.description.trim() : !formData.value || parseFloat(formData.value) <= 0)}
                   className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed">Guardar</button>
               </div>
             </form>
