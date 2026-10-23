@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
-import { tenantBookingUrl } from "@/lib/retention";
+import { tenantBookingUrl, tenantLogoUrl } from "@/lib/retention";
 import { sendRetentionEmail } from "@/lib/resend";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { buildRetentionWhatsApp } from "@/lib/retention-message";
@@ -68,6 +68,7 @@ export async function POST(req: NextRequest) {
         discountType: couponDetails?.discount_type || null,
         discountValue: couponDetails ? Number(couponDetails.discount_value) : null,
         bookingUrl,
+        businessLogoUrl: client.tenant_id ? await tenantLogoUrl(supabase, client.tenant_id) : null,
       });
       return NextResponse.json({ success: true, channel: "email" });
     } catch (e: any) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { sendRetentionEmail } from "@/lib/resend";
-import { getInactiveClients, dedupeBy, tenantBookingUrl } from "@/lib/retention";
+import { getInactiveClients, dedupeBy, tenantBookingUrl, tenantLogoUrl, parseExcludeIds, excludeClients } from "@/lib/retention";
 import { formatPhoneCL } from "@/lib/phone";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { tenantHasFeature } from "@/lib/plan-features";
@@ -44,8 +44,11 @@ export async function POST(req: NextRequest) {
   // "Quien esta inactivo" sale de la MISMA funcion que usa la pantalla de Retencion
   // (lib/retention): mismo corte de dias, misma ventana desde el inicio real del negocio y
   // sin clientes que ya tienen una cita por venir.
-  const { inactive: inactiveClients } = await getInactiveClients(supabase, tenantId, Number.isFinite(Number(days)) ? Math.max(0, Number(days)) : 30, { includeNever: includeNever === true, maxDays: Number(maxDays) > 0 ? Number(maxDays) : null });
+  const { inactive: allInactive } = await getInactiveClients(supabase, tenantId, Number.isFinite(Number(days)) ? Math.max(0, Number(days)) : 30, { includeNever: includeNever === true, maxDays: Number(maxDays) > 0 ? Number(maxDays) : null });
+  // Quienes se desmarcaron en la pantalla (casilla de cada cliente) no reciben el mensaje ni el cupon.
+  const inactiveClients = excludeClients(allInactive, parseExcludeIds(body.excludeClientIds));
   const bookingUrl = await tenantBookingUrl(supabase, tenantId);
+  const businessLogoUrl = await tenantLogoUrl(supabase, tenantId);
 
   // Detalle del cupon (del propio negocio) para el correo: sin esto el correo decia
   // "$undefined de descuento" porque solo se enviaba el codigo.
@@ -95,6 +98,7 @@ export async function POST(req: NextRequest) {
           discountType: coupon?.discount_type || null,
           discountValue: coupon ? Number(coupon.discount_value) : null,
           bookingUrl,
+          businessLogoUrl,
         });
         sent++;
       } catch (e) {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
-import { tenantBookingUrl } from "@/lib/retention";
+import { tenantBookingUrl, tenantLogoUrl } from "@/lib/retention";
 import { buildRetentionEmail } from "@/lib/resend";
 import { buildRetentionWhatsApp } from "@/lib/retention-message";
 
@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
   if (!tenantId || tenantId === "ALL") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const supabase = createAdminSupabase();
   const bookingUrl = await tenantBookingUrl(supabase, tenantId);
+  const businessLogoUrl = await tenantLogoUrl(supabase, tenantId);
 
   let coupon: any = null;
   if (body.couponCode) {
@@ -25,7 +26,7 @@ export async function POST(req: NextRequest) {
   const email = buildRetentionEmail({
     to: "", clientName, message: message.trim() || "Te extrañamos! Vuelve pronto.",
     couponCode: coupon?.code || null, couponDescription: coupon?.description || null,
-    discountType: coupon?.discount_type || null, discountValue: coupon ? Number(coupon.discount_value) : null, bookingUrl,
+    discountType: coupon?.discount_type || null, discountValue: coupon ? Number(coupon.discount_value) : null, bookingUrl, businessLogoUrl,
   });
   return NextResponse.json({ whatsapp, emailSubject: email.subject, emailHtml: email.html });
 }

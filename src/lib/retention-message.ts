@@ -10,8 +10,14 @@ export function couponDiscountText(c: RetentionCoupon | null | undefined): strin
   return kind === "percentage" ? `${c.discount_value}% de descuento` : `$${Number(c.discount_value).toLocaleString("es-CL")} de descuento`;
 }
 
+// Primer nombre para el saludo. Un marcador entre corchetes ("[nombre del cliente]", de la vista previa) se usa completo.
+export function greetingName(clientName?: string | null): string {
+  const n = (clientName || "").trim();
+  return /^\[.*\]$/.test(n) ? n : n.split(/\s+/)[0];
+}
+
 export function buildRetentionWhatsApp(opts: { clientName?: string | null; message?: string | null; coupon?: RetentionCoupon | null; bookingUrl: string }): string {
-  const first = (opts.clientName || "").trim().split(/\s+/)[0];
+  const first = greetingName(opts.clientName);
   let msg = (opts.message || "").trim() || `Hola${first ? ` ${first}` : ""}! Te extrañamos. Agenda tu próxima cita.`;
   if (opts.coupon) {
     const d = couponDiscountText(opts.coupon);

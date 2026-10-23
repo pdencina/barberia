@@ -186,7 +186,7 @@ const MAIL_FONT = "'Plus Jakarta Sans', -apple-system, 'Segoe UI', Helvetica, Ar
 
 function mailShell(opts: { label: string; inner: string; businessLogoUrl?: string | null }): string {
   const logo = opts.businessLogoUrl
-    ? `<img src="${opts.businessLogoUrl}" alt="Logo" height="52" style="display:block;margin:0 auto;height:52px;max-width:220px;width:auto;object-fit:contain;border:0;" />`
+    ? `<img src="${opts.businessLogoUrl.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;")}" alt="Logo" height="52" style="display:block;margin:0 auto;height:52px;max-width:220px;width:auto;object-fit:contain;border:0;" />`
     : `<img src="https://www.re-booking.cl/logo-horizontal.png" alt="re-booking" height="36" style="display:block;margin:0 auto;height:36px;width:auto;border:0;" />`;
   return `<!DOCTYPE html>
 <html lang="es">
@@ -347,6 +347,8 @@ interface SendRetentionEmailParams {
   discountValue: number | null;
   /** Link de reserva del negocio (si no se pasa, cae al link generico de la plataforma). */
   bookingUrl?: string | null;
+  /** Logo del negocio (tenants.logo_url). Si el negocio no subio uno, el correo lleva el logo de re-booking. */
+  businessLogoUrl?: string | null;
 }
 
 // Arma el correo de retencion (asunto + HTML). Lo usa el envio real y la vista previa de Retencion.
@@ -388,6 +390,7 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
     </div>` : "";
   const html = mailShell({
     label: "Te extrañamos",
+    businessLogoUrl: params.businessLogoUrl,
     inner: `
     <p style="font-size:18px;color:#111827;font-weight:700;margin:12px 0 8px;">Hola ${clientName}!</p>
     <p style="font-size:15px;line-height:1.6;color:#374151;margin:0 0 8px;">${message}</p>
