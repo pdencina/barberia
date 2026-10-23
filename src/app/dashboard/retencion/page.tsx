@@ -389,7 +389,7 @@ export default function RetencionPage() {
             <label className="flex cursor-pointer items-center gap-2.5 font-semibold text-brand-dark">
               <input
                 type="checkbox"
-                className="h-5 w-5 cursor-pointer"
+                className="h-4 w-4 cursor-pointer accent-gray-500"
                 checked={selectedCount === clients.length}
                 ref={(el) => { if (el) el.indeterminate = selectedCount > 0 && selectedCount < clients.length; }}
                 onChange={toggleAll}
@@ -414,7 +414,7 @@ export default function RetencionPage() {
                 <div key={c.id} className={`flex flex-wrap items-center gap-3 px-3 py-3.5 transition-colors hover:bg-brand-blue/[0.04] md:flex-nowrap ${excluded.has(c.id) ? "opacity-50" : ""}`}>
                   <input
                     type="checkbox"
-                    className="h-5 w-5 flex-shrink-0 cursor-pointer"
+                    className="h-4 w-4 flex-shrink-0 cursor-pointer accent-gray-500"
                     checked={!excluded.has(c.id)}
                     onChange={() => toggleClient(c.id)}
                     title={excluded.has(c.id) ? "No recibirá el mensaje masivo" : "Recibirá el mensaje masivo"}
