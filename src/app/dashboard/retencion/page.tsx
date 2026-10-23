@@ -242,6 +242,7 @@ export default function RetencionPage() {
         <StatCard label="Contactables" value={stats.contactable} Icon={HeartHandshake} tone="green" hint="Con correo o teléfono" />
       </div>
 
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,480px)]">
       {/* Filtros y mensaje */}
       <Panel title="A quién y qué decirles">
         <div className="space-y-4">
@@ -274,8 +275,8 @@ export default function RetencionPage() {
             </div>
           </div>
 
-          <div className="grid gap-4 md:grid-cols-3">
-            <div>
+          <div className="space-y-4">
+            <div className="md:max-w-md">
               <label className="mb-1.5 block text-xs font-semibold text-brand-gray">Cupón a incluir</label>
               <select value={selectedCoupon} onChange={(e) => setSelectedCoupon(e.target.value)} className={inputClass}>
                 <option value="">Sin cupón</option>
@@ -284,36 +285,29 @@ export default function RetencionPage() {
                 ))}
               </select>
             </div>
-            <div className="md:col-span-2">
-              <label className="mb-1.5 block text-xs font-semibold text-brand-gray">Mensaje personalizado</label>
-              <input
-                type="text"
+            <div>
+              <label htmlFor="retencion-mensaje" className="mb-1.5 block text-xs font-semibold text-brand-gray">Mensaje personalizado</label>
+              {/* Varias lineas y crece al escribir: antes era una sola linea que se corria hacia el lado y no se podia leer. */}
+              <textarea
+                id="retencion-mensaje"
                 value={customMessage}
                 onChange={(e) => setCustomMessage(e.target.value)}
+                maxLength={600}
+                rows={5}
                 placeholder="Te extrañamos! Vuelve pronto..."
-                className={inputClass}
+                className={`${inputClass} min-h-[132px] resize-y leading-relaxed`}
               />
+              <div className="mt-1.5 flex items-start justify-between gap-3 text-[11px] text-brand-gray">
+                <span>Puedes escribir en varias líneas. Lo que escribes aparece al lado (o abajo, en pantallas chicas) tal como lo recibirá el cliente.</span>
+                <span className="flex-shrink-0 tabular-nums">{customMessage.length}/600</span>
+              </div>
             </div>
           </div>
         </div>
       </Panel>
 
-      {/* Quien entra en la lista */}
-      <div className="rounded-2xl border border-gray-100 bg-white p-4 text-sm shadow-sm dark:border-white/10 dark:bg-brand-white">
-        <label className="flex items-start gap-3">
-          <input type="checkbox" checked={includeNever} onChange={(e) => setIncludeNever(e.target.checked)} className="mt-1 h-5 w-5" />
-          <span>
-            <span className="block font-medium text-brand-dark">Incluir a quienes nunca han venido</span>
-            <span className="block text-xs text-brand-gray">
-              Son clientes nuevos o importados sin ninguna visita registrada: no "dejaron de venir", solo llevan {rangeLabel} registrados.
-              {stats.neverVisited > 0 && (includeNever ? ` Hay ${stats.neverVisited} en esta lista.` : ` Hay ${stats.neverVisited} que no se muestran ni reciben mensajes.`)}
-            </span>
-          </span>
-        </label>
-        <p className="mt-2 text-xs text-brand-gray">Lo que ves abajo es exactamente a quién le llegará el email masivo o la lista de difusión.</p>
-      </div>
-
-      {/* Vista previa */}
+      {/* Vista previa: al lado del mensaje en pantallas grandes (fija mientras escribes) y justo debajo en las chicas */}
+      <div className="xl:sticky xl:top-4 xl:col-start-2 xl:row-span-2 xl:row-start-1">
       <Panel title="Así lo recibirá el cliente" subtitle={`Ejemplo con ${sampleName.split(" ")[0]}. No envía nada ni gasta cupo.`}>
         <div className="mb-3 inline-flex rounded-xl border border-gray-100 bg-brand-light p-1 text-sm">
           {(["whatsapp", "email"] as const).map((k) => (
@@ -334,6 +328,23 @@ export default function RetencionPage() {
           </div>
         )}
       </Panel>
+      </div>
+
+      {/* Quien entra en la lista */}
+      <div className="rounded-2xl border border-gray-100 bg-white p-4 text-sm shadow-sm dark:border-white/10 dark:bg-brand-white">
+        <label className="flex items-start gap-3">
+          <input type="checkbox" checked={includeNever} onChange={(e) => setIncludeNever(e.target.checked)} className="mt-1 h-5 w-5" />
+          <span>
+            <span className="block font-medium text-brand-dark">Incluir a quienes nunca han venido</span>
+            <span className="block text-xs text-brand-gray">
+              Son clientes nuevos o importados sin ninguna visita registrada: no "dejaron de venir", solo llevan {rangeLabel} registrados.
+              {stats.neverVisited > 0 && (includeNever ? ` Hay ${stats.neverVisited} en esta lista.` : ` Hay ${stats.neverVisited} que no se muestran ni reciben mensajes.`)}
+            </span>
+          </span>
+        </label>
+        <p className="mt-2 text-xs text-brand-gray">Lo que ves abajo es exactamente a quién le llegará el email masivo o la lista de difusión.</p>
+      </div>
+      </div>
 
       {/* Lista */}
       <Panel title={`Clientes en este rango (${clients.length})`} subtitle={`${rangeLabel} sin venir`} flush

@@ -355,7 +355,8 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
   // El nombre y el mensaje los escribe el negocio/cliente: se escapan antes de ir al HTML.
   const esc = (t: string) => t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   const clientName = esc(params.clientName);
-  const message = esc(params.message);
+  // El mensaje se escribe en varias lineas: se escapa y los saltos de linea pasan a <br> (en HTML, un salto normal se pierde).
+  const message = esc(params.message).replace(/\r?\n/g, "<br>");
 
   const couponHtml = couponCode ? `
     <div style="background: #0F8B8D22; border: 2px dashed #0F8B8D; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">

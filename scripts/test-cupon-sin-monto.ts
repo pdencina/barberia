@@ -55,4 +55,11 @@ t("Correo con monto: igual que antes", /Cupón de descuento/.test(e2) && /\$1\.0
 t("Correo sin cupon: no muestra caja de cupon", !/Cupón/.test(e3) && /Agendar ahora/.test(e3));
 t("Correo: sigue el boton para agendar", /Agendar ahora/.test(e1));
 
+// ---------- Mensaje de varias lineas (campo de texto grande de Retencion) ----------
+const multi = buildRetentionEmail({ ...base, message: "Hola!\nDel 23 al 28 presenta el cupón.\n\n¡Te esperamos! <b>x</b>", couponCode: null, couponDescription: null, discountType: null, discountValue: null }).html;
+t("Correo: los saltos de linea del mensaje pasan a <br>", /Hola!<br>Del 23 al 28 presenta el cupón\.<br><br>¡Te esperamos!/.test(multi));
+t("Correo: el HTML escrito en el mensaje sigue escapado (no se ejecuta)", /&lt;b&gt;x&lt;\/b&gt;/.test(multi) && !/<b>x<\/b>/.test(multi));
+const w4 = buildRetentionWhatsApp({ clientName: "Ana", message: "Linea 1\nLinea 2", coupon: null, bookingUrl: url });
+t("WhatsApp: los saltos de linea del mensaje se conservan", w4.startsWith("Linea 1\nLinea 2\n\nAgenda aquí"));
+
 process.exit(fails ? 1 : 0);
