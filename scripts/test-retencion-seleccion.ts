@@ -1,6 +1,6 @@
 // Pruebas de Retencion: casillas por cliente, nombre generico en la vista previa y logo del negocio en el correo.
 // Ejecutar: RESEND_API_KEY=x npx tsx scripts/test-retencion-seleccion.ts
-import { parseExcludeIds, excludeClients, dedupeBy } from "../src/lib/retention";
+import { parseExcludeIds, parseIdSet, excludeClients, dedupeBy, isOptedOut, mergeRecipients, loadManualRecipients } from "../src/lib/retention";
 import { buildRetentionWhatsApp, greetingName } from "../src/lib/retention-message";
 import { buildRetentionEmail } from "../src/lib/resend";
 
@@ -59,4 +59,63 @@ t("Correo sin parametro de logo: igual que antes", mk("Tomas").html.includes("lo
 const raro = mk("Tomas", 'https://x.cl/a.png"><script>alert(1)</script>').html;
 t("Un logo con comillas o etiquetas no rompe el HTML", !raro.includes("<script>alert(1)") && raro.includes("&quot;"));
 
-process.exit(fails ? 1 : 0);
+// (el cierre del proceso va al final, despues de las pruebas con base falsa)
+// ---------- clientes agregados a mano ----------
+t("ids a agregar: tope de 500", parseIdSet(Array.from({ length: 900 }, (_, i) => "c" + i), 500).size === 500);
+t("ids a agregar: ignora basura", parseIdSet([1, "", null, "ok", "ok"], 500).size === 1 && parseIdSet("x", 500).size === 0);
+t("pidio no ser contactado -> fuera", isOptedOut({ do_not_contact: true }));
+t("rechazo promociones -> fuera", isOptedOut({ marketing_consent: false }));
+t("sin marca (o aceptó) -> puede recibir", !isOptedOut({}) && !isOptedOut({ marketing_consent: true, do_not_contact: false }) && !isOptedOut({ marketing_consent: null }));
+const base2 = [{ id: "1", name: "Ana" }, { id: "2", name: "Beto" }];
+t("unir listas: sin repetir ids (gana el calculado)", mergeRecipients(base2, [{ id: "2", name: "Beto manual" }, { id: "9", name: "Zoe" }]).map((c) => c.id + ":" + c.name).join() === "1:Ana,2:Beto,9:Zoe");
+
+// Base falsa: registra los filtros que usa la consulta, para comprobar que SOLO lee clientes del negocio.
+function fakeClients(rowsById: Record<string, any>, opts: { sinMigracion101?: boolean } = {}) {
+  const log: Array<{ cols: string; tenant?: string; ids?: string[] }> = [];
+  return {
+    log,
+    from(table: string) {
+      if (table !== "clients") throw new Error("tabla inesperada " + table);
+      const call: any = { cols: "", tenant: undefined, ids: undefined };
+      const b: any = {
+        select: (cols: string) => { call.cols = cols; return b; },
+        eq: (col: string, v: string) => { if (col === "tenant_id") call.tenant = v; return b; },
+        in: (_col: string, ids: string[]) => { call.ids = ids; log.push(call); return b; },
+        then: (res: any) => {
+          const conConsent = call.cols.includes("marketing_consent");
+          if (conConsent && opts.sinMigracion101) return res({ data: null, error: { message: "column does not exist" } });
+          const data = (call.ids || []).filter((id: string) => rowsById[id] && rowsById[id].tenant_id === call.tenant).map((id: string) => {
+            const r = rowsById[id];
+            return conConsent ? { id, name: r.name, email: r.email, phone: r.phone, marketing_consent: r.marketing_consent, do_not_contact: r.do_not_contact } : { id, name: r.name, email: r.email, phone: r.phone };
+          });
+          return res({ data, error: null });
+        },
+      };
+      return b;
+    },
+  } as any;
+}
+const filas = {
+  a: { tenant_id: "T1", name: "Ana", email: "ana@x.cl", phone: "+56911111111", marketing_consent: true, do_not_contact: false },
+  b: { tenant_id: "T1", name: "Beto", email: "beto@x.cl", phone: null, marketing_consent: false, do_not_contact: false }, // rechazo promociones
+  c: { tenant_id: "T1", name: "Caro", email: null, phone: "+56922222222", marketing_consent: null, do_not_contact: true }, // no contactar
+  d: { tenant_id: "T2", name: "Otro negocio", email: "o@x.cl", phone: null, marketing_consent: true, do_not_contact: false },
+};
+(async () => {
+  const db = fakeClients(filas);
+  const r = await loadManualRecipients(db, "T1", new Set(["a", "b", "c", "d", "no-existe"]));
+  t("agregar a mano: entra quien acepta promociones", r.recipients.map((x) => x.id).join() === "a");
+  t("agregar a mano: se descartan los 2 que no quieren promociones y se cuentan", r.skippedOptedOut === 2, `omitidos: ${r.skippedOptedOut}`);
+  t("agregar a mano: un cliente de OTRO negocio nunca entra", !r.recipients.some((x) => x.id === "d"));
+  t("agregar a mano: la consulta se filtra por el negocio", db.log.every((c: any) => c.tenant === "T1"));
+  const db2 = fakeClients(filas, { sinMigracion101: true });
+  const r2 = await loadManualRecipients(db2, "T1", new Set(["a", "b"]));
+  t("sin la migracion 101 sigue funcionando (sin marca de consentimiento)", r2.recipients.length === 2 && r2.skippedOptedOut === 0);
+  const db3 = fakeClients(filas);
+  await loadManualRecipients(db3, "T1", new Set(Array.from({ length: 230 }, (_, i) => "x" + i)));
+  t("muchos ids: se consulta por lotes de 100", db3.log.length === 3 && db3.log.every((c: any) => c.ids.length <= 100), `consultas: ${db3.log.length}`);
+  const vacio = await loadManualRecipients(fakeClients(filas), "T1", new Set());
+  t("sin ids: nada", vacio.recipients.length === 0 && vacio.skippedOptedOut === 0);
+  process.exit(fails ? 1 : 0);
+})();
+

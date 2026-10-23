@@ -134,8 +134,51 @@ export async function getInactiveClients(
  * Solo sirve para QUITAR gente de la lista que calcula el servidor: nunca agrega a nadie.
  */
 export function parseExcludeIds(v: unknown): Set<string> {
+  return parseIdSet(v, 20000);
+}
+
+/** Lista de ids que manda el navegador (texto no vacio, de largo razonable, sin repetir y con tope). */
+export function parseIdSet(v: unknown, max: number): Set<string> {
   if (!Array.isArray(v)) return new Set();
-  return new Set(v.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 64).slice(0, 20000));
+  return new Set(v.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 64).slice(0, max));
+}
+
+export interface Recipient { id: string; name: string; email: string | null; phone: string | null }
+
+/** Cliente que pidio no ser contactado o rechazo las promociones (Ley 21.719): nunca recibe mensajes masivos. */
+export function isOptedOut(c: { do_not_contact?: boolean | null; marketing_consent?: boolean | null }): boolean {
+  return c.do_not_contact === true || c.marketing_consent === false;
+}
+
+/** Une la lista calculada con los clientes agregados a mano, sin repetir ids (gana el primero). */
+export function mergeRecipients<T extends { id: string }>(base: T[], extra: T[]): T[] {
+  const seen = new Set(base.map((c) => c.id));
+  return [...base, ...extra.filter((c) => !seen.has(c.id))];
+}
+
+/**
+ * Clientes que el negocio agrego A MANO al envio (buscandolos en la pantalla de Retencion), aunque no esten en el rango.
+ * Solo se leen clientes del propio negocio y se descartan los que pidieron no recibir promociones (migracion 101; si falta, no hay marca).
+ */
+export async function loadManualRecipients(
+  supabase: ReturnType<typeof createAdminSupabase>,
+  tenantId: string,
+  ids: Set<string>
+): Promise<{ recipients: Recipient[]; skippedOptedOut: number }> {
+  const list = Array.from(ids);
+  const rows: any[] = [];
+  for (let i = 0; i < list.length; i += 100) {
+    const chunk = list.slice(i, i + 100);
+    const q = (cols: string) => supabase.from("clients").select(cols).eq("tenant_id", tenantId).in("id", chunk);
+    let { data, error } = await q("id, name, email, phone, marketing_consent, do_not_contact");
+    if (error) ({ data } = await q("id, name, email, phone")); // falta la migracion 101
+    rows.push(...((data as any[]) || []));
+  }
+  const ok = rows.filter((r) => !isOptedOut(r));
+  return {
+    recipients: ok.map((r) => ({ id: r.id, name: r.name, email: r.email ?? null, phone: r.phone ?? null })),
+    skippedOptedOut: rows.length - ok.length,
+  };
 }
 
 /** Quita de la lista a los clientes desmarcados. Se aplica ANTES de deduplicar por correo/telefono. */

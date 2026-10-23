@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { sendRetentionEmail } from "@/lib/resend";
-import { getInactiveClients, dedupeBy, tenantBookingUrl, tenantLogoUrl, parseExcludeIds, excludeClients } from "@/lib/retention";
+import { getInactiveClients, dedupeBy, tenantBookingUrl, tenantLogoUrl, parseExcludeIds, parseIdSet, excludeClients, mergeRecipients, loadManualRecipients, type Recipient } from "@/lib/retention";
 import { formatPhoneCL } from "@/lib/phone";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { tenantHasFeature } from "@/lib/plan-features";
@@ -46,7 +46,11 @@ export async function POST(req: NextRequest) {
   // sin clientes que ya tienen una cita por venir.
   const { inactive: allInactive } = await getInactiveClients(supabase, tenantId, Number.isFinite(Number(days)) ? Math.max(0, Number(days)) : 30, { includeNever: includeNever === true, maxDays: Number(maxDays) > 0 ? Number(maxDays) : null });
   // Quienes se desmarcaron en la pantalla (casilla de cada cliente) no reciben el mensaje ni el cupon.
-  const inactiveClients = excludeClients(allInactive, parseExcludeIds(body.excludeClientIds));
+  // Clientes agregados a mano (buscados en la pantalla): se suman a la lista aunque no esten en el rango, solo si son de este negocio y aceptan promociones.
+  const includeIds = parseIdSet(body.includeClientIds, 500);
+  const manual = includeIds.size > 0 ? await loadManualRecipients(supabase, tenantId, includeIds) : { recipients: [] as Recipient[], skippedOptedOut: 0 };
+  const calculated: Recipient[] = allInactive.map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone }));
+  const inactiveClients = excludeClients(mergeRecipients(calculated, manual.recipients), parseExcludeIds(body.excludeClientIds));
   const bookingUrl = await tenantBookingUrl(supabase, tenantId);
   const businessLogoUrl = await tenantLogoUrl(supabase, tenantId);
 
@@ -74,6 +78,9 @@ export async function POST(req: NextRequest) {
         preview: true,
         total: withEmail.length,
         sample: withEmail.slice(0, 5).map((c) => ({ name: c.name, email: c.email })),
+        // Lista completa para el cuadro de revision (con su id, para poder quitar a alguien antes de enviar).
+        recipients: withEmail.slice(0, 3000).map((c) => ({ id: c.id, name: c.name, contact: c.email })),
+        manualSkipped: manual.skippedOptedOut,
       });
     }
 
@@ -117,6 +124,8 @@ export async function POST(req: NextRequest) {
         preview: true,
         total: withPhone.length,
         sample: withPhone.slice(0, 5).map((c) => ({ name: c.name, phone: c.phone })),
+        recipients: withPhone.slice(0, 3000).map((c) => ({ id: c.id, name: c.name, contact: formatPhoneCL(c.phone!) })),
+        manualSkipped: manual.skippedOptedOut,
       });
     }
 
