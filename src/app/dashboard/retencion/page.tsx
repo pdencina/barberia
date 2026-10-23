@@ -3,12 +3,13 @@
 import { couponKind } from "@/lib/coupon";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
-import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { Users, UserMinus, Percent, Mail, MessageCircle, HeartHandshake, Send, Eye } from "lucide-react";
 import { PageHeader, StatCard, Panel, primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
 import { MessageQuotaBar } from "@/components/dashboard/message-quota-bar";
 import { formatPhoneCL } from "@/lib/phone";
+import { SendReviewModal, type ReviewRecipient } from "./send-review-modal";
+import { AddClientSearch, type ManualClient } from "./add-client-search";
 
 interface InactiveClient {
   id: string;
@@ -51,8 +52,20 @@ export default function RetencionPage() {
   const [bulkSending, setBulkSending] = useState(false);
   // Clientes que se DESMARCARON: no reciben el mensaje masivo (ni el cupon). Por defecto van todos marcados.
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  // Clientes agregados A MANO (buscados entre todos los del negocio), aunque no esten en el rango de dias.
+  const [manualClients, setManualClients] = useState<ManualClient[]>([]);
+  // Cuadro para revisar el envio masivo antes de confirmarlo (reemplaza al aviso de texto).
+  type Review = { kind: "email" | "whatsapp"; recipients: ReviewRecipient[]; messageText: string; couponLabel: string | null; skippedOptedOut: number; truncated: boolean; resolve: (ids: string[] | null) => void };
+  const [review, setReview] = useState<Review | null>(null);
+  const askReview = (cfg: Omit<Review, "resolve">) => new Promise<string[] | null>((resolve) => setReview({ ...cfg, resolve }));
+  const closeReview = (ids: string[] | null) => { review?.resolve(ids); setReview(null); };
+  // Cuerpo comun de los envios masivos: quienes se desmarcaron no reciben; los agregados a mano se suman.
+  const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = []) => ({
+    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type,
+    excludeClientIds: [...Array.from(excluded), ...extraExcluded],
+    includeClientIds: manualClients.map((m) => m.id),
+  });
   const { showToast } = useToast();
-  const { confirm } = useConfirm();
 
   // Ask the server WHO would receive this (scoped to the business), show a sample and
   // the exact count, and only send after an explicit confirmation. This is the guard
@@ -63,25 +76,24 @@ export default function RetencionPage() {
       const previewRes = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", preview: true, excludeClientIds: Array.from(excluded) }),
+        body: JSON.stringify({ ...bulkBody("email"), preview: true }),
       });
       const preview = await previewRes.json();
       if (!previewRes.ok) { showToast(preview.error || "No se pudo preparar el envio", "error"); return; }
       if (!preview.total) { showToast("No hay clientes con email para enviar", "info"); return; }
 
-      const sampleNames = (preview.sample || []).map((s: any) => `• ${s.name} (${s.email})`).join("\n");
-      const ok = await confirm({
-        title: `Enviar ${preview.total} correo${preview.total === 1 ? "" : "s"}?`,
-        message: `Se enviara un correo a ${preview.total} cliente${preview.total === 1 ? "" : "s"} de tu negocio. Ejemplos:\n\n${sampleNames}${preview.total > 5 ? `\n… y ${preview.total - 5} mas` : ""}\n\nEsta accion no se puede deshacer.`,
-        confirmText: `Si, enviar ${preview.total}`,
-        variant: "warning",
+      // Cuadro de revision: resumen, lista completa de destinatarios y la opcion de sacar a alguien antes de enviar.
+      const shown: ReviewRecipient[] = preview.recipients || [];
+      const extraOff = await askReview({
+        kind: "email", recipients: shown, messageText: customMessage.trim() || "Te extrañamos! Vuelve pronto.",
+        couponLabel: selectedCoupon || null, skippedOptedOut: preview.manualSkipped || 0, truncated: preview.total > shown.length,
       });
-      if (!ok) return;
+      if (!extraOff) return;
 
       const res = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", excludeClientIds: Array.from(excluded) }),
+        body: JSON.stringify(bulkBody("email", extraOff)),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Error al enviar", "error"); return; }
@@ -104,25 +116,23 @@ export default function RetencionPage() {
   const copyForBroadcast = async () => {
     setBulkSending(true);
     try {
-      const body = { days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "whatsapp", excludeClientIds: Array.from(excluded) };
       const previewRes = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...body, preview: true }),
+        body: JSON.stringify({ ...bulkBody("whatsapp"), preview: true }),
       });
       const preview = await previewRes.json();
       if (!previewRes.ok) { showToast(preview.error || "No se pudo preparar la lista", "error"); return; }
       if (!preview.total) { showToast("No hay clientes con teléfono para copiar", "info"); return; }
 
-      const ok = await confirm({
-        title: `Copiar ${preview.total} contacto${preview.total === 1 ? "" : "s"}?`,
-        message: `Se preparará el mensaje para ${preview.total} cliente${preview.total === 1 ? "" : "s"} y se descontará ${preview.total} del cupo de WhatsApp de este ciclo.`,
-        confirmText: `Sí, copiar ${preview.total}`,
-        variant: "warning",
+      const shown: ReviewRecipient[] = preview.recipients || [];
+      const extraOff = await askReview({
+        kind: "whatsapp", recipients: shown, messageText: customMessage.trim() || "Te extrañamos! Agenda tu cita.",
+        couponLabel: selectedCoupon || null, skippedOptedOut: preview.manualSkipped || 0, truncated: preview.total > shown.length,
       });
-      if (!ok) return;
+      if (!extraOff) return;
 
-      const res = await fetch("/api/retention/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const res = await fetch("/api/retention/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bulkBody("whatsapp", extraOff)) });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Error al preparar la lista", "error"); return; }
       if (data.links && data.links.length > 0) {
@@ -215,15 +225,25 @@ export default function RetencionPage() {
 
   // Mismos numeros que usa el envio: un correo / un telefono se cuenta una sola vez.
   // Solo cuentan los clientes marcados (los desmarcados no reciben el mensaje masivo).
-  const selectedClients = clients.filter((c) => !excluded.has(c.id));
+  type Row = InactiveClient & { manual?: boolean };
+  const inListIds = new Set(clients.map((c) => c.id));
+  const manualRows: Row[] = manualClients.filter((m) => !inListIds.has(m.id)).map((m) => ({ ...m, lastVisit: null, totalVisits: 0, daysSinceVisit: 0, manual: true }));
+  const rows: Row[] = [...manualRows, ...sortedClients];
+  const selectedClients = rows.filter((c) => !excluded.has(c.id));
   const selectedCount = selectedClients.length;
   const withEmail = new Set(selectedClients.filter((c) => c.email).map((c) => c.email!.trim().toLowerCase())).size;
   const withPhone = new Set(selectedClients.filter((c) => c.phone).map((c) => c.phone!.replace(/\D/g, ""))).size;
+  const addManual = (c: ManualClient) => {
+    setManualClients((prev) => (prev.some((m) => m.id === c.id) ? prev : [c, ...prev]));
+    setExcluded((prev) => { if (!prev.has(c.id)) return prev; const n = new Set(prev); n.delete(c.id); return n; }); // al agregarlo queda marcado
+    showToast(`${c.name} agregado al envío`, "success");
+  };
+  const removeManual = (id: string) => setManualClients((prev) => prev.filter((m) => m.id !== id));
   const toggleClient = (id: string) => setExcluded((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   const toggleAll = () => setExcluded((prev) => {
     const n = new Set(prev);
-    if (selectedCount === clients.length) clients.forEach((c) => n.add(c.id)); // todos marcados -> desmarcar a todos
-    else clients.forEach((c) => n.delete(c.id)); // faltan algunos -> marcar a todos
+    if (selectedCount === rows.length) rows.forEach((c) => n.add(c.id)); // todos marcados -> desmarcar a todos
+    else rows.forEach((c) => n.delete(c.id)); // faltan algunos -> marcar a todos
     return n;
   });
 
@@ -233,7 +253,7 @@ export default function RetencionPage() {
         title="Retención de clientes"
         subtitle="Recupera a los clientes que hace tiempo no vuelven"
         actions={
-          clients.length > 0 ? (
+          rows.length > 0 ? (
             <>
               <button onClick={copyForBroadcast} disabled={bulkSending || withPhone === 0} className={ghostButton}>
                 <MessageCircle className="h-4 w-4 text-emerald-500" strokeWidth={2} /> Copiar para difusión ({withPhone})
@@ -361,7 +381,7 @@ export default function RetencionPage() {
       </div>
 
       {/* Lista */}
-      <Panel title={`Clientes en este rango (${clients.length})`} subtitle={`${rangeLabel} sin venir`} flush
+      <Panel title={`Clientes en este rango (${clients.length})`} subtitle={`${rangeLabel} sin venir${manualRows.length > 0 ? ` · ${manualRows.length} agregado${manualRows.length === 1 ? "" : "s"} a mano` : ""}`} flush
         action={
           <label className="flex items-center gap-2 text-xs font-semibold text-brand-gray">
             Ordenar
@@ -372,9 +392,13 @@ export default function RetencionPage() {
             </select>
           </label>
         }>
+        {/* Agregar a mano a cualquier cliente del negocio (aunque no este en el rango de dias elegido) */}
+        <div className="px-3 pb-3 md:px-4">
+          <AddClientSearch inListIds={inListIds} manualIds={new Set(manualClients.map((m) => m.id))} onAdd={addManual} />
+        </div>
         {loading ? (
           <Spinner />
-        ) : clients.length === 0 ? (
+        ) : rows.length === 0 ? (
           <div className="flex flex-col items-center px-6 pb-10 pt-4 text-center">
             <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-500">
               <HeartHandshake className="h-6 w-6" strokeWidth={1.5} />
@@ -390,16 +414,16 @@ export default function RetencionPage() {
               <input
                 type="checkbox"
                 className="h-4 w-4 cursor-pointer accent-gray-500"
-                checked={selectedCount === clients.length}
-                ref={(el) => { if (el) el.indeterminate = selectedCount > 0 && selectedCount < clients.length; }}
+                checked={selectedCount === rows.length}
+                ref={(el) => { if (el) el.indeterminate = selectedCount > 0 && selectedCount < rows.length; }}
                 onChange={toggleAll}
                 aria-label="Marcar o desmarcar a todos"
               />
-              {selectedCount === clients.length ? "Todos recibirán el mensaje" : `${selectedCount} de ${clients.length} recibirán el mensaje`}
+              {selectedCount === rows.length ? "Todos recibirán el mensaje" : `${selectedCount} de ${rows.length} recibirán el mensaje`}
             </label>
-            {selectedCount < clients.length && (
+            {selectedCount < rows.length && (
               <button type="button" onClick={toggleAll} className="text-xs font-semibold text-brand-blue hover:underline">
-                {selectedCount === 0 ? "Marcar a todos" : clients.length - selectedCount === 1 ? "Marcar al que falta" : `Marcar a los ${clients.length - selectedCount} que faltan`}
+                {selectedCount === 0 ? "Marcar a todos" : rows.length - selectedCount === 1 ? "Marcar al que falta" : `Marcar a los ${rows.length - selectedCount} que faltan`}
               </button>
             )}
             <span className="text-xs text-brand-gray">
@@ -407,9 +431,9 @@ export default function RetencionPage() {
             </span>
           </div>
           <div className="divide-y divide-gray-50 px-2 pb-2 md:px-3">
-            {sortedClients.map((c) => {
+            {rows.map((c) => {
               const initials = c.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
-              const tone = c.daysSinceVisit >= 60 ? "bg-red-500/15 text-red-500" : c.daysSinceVisit >= 30 ? "bg-amber-500/15 text-amber-500" : "bg-brand-light text-brand-gray";
+              const tone = c.manual ? "bg-brand-blue/10 text-brand-blue" : c.daysSinceVisit >= 60 ? "bg-red-500/15 text-red-500" : c.daysSinceVisit >= 30 ? "bg-amber-500/15 text-amber-500" : "bg-brand-light text-brand-gray";
               return (
                 <div key={c.id} className={`flex flex-wrap items-center gap-3 px-3 py-3.5 transition-colors hover:bg-brand-blue/[0.04] md:flex-nowrap ${excluded.has(c.id) ? "opacity-50" : ""}`}>
                   <input
@@ -430,16 +454,23 @@ export default function RetencionPage() {
                     </p>
                   </div>
                   <div className="hidden w-24 text-center md:block">
-                    <p className="text-sm font-bold tabular-nums text-brand-dark">{c.totalVisits}</p>
-                    <p className="text-[10px] uppercase tracking-wide text-brand-gray">{c.totalVisits === 1 ? "visita" : "visitas"}</p>
+                    <p className="text-sm font-bold tabular-nums text-brand-dark">{c.manual ? "—" : c.totalVisits}</p>
+                    <p className="text-[10px] uppercase tracking-wide text-brand-gray">{c.manual ? "visitas" : c.totalVisits === 1 ? "visita" : "visitas"}</p>
                   </div>
                   <div className="hidden w-28 text-center md:block">
-                    <p className="text-sm font-semibold text-brand-dark">{c.lastVisit ? new Date(c.lastVisit + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }) : "Sin visitas"}</p>
+                    <p className="text-sm font-semibold text-brand-dark">{c.lastVisit ? new Date(c.lastVisit + "T12:00:00").toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" }) : c.manual ? "—" : "Sin visitas"}</p>
                     <p className="text-[10px] uppercase tracking-wide text-brand-gray">última visita</p>
                   </div>
-                  <span className={`flex-shrink-0 rounded-full px-3 py-1 text-center text-xs font-bold tabular-nums md:min-w-[84px] ${tone}`}>
-                    {c.lastVisit ? "" : "Registrado hace "}{c.daysSinceVisit} {c.daysSinceVisit === 1 ? "día" : "días"}
-                  </span>
+                  {c.manual ? (
+                    <button type="button" onClick={() => removeManual(c.id)} title="Quitar de este envío"
+                      className={`flex-shrink-0 rounded-full px-3 py-1 text-center text-xs font-bold md:min-w-[84px] ${tone} transition-colors hover:bg-red-500/10 hover:text-red-500`}>
+                      Agregado a mano ✕
+                    </button>
+                  ) : (
+                    <span className={`flex-shrink-0 rounded-full px-3 py-1 text-center text-xs font-bold tabular-nums md:min-w-[84px] ${tone}`}>
+                      {c.lastVisit ? "" : "Registrado hace "}{c.daysSinceVisit} {c.daysSinceVisit === 1 ? "día" : "días"}
+                    </span>
+                  )}
                   {/* Ancho fijo en pantalla grande: si el cliente no tiene correo (solo WhatsApp) las columnas de la fila siguen alineadas con las demas. */}
                   <div className="flex flex-shrink-0 gap-2 md:w-[216px]">
                     {c.phone && (
@@ -468,6 +499,19 @@ export default function RetencionPage() {
           </>
         )}
       </Panel>
+
+      {review && (
+        <SendReviewModal
+          kind={review.kind}
+          recipients={review.recipients}
+          messageText={review.messageText}
+          couponLabel={review.couponLabel}
+          skippedOptedOut={review.skippedOptedOut}
+          truncated={review.truncated}
+          onCancel={() => closeReview(null)}
+          onConfirm={(ids) => closeReview(ids)}
+        />
+      )}
     </div>
   );
 }
