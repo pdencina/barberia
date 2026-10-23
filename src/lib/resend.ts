@@ -1,4 +1,5 @@
 import { getResendClient } from "@/lib/resend-client";
+import { couponDiscountText } from "@/lib/retention-message";
 
 interface SendReceiptParams {
   to: string;
@@ -373,12 +374,16 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
     ? `${process.env.NEXT_PUBLIC_APP_URL}/booking`
     : "https://www.re-booking.cl/booking";
 
+  // Cupon SIN MONTO (solo codigo y texto): no se muestra "$0 de descuento"; el texto del cupon pasa a ser lo principal.
+  const discountLine = couponDiscountText({ code: couponCode || "", discount_type: discountType, discount_value: discountValue });
   const couponBox = couponCode ? `
     <div style="background:#F0FAFA;border:2px dashed ${MAIL_ACCENT};border-radius:12px;padding:20px;margin:20px 0;text-align:center;">
-      <div style="color:${MAIL_ACCENT};font-size:11px;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;margin-bottom:8px;">Cupón de descuento</div>
+      <div style="color:${MAIL_ACCENT};font-size:11px;text-transform:uppercase;letter-spacing:0.14em;font-weight:700;margin-bottom:8px;">${discountLine ? "Cupón de descuento" : "Cupón para ti"}</div>
       <div style="color:#111827;font-size:28px;font-weight:800;font-family:monospace;margin-bottom:8px;">${couponCode}</div>
-      <div style="color:#374151;font-size:14px;">${discountType === "percentage" ? `${discountValue}% de descuento` : `$${discountValue?.toLocaleString("es-CL")} de descuento`}</div>
-      ${couponDescription ? `<div style="color:#6B7280;font-size:12px;margin-top:8px;">${couponDescription}</div>` : ""}
+      ${discountLine ? `<div style="color:#374151;font-size:14px;">${discountLine}</div>` : ""}
+      ${couponDescription ? (discountLine
+        ? `<div style="color:#6B7280;font-size:12px;margin-top:8px;">${couponDescription}</div>`
+        : `<div style="color:#374151;font-size:15px;line-height:1.5;margin-top:4px;">${couponDescription}</div>`) : ""}
     </div>` : "";
   const html = mailShell({
     label: "Te extrañamos",
