@@ -1,10 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
+
+// SEGURIDAD: antes editar y borrar cupones no pedia sesion ni comprobaba el negocio: cualquiera podia tocar los cupones de cualquier negocio.
+// Solo el administrador (menu Cupones) y solo los cupones de su propio negocio; super admin con cualquiera.
+async function authorizeCoupon(supabase: ReturnType<typeof createAdminSupabase>, id: string): Promise<NextResponse | null> {
+  const g = await requireRole(["admin", "super_admin"]);
+  if (!g.ok) return g.response;
+  const { data: coupon } = await supabase.from("coupons").select("tenant_id").eq("id", id).maybeSingle();
+  if (!coupon) return NextResponse.json({ error: "Cupon no encontrado" }, { status: 404 });
+  if (g.role !== "super_admin" && coupon.tenant_id !== g.tenantId) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  return null;
+}
 
 // PATCH: update a coupon. (The coupons page already called this endpoint to edit, but
 // it didn't exist, so editing silently did nothing — now it's implemented.)
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createAdminSupabase();
+  const denied = await authorizeCoupon(supabase, params.id);
+  if (denied) return denied;
   const body = await req.json();
 
   const update: Record<string, any> = {};
@@ -30,6 +43,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
 // DELETE: remove a coupon.
 export async function DELETE(_req: NextRequest, { params }: { params: { id: string } }) {
   const supabase = createAdminSupabase();
+  const denied = await authorizeCoupon(supabase, params.id);
+  if (denied) return denied;
   const { error } = await supabase.from("coupons").delete().eq("id", params.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ success: true });
