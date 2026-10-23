@@ -49,6 +49,8 @@ export default function RetencionPage() {
   const [customMessage, setCustomMessage] = useState("");
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [bulkSending, setBulkSending] = useState(false);
+  // Clientes que se DESMARCARON: no reciben el mensaje masivo (ni el cupon). Por defecto van todos marcados.
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
   const { showToast } = useToast();
   const { confirm } = useConfirm();
 
@@ -61,7 +63,7 @@ export default function RetencionPage() {
       const previewRes = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", preview: true }),
+        body: JSON.stringify({ days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", preview: true, excludeClientIds: Array.from(excluded) }),
       });
       const preview = await previewRes.json();
       if (!previewRes.ok) { showToast(preview.error || "No se pudo preparar el envio", "error"); return; }
@@ -79,7 +81,7 @@ export default function RetencionPage() {
       const res = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "email" }),
+        body: JSON.stringify({ days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "email", excludeClientIds: Array.from(excluded) }),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Error al enviar", "error"); return; }
@@ -102,7 +104,7 @@ export default function RetencionPage() {
   const copyForBroadcast = async () => {
     setBulkSending(true);
     try {
-      const body = { days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "whatsapp" };
+      const body = { days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type: "whatsapp", excludeClientIds: Array.from(excluded) };
       const previewRes = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -167,15 +169,17 @@ export default function RetencionPage() {
   // Si "desde" pasa a ser mayor que "hasta", se quita el tope.
   useEffect(() => { if (maxDays && maxDays < days) { setMaxDays(null); setMaxInput(""); } }, [days, maxDays]);
 
-  // Vista previa de lo que recibira el cliente (se actualiza al cambiar cupon o mensaje).
-  const sampleName = clients[0]?.name || "Matías Pérez";
+  // Vista previa de lo que recibira el cliente (se actualiza al cambiar cupon o mensaje). El nombre es un marcador: al enviar,
+  // cada cliente recibe el mensaje con SU propio nombre (el envio masivo arma un correo por cliente).
+  const PREVIEW_NAME = "[nombre del cliente]";
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, clientName: sampleName }) })
+      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, clientName: PREVIEW_NAME }) })
         .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.whatsapp) setMsgPreview(d); }).catch(() => {});
     }, 350);
     return () => clearTimeout(t);
-  }, [selectedCoupon, customMessage, sampleName]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCoupon, customMessage]);
 
   const notifyClient = async (clientId: string, type: "email" | "whatsapp") => {
     setSendingId(`${clientId}-${type}`);
@@ -210,8 +214,18 @@ export default function RetencionPage() {
   const rangeLabel = maxDays != null ? `${days}–${maxDays} días` : `${days}+ días`;
 
   // Mismos numeros que usa el envio: un correo / un telefono se cuenta una sola vez.
-  const withEmail = new Set(clients.filter((c) => c.email).map((c) => c.email!.trim().toLowerCase())).size;
-  const withPhone = new Set(clients.filter((c) => c.phone).map((c) => c.phone!.replace(/\D/g, ""))).size;
+  // Solo cuentan los clientes marcados (los desmarcados no reciben el mensaje masivo).
+  const selectedClients = clients.filter((c) => !excluded.has(c.id));
+  const selectedCount = selectedClients.length;
+  const withEmail = new Set(selectedClients.filter((c) => c.email).map((c) => c.email!.trim().toLowerCase())).size;
+  const withPhone = new Set(selectedClients.filter((c) => c.phone).map((c) => c.phone!.replace(/\D/g, ""))).size;
+  const toggleClient = (id: string) => setExcluded((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  const toggleAll = () => setExcluded((prev) => {
+    const n = new Set(prev);
+    if (selectedCount === clients.length) clients.forEach((c) => n.add(c.id)); // todos marcados -> desmarcar a todos
+    else clients.forEach((c) => n.delete(c.id)); // faltan algunos -> marcar a todos
+    return n;
+  });
 
   return (
     <div className="mx-auto max-w-6xl space-y-6 p-4 md:p-6 animate-fade-in">
@@ -308,7 +322,7 @@ export default function RetencionPage() {
 
       {/* Vista previa: al lado del mensaje en pantallas grandes (fija mientras escribes) y justo debajo en las chicas */}
       <div className="xl:sticky xl:top-4 xl:col-start-2 xl:row-span-2 xl:row-start-1">
-      <Panel title="Así lo recibirá el cliente" subtitle={`Ejemplo con ${sampleName.split(" ")[0]}. No envía nada ni gasta cupo.`}>
+      <Panel title="Así lo recibirá el cliente" subtitle="Cada cliente recibe el mensaje con su propio nombre. Esto es solo una muestra: no envía nada ni gasta cupo.">
         <div className="mb-3 inline-flex rounded-xl border border-gray-100 bg-brand-light p-1 text-sm">
           {(["whatsapp", "email"] as const).map((k) => (
             <button key={k} onClick={() => setPreviewTab(k)}
@@ -369,12 +383,43 @@ export default function RetencionPage() {
             <p className="mt-1 text-xs text-brand-gray">No hay clientes con {rangeLabel} sin volver.</p>
           </div>
         ) : (
+          <>
+          {/* Seleccion: todos van marcados; se desmarca a quien NO debe recibir el mensaje masivo (y el cupon). */}
+          <div className="mx-2 mb-1 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl bg-brand-light/70 px-3 py-2.5 text-sm md:mx-3">
+            <label className="flex cursor-pointer items-center gap-2.5 font-semibold text-brand-dark">
+              <input
+                type="checkbox"
+                className="h-5 w-5 cursor-pointer"
+                checked={selectedCount === clients.length}
+                ref={(el) => { if (el) el.indeterminate = selectedCount > 0 && selectedCount < clients.length; }}
+                onChange={toggleAll}
+                aria-label="Marcar o desmarcar a todos"
+              />
+              {selectedCount === clients.length ? "Todos recibirán el mensaje" : `${selectedCount} de ${clients.length} recibirán el mensaje`}
+            </label>
+            {selectedCount < clients.length && (
+              <button type="button" onClick={toggleAll} className="text-xs font-semibold text-brand-blue hover:underline">
+                {selectedCount === 0 ? "Marcar a todos" : clients.length - selectedCount === 1 ? "Marcar al que falta" : `Marcar a los ${clients.length - selectedCount} que faltan`}
+              </button>
+            )}
+            <span className="text-xs text-brand-gray">
+              Las casillas controlan el Email masivo y la lista de difusión. Los botones de cada fila envían solo a ese cliente.
+            </span>
+          </div>
           <div className="divide-y divide-gray-50 px-2 pb-2 md:px-3">
             {sortedClients.map((c) => {
               const initials = c.name.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
               const tone = c.daysSinceVisit >= 60 ? "bg-red-500/15 text-red-500" : c.daysSinceVisit >= 30 ? "bg-amber-500/15 text-amber-500" : "bg-brand-light text-brand-gray";
               return (
-                <div key={c.id} className="flex flex-wrap items-center gap-3 px-3 py-3.5 transition-colors hover:bg-brand-blue/[0.04] md:flex-nowrap">
+                <div key={c.id} className={`flex flex-wrap items-center gap-3 px-3 py-3.5 transition-colors hover:bg-brand-blue/[0.04] md:flex-nowrap ${excluded.has(c.id) ? "opacity-50" : ""}`}>
+                  <input
+                    type="checkbox"
+                    className="h-5 w-5 flex-shrink-0 cursor-pointer"
+                    checked={!excluded.has(c.id)}
+                    onChange={() => toggleClient(c.id)}
+                    title={excluded.has(c.id) ? "No recibirá el mensaje masivo" : "Recibirá el mensaje masivo"}
+                    aria-label={`${c.name}: recibe el mensaje masivo`}
+                  />
                   <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-blue/25 to-brand-accent/10 text-sm font-bold text-brand-blue ring-1 ring-brand-blue/20">
                     {initials}
                   </div>
@@ -420,6 +465,7 @@ export default function RetencionPage() {
               );
             })}
           </div>
+          </>
         )}
       </Panel>
     </div>
