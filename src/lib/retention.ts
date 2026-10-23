@@ -129,6 +129,20 @@ export async function getInactiveClients(
   return { total: clients.length, inactive: includeNever ? inactive : inactive.filter((c) => !!c.lastVisit), neverVisited };
 }
 
+/**
+ * Ids de clientes que el negocio desmarco en la pantalla de Retencion (no recibiran el mensaje masivo).
+ * Solo sirve para QUITAR gente de la lista que calcula el servidor: nunca agrega a nadie.
+ */
+export function parseExcludeIds(v: unknown): Set<string> {
+  if (!Array.isArray(v)) return new Set();
+  return new Set(v.filter((x): x is string => typeof x === "string" && x.length > 0 && x.length <= 64).slice(0, 20000));
+}
+
+/** Quita de la lista a los clientes desmarcados. Se aplica ANTES de deduplicar por correo/telefono. */
+export function excludeClients<T extends { id: string }>(list: T[], excluded: Set<string>): T[] {
+  return excluded.size > 0 ? list.filter((c) => !excluded.has(c.id)) : list;
+}
+
 /** Deja un solo cliente por correo / telefono (dos fichas con el mismo dato no reciben doble mensaje). */
 export function dedupeBy<T>(items: T[], key: (i: T) => string | null): T[] {
   const seen = new Set<string>();
@@ -141,6 +155,16 @@ export function dedupeBy<T>(items: T[], key: (i: T) => string | null): T[] {
     out.push(it);
   }
   return out;
+}
+
+/** Logo del negocio para los correos (null si no subio uno: el correo usa entonces el logo de re-booking). */
+export async function tenantLogoUrl(
+  supabase: ReturnType<typeof createAdminSupabase>,
+  tenantId: string
+): Promise<string | null> {
+  const { data } = await supabase.from("tenants").select("logo_url").eq("id", tenantId).maybeSingle();
+  const url = (data as any)?.logo_url;
+  return typeof url === "string" && url.trim() ? url.trim() : null;
 }
 
 /** Link de reserva del negocio (el mismo que usa Mensajes por WhatsApp). */
