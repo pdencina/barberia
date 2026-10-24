@@ -4,7 +4,8 @@ import { couponKind } from "@/lib/coupon";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, UserMinus, Percent, Mail, MessageCircle, HeartHandshake, Send, Eye } from "lucide-react";
+import { Users, UserMinus, Percent, Mail, MessageCircle, HeartHandshake, Send, Eye, History } from "lucide-react";
+import Link from "next/link";
 import { PageHeader, StatCard, Panel, primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
 import { MessageQuotaBar } from "@/components/dashboard/message-quota-bar";
 import { formatPhoneCL } from "@/lib/phone";
@@ -55,13 +56,16 @@ export default function RetencionPage() {
   // Clientes agregados A MANO (buscados entre todos los del negocio), aunque no esten en el rango de dias.
   const [manualClients, setManualClients] = useState<ManualClient[]>([]);
   // Cuadro para revisar el envio masivo antes de confirmarlo (reemplaza al aviso de texto).
-  type Review = { kind: "email" | "whatsapp"; recipients: ReviewRecipient[]; messageText: string; couponLabel: string | null; skippedOptedOut: number; truncated: boolean; resolve: (ids: string[] | null) => void };
+  type ReviewChoice = { ids: string[]; name: string };
+  type Review = { kind: "email" | "whatsapp"; recipients: ReviewRecipient[]; messageText: string; couponLabel: string | null; skippedOptedOut: number; truncated: boolean; defaultName: string; recentDays: number; resolve: (r: ReviewChoice | null) => void };
   const [review, setReview] = useState<Review | null>(null);
-  const askReview = (cfg: Omit<Review, "resolve">) => new Promise<string[] | null>((resolve) => setReview({ ...cfg, resolve }));
-  const closeReview = (ids: string[] | null) => { review?.resolve(ids); setReview(null); };
+  const askReview = (cfg: Omit<Review, "resolve">) => new Promise<ReviewChoice | null>((resolve) => setReview({ ...cfg, resolve }));
+  const closeReview = (r: ReviewChoice | null) => { review?.resolve(r); setReview(null); };
+  // Nombre sugerido para la campana ("Campaña 24 oct · 30–45 días"); se puede cambiar en el cuadro de revision.
+  const suggestCampaignName = () => `Campaña ${new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "America/Santiago" }).format(new Date())} · ${rangeLabel}`;
   // Cuerpo comun de los envios masivos: quienes se desmarcaron no reciben; los agregados a mano se suman.
-  const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = []) => ({
-    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type,
+  const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = [], campaignName?: string) => ({
+    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, type, campaignName: campaignName || null,
     excludeClientIds: [...Array.from(excluded), ...extraExcluded],
     includeClientIds: manualClients.map((m) => m.id),
   });
@@ -84,16 +88,17 @@ export default function RetencionPage() {
 
       // Cuadro de revision: resumen, lista completa de destinatarios y la opcion de sacar a alguien antes de enviar.
       const shown: ReviewRecipient[] = preview.recipients || [];
-      const extraOff = await askReview({
+      const choice = await askReview({
         kind: "email", recipients: shown, messageText: customMessage.trim() || "Te extrañamos! Vuelve pronto.",
         couponLabel: selectedCoupon || null, skippedOptedOut: preview.manualSkipped || 0, truncated: preview.total > shown.length,
+        defaultName: suggestCampaignName(), recentDays: preview.recentDays || 30,
       });
-      if (!extraOff) return;
+      if (!choice) return;
 
       const res = await fetch("/api/retention/bulk", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bulkBody("email", extraOff)),
+        body: JSON.stringify(bulkBody("email", choice.ids, choice.name)),
       });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Error al enviar", "error"); return; }
@@ -126,13 +131,14 @@ export default function RetencionPage() {
       if (!preview.total) { showToast("No hay clientes con teléfono para copiar", "info"); return; }
 
       const shown: ReviewRecipient[] = preview.recipients || [];
-      const extraOff = await askReview({
+      const choice = await askReview({
         kind: "whatsapp", recipients: shown, messageText: customMessage.trim() || "Te extrañamos! Agenda tu cita.",
         couponLabel: selectedCoupon || null, skippedOptedOut: preview.manualSkipped || 0, truncated: preview.total > shown.length,
+        defaultName: suggestCampaignName(), recentDays: preview.recentDays || 30,
       });
-      if (!extraOff) return;
+      if (!choice) return;
 
-      const res = await fetch("/api/retention/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bulkBody("whatsapp", extraOff)) });
+      const res = await fetch("/api/retention/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(bulkBody("whatsapp", choice.ids, choice.name)) });
       const data = await res.json();
       if (!res.ok) { showToast(data.error || "Error al preparar la lista", "error"); return; }
       if (data.links && data.links.length > 0) {
@@ -253,16 +259,22 @@ export default function RetencionPage() {
         title="Retención de clientes"
         subtitle="Recupera a los clientes que hace tiempo no vuelven"
         actions={
-          rows.length > 0 ? (
-            <>
-              <button onClick={copyForBroadcast} disabled={bulkSending || withPhone === 0} className={ghostButton}>
-                <MessageCircle className="h-4 w-4 text-emerald-500" strokeWidth={2} /> Copiar para difusión ({withPhone})
-              </button>
-              <button onClick={sendBulkEmail} disabled={bulkSending || withEmail === 0} className={primaryButton}>
-                <Send className="h-4 w-4" strokeWidth={2} /> {bulkSending ? "Procesando..." : `Email masivo (${withEmail})`}
-              </button>
-            </>
-          ) : undefined
+          <>
+            {/* Historial: lo que ya se envio (fecha, mensaje, cupon y a quienes), para no repetir una campana */}
+            <Link href="/dashboard/retencion/campanas" className={ghostButton}>
+              <History className="h-4 w-4" strokeWidth={2} /> Campañas enviadas
+            </Link>
+            {rows.length > 0 && (
+              <>
+                <button onClick={copyForBroadcast} disabled={bulkSending || withPhone === 0} className={ghostButton}>
+                  <MessageCircle className="h-4 w-4 text-emerald-500" strokeWidth={2} /> Copiar para difusión ({withPhone})
+                </button>
+                <button onClick={sendBulkEmail} disabled={bulkSending || withEmail === 0} className={primaryButton}>
+                  <Send className="h-4 w-4" strokeWidth={2} /> {bulkSending ? "Procesando..." : `Email masivo (${withEmail})`}
+                </button>
+              </>
+            )}
+          </>
         }
       />
 
@@ -508,8 +520,10 @@ export default function RetencionPage() {
           couponLabel={review.couponLabel}
           skippedOptedOut={review.skippedOptedOut}
           truncated={review.truncated}
+          defaultName={review.defaultName}
+          recentDays={review.recentDays}
           onCancel={() => closeReview(null)}
-          onConfirm={(ids) => closeReview(ids)}
+          onConfirm={(ids, name) => closeReview({ ids, name })}
         />
       )}
     </div>
