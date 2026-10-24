@@ -40,6 +40,8 @@ const rutas: string[] = [
   `mercadopago/status?id=x&barberId=${ID}`,
   `tuu/status?id=x&barberId=${ID}`,
   "cupones/validate?code=PRUEBA&amount=1000",
+  // historial de campanas de Retencion
+  "retention/campaigns",
 ];
 
 let fails = 0;
@@ -64,10 +66,11 @@ const t = (name: string, ok: boolean, extra = "") => {
       t(`/api/${ruta}${qs.includes("tenantId") ? " (con tenantId ajeno)" : ""} sin sesion`, cerrada && sinDatos && networkCalls === 0, `status ${res.status}, llamadas a la red: ${networkCalls}`);
     }
   }
-  // Rutas de escritura: sin sesion tampoco deben editar ni borrar nada.
-  const escritura: Array<{ ruta: string; metodo: "PATCH" | "DELETE"; params: Record<string, string> }> = [
+  // Rutas con parametro en la URL ([id]): sin sesion tampoco deben leer, editar ni borrar nada.
+  const escritura: Array<{ ruta: string; metodo: "GET" | "PATCH" | "DELETE"; params: Record<string, string> }> = [
     { ruta: "cupones/[id]", metodo: "PATCH", params: { id: ID } },
     { ruta: "cupones/[id]", metodo: "DELETE", params: { id: ID } },
+    { ruta: "retention/campaigns/[id]", metodo: "GET", params: { id: ID } },
   ];
   for (const e of escritura) {
     const mod = await import(`../src/app/api/${e.ruta}/route`);
