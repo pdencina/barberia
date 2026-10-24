@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
+import { createAdminSupabase, resolveTenantForRequest, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { sendRetentionEmail } from "@/lib/resend";
 import { getInactiveClients, dedupeBy, tenantBookingUrl, tenantLogoUrl, parseExcludeIds, parseIdSet, excludeClients, mergeRecipients, loadManualRecipients, type Recipient } from "@/lib/retention";
 import { formatPhoneCL } from "@/lib/phone";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { tenantHasFeature } from "@/lib/plan-features";
 import { buildRetentionWhatsApp } from "@/lib/retention-message";
+import { recordCampaign, recentlyContacted, couponSnapshot, cleanCampaignName, RECENT_DAYS, type CampaignRecipientInput } from "@/lib/retention-campaigns";
 
 // POST: Send retention message to inactive clients OF THIS BUSINESS.
 //
@@ -50,7 +51,25 @@ export async function POST(req: NextRequest) {
   const includeIds = parseIdSet(body.includeClientIds, 500);
   const manual = includeIds.size > 0 ? await loadManualRecipients(supabase, tenantId, includeIds) : { recipients: [] as Recipient[], skippedOptedOut: 0 };
   const calculated: Recipient[] = allInactive.map((c) => ({ id: c.id, name: c.name, email: c.email, phone: c.phone }));
-  const inactiveClients = excludeClients(mergeRecipients(calculated, manual.recipients), parseExcludeIds(body.excludeClientIds));
+  const merged = mergeRecipients(calculated, manual.recipients);
+  const inactiveClients = excludeClients(merged, parseExcludeIds(body.excludeClientIds));
+  const excludedCount = merged.length - inactiveClients.length;
+  // Para el historial: quien envio y los datos de la campana (el registro nunca bloquea ni rompe un envio).
+  const caller = preview ? null : await getCurrentUserRoleAndTenant();
+  let callerName: string | null = null;
+  if (caller?.userId) {
+    const { data: prof } = await supabase.from("profiles").select("name").eq("id", caller.userId).maybeSingle();
+    callerName = (prof as any)?.name || null;
+  }
+  const campaignBase = {
+    tenantId, userId: caller?.userId || null, userName: callerName,
+    name: cleanCampaignName(body.campaignName),
+    message: typeof message === "string" && message.trim() ? message.trim().slice(0, 600) : null,
+    couponCode: null as string | null, couponDetail: null as string | null,
+    rangeMinDays: Number.isFinite(Number(days)) ? Math.max(0, Number(days)) : 30,
+    rangeMaxDays: Number.isFinite(Number(maxDays)) && Number(maxDays) > 0 ? Number(maxDays) : null,
+    includeNever: includeNever === true, excludedCount, manualCount: manual.recipients.length,
+  };
   const bookingUrl = await tenantBookingUrl(supabase, tenantId);
   const businessLogoUrl = await tenantLogoUrl(supabase, tenantId);
 
@@ -66,6 +85,14 @@ export async function POST(req: NextRequest) {
       .single();
     coupon = c || null;
   }
+  campaignBase.couponCode = coupon?.code || null;
+  campaignBase.couponDetail = couponSnapshot(coupon);
+
+  // A cada destinatario de la vista previa se le agrega si ya recibio una campana hace poco (para no repetirle lo mismo).
+  const withRecentInfo = async <T extends { id: string }>(list: T[]) => {
+    const recent = await recentlyContacted(supabase, tenantId, list.map((r) => r.id));
+    return list.map((r) => ({ ...r, last: recent.get(r.id) ? { at: recent.get(r.id)!.at, coupon: recent.get(r.id)!.couponCode } : null }));
+  };
 
   if (type === "email") {
     // Un solo correo por direccion: dos fichas con el mismo email no reciben doble mensaje
@@ -79,7 +106,8 @@ export async function POST(req: NextRequest) {
         total: withEmail.length,
         sample: withEmail.slice(0, 5).map((c) => ({ name: c.name, email: c.email })),
         // Lista completa para el cuadro de revision (con su id, para poder quitar a alguien antes de enviar).
-        recipients: withEmail.slice(0, 3000).map((c) => ({ id: c.id, name: c.name, contact: c.email })),
+        recipients: await withRecentInfo(withEmail.slice(0, 3000).map((c) => ({ id: c.id, name: c.name, contact: c.email }))),
+        recentDays: RECENT_DAYS,
         manualSkipped: manual.skippedOptedOut,
       });
     }
@@ -89,6 +117,7 @@ export async function POST(req: NextRequest) {
     // informa en la respuesta.
     let sent = 0;
     let quotaExceeded = false;
+    const results: CampaignRecipientInput[] = [];
     for (const client of withEmail) {
       const allowed = await tryConsumeQuota(tenantId, "email", "retention");
       if (!allowed) {
@@ -108,10 +137,18 @@ export async function POST(req: NextRequest) {
           businessLogoUrl,
         });
         sent++;
+        results.push({ clientId: client.id, name: client.name, contact: client.email, status: "sent" });
       } catch (e) {
         console.error(`Error sending to ${client.email}:`, e);
+        results.push({ clientId: client.id, name: client.name, contact: client.email, status: "failed" });
       }
     }
+
+    // Historial: queda registrado que se envio, con que cupon y a quien (no bloquea la respuesta si falla).
+    await recordCampaign(supabase, {
+      ...campaignBase, channel: "email", plannedTotal: withEmail.length, sentCount: sent,
+      failedCount: results.filter((r) => r.status === "failed").length, quotaExceeded, recipients: results,
+    });
 
     return NextResponse.json({ success: true, sent, total: withEmail.length, quotaExceeded });
   }
@@ -124,7 +161,8 @@ export async function POST(req: NextRequest) {
         preview: true,
         total: withPhone.length,
         sample: withPhone.slice(0, 5).map((c) => ({ name: c.name, phone: c.phone })),
-        recipients: withPhone.slice(0, 3000).map((c) => ({ id: c.id, name: c.name, contact: formatPhoneCL(c.phone!) })),
+        recipients: await withRecentInfo(withPhone.slice(0, 3000).map((c) => ({ id: c.id, name: c.name, contact: formatPhoneCL(c.phone!) }))),
+        recentDays: RECENT_DAYS,
         manualSkipped: manual.skippedOptedOut,
       });
     }
@@ -134,6 +172,7 @@ export async function POST(req: NextRequest) {
     // que no hace falta el dedup por referenceId — cada ejecucion de este boton es una
     // tanda nueva de mensajes). Se corta la lista apenas se agota el cupo.
     const links: Array<{ name: string; phone: string | null; url: string }> = [];
+    const results: CampaignRecipientInput[] = [];
     let quotaExceeded = false;
     for (const c of withPhone) {
       const allowed = await tryConsumeQuota(tenantId, "whatsapp", "retention");
@@ -150,7 +189,13 @@ export async function POST(req: NextRequest) {
         phone: c.phone,
         url: `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(msg)}`,
       });
+      results.push({ clientId: c.id, name: c.name, contact: formatPhoneCL(c.phone!), status: "sent" });
     }
+
+    // Historial de la lista de difusion preparada (cada contacto descuenta cupo igual que un envio).
+    await recordCampaign(supabase, {
+      ...campaignBase, channel: "whatsapp", plannedTotal: withPhone.length, sentCount: links.length, failedCount: 0, quotaExceeded, recipients: results,
+    });
 
     return NextResponse.json({ success: true, links, total: links.length, quotaExceeded });
   }
