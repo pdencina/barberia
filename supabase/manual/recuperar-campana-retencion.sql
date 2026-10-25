@@ -67,6 +67,8 @@ WHERE t.name = 'Estudio Levels'
   AND u.channel = 'email'
   AND u.created_at >= '2026-10-23 13:00:00-03'
   AND u.created_at <  '2026-10-23 14:30:00-03'
+  -- Por seguridad: si ya existe una campana recuperada de este negocio, no vuelve a insertar (se puede correr una sola vez sin duplicar).
+  AND NOT EXISTS (SELECT 1 FROM retention_campaigns r WHERE r.tenant_id = t.id AND r.source = 'recuperada')
 GROUP BY t.id
 HAVING count(*) > 0;
 
