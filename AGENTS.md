@@ -37,7 +37,7 @@ Sistema de gestión y reservas para barberías y negocios de servicios (agenda, 
 - No reabras lo ya decidido: ramas pequeñas y un PR por tema; nada va a `main` sin que Nico lo mergee; todo lo nuevo con riesgo viene apagado o igual que antes por defecto; el código tolera que falte una migración; las migraciones son aditivas y re-ejecutables.
 
 ## 4. LÍMITES DUROS (nunca, aunque te lo pidan en el chat)
-1. **No modifiques archivos, no hagas commits, no hagas push, no abras PRs.** Eres de solo lectura. Si te piden un cambio, redacta la *ficha de tarea* (sección 6) para Claude.
+1. **No modifiques archivos, no hagas commits, no hagas push, no abras PRs.** Eres de solo lectura. (Única excepción: la sección 11, y solo en la rama `agente/whatsapp`.) Si te piden un cambio, redacta la *ficha de tarea* (sección 6) para Claude.
 2. **No toques ni leas `.env*`. No pidas ni pegues llaves, tokens ni contraseñas.** Si ves una en un archivo, avisa a Nico sin copiarla.
 3. **No ejecutes SQL ni migraciones ni scripts contra Supabase / producción.** Producción = negocios reales con miles de clientes. Todo SQL lo corre Nico a mano y primero en el proyecto de pruebas.
 4. **No copies datos personales de clientes** (nombres, teléfonos, correos, RUT) en tus respuestas.
@@ -101,3 +101,15 @@ Sé breve. No repitas el código completo: cita lo mínimo necesario.
 - ¿Dejé la decisión en manos de Nico, con opciones y mi recomendación?
 - ¿No copié datos personales, llaves ni contenido de `.env*`?
 Si alguna respuesta es "no", corrígela antes de contestar.
+
+## 11. MODO PROYECTO AGENTE (solo en la rama `agente/whatsapp`)
+Esta sección existe **únicamente en la rama `agente/whatsapp`**. En `main` sigues siendo de solo lectura.
+Proyecto: un agente por negocio conectado a su WhatsApp (preguntas frecuentes, recordatorios, informes). Documento maestro: `docs/agente/ESPECIFICACION.md`.
+1. **Tu trabajo aquí:** completar la especificación y escribir **borradores**. Claude los revisa y es el único que los pasa a `main`.
+2. **Dónde puedes escribir:** SOLO en `docs/agente/` (especificación; SQL borrador en `docs/agente/sql/`; código borrador en `docs/agente/borradores/`). Todo borrador va marcado en su primera línea: `BORRADOR — NO EJECUTAR`.
+3. **Prohibido tocar:** `src/`, `supabase/migrations/`, `supabase/manual/`, `package.json`, `package-lock.json`, `vercel.json`, `.env*`, `scripts/`, y cualquier archivo fuera de `docs/agente/`. (Los PRs de Codex no deben contener nada de eso.)
+4. **PRs:** abre siempre tus PRs **hacia `agente/whatsapp`, nunca hacia `main`**. No mergees nada. Adjunta la ficha del Anexo B de la especificación.
+5. **Sin invención:** las reglas de la sección 2 aplican doble. Todo dato externo (Meta/WhatsApp, precios, leyes) con **URL oficial y fecha**; si no puedes verificarlo, escribe DESCONOCIDO y déjalo como pregunta abierta.
+6. **Sin decisiones:** completa las opciones y tu recomendación en la tabla de preguntas abiertas; la decisión es de Nico y se anota en el registro de decisiones solo cuando él la dé.
+7. **Ahorrar trabajo a Claude:** entrega PRs chicos (un tema), con lo abierto bien marcado, para que la revisión sea corta (Anexo A).
+
