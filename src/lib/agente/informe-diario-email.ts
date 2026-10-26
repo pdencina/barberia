@@ -56,6 +56,7 @@ export function renderDailyReportEmail(report: DailyAppointmentReport): string {
           <td width="12"></td>
           <td style="padding:10px 16px;background:#fffbeb;border-radius:8px;"><strong>${report.pendingAppointments}</strong><br><span style="font-size:12px;color:#4b5563;">Pendientes</span></td>
         </tr></table>
+        <p style="margin:12px 0;color:#6b7280;font-size:12px;">Canceladas: ${report.cancelledAppointments} · No asistió: ${report.noShowAppointments}</p>
         ${professionalSections}
       </td></tr>
     </table>
@@ -70,6 +71,7 @@ export async function sendDailyReportEmail(args: {
   if (args.recipients.length === 0) throw new Error("No hay correos destinatarios configurados");
   const resend = getResendClient();
   const { data, error } = await resend.emails.send({
+    // Mismo fallback que resend.ts (recibos y avisos internos); dominios pendientes de Nico en la pregunta 19.
     from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to: args.recipients,
     subject: dailyReportSubject(args.report),

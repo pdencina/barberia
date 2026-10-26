@@ -59,6 +59,8 @@ export async function POST(req: NextRequest) {
       date,
       totalAppointments: report.totalAppointments,
       pendingAppointments: report.pendingAppointments,
+      cancelledAppointments: report.cancelledAppointments,
+      noShowAppointments: report.noShowAppointments,
       recipients: settings.recipients.length,
     });
   } catch (error) {
