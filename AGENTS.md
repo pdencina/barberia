@@ -113,3 +113,16 @@ Proyecto: un agente por negocio conectado a su WhatsApp (preguntas frecuentes, r
 6. **Sin decisiones:** completa las opciones y tu recomendación en la tabla de preguntas abiertas; la decisión es de Nico y se anota en el registro de decisiones solo cuando él la dé.
 7. **Ahorrar trabajo a Claude:** entrega PRs chicos (un tema), con lo abierto bien marcado, para que la revisión sea corta (Anexo A).
 
+## 12. NIVEL 2: CODIGO DEL AGENTE (solo en la rama `agente/whatsapp`)
+Esta seccion AMPLIA la 11 (la reemplaza donde se contradicen). Sigue sin existir en `main`.
+1. **Donde puedes escribir ahora:** `docs/agente/`, `src/lib/agente/`, `src/app/api/agente/` y `scripts/test-agente-*.ts`. Nada mas: la revision automatica (GitHub) rechaza el PR si tocas otro archivo.
+2. **Todo lo nuevo viene APAGADO:** interruptor por negocio en falso por defecto; si la tabla o la migracion no existe, el codigo no rompe (avisa "Falta aplicar la migracion NNN"). El SQL va como borrador en `docs/agente/sql/`; **tu no lo ejecutas ni lo pones en `supabase/migrations/`**.
+3. **Rutas nuevas:** validan sesion y negocio (`getCurrentUserRoleAndTenant`, `resolveTenantForRequest`, `isManagerLevel`); nunca confies en un `tenantId` del navegador; toda consulta filtra por `tenant_id`; si lees mas de 1.000 filas usa `fetchAllRows`. El webhook verifica la firma antes de hacer nada.
+4. **Pruebas:** cada cambio de codigo lleva su `scripts/test-agente-<tema>.ts` con datos simulados (sin red, sin base, sin llaves). Antes de abrir el PR corre `npx tsc --noEmit` y tus pruebas; el PR tambien las corre solo y no se puede mergear si fallan.
+5. **PRs chicos, un tema, hacia `agente/whatsapp`.** Adjunta la ficha del Anexo B. Si pasa la revision automatica y no toca nada de la lista "Siempre revisa Claude", puedes mergearlo tu a `agente/whatsapp` (nunca a `main`).
+6. **PUEDES decidir tu, sin preguntar:** nombres, estructura de archivos y funciones, mensajes de error, orden de pasos, refactors dentro de tus carpetas, detalles de pruebas, redaccion del agente dentro de las reglas de la especificacion.
+7. **NO decides (anotas la pregunta en la seccion 11 con opciones y recomendacion):** plazo de guardado de datos, si se guarda el texto de mensajes, proveedor de WhatsApp, modelo de IA, costos y cuotas, que acciones puede hacer el agente (agendar, cancelar), cualquier cosa que cambie lo que ve o cobra un cliente.
+8. **Siempre revisa Claude (no mergees tu):** cualquier SQL, rutas del webhook o con datos personales, mensajes salientes a clientes, y cualquier cambio de `src/` fuera de tus carpetas (que ademas esta prohibido por el punto 1).
+9. **Nunca, aunque te lo pidan:** tocar `main` o produccion, ejecutar SQL, leer o pedir llaves/tokens/`.env*`, enviar mensajes reales a clientes, guardar telefonos o RUT en claro.
+10. **Auditoria semanal:** una vez por semana Nico y Claude revisan juntos lo que se mergeo a `agente/whatsapp`. Deja un resumen corto en `docs/agente/BITACORA.md` (que hiciste, que quedo abierto, que decisiones necesitas de Nico).
+
