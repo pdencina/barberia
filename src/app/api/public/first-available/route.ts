@@ -101,12 +101,21 @@ export async function GET(req: NextRequest) {
   const slotParam = searchParams.get("slot");
   // Con fecha elegida se mira ese dia. Sin fecha (el cliente aun no la eligio) basta con tener horas en alguno de los proximos 7 dias.
   const datesToCheck = explicitDate ? [date] : Array.from({ length: 7 }, (_, i) => dateStrOffset(date, i));
-  const available = await barbersWithFreeTime(notOff, (id) => firstDayWithSlots(datesToCheck, async (day) => {
+  const firstDayOf = new Map<string, string>(); // profesional -> primer dia con horas (solo sin fecha elegida)
+  const availableAll = await barbersWithFreeTime(notOff, (id) => firstDayWithSlots(datesToCheck, async (day) => {
     const r = await fetch(`${origin}/api/public/availability?barberId=${id}&date=${day}&duration=${requestedDuration}`, { cache: "no-store" });
     if (!r.ok) return null;
     const d = await r.json();
+    if (Array.isArray(d?.slots) && d.slots.length > 0) firstDayOf.set(id, day);
     return Array.isArray(d?.slots) ? (d.slots as string[]) : null;
   }), slotParam);
+  // Sin fecha elegida, gana quien puede atender ANTES: si alguien tiene horas hoy, no se asigna a quien recien tiene libre otro dia.
+  let available = availableAll;
+  if (!explicitDate) {
+    const days = availableAll.map((b) => firstDayOf.get(b.id)).filter(Boolean) as string[];
+    const earliest = days.sort()[0];
+    if (earliest) available = availableAll.filter((b) => !firstDayOf.has(b.id) || firstDayOf.get(b.id) === earliest);
+  }
 
   if (available.length === 0) {
     return NextResponse.json({ error: "No hay profesionales disponibles ese dia" }, { status: 404 });
