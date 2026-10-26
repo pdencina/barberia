@@ -41,7 +41,7 @@ Las decisiones de acciones, canal de informe, fuentes permitidas, cuotas y escal
 
 | Fase | Qué entrega | ¿Usa IA? | ¿Usa WhatsApp API? | Riesgo | Depende de |
 |---|---|---|---|---|---|
-| 1 | Informe diario de citas al negocio | No | No decidido: correo o WhatsApp | Medio | Destinatario, canal y datos aprobados por Nico |
+| 1 | Informe diario de citas al negocio | No | No: correo | Medio | Destinatario aprobado por Nico; agenda automática pendiente |
 | 2 | Recordatorios automáticos con plantillas + confirmación del cliente | No | Sí | Medio | Meta: plantillas aprobadas, opt-in y cuota |
 | 3 | Chat de prueba dentro del panel (sin WhatsApp) | Sí | No | Medio | Base de conocimiento aprobada por negocio |
 | 4 | Responder preguntas frecuentes por WhatsApp con escalamiento | Sí | Sí | Alto | Fases 2 y 3; firma de webhook; asociación de número y negocio |
@@ -50,8 +50,10 @@ Las decisiones de acciones, canal de informe, fuentes permitidas, cuotas y escal
 
 **Fase 1 — informe diario**
 - **HECHO:** existe un reporte mensual protegido para admin/super_admin, con negocio resuelto desde la sesión y métricas agregadas; no se lo expone directamente a clientes. src/app/api/reportes/monthly/route.ts:32-57 y src/app/api/reportes/monthly/route.ts:216-246
-- **DESCONOCIDO:** no se verificó una implementación de informe diario ni su canal de entrega en esta revisión.
-- **Criterio propuesto — INFERENCIA:** queda terminado cuando el informe se genera para un único tenant, solo llega al destinatario autorizado por Nico, no contiene datos personales innecesarios y tiene una prueba con dos tenants que demuestra aislamiento.
+- **HECHO:** la fase 1 genera el informe para un día y un único `tenant_id`, pagina todas las citas, agrupa por profesional y calcula total y pendientes. `src/lib/agente/informe-diario.ts:57-76` y `src/lib/agente/informe-diario.ts:79-131`
+- **HECHO:** el correo usa HTML escapado y el cliente Resend existente; el interruptor está apagado por defecto y una tabla faltante produce el estado controlado `missing_migration`. `src/lib/agente/informe-diario-email.ts:25-79`, `src/lib/agente/informe-diario.ts:134-156` y `docs/agente/sql/002_informe_diario_email_borrador.sql:1-16`
+- **HECHO:** la ruta manual exige sesión, rol de gestión y negocio autorizado antes de consultar o enviar. `src/app/api/agente/informe-diario/route.ts:7-29`
+- **Criterio propuesto — INFERENCIA:** la implementación queda lista para revisión cuando pasan TypeScript y las pruebas simuladas de aislamiento, paginación, hora de pared, interruptor y migración faltante. El envío operativo no queda terminado hasta que Nico decida destinatarios; el envío automático queda fuera de esta tarea.
 
 **Fase 2 — recordatorios**
 - **HECHO:** el cron existente envía correo para citas en una ventana de 20 a 28 horas, consume la cuota de correo y marca la cita como recordada. src/app/api/cron/reminders/route.ts:53-63 y src/app/api/cron/reminders/route.ts:85-119
@@ -334,7 +336,19 @@ Procesos salientes separados:
 **DESCONOCIDO.** No existe implementación de estas pantallas citada en esta especificación. La opción A/B y el plazo quedan pendientes en la sección 11.
 
 ## 9. Pruebas, piloto y vuelta atrás
-[Codex: pruebas automáticas (como `scripts/test-*.ts`), plan del piloto en Estudio Levels, **cómo apagarlo en un minuto**, cómo volver atrás.]
+
+### Fase 1 — informe diario por correo
+
+- **HECHO:** `scripts/test-agente-informe.ts:1-103` prueba sin red, base ni llaves: día vacío, varios profesionales y aislamiento de tenant, horas próximas a medianoche, 1.005 filas paginadas, interruptor apagado y migración faltante.
+- **HECHO:** el interruptor se lee antes de consultar citas o invocar Resend. `src/app/api/agente/informe-diario/route.ts:29-40` El valor predeterminado del borrador SQL es `FALSE`. `docs/agente/sql/002_informe_diario_email_borrador.sql:5-10`
+- **INFERENCIA — apagar en un minuto:** establecer `enabled = FALSE` para el tenant en la configuración aplicada. La ruta manual debe responder que el informe está apagado y no enviar. No se ejecutó este SQL ni se creó automatización.
+- **INFERENCIA — vuelta atrás:** mantener el interruptor apagado. Si la tabla aún no existe, la ruta devuelve “Falta aplicar la migración” sin consultar citas ni enviar correo. `src/app/api/agente/informe-diario/route.ts:31-39`
+- **DESCONOCIDO:** destinatarios definitivos, hora y automatización del piloto; siguen en la sección 11.
+
+### Reutilización y límites de cuota
+
+- **HECHO:** el envío reutiliza `getResendClient`, que exige `RESEND_API_KEY`, crea el cliente existente y agrega el pie común. `src/lib/resend-client.ts:14-21` El patrón existente de correo de citas también usa `parseWallClock`, consume cuota antes de enviar y delega en funciones de `src/lib/resend.ts`. `src/lib/appointment-client-email.ts:45-81`
+- **HECHO:** la cuota existente excluye notificaciones internas y solo tipa `confirmation`, `reminder` y `retention`. `src/lib/message-quota.ts:9-21` Por eso esta tarea no inventa una categoría ni consume cuota; la decisión queda abierta en la pregunta 18.
 
 ## 10. Costos
 [Codex: tabla con supuestos explícitos (mensajes/mes, % que usa IA, costo por mensaje). Sin cifras de memoria: cada precio con fuente y fecha.]
@@ -347,7 +361,7 @@ Procesos salientes separados:
 | 3 | ¿Proveedor de WhatsApp? | API directa de Meta (operación propia) / proveedor intermedio (BSP) | **INFERENCIA:** API directa para el piloto si Pablo/Claude confirman capacidad de operar API, webhooks, soporte y facturación; si no, comparar BSPs por escrito. | _pendiente — Nico decide_ |
 | 4 | ¿Cómo se maneja el número de WhatsApp de cada negocio? | Número propio del negocio / número dedicado administrado por re-booking | **INFERENCIA:** número dedicado y aislado por negocio para el piloto, sujeto a verificar alta, propiedad y portabilidad con Meta. | _pendiente — Nico decide_ |
 | 5 | ¿Qué acciones habilita el piloto? | FAQ + escalamiento / sumar consulta de servicios y disponibilidad / sumar cambios de cita | **INFERENCIA:** FAQ + escalamiento + solo lectura de servicios/disponibilidad; sin cambios de cita. | _pendiente — Nico decide_ |
-| 6 | ¿Cómo se entrega el informe diario? | Correo / WhatsApp con plantilla / panel solamente | **INFERENCIA:** definir primero destinatario autorizado y contenido; después elegir canal. | _pendiente — Nico decide_ |
+| 6 | ¿Cómo se entrega el informe diario? | Correo / WhatsApp con plantilla / panel solamente | Correo. | **DECIDIDO por Nico: correo (2026-10-26)** |
 | 7 | ¿Cuáles son las fuentes de respuesta? | Solo catálogo/perfil existente / base de conocimiento aprobada / ambos | **INFERENCIA:** base aprobada por negocio; reutilizar solo datos existentes que estén scoped al tenant. | _pendiente — Nico decide_ |
 | 8 | ¿Cómo cuenta la cuota del agente? | Cuota WhatsApp existente / categoría y límite nuevos / sin cuota propia | **INFERENCIA:** categoría y límite explícitos antes de activar envíos. | _pendiente — Nico decide_ |
 | 9 | ¿Cuál es el modo de escalamiento? | `human_chat` / `phone` / `email` / `web_form` | **INFERENCIA:** `human_chat` para el piloto, solo si una persona y horario están definidos; de otro modo elegir un canal atendido. | _pendiente — Nico decide_ |
@@ -356,12 +370,17 @@ Procesos salientes separados:
 | 12 | ¿Qué protección anti-spam y anti-bucle se usa? | Solo deduplicación / solo rate limit / ambos | **INFERENCIA:** ambos; Nico define cantidad, ventana y duración del bloqueo. | _pendiente — Nico decide_ |
 | 13 | ¿Qué idiomas admite el piloto? | Solo español / idiomas configurados por negocio / traducción automática | **INFERENCIA:** español en el piloto; otro idioma escala, sin traducción automática. | _pendiente — Nico decide_ |
 | 14 | ¿Se guarda texto de mensajes? | A: no guardar texto, solo estado / B: texto entrante y saliente redactado/recortado con plazo corto | **INFERENCIA:** A para menor riesgo si bastan métricas; B solo si Nico prioriza conversaciones/auditoría y aprueba redacción, longitud, acceso y plazo. | _pendiente — Nico decide_ |
+| 15 | ¿A qué correo(s) llega el informe diario? | Correo administrador del negocio / lista configurable / ambos | **INFERENCIA:** lista configurable por negocio, vacía por defecto; evita asumir un destinatario. | _pendiente — Nico decide_ |
+| 16 | ¿A qué hora se envía el informe diario? | Antes de abrir / al cerrar / hora configurable | **INFERENCIA:** hora configurable por negocio; no implementar agenda hasta decidir. | _pendiente — Nico decide_ |
+| 17 | ¿Se agenda automáticamente el informe? | Manual solamente / automático diario / ambos | **INFERENCIA:** mantener manual durante el piloto y agregar automatización en otra tarea. | _pendiente — Nico decide_ |
+| 18 | ¿El informe interno consume cuota de correo? | Cuota actual / cuota interna separada / no consume | **INFERENCIA:** no asignarlo a la cuota actual hasta decidir, porque sus categorías son confirmación, recordatorio y retención de clientes. `src/lib/message-quota.ts:18-21` y `src/lib/message-quota.ts:113-145` | _pendiente — Nico decide_ |
 
 ## 12. Registro de decisiones
 | Fecha | Decisión | Quién |
 |---|---|---|
 | 2026-10-25 | El agente es por negocio, no inventa y traspasa a persona cuando no sabe | Nico |
 | 2026-10-25 | Se trabaja en la rama `agente/whatsapp`, sin tocar `main` ni producción; Codex diseña, Claude revisa y promueve | Nico |
+| 2026-10-26 | El informe diario de citas de la fase 1 se entrega por correo | Nico |
 
 ---
 
