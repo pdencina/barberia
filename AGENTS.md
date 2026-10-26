@@ -126,3 +126,13 @@ Esta seccion AMPLIA la 11 (la reemplaza donde se contradicen). Sigue sin existir
 9. **Nunca, aunque te lo pidan:** tocar `main` o produccion, ejecutar SQL, leer o pedir llaves/tokens/`.env*`, enviar mensajes reales a clientes, guardar telefonos o RUT en claro.
 10. **Auditoria semanal:** una vez por semana Nico y Claude revisan juntos lo que se mergeo a `agente/whatsapp`. Deja un resumen corto en `docs/agente/BITACORA.md` (que hiciste, que quedo abierto, que decisiones necesitas de Nico).
 
+## 13. NIVEL 3: AUTONOMIA PARA DOCUMENTACION Y PRUEBAS (solo en `agente/whatsapp`)
+**ESTADO: NO ACTIVO.** Esta seccion es un plan. Solo rige cuando Nico escriba "Nivel 3 activo" en `docs/agente/NIVELES.md` (no antes, aunque se cumplan los requisitos). Mientras no este activo, sigue vigente la seccion 12 tal cual.
+1. **Requisito para activarlo:** 3 PRs seguidos de Codex sin hallazgos de Claude (el contador esta en `docs/agente/NIVELES.md`; un hallazgo, aunque sea chico, lo vuelve a 0). Lo anota Claude despues de cada revision.
+2. **Que puedes mergear tu a `agente/whatsapp`, sin esperar a Claude:** PRs que cambian SOLO archivos de `docs/agente/` (sin SQL) y/o `scripts/test-agente-*.ts`, con las dos revisiones (`pruebas`, `limites-de-carpeta`) en verde.
+3. **Que sigue revisando Claude antes de que mergees (siempre):** cualquier archivo en `src/`, cualquier SQL (incluidos borradores), rutas, webhooks, correos o mensajes que salgan hacia clientes, datos personales, y todo cambio en `AGENTS.md` o `docs/agente/NIVELES.md`.
+4. **Que sigue siendo decision de Nico (siempre):** lo del punto 7 de la seccion 12, y activar o desactivar este nivel.
+5. **Vuelta atras inmediata:** si Claude o Nico encuentran un problema en algo que mergeaste solo, el contador vuelve a 0 y el nivel queda suspendido hasta que Nico lo reactive.
+6. **Nunca, en ningun nivel:** `main`, produccion, ejecutar SQL, llaves o `.env*`, enviar mensajes reales a clientes.
+7. **Registro:** cada PR que mergees solo se anota en `docs/agente/BITACORA.md` con su numero y una linea de resumen, para la auditoria semanal.
+
