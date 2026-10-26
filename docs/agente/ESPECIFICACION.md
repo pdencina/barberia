@@ -170,7 +170,7 @@ Procesos salientes separados:
 
 ## 5. Datos (borrador SQL en `docs/agente/sql/`)
 
-**BORRADOR — NO EJECUTAR.** El modelo propuesto está documentado en `docs/agente/sql/001_agente_whatsapp_borrador.sql:1-87`. No es una migración, no fue ejecutado y requiere revisión de Claude y decisión de Nico antes de cualquier prueba.
+**BORRADOR — NO EJECUTAR.** El modelo propuesto está documentado en `docs/agente/sql/001_agente_whatsapp_borrador.sql:1-81`. No es una migración, no fue ejecutado y requiere revisión de Claude y decisión de Nico antes de cualquier prueba.
 
 ### 5.1 Base existente
 
@@ -183,9 +183,9 @@ Procesos salientes separados:
 | Tabla | Qué guarda | Estado |
 |---|---|---|
 | `agent_business_settings` | Interruptor por `tenant_id`, apagado por defecto, y modo de escalamiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:7-14` |
-| `agent_contact_preferences` | Referencia opaca/hash del contacto, opt-in, opt-out, bloqueo y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:16-28` |
-| `agent_conversations` | Tenant, referencias opacas, estado de escalamiento/cierre y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:30-42` |
-| `agent_messages` | Dirección, tipo de contenido, respuesta redactada, resultado, referencia hash para deduplicar y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:44-62` |
+| `agent_contact_preferences` | Referencia opaca/hash del contacto, opt-in, opt-out, bloqueo y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:15-26` |
+| `agent_conversations` | Tenant, referencias opacas, estado de escalamiento/cierre y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:28-39` |
+| `agent_messages` | Dirección, tipo de contenido, respuesta redactada, resultado, referencia hash para deduplicar y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:41-56` |
 
 **HECHO del borrador:** todas las tablas incluyen `tenant_id`; las conversaciones y mensajes se enlazan también por tenant, los índices usan `IF NOT EXISTS` y RLS queda activo. `docs/agente/sql/001_agente_whatsapp_borrador.sql:7-75`
 
@@ -193,11 +193,11 @@ Procesos salientes separados:
 
 **INFERENCIA — propuesta:** guardar solo configuración, consentimiento/bloqueo, estado mínimo de conversación, tipo de contenido, resultado y la respuesta saliente redactada necesaria para auditoría. Las referencias de contacto, hilo y mensaje del proveedor serían opacas o hashes.
 
-**INFERENCIA — propuesta:** no guardar secretos ni tokens, webhook crudo, binarios de fotos/audios/stickers, RUT en claro, datos de pago ni texto entrante completo que no sea indispensable. `docs/agente/sql/001_agente_whatsapp_borrador.sql:77-84`
+**INFERENCIA — propuesta:** no guardar secretos ni tokens, webhook crudo, binarios de fotos/audios/stickers, RUT en claro, datos de pago ni texto entrante completo que no sea indispensable. `docs/agente/sql/001_agente_whatsapp_borrador.sql:77-81`
 
 ### 5.4 Retención
 
-**DESCONOCIDO.** No hay un plazo decidido. El borrador exige `retention_until` sin asignar duración ni crear una tarea de borrado; por eso no puede activarse hasta que Nico elija plazo y mecanismo. `docs/agente/sql/001_agente_whatsapp_borrador.sql:4-5` y `docs/agente/sql/001_agente_whatsapp_borrador.sql:85`
+**DESCONOCIDO.** No hay un plazo decidido. El borrador exige `retention_until` sin asignar duración ni crear una tarea de borrado; por eso no puede activarse hasta que Nico elija plazo y mecanismo. `docs/agente/sql/001_agente_whatsapp_borrador.sql:4-5` y `docs/agente/sql/001_agente_whatsapp_borrador.sql:81`
 
 La decisión queda abierta en la sección 11.
 
@@ -285,10 +285,10 @@ La decisión queda abierta en la sección 11.
 | Sesión, rol y tenant | ☐ **HECHO:** `requireRole` rechaza sin usuario o rol permitido; `requireTenantRole` además exige tenant y pertenencia/rol. `src/lib/supabase/server.ts:233-264` ☐ **NUEVO:** el webhook no tiene sesión y deberá resolver de forma inequívoca número/cuenta → tenant antes de consultar. |
 | Secretos | ☐ **REQUISITO:** secretos solo en Vercel, nunca en repositorio, SQL, logs o chat. **DESCONOCIDO:** configuración real; no se inspeccionaron secretos. |
 | Interruptor por negocio | ☐ **INFERENCIA — propuesta:** `enabled` por `tenant_id`, `FALSE` por defecto; apagado impide toda respuesta automática. `docs/agente/sql/001_agente_whatsapp_borrador.sql:7-14` |
-| Registro de respuestas | ☐ **INFERENCIA — propuesta:** registrar respuesta saliente redactada, resultado y tenant; no webhook crudo ni binarios. `docs/agente/sql/001_agente_whatsapp_borrador.sql:44-62` y `docs/agente/sql/001_agente_whatsapp_borrador.sql:77-84` |
+| Registro de respuestas | ☐ **INFERENCIA — propuesta:** registrar respuesta saliente redactada, resultado y tenant; no webhook crudo ni binarios. `docs/agente/sql/001_agente_whatsapp_borrador.sql:41-56` y `docs/agente/sql/001_agente_whatsapp_borrador.sql:77-81` |
 | Límites de uso | ☐ **HECHO:** la cuota actual calcula límite/uso y `tryConsumeQuota` bloquea cuando no queda cupo. `src/lib/message-quota.ts:75-99` y `src/lib/message-quota.ts:113-145` ☐ **ABIERTO:** categoría, límite y rate limit anti-bucle del agente los decide Nico. |
 | No contactar | ☐ **HECHO:** existen `marketing_consent` y `do_not_contact`; la ruta de contactos los filtra. `supabase/migrations/101_pin_huella_y_consentimiento.sql:10-14` y `src/app/api/whatsapp/contacts/route.ts:23-28` ☐ **NUEVO:** bloquear antes de cualquier envío y registrar opt-out de contactos que aún no sean clientes. |
-| RLS y aislamiento | ☐ **HECHO del borrador:** RLS activo en las cuatro tablas, sin políticas directas para anon/authenticated. `docs/agente/sql/001_agente_whatsapp_borrador.sql:70-79` ☐ Toda lectura/escritura debe incluir `tenant_id`. |
+| RLS y aislamiento | ☐ **HECHO del borrador:** RLS activo en las cuatro tablas, sin políticas directas para anon/authenticated. `docs/agente/sql/001_agente_whatsapp_borrador.sql:72-78` ☐ Toda lectura/escritura debe incluir `tenant_id`. |
 | Duplicados, spam y bucles | ☐ **INFERENCIA — propuesta:** índice único por tenant y referencia hash evita reprocesar el mismo mensaje. `docs/agente/sql/001_agente_whatsapp_borrador.sql:66-69` ☐ Umbrales y ventana de rate limit quedan abiertos. |
 | Medios y datos sensibles | ☐ Fotos, audios y stickers no se interpretan ni guardan en el piloto; RUT no se registra en claro. ☐ Texto que intente dar órdenes se trata como entrada no confiable. Criterios: sección 6.4, casos 31-38. |
 | Retención y borrado | ☐ **DESCONOCIDO:** plazo y mecanismo. No activar persistencia hasta que Nico decida; el borrador no crea tarea de borrado. |
