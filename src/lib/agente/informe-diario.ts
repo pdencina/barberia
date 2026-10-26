@@ -2,6 +2,7 @@ import { fetchAllRows } from "@/lib/accounting";
 import { parseWallClock } from "@/lib/wallclock";
 
 export const PENDING_APPOINTMENT_STATUSES = ["scheduled", "confirmed", "in_progress"] as const;
+const COUNTED_APPOINTMENT_STATUSES = [...PENDING_APPOINTMENT_STATUSES, "completed"] as const;
 
 export interface DailyAppointmentRow {
   id: string;
@@ -33,6 +34,8 @@ export interface DailyAppointmentReport {
   date: string;
   totalAppointments: number;
   pendingAppointments: number;
+  cancelledAppointments: number;
+  noShowAppointments: number;
   professionals: DailyReportProfessional[];
 }
 
@@ -45,7 +48,12 @@ const relation = <T>(value: T | T[] | null | undefined): T | null =>
   Array.isArray(value) ? value[0] || null : value || null;
 
 export function isValidReportDate(value: unknown): value is string {
-  return typeof value === "string" && /^\d{4}-(0[1-9]|1[0-2])-([12]\d|3[01]|0[1-9])$/.test(value);
+  if (typeof value !== "string" || !/^\d{4}-(0[1-9]|1[0-2])-([12]\d|3[01]|0[1-9])$/.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  if (year < 1) return false;
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysPerMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysPerMonth[month - 1];
 }
 
 export function wallClockTime(value: string): string {
@@ -83,7 +91,10 @@ export function buildDailyAppointmentReport(args: {
   rows: DailyAppointmentRow[];
 }): DailyAppointmentReport {
   const groups = new Map<string, DailyReportAppointment[]>();
+  let totalAppointments = 0;
   let pendingAppointments = 0;
+  let cancelledAppointments = 0;
+  let noShowAppointments = 0;
 
   for (const row of args.rows) {
     if (row.tenant_id !== args.tenantId || row.date !== args.date) continue;
@@ -103,7 +114,10 @@ export function buildDailyAppointmentReport(args: {
     const items = groups.get(professional) || [];
     items.push(appointment);
     groups.set(professional, items);
+    if ((COUNTED_APPOINTMENT_STATUSES as readonly string[]).includes(row.status)) totalAppointments++;
     if ((PENDING_APPOINTMENT_STATUSES as readonly string[]).includes(row.status)) pendingAppointments++;
+    if (row.status === "cancelled") cancelledAppointments++;
+    if (row.status === "no_show") noShowAppointments++;
   }
 
   const professionals = Array.from(groups.entries())
@@ -117,8 +131,10 @@ export function buildDailyAppointmentReport(args: {
     tenantId: args.tenantId,
     businessName: args.businessName,
     date: args.date,
-    totalAppointments: professionals.reduce((sum, item) => sum + item.appointments.length, 0),
+    totalAppointments,
     pendingAppointments,
+    cancelledAppointments,
+    noShowAppointments,
     professionals,
   };
 }

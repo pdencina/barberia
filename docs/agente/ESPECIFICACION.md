@@ -50,8 +50,8 @@ Las decisiones de acciones, canal de informe, fuentes permitidas, cuotas y escal
 
 **Fase 1 — informe diario**
 - **HECHO:** existe un reporte mensual protegido para admin/super_admin, con negocio resuelto desde la sesión y métricas agregadas; no se lo expone directamente a clientes. src/app/api/reportes/monthly/route.ts:32-57 y src/app/api/reportes/monthly/route.ts:216-246
-- **HECHO:** la fase 1 genera el informe para un día y un único `tenant_id`, pagina todas las citas, agrupa por profesional y calcula total y pendientes. `src/lib/agente/informe-diario.ts:57-76` y `src/lib/agente/informe-diario.ts:79-131`
-- **HECHO:** el correo usa HTML escapado y el cliente Resend existente; el interruptor está apagado por defecto y una tabla faltante produce el estado controlado `missing_migration`. `src/lib/agente/informe-diario-email.ts:25-79`, `src/lib/agente/informe-diario.ts:134-156` y `docs/agente/sql/002_informe_diario_email_borrador.sql:1-16`
+- **HECHO:** la fase 1 genera el informe para un día y un único `tenant_id`, pagina todas las citas y agrupa por profesional. El total incluye agendadas, confirmadas, en atención y completadas; pendientes excluye completadas; canceladas y ausencias se cuentan aparte, conservando su detalle visible. `src/lib/agente/informe-diario.ts:4-5`, `src/lib/agente/informe-diario.ts:65-84` y `src/lib/agente/informe-diario.ts:99-138`
+- **HECHO:** el correo usa HTML escapado y el cliente Resend existente; el interruptor está apagado por defecto y una tabla faltante produce el estado controlado `missing_migration`. `src/lib/agente/informe-diario-email.ts:25-81`, `src/lib/agente/informe-diario.ts:150-172` y `docs/agente/sql/002_informe_diario_email_borrador.sql:1-16`
 - **HECHO:** la ruta manual exige sesión, rol de gestión y negocio autorizado antes de consultar o enviar. `src/app/api/agente/informe-diario/route.ts:7-29`
 - **Criterio propuesto — INFERENCIA:** la implementación queda lista para revisión cuando pasan TypeScript y las pruebas simuladas de aislamiento, paginación, hora de pared, interruptor y migración faltante. El envío operativo no queda terminado hasta que Nico decida destinatarios; el envío automático queda fuera de esta tarea.
 
@@ -339,7 +339,7 @@ Procesos salientes separados:
 
 ### Fase 1 — informe diario por correo
 
-- **HECHO:** `scripts/test-agente-informe.ts:1-103` prueba sin red, base ni llaves: día vacío, varios profesionales y aislamiento de tenant, horas próximas a medianoche, 1.005 filas paginadas, interruptor apagado y migración faltante.
+- **HECHO:** `scripts/test-agente-informe.ts:67-139` prueba sin red, base ni llaves: día vacío, varios profesionales y aislamiento de tenant, estados separados, fechas imposibles y bisiestos, horas próximas a medianoche, 1.005 filas paginadas, interruptor apagado y migración faltante.
 - **HECHO:** el interruptor se lee antes de consultar citas o invocar Resend. `src/app/api/agente/informe-diario/route.ts:29-40` El valor predeterminado del borrador SQL es `FALSE`. `docs/agente/sql/002_informe_diario_email_borrador.sql:5-10`
 - **INFERENCIA — apagar en un minuto:** establecer `enabled = FALSE` para el tenant en la configuración aplicada. La ruta manual debe responder que el informe está apagado y no enviar. No se ejecutó este SQL ni se creó automatización.
 - **INFERENCIA — vuelta atrás:** mantener el interruptor apagado. Si la tabla aún no existe, la ruta devuelve “Falta aplicar la migración” sin consultar citas ni enviar correo. `src/app/api/agente/informe-diario/route.ts:31-39`
@@ -354,6 +354,11 @@ Procesos salientes separados:
 [Codex: tabla con supuestos explícitos (mensajes/mes, % que usa IA, costo por mensaje). Sin cifras de memoria: cada precio con fuente y fecha.]
 
 ## 11. Preguntas abiertas para Nico
+
+**HECHO — remitente:** en `src/lib/resend.ts:168` se usa `re-booking <no-reply@re-booking.cl>` como fallback y en `src/lib/resend.ts:272` se usa `re-booking <no-reply@rebooking.cl>`. Ambos priorizan `EMAIL_FROM`. El cliente compartido configura la llave y el pie HTML, pero no el remitente (`src/lib/resend-client.ts:14-21`); no se encontró una función o constante común de remitente al buscar en `src/lib/`. El informe conserva el fallback con guion, igual al de recibos, sin resolver la discrepancia (`src/lib/agente/informe-diario-email.ts:74-75`).
+
+**DESCONOCIDO:** cuál de los dos dominios debe ser el oficial para todos los envíos; no encontrado en el repositorio. No se consultaron variables de entorno ni se probó un envío real.
+
 | # | Pregunta | Opciones | Recomendación | Decisión |
 |---|---|---|---|---|
 | 1 | ¿Qué fase primero? | Informes / Recordatorios / Agente | Informes y recordatorios (sin IA) | _pendiente_ |
@@ -374,6 +379,8 @@ Procesos salientes separados:
 | 16 | ¿A qué hora se envía el informe diario? | Antes de abrir / al cerrar / hora configurable | **INFERENCIA:** hora configurable por negocio; no implementar agenda hasta decidir. | _pendiente — Nico decide_ |
 | 17 | ¿Se agenda automáticamente el informe? | Manual solamente / automático diario / ambos | **INFERENCIA:** mantener manual durante el piloto y agregar automatización en otra tarea. | _pendiente — Nico decide_ |
 | 18 | ¿El informe interno consume cuota de correo? | Cuota actual / cuota interna separada / no consume | **INFERENCIA:** no asignarlo a la cuota actual hasta decidir, porque sus categorías son confirmación, recordatorio y retención de clientes. `src/lib/message-quota.ts:18-21` y `src/lib/message-quota.ts:113-145` | _pendiente — Nico decide_ |
+
+| 19 | ¿Qué dominio de remitente debe unificarse? | `re-booking.cl`: coincide con recibos y el informe, requiere revisar los otros fallbacks / `rebooking.cl`: coincide con confirmaciones de citas, requiere revisar los fallbacks con guion / exigir `EMAIL_FROM`: evita asumir dominio, pero sin configuración bloquearía envíos | **INFERENCIA:** verificar primero con Nico/Pablo qué dominio está autorizado en Resend y luego centralizar el remitente en otra tarea; conservar ahora el fallback actual. Evidencia: `src/lib/resend.ts:168`, `src/lib/resend.ts:272` y `src/lib/resend-client.ts:14-21`. | _pendiente — Nico decide_ |
 
 ## 12. Registro de decisiones
 | Fecha | Decisión | Quién |
