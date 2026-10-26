@@ -2,8 +2,8 @@
 
 Reglas completas: `AGENTS.md`, secciones 12 (Nivel 2) y 13 (Nivel 3).
 
-**Nivel vigente:** 2 (Codex abre PRs; Claude revisa cada uno).
-**Nivel 3:** NO ACTIVO. Se activa solo cuando Nico escriba aqui "Nivel 3 activo" con la fecha.
+**Nivel vigente:** 3 (activo desde el 26 oct. 2026; ver el final de este archivo).
+**Nivel 3:** ACTIVO (autorizado por Nico el 26 oct. 2026). Reglas: AGENTS.md seccion 13.
 
 ## Contador de PRs seguidos sin hallazgos de Claude (se anota despues de cada revision)
 | PR | Tema | Hallazgos de Claude | Contador |
@@ -19,3 +19,6 @@ Reglas completas: `AGENTS.md`, secciones 12 (Nivel 2) y 13 (Nivel 3).
 | #103 | Pruebas del informe diario (63 comprobaciones) | Ninguno | 6 |
 
 **Requisito del Nivel 3 cumplido** (3 o mas PRs seguidos sin hallazgos, verificado por Claude el 26 oct. 2026). Sigue NO ACTIVO hasta que Nico escriba abajo "Nivel 3 activo" con la fecha.
+
+## Activacion
+Nivel 3 activo, 26 oct. 2026, autorizado por Nico en el chat con Claude. Alcance: Codex puede mergear a `agente/whatsapp` solo PRs de documentacion (sin SQL) y/o `scripts/test-agente-*.ts`, con `pruebas` y `limites-de-carpeta` en verde. Todo lo demas sigue con revision de Claude. Un hallazgo en algo mergeado solo suspende el nivel (contador a 0) hasta que Nico lo reactive.
