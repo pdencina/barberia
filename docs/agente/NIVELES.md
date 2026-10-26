@@ -12,3 +12,4 @@ Reglas completas: `AGENTS.md`, secciones 12 (Nivel 2) y 13 (Nivel 3).
 | #91 | Correcciones a la especificacion | Observaciones menores | 0 |
 | #95 | Informe diario por correo | 3 detalles | 0 |
 | #96 | Ajustes del informe diario | Ninguno | 1 de 3 |
+| #98 | Propuesta del envio automatico del informe | Ninguno contra Codex (detecto una contradiccion en AGENTS.md, error de Claude, ya corregida) | 2 de 3 |
