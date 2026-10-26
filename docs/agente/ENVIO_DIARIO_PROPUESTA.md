@@ -12,7 +12,7 @@ BORRADOR — NO EJECUTAR
 - **HECHO:** el envío usa el cliente Resend compartido y devuelve la respuesta del proveedor. `src/lib/agente/informe-diario-email.ts:67-81` El POST no persiste un registro de entrega ni una clave de deduplicación entre generar, enviar y responder. `src/app/api/agente/informe-diario/route.ts:50-65`
 - **HECHO del borrador, no de una base aplicada:** la configuración tiene interruptor general `enabled`, destinatarios y fechas de creación/actualización; no incluye hora, modo automático ni registro de ejecuciones. `docs/agente/sql/002_informe_diario_email_borrador.sql:5-13`
 - **HECHO:** `todayInChile()` obtiene el día en `America/Santiago`; `parseWallClock` interpreta las horas guardadas como hora de pared. `src/lib/utils.ts:68-69` y `src/lib/wallclock.ts:1-7`
-- **DESCONOCIDO:** capacidad, costo y restricciones del mecanismo de programación para esta instalación; no encontrados en los archivos anteriores. No se afirma frecuencia garantizada, precio ni comportamiento del proveedor.
+- **HECHO — precisión sobre programador:** el repo ya configura Vercel Cron para `/api/cron/reminders` con `0 */1 * * *`. `vercel.json:5-8` **DESCONOCIDO:** capacidad/costo contratados, historial real y restricciones de esta instalación; no se verificaron en producción. La existencia de configuración no autoriza agregar otro cron.
 
 ## 2. Opciones para Nico
 
