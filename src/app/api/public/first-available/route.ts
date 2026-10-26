@@ -1,14 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { todayInChile } from "@/lib/utils";
+import { todayInChile, dateStrOffset } from "@/lib/utils";
 import { barbersOnVacation } from "@/lib/vacations";
 import { getRuleConfig, rankCandidates, weeklyAutoCounts, type Candidate } from "@/lib/booking-rules";
+import { barbersWithFreeTime, firstDayWithSlots } from "@/lib/first-available";
 
 // GET: Returns the barber with fewest appointments today (first available)
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  const date = searchParams.get("date") || todayInChile();
+  const explicitDate = searchParams.get("date");
+  const date = explicitDate || todayInChile();
   const branchSlug = searchParams.get("branch") || searchParams.get("tenant");
 
   // Scope to the business. Without this, "primer barbero disponible" picked the barber
@@ -86,10 +88,25 @@ export async function GET(req: NextRequest) {
   );
 
   // Find barber with least appointments, excluding all-day-blocked and day-off barbers.
-  const available = barbers
+  const notOff = barbers
     .filter((b) => !blockedIds.has(b.id) && !offToday.has(b.id))
     .map((b) => ({ ...b, appointments: countMap[b.id] || 0 }))
     .sort((a, b) => a.appointments - b.appointments);
+
+  // Ademas, solo quien tenga horas LIBRES de verdad ese dia (o la hora elegida): la agenda real descuenta bloqueos por horas, breaks,
+  // citas, horario y vacaciones. Antes un bloqueo por horas (ej. 10:00-20:00) no se miraba y se asignaba a alguien que no podia atender.
+  // Si no se pudo consultar a alguien (error tecnico) se deja en la lista; si NADIE tiene horas, no se asigna a nadie.
+  const origin = new URL(req.url).origin;
+  const requestedDuration = searchParams.get("duration") ? Math.max(15, parseInt(searchParams.get("duration") || "15") || 15) : 15;
+  const slotParam = searchParams.get("slot");
+  // Con fecha elegida se mira ese dia. Sin fecha (el cliente aun no la eligio) basta con tener horas en alguno de los proximos 7 dias.
+  const datesToCheck = explicitDate ? [date] : Array.from({ length: 7 }, (_, i) => dateStrOffset(date, i));
+  const available = await barbersWithFreeTime(notOff, (id) => firstDayWithSlots(datesToCheck, async (day) => {
+    const r = await fetch(`${origin}/api/public/availability?barberId=${id}&date=${day}&duration=${requestedDuration}`, { cache: "no-store" });
+    if (!r.ok) return null;
+    const d = await r.json();
+    return Array.isArray(d?.slots) ? (d.slots as string[]) : null;
+  }), slotParam);
 
   if (available.length === 0) {
     return NextResponse.json({ error: "No hay profesionales disponibles ese dia" }, { status: 404 });

@@ -559,13 +559,21 @@ export default function BookingPage() {
             {/* First available button */}
             <button
               onClick={async () => {
-                const res = await fetch(`/api/public/first-available?date=${selectedDate || toLocalDateStr(new Date())}${tenantSlugState ? `&tenant=${tenantSlugState}` : ""}`);
+                // Sin fecha elegida no se manda "hoy": el servidor busca quien tenga horas libres en los proximos dias.
+                const faParams = new URLSearchParams();
+                if (selectedDate) faParams.set("date", selectedDate);
+                if (tenantSlugState) faParams.set("tenant", tenantSlugState);
+                const res = await fetch(`/api/public/first-available?${faParams.toString()}`);
                 const data = await res.json();
                 if (data.barber) {
+                  setError("");
                   setAutoAssigned(true);
                   setSelectedBarber(data.barber);
                   setSelectedServices([]);
                   setStep("service");
+                } else {
+                  // Nadie con horas libres ese dia (agenda cerrada, bloqueos o completa): se avisa en vez de no hacer nada.
+                  setError("No hay profesionales con horas libres ese día. Elige otra fecha u otro profesional.");
                 }
               }}
               className="w-full mb-4 p-4 rounded-xl border-2 border-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 transition-colors text-center"
@@ -574,13 +582,14 @@ export default function BookingPage() {
               <p className="text-xs text-brand-gray">Te asignamos al profesional con mas disponibilidad</p>
             </button>
 
+            {error && <p className="mb-4 text-sm text-red-500 text-center bg-red-50 rounded-lg py-2">{error}</p>}
             <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {barbers.map((b) => (
                 <button
                   key={b.id}
-                  onClick={() => { setAutoAssigned(false); setSelectedBarber(b); setSelectedServices([]); setStep("service"); }}
+                  onClick={() => { setError(""); setAutoAssigned(false); setSelectedBarber(b); setSelectedServices([]); setStep("service"); }}
                   className="flex flex-col items-center p-5 rounded-2xl border border-gray-200 hover:border-brand-blue hover:shadow-lg transition-all text-center group"
                 >
                   {b.avatar_url ? (
