@@ -66,54 +66,55 @@ Las decisiones de acciones, canal de informe, fuentes permitidas, cuotas y escal
 - **Criterio propuesto — INFERENCIA:** queda terminado cuando el webhook valida su firma, asocia el mensaje a un único negocio antes de leer datos, aplica la política de Meta, deja una vía de escalamiento rápida/clara/directa y puede apagarse por negocio.
 - **NUEVO:** webhook, asociación de número-negocio, registro de conversación, interruptor y escalamiento no son componentes encontrados en las rutas citadas; requieren una ficha de tarea separada.
 
-## 3. Requisitos y restricciones externas (verificar con fuentes oficiales)
+## 3. Requisitos y restricciones externas (fuentes verificadas)
 
-### 3.1 WhatsApp Business Platform (Meta)
+### 3.1 Ventana de atención y plantillas de WhatsApp Business Platform
 
-**HECHO — consulta: 2026-10-25.** Para contactar a una persona por WhatsApp, el negocio debe tener su número o usuario y un opt-in para recibir mensajes posteriores; debe respetar toda solicitud de no recibir más comunicaciones. Fuente oficial: [WhatsApp Business Messaging Policy](https://whatsappbusiness.com/policy/) (consultada el 2026-10-25).
+**HECHO — consulta: 2026-10-26.** Un mensaje o llamada del usuario inicia un intervalo de atención de 24 horas y una nueva interacción del usuario lo reinicia. Fuente oficial exacta: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages (consultada el 2026-10-26). Cita: “se inicia un temporizador de 24 horas”.
 
-**HECHO — consulta: 2026-10-25.** Una conversación iniciada por el usuario abre o reinicia una ventana de atención de 24 horas. Dentro de ella se puede responder sin plantilla; fuera de ella solo se puede enviar una plantilla aprobada. Las conversaciones iniciadas por el negocio también requieren plantilla aprobada. Fuente oficial: [WhatsApp Business Messaging Policy](https://whatsappbusiness.com/policy/) (consultada el 2026-10-25).
+**HECHO — consulta: 2026-10-26.** Dentro del intervalo abierto pueden enviarse mensajes de servicio sin plantilla; al terminar, solo pueden enviarse plantillas preaprobadas. Fuente oficial exacta: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages (consultada el 2026-10-26). Cita: “solo puedes enviar mensajes de plantilla preaprobados”.
 
-**HECHO — consulta: 2026-10-25.** La automatización dentro de la ventana de 24 horas exige vías de escalamiento rápidas, claras y directas. La política incluye como ejemplos transferencia a agente humano, teléfono, correo, soporte web, visita presencial o formulario; no exige específicamente traspaso a una persona. Fuente oficial: [WhatsApp Business Messaging Policy](https://whatsappbusiness.com/policy/) (consultada el 2026-10-25).\n\n**INFERENCIA — diseño propio, pendiente de Nico.** El traspaso a una persona se propone como una vía de escalamiento del piloto, no como una exigencia de Meta.
+**HECHO — consulta: 2026-10-26.** Meta indica que solo deben enviarse mensajes a usuarios que aceptaron recibirlos. Fuente oficial exacta: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages (consultada el 2026-10-26). Cita: “Solo envía mensajes a usuarios de WhatsApp que hayan aceptado”.
 
-**HECHO — consulta: 2026-10-25.** Meta cobra por mensaje desde el 1 de julio de 2025; las categorías publicadas son marketing, utilidad, autenticación, servicio y Meta Business Agent. Las tarifas dependen de categoría y mercado. Desde el 1 de octubre de 2026, los primeros 1.000 mensajes de servicio mensuales por número comercial son sin cargo y los siguientes se cobran según tarifa publicada. No se incorpora una cifra de precio aquí: debe consultarse la tarifa vigente al diseñar costos. Fuente oficial: [FAQ de WhatsApp Business](https://whatsappbusiness.com/resources/faq/) (consultada el 2026-10-25).
+**DESCONOCIDO — consulta: 2026-10-26.** No se encontró en la documentación oficial de la plataforma que pude abrir una exigencia textual de “vías de escalamiento rápidas, claras y directas”. No se conserva como obligación de Meta. **INFERENCIA — diseño propio:** el escalamiento sigue siendo requisito del producto decidido por Nico, no una exigencia externa verificada.
 
-**DESCONOCIDO.** No pude verificar en una fuente oficial accesible los requisitos operativos exactos y vigentes para la verificación de cada negocio ni una obligación de Meta de usar exactamente un número por negocio. Antes de alta, Pablo/Claude debe confirmarlo en la documentación o soporte de Meta; no asumirlo como una restricción de plataforma.
+### 3.2 Asistentes de IA y chatbots
 
-### 3.2 IA y política de Meta
+**DESCONOCIDO — consulta: 2026-10-26.** La URL oficial intentada, https://www.whatsapp.com/legal/business-solution-terms, redirigió a una página de acceso bloqueado y no permitió leer los términos. Por eso no se afirma si este agente está permitido, restringido o clasificado como proveedor de IA, ni se incluye una cita. Nico puede pedir confirmación escrita a Meta o al proveedor antes de construir la fase 4.
 
-**HECHO — consulta: 2026-10-25.** Los términos de WhatsApp restringen a proveedores de IA que ofrezcan una IA de propósito general como funcionalidad principal mediante la WhatsApp Business Solution, y limitan el uso de datos de la solución para entrenar o mejorar modelos de IA. Fuente oficial: [WhatsApp Business Solution Terms](https://www.whatsapp.com/legal/business-solution-terms) (consultada el 2026-10-25).
+### 3.3 Costos y categorías
 
-**DESCONOCIDO.** No está verificado que el agente propuesto para re-booking en Chile sea considerado por Meta un uso permitido o restringido bajo esos términos, ni qué modalidad de producto de Meta estaría disponible. Antes de construirlo o conectarlo, Nico debe decidir si se pide una confirmación escrita a Meta/partner; Claude valida la implementación contra esa respuesta.
+**HECHO — consulta: 2026-10-26.** El modelo vigente descrito por Meta cobra por mensaje entregado de la empresa al usuario; el precio depende de categoría y mercado. Fuente oficial exacta: https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing (consultada el 2026-10-26). Cita: “Meta cobra por categoría y mercado”.
 
-### 3.3 Proveedor: API directa de Meta o intermediario
+**HECHO — consulta: 2026-10-26.** Meta publica cinco categorías: marketing, utilidad, autenticación, servicio y Meta Business Agent. Fuente oficial exacta: https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing (consultada el 2026-10-26). Cita: “marketing, utilidad, autenticación, servicio y Meta Business Agent”.
 
-| Opción | HECHO verificado | Riesgo / costo a validar |
-|---|---|---|
-| API directa de Meta | Requiere un desarrollador que pueda llamar APIs y configurar webhooks; Meta no cobra una tarifa adicional por acceso directo. | El equipo asume integración, soporte operativo y facturación directa. |
-| Proveedor intermedio (BSP) | Puede operar como intermediario; Meta indica que puede cobrar cargos adicionales por servicios o tecnología de valor agregado y facturar el uso. | Costos, contrato, portabilidad del número y alcance del soporte son **DESCONOCIDO** hasta comparar proveedores. |
+**HECHO — consulta: 2026-10-26.** Los precios basados en conversaciones fueron reemplazados por precios por mensaje el 1 de julio de 2025. Fuente oficial exacta: https://developers.facebook.com/documentation/business-messaging/whatsapp/pricing (consultada el 2026-10-26). Cita: “Los precios basados en conversaciones quedaron obsoletos”.
 
-Fuente oficial de ambas opciones: [FAQ de WhatsApp Business](https://whatsappbusiness.com/resources/faq/) (consultada el 2026-10-25).
+**DESCONOCIDO.** No se incorpora una tarifa numérica para Chile: depende de categoría, mercado y calendario vigente. Debe verificarse nuevamente antes de estimar costos.
 
-**Recomendación para decisión de Nico — INFERENCIA, no decisión:** evaluar API directa para el piloto solo si Pablo/Claude confirman que pueden operar webhooks, soporte y facturación; si no, comparar proveedores con costos y condiciones por escrito. La decisión queda pendiente en la sección 11.
+### 3.4 Proveedor: API directa de Meta o intermediario
 
-### 3.4 Ley 21.719 y datos personales
+**DESCONOCIDO — consulta: 2026-10-26.** No se verificaron en una fuente oficial accesible las diferencias contractuales, cargos adicionales, soporte o portabilidad entre API directa y BSP. No se mantienen como HECHO las afirmaciones anteriores basadas en `whatsappbusiness.com`.
 
-**HECHO — consulta: 2026-10-25.** La Biblioteca del Congreso Nacional informa que la Ley 21.719 entra en vigencia el 1 de diciembre de 2026. Su texto establece principios de finalidad y proporcionalidad; los datos deben conservarse solo el tiempo necesario y luego suprimirse o anonimizarse, salvo excepción legal o consentimiento. También contempla consentimiento libre, informado y específico, revocable con medios expeditos, y derechos como supresión y oposición. Fuente oficial: [Ley 21.719 — BCN](https://www.bcn.cl/leychile/navegar?i=1209272) (consultada el 2026-10-25).
+**INFERENCIA — recomendación para decisión de Nico:** comparar por escrito API directa y al menos un BSP en operación, soporte, propiedad/portabilidad del número y costo total. La elección queda pendiente en la sección 11.
 
-**Requisito de diseño — INFERENCIA basada en la fuente anterior:** antes de cualquier piloto se debe registrar la evidencia de opt-in (fecha, alcance y categoría), aplicar opt-out bloqueando nuevos envíos, y definir una política documentada de retención y supresión/anonimización de conversaciones.
+### 3.5 Ley 21.719 y datos personales
 
-**DESCONOCIDO.** No se verificó un plazo fijo aplicable a todas las conversaciones del agente ni requisitos regulatorios complementarios para este caso. Claude/Pablo deben validarlo legalmente antes de producción; no se define un plazo en este documento.
+**HECHO — consulta: 2026-10-26.** La ley define el consentimiento como libre, específico, inequívoco e informado. Fuente oficial exacta: https://www.bcn.cl/leychile/navegar?idNorma=1209272 (consultada el 2026-10-26). Cita: “libre, específica, inequívoca e informada”.
 
-### 3.5 Planes y cuotas existentes
+**HECHO — consulta: 2026-10-26.** Los datos personales deben limitarse a lo necesario y conservarse solo mientras cumplan la finalidad; después deben suprimirse o anonimizarse, salvo excepción. Fuente oficial exacta: https://www.bcn.cl/leychile/navegar?idNorma=1209272 (consultada el 2026-10-26). Cita: “sólo por el período de tiempo que sea necesario”.
 
-**HECHO.** La cuota actual reconoce canales "whatsapp" y "email", y solo las categorías "confirmation", "reminder" y "retention". src/lib/message-quota.ts:20-21 La cuota se resuelve por plan y por override del negocio. src/lib/message-quota.ts:31-49 Al alcanzar el límite, tryConsumeQuota devuelve false; si hay cupo, registra uso en message_usage. src/lib/message-quota.ts:113-145
+**INFERENCIA — requisito de diseño:** registrar la evidencia de consentimiento, bloquear el contacto tras opt-out y documentar finalidad, retención y supresión/anonimización antes del piloto.
 
-**HECHO.** El control de funcionalidades por plan incluye "whatsapp_bulk"; el helper comprueba que la funcionalidad exista en plan_limits.features. src/lib/plan-features.ts:16-29 src/lib/plan-features.ts:53-62
+**DESCONOCIDO.** La ley no entrega en los pasajes verificados un plazo único para conversaciones de este agente. Los plazos de la sección 5 son alternativas de diseño, no plazos legales.
 
-**INFERENCIA.** Los mensajes del agente no encajan explícitamente en las tres categorías actuales de cuota. Nico debe decidir si cuentan en la cuota existente, requieren una categoría nueva o quedan fuera; no se asume ninguna alternativa aquí.
+### 3.6 Planes y cuotas existentes
 
-**DESCONOCIDO.** No está decidido qué plan habilita el agente ni su cuota mensual. Se mantiene como pregunta abierta en la sección 11.
+**HECHO.** La cuota actual reconoce canales `whatsapp` y `email`, y solo las categorías `confirmation`, `reminder` y `retention`. `src/lib/message-quota.ts:20-21` La cuota se resuelve por plan y override del negocio. `src/lib/message-quota.ts:31-49` Al alcanzar el límite, `tryConsumeQuota` devuelve false; con cupo registra uso. `src/lib/message-quota.ts:113-145`
+
+**HECHO.** El control de funcionalidades por plan incluye `whatsapp_bulk`. `src/lib/plan-features.ts:16-29` y `src/lib/plan-features.ts:53-62`
+
+**INFERENCIA.** Los mensajes del agente no encajan explícitamente en las tres categorías actuales. Nico debe decidir cuota y plan en la sección 11.
 
 ## 4. Arquitectura
 
@@ -170,36 +171,51 @@ Procesos salientes separados:
 
 ## 5. Datos (borrador SQL en `docs/agente/sql/`)
 
-**BORRADOR — NO EJECUTAR.** El modelo propuesto está documentado en `docs/agente/sql/001_agente_whatsapp_borrador.sql:1-81`. No es una migración, no fue ejecutado y requiere revisión de Claude y decisión de Nico antes de cualquier prueba.
+**HECHO.** El modelo está en `docs/agente/sql/001_agente_whatsapp_borrador.sql:1-110`, marcado **BORRADOR — NO EJECUTAR**. No es una migración y no fue ejecutado.
 
-### 5.1 Base existente
+### 5.1 Datos existentes que se reutilizan
 
-- **HECHO:** `message_usage` ya incluye `tenant_id`, activa RLS y no define políticas para usuarios finales. `supabase/migrations/073_message_quotas.sql:43-53`
-- **HECHO:** `clients` ya tiene `marketing_consent`, fecha de consentimiento y `do_not_contact`. `supabase/migrations/101_pin_huella_y_consentimiento.sql:10-14`
-- **HECHO:** la ruta de contactos filtra por el tenant resuelto y excluye a quien tiene `do_not_contact = true` o `marketing_consent = false`. `src/app/api/whatsapp/contacts/route.ts:10-28`
+- **HECHO — servicios:** la ruta consulta `services` con nombre, descripción, precio, duración y orden, filtrados por `tenant_id` y activos. `src/app/api/public/services/route.ts:17-34`
+- **HECHO — horarios:** disponibilidad consulta primero `barber_schedule` y, como fallback, `business_hours` filtrado por el tenant del profesional. `src/app/api/public/availability/route.ts:32-48` y `src/app/api/public/availability/route.ts:53-73`
+- **HECHO — perfil:** teléfono, dirección y profesionales activos salen del tenant o sucursal. `src/app/api/public/tenant-booking/route.ts:12-18`, `src/app/api/public/tenant-booking/route.ts:21-42` y `src/app/api/public/tenant-booking/route.ts:51-59`
+- **HECHO — consentimiento:** `clients` tiene `marketing_consent`, fecha y `do_not_contact`. `supabase/migrations/101_pin_huella_y_consentimiento.sql:10-14`
 
-### 5.2 Tablas propuestas
+**INFERENCIA:** servicios y horarios existentes deben seguir siendo la fuente autoritativa; no se duplican en la base del agente. Las notas `hours_note` y `service_note` propuestas solo permiten aclaraciones aprobadas, no reemplazar esos registros.
 
-| Tabla | Qué guarda | Estado |
+### 5.2 Datos nuevos propuestos
+
+| Tabla | Contenido | Estado |
 |---|---|---|
-| `agent_business_settings` | Interruptor por `tenant_id`, apagado por defecto, y modo de escalamiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:7-14` |
-| `agent_contact_preferences` | Referencia opaca/hash del contacto, opt-in, opt-out, bloqueo y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:15-26` |
-| `agent_conversations` | Tenant, referencias opacas, estado de escalamiento/cierre y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:28-39` |
-| `agent_messages` | Dirección, tipo de contenido, respuesta redactada, resultado, referencia hash para deduplicar y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:41-56` |
+| `agent_business_settings` | Interruptor apagado por defecto y modo cerrado de escalamiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:8-21` |
+| `agent_knowledge_items` | FAQ, políticas y notas aprobadas de horario/servicio; inactivas por defecto. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:23-37` |
+| `agent_contact_preferences` | Referencia hash, consentimiento, opt-out, bloqueo y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:39-50` |
+| `agent_conversations` | Estado mínimo, escalamiento/cierre y vencimiento. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:52-63` |
+| `agent_messages` | Tipo, resultado, deduplicación y campos opcionales de texto redactado. | **INFERENCIA — NUEVO.** `docs/agente/sql/001_agente_whatsapp_borrador.sql:65-81` |
 
-**HECHO del borrador:** todas las tablas incluyen `tenant_id`; las conversaciones y mensajes se enlazan también por tenant, los índices usan `IF NOT EXISTS` y RLS queda activo. `docs/agente/sql/001_agente_whatsapp_borrador.sql:7-75`
+**HECHO del borrador:** las cinco tablas incluyen `tenant_id`, usan creación/índices con `IF NOT EXISTS` y activan RLS. `docs/agente/sql/001_agente_whatsapp_borrador.sql:8-103`
 
-### 5.3 Qué se guarda y qué no
+### 5.3 Texto de mensajes: dos opciones pendientes
 
-**INFERENCIA — propuesta:** guardar solo configuración, consentimiento/bloqueo, estado mínimo de conversación, tipo de contenido, resultado y la respuesta saliente redactada necesaria para auditoría. Las referencias de contacto, hilo y mensaje del proveedor serían opacas o hashes.
+| Opción | Qué se guarda | Qué puede mostrar el panel | Qué no puede mostrar | Riesgo frente a Ley 21.719 |
+|---|---|---|---|---|
+| A — solo estado | **INFERENCIA:** dirección, tipo, resultado, fechas y referencias hash; los campos de texto permanecen `NULL`. | Conteos, estados, bloqueos, escalamiento, tipos y tiempos. | Conversación literal, búsqueda por contenido y explicación textual de respuestas. | Menor exposición y menor volumen de datos personales; limita auditoría y soporte. |
+| B — texto redactado/recortado | **INFERENCIA:** texto entrante y saliente con RUT y otros datos sensibles redactados, longitud máxima por definir y borrado al vencer el plazo. | Conversación parcial, revisión de respuestas e informes cualitativos limitados. | Texto completo, adjuntos, contenido ya borrado y datos ocultados. | Mayor exposición, acceso y deber de supresión; exige finalidad, controles y plazo corto. |
 
-**INFERENCIA — propuesta:** no guardar secretos ni tokens, webhook crudo, binarios de fotos/audios/stickers, RUT en claro, datos de pago ni texto entrante completo que no sea indispensable. `docs/agente/sql/001_agente_whatsapp_borrador.sql:77-81`
+**HECHO del borrador:** ambos campos son opcionales, por lo que soportan A dejándolos `NULL` o B guardando texto redactado. `docs/agente/sql/001_agente_whatsapp_borrador.sql:72-75` y `docs/agente/sql/001_agente_whatsapp_borrador.sql:105-110`
 
-### 5.4 Retención
+**INFERENCIA — no guardar en ninguna opción:** secretos/tokens, webhook crudo, binarios, RUT en claro ni datos de pago. `docs/agente/sql/001_agente_whatsapp_borrador.sql:109`
 
-**DESCONOCIDO.** No hay un plazo decidido. El borrador exige `retention_until` sin asignar duración ni crear una tarea de borrado; por eso no puede activarse hasta que Nico elija plazo y mecanismo. `docs/agente/sql/001_agente_whatsapp_borrador.sql:4-5` y `docs/agente/sql/001_agente_whatsapp_borrador.sql:81`
+### 5.4 Retención: opciones para Nico
 
-La decisión queda abierta en la sección 11.
+`retention_until` sigue obligatorio y sin valor por defecto: no se puede insertar conversación/mensaje/preferencia sin fijar vencimiento. **HECHO del borrador:** `docs/agente/sql/001_agente_whatsapp_borrador.sql:46`, `docs/agente/sql/001_agente_whatsapp_borrador.sql:59` y `docs/agente/sql/001_agente_whatsapp_borrador.sql:75`
+
+| Plazo propuesto | Pros | Contras |
+|---|---|---|
+| 7 días | **INFERENCIA:** minimiza exposición y obliga a soporte casi inmediato. | Poco tiempo para auditoría, reclamos e informes. |
+| 30 días | **INFERENCIA:** permite revisión mensual con exposición acotada. | Conserva datos personales durante un mes y exige borrado verificable. |
+| 90 días | **INFERENCIA:** facilita análisis trimestral e investigación de incidentes. | Mayor riesgo, superficie de acceso y carga de justificar necesidad. |
+
+**DESCONOCIDO.** Ninguno de estos plazos fue validado como obligación legal. Nico decide plazo por tipo de dato y si la opción B puede activarse; la tarea de borrado también sigue pendiente.
 
 ## 6. El agente
 
@@ -225,11 +241,17 @@ La decisión queda abierta en la sección 11.
 
 **HECHO.** Existe una ruta pública que confirma asistencia actualizando una cita y otra que cancela una cita. src/app/api/public/confirm-attendance/route.ts:4-35 y src/app/api/public/cancel/route.ts:6-43 Estas rutas no se habilitan como acciones del agente en este borrador.
 
+#### Modos cerrados de escalamiento propuestos
+
+**INFERENCIA — propuesta, Nico elige uno por negocio:** el borrador limita `escalation_mode` a `human_chat` (una persona continúa en el chat), `phone` (muestra teléfono aprobado), `email` (muestra correo aprobado) o `web_form` (muestra formulario aprobado). `NULL` significa no configurado y debe impedir activar respuestas automáticas. `docs/agente/sql/001_agente_whatsapp_borrador.sql:11-18`
+
+**DESCONOCIDO.** No están definidos el destinatario, teléfono, correo, URL ni horario de atención; deben configurarse por tenant después de la decisión de Nico.
+
 ### 6.3 Reglas de respuesta
 
 1. **INFERENCIA — propuesta:** idioma y tono los define el negocio; hasta entonces, mensajes breves, claros y sin prometer acciones no habilitadas.
-2. **HECHO:** fuera de la ventana de 24 horas, Meta exige plantilla aprobada para mensajes de negocio; dentro de la ventana permite automatización si existe una vía de escalamiento rápida, clara y directa. Fuente oficial: [WhatsApp Business Messaging Policy](https://whatsappbusiness.com/policy/) (consultada el 2026-10-25).
-3. **INFERENCIA — propuesta:** traspasar a una persona es una de las posibles vías de escalamiento y una decisión de diseño; no es una exigencia única de Meta.
+2. **HECHO — consulta: 2026-10-26:** fuera del intervalo de 24 horas solo se envían plantillas preaprobadas. Fuente oficial exacta: https://developers.facebook.com/documentation/business-messaging/whatsapp/messages/send-messages (consultada el 2026-10-26). Cita: “solo puedes enviar mensajes de plantilla preaprobados”.
+3. **INFERENCIA — propuesta:** el modo de escalamiento se elige entre los valores cerrados de la sección 6.2; es diseño propio y no una exigencia de Meta verificada.
 4. **NO PERMITIDO:** inventar horarios, precios, promociones, disponibilidad, datos de clientes, consejo médico/legal o respuestas sobre otro negocio.
 
 ### 6.4 Evaluación: 38 preguntas y escenarios de prueba
@@ -294,7 +316,22 @@ La decisión queda abierta en la sección 11.
 | Retención y borrado | ☐ **DESCONOCIDO:** plazo y mecanismo. No activar persistencia hasta que Nico decida; el borrador no crea tarea de borrado. |
 
 ## 8. Panel del negocio
-[Codex: pantallas — configuración (encender/apagar, horarios del agente, FAQ propias, mensajes), conversaciones, informes. Un boceto simple por pantalla.]
+
+### 8.1 Configuración y base de conocimiento
+
+**INFERENCIA — propuesta:** el panel puede mostrar interruptor, modo de escalamiento y CRUD de FAQ/políticas/notas aprobadas. Los ítems nacen inactivos en el borrador. `docs/agente/sql/001_agente_whatsapp_borrador.sql:8-37`
+
+**HECHO:** servicios, horarios, dirección, teléfono y profesionales ya provienen de las fuentes existentes citadas en la sección 5.1; el panel del agente no debe duplicarlos.
+
+### 8.2 Conversaciones e informes según la decisión de texto
+
+**Opción A — INFERENCIA:** la pantalla lista conversación, estado, resultado, fecha, tipo, escalamiento y métricas agregadas. No puede mostrar burbujas de mensajes, búsqueda textual, resumen de contenido ni verificar literalmente qué preguntó/respondió el agente.
+
+**Opción B — INFERENCIA:** la pantalla puede mostrar burbujas parciales redactadas/recortadas, permitir revisión de respuestas e informes cualitativos limitados. No puede mostrar texto eliminado al vencer, datos redactados ni adjuntos.
+
+**Riesgo — INFERENCIA basada en sección 3.5:** B aumenta tratamiento de datos personales y requiere control de acceso, finalidad documentada, redacción, plazo corto y supresión verificable; A reduce ese riesgo pero debilita soporte y auditoría.
+
+**DESCONOCIDO.** No existe implementación de estas pantallas citada en esta especificación. La opción A/B y el plazo quedan pendientes en la sección 11.
 
 ## 9. Pruebas, piloto y vuelta atrás
 [Codex: pruebas automáticas (como `scripts/test-*.ts`), plan del piloto en Estudio Levels, **cómo apagarlo en un minuto**, cómo volver atrás.]
@@ -313,12 +350,12 @@ La decisión queda abierta en la sección 11.
 | 6 | ¿Cómo se entrega el informe diario? | Correo / WhatsApp con plantilla / panel solamente | **INFERENCIA:** definir primero destinatario autorizado y contenido; después elegir canal. | _pendiente — Nico decide_ |
 | 7 | ¿Cuáles son las fuentes de respuesta? | Solo catálogo/perfil existente / base de conocimiento aprobada / ambos | **INFERENCIA:** base aprobada por negocio; reutilizar solo datos existentes que estén scoped al tenant. | _pendiente — Nico decide_ |
 | 8 | ¿Cómo cuenta la cuota del agente? | Cuota WhatsApp existente / categoría y límite nuevos / sin cuota propia | **INFERENCIA:** categoría y límite explícitos antes de activar envíos. | _pendiente — Nico decide_ |
-| 9 | ¿Cuál es la vía de escalamiento? | Agente humano en chat / teléfono / correo / soporte web o formulario | **INFERENCIA:** una vía visible, rápida, clara y directa por negocio; el traspaso humano es opcional. | _pendiente — Nico decide_ |
-| 10 | ¿Cuánto tiempo se retienen conversaciones, respuestas y consentimiento? | Un plazo común / plazos distintos por tipo / no activar hasta revisión legal | **INFERENCIA:** no activar persistencia hasta fijar por escrito plazo, supresión y responsable. | _pendiente — Nico decide_ |
+| 9 | ¿Cuál es el modo de escalamiento? | `human_chat` / `phone` / `email` / `web_form` | **INFERENCIA:** `human_chat` para el piloto, solo si una persona y horario están definidos; de otro modo elegir un canal atendido. | _pendiente — Nico decide_ |
+| 10 | ¿Cuánto tiempo se retienen conversaciones, textos y preferencias? | 7 días / 30 días / 90 días / plazos distintos por tipo | **INFERENCIA:** 30 días como punto de comparación, no decisión; antes de activar, validar finalidad, supresión y si consentimiento/opt-out requieren plazo distinto. | _pendiente — Nico decide_ |
 | 11 | ¿Cómo se manejan fotos, audios y stickers? | Rechazar y descartar / escalar sin guardar / habilitar soporte posterior | **INFERENCIA:** en el piloto, no interpretar ni guardar; explicar y escalar por la vía elegida. | _pendiente — Nico decide_ |
 | 12 | ¿Qué protección anti-spam y anti-bucle se usa? | Solo deduplicación / solo rate limit / ambos | **INFERENCIA:** ambos; Nico define cantidad, ventana y duración del bloqueo. | _pendiente — Nico decide_ |
 | 13 | ¿Qué idiomas admite el piloto? | Solo español / idiomas configurados por negocio / traducción automática | **INFERENCIA:** español en el piloto; otro idioma escala, sin traducción automática. | _pendiente — Nico decide_ |
-| 14 | ¿Qué texto se conserva para auditar respuestas? | Respuesta completa / respuesta redactada / solo hash y resultado | **INFERENCIA:** respuesta saliente redactada y resultado mínimo; nunca RUT ni binarios. | _pendiente — Nico decide_ |
+| 14 | ¿Se guarda texto de mensajes? | A: no guardar texto, solo estado / B: texto entrante y saliente redactado/recortado con plazo corto | **INFERENCIA:** A para menor riesgo si bastan métricas; B solo si Nico prioriza conversaciones/auditoría y aprueba redacción, longitud, acceso y plazo. | _pendiente — Nico decide_ |
 
 ## 12. Registro de decisiones
 | Fecha | Decisión | Quién |
