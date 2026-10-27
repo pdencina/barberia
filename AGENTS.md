@@ -136,3 +136,14 @@ Esta seccion AMPLIA la 11 (la reemplaza donde se contradicen). Sigue sin existir
 6. **Nunca, en ningun nivel:** `main`, produccion, ejecutar SQL, llaves o `.env*`, enviar mensajes reales a clientes.
 7. **Registro:** cada PR que mergees solo se anota en `docs/agente/BITACORA.md` con su numero y una linea de resumen, para la auditoria semanal.
 
+## 14. REGLAS FIJAS DE TRABAJO (para que las instrucciones de Nico sean cortas)
+Estas reglas valen para TODA tarea en `agente/whatsapp`; Nico y Claude no las repetiran en cada mensaje. Si una tarea dice "haz T-nombre", el detalle esta en `docs/agente/tareas/T-nombre.md`.
+1. **Antes de empezar:** actualiza `agente/whatsapp`, lee la tarea y solo los archivos que ella cita (no releas toda la documentacion). Si algo del repo la contradice, detente en ese punto, anotalo y sigue con el resto.
+2. **Ramas y PR:** rama nueva `codex/...` desde `agente/whatsapp`, un PR por tarea, hacia `agente/whatsapp`. Corre `npx tsc --noEmit` y tus pruebas antes de abrirlo. Merge segun nivel (seccion 13); codigo y SQL siempre esperan a Claude.
+3. **No hagas documentacion nueva** salvo que la tarea la pida: ya hay suficiente. Anota lo que pase en `docs/agente/BITACORA.md` en 3 lineas como maximo por PR.
+4. **Decisiones de producto:** no las tomes. Una linea en la seccion 11 de `ESPECIFICACION.md` con opciones y tu recomendacion, y sigue.
+5. **Verifica, no supongas:** cuando algo dependa de como funciona el resto del repo (remitentes, cron, rutas), mira el codigo y cita `ruta:linea`. Marca HECHO / INFERENCIA / DESCONOCIDO solo en lo no obvio.
+6. **Informe final al terminar (maximo 6 lineas):** numero de PR, que cambia en una frase, pruebas que pasan (cuantas), que NO probaste, y que decision necesitas de Nico si hay alguna. Nada mas.
+7. **Nunca:** `main`, produccion, ejecutar SQL, llaves o `.env*`, correos o mensajes reales, `vercel.json`, `package.json`, `supabase/`, `.github/`, `src/app/dashboard/`, AGENTS.md y NIVELES.md.
+8. **Sin trabajo doble:** si ya existe un helper o una constante en el repo (por ejemplo `verifyCron`, `fetchAllRows`, el remitente de `resend.ts`), reutilizalo; no lo copies ni lo reescribas.
+
