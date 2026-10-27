@@ -402,6 +402,8 @@ Procesos salientes separados:
 
 | EV1 | ¿Qué resultado mínimo exige el banco de pruebas antes del piloto? | 40/40 (más exigente) / 38/40 con 15/15 trampas correctas y cero invenciones/fugas/acciones no autorizadas / evaluar por categorías antes de fijar umbral | **INFERENCIA:** segunda opción con revisión humana y traspaso aceptado; tolera solo dos fallos no críticos. Banco sintético de 40 casos en `docs/agente/EVALUACION.md`; no fue ejecutado contra una IA ni aprueba controles operativos. | _pendiente — Nico decide_ |
 
+| PN1 | ¿Quién puede cambiar destinatarios y encender el agente/informe? | Solo administrador (menos exposición, más carga) / administrador y recepción (más agilidad, más acceso) / aprobación de Nico antes de activar (más control en piloto) | **INFERENCIA:** aprobación de Nico para activar y editar destinatarios durante piloto; permisos de ver informes no equivalen a permisos de cambiar envíos. Bocetos en `docs/agente/PANEL.md`; sin pantalla ni guardado implementados. | _pendiente — Nico decide_ |
+
 ## 12. Registro de decisiones
 | Fecha | Decisión | Quién |
 |---|---|---|
