@@ -20,6 +20,11 @@ export interface DependenciasWhatsAppMeta {
   version: string;
   phone_number_id: string;
 }
+// Mismo namespace del extractor y de las bajas; el llamador valida/canoniza sin inferir país.
+export function hashContactoWhatsApp(sal: string, tenantId: string, remitenteCanonico: string): string {
+  return createHmac("sha256", sal).update(JSON.stringify(["agente:contacto:v1", tenantId, remitenteCanonico])).digest("hex");
+}
+
 const objeto = (valor: unknown): valor is Record<string, unknown> =>
   typeof valor === "object" && valor !== null && !Array.isArray(valor);
 const campo = (valor: unknown, nombre: string): unknown =>
@@ -47,6 +52,10 @@ export async function enviarPlantilla(args: ParametrosPlantilla, deps: Dependenc
       body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: "template", template }),
     };
   } catch { return { estado: "fallido" }; } // No se invocó al proveedor.
+  return enviarPeticionMeta(url, opciones, deps);
+}
+
+async function enviarPeticionMeta(url: string, opciones: RequestInit, deps: DependenciasWhatsAppMeta): Promise<ResultadoEnvioPlantilla> {
   try {
     const respuesta = await deps.fetch(url, opciones);
     if (!Number.isInteger(respuesta.status)) return { estado: "incierto" };
@@ -85,13 +94,17 @@ export interface MensajeEntrantePersistible {
   readonly tipo: string;
   readonly phone_number_id: string;
   readonly remitenteHash: string;
+  readonly context_id?: string;
+  readonly tipo_respuesta?: "button_reply" | "list_reply";
 }
 const textos = new WeakMap<TextoEntranteEnMemoria, string | null>();
+const remitentes = new WeakMap<TextoEntranteEnMemoria, string | null>();
 // Sin propiedades propias: JSON, spread e inspección no exponen el texto.
 // leerTexto() es una salida explícita solo para clasificación; nunca persistirla.
 export class TextoEntranteEnMemoria {
-  constructor(texto: string | null) { textos.set(this, texto); Object.freeze(this); }
+  constructor(texto: string | null, remitente: string | null = null) { textos.set(this, texto); remitentes.set(this, remitente); Object.freeze(this); }
   leerTexto(): string | null { return textos.get(this) ?? null; }
+  leerRemitente(): string | null { return remitentes.get(this) ?? null; }
   toJSON(): undefined { return undefined; }
 }
 export interface MensajeEntranteExtraido {
@@ -127,18 +140,39 @@ export function extraerMensajesEntrantes(payload: unknown, contexto: ContextoHas
         for (const mensaje of mensajes) {
           const id = campo(mensaje, "id"), tipo = campo(mensaje, "type"), remitente = campo(mensaje, "from");
           if (!identificador(id) || typeof tipo !== "string" || !/^[a-z_]{1,64}$/.test(tipo) || !numero(remitente)) continue;
-          const texto = tipo === "text" ? campo(campo(mensaje, "text"), "body") : undefined;
+          const contextId = campo(campo(mensaje, "context"), "id");
+          const interactive = campo(mensaje, "interactive");
+          const subtipo = campo(interactive, "type");
+          const tipoRespuesta = tipo === "interactive" && (subtipo === "button_reply" || subtipo === "list_reply") ? subtipo : undefined;
+          const texto = tipo === "text" ? campo(campo(mensaje, "text"), "body")
+            : tipo === "button" ? campo(campo(mensaje, "button"), "payload")
+            : tipoRespuesta ? campo(campo(interactive, tipoRespuesta), "id") : undefined;
           // Dominio estable para bajas por tenant aunque cambie el número del negocio.
           // No reutiliza clave-deduplicacion: aquella no es HMAC ni identifica contactos.
-          const remitenteHash = createHmac("sha256", contexto.sal)
-            .update(JSON.stringify(["agente:contacto:v1", tenantId, remitente])).digest("hex");
+          const remitenteHash = hashContactoWhatsApp(contexto.sal, tenantId, remitente);
           resultado.push(Object.freeze({
-            persistible: Object.freeze({ id, tipo, phone_number_id: phoneId, remitenteHash }),
-            memoria: new TextoEntranteEnMemoria(typeof texto === "string" && texto.length <= LIMITE_TEXTO_EN_MEMORIA ? texto : null),
+            persistible: Object.freeze({ id, tipo, phone_number_id: phoneId, remitenteHash,
+              ...(identificador(contextId) ? { context_id: contextId } : {}),
+              ...(tipoRespuesta ? { tipo_respuesta: tipoRespuesta } : {}) }),
+            memoria: new TextoEntranteEnMemoria(typeof texto === "string" && texto.length <= LIMITE_TEXTO_EN_MEMORIA ? texto : null, remitente),
           }));
         }
       }
     }
     return resultado;
   } catch { return []; } // Entradas que no son JSON plano fallan cerrado, sin eco de datos.
+}
+
+// Respuesta a mensaje entrante: mismo contrato genérico/pendiente de validación oficial.
+// El texto se transporta, no se registra; se invoca solo después de verificar el resultado.
+export async function enviarTexto(args: { para: string; texto: string }, deps: DependenciasWhatsAppMeta): Promise<ResultadoEnvioPlantilla> {
+  try {
+    if (!deps || typeof deps.fetch !== "function" || typeof deps.token !== "string" || !deps.token.trim() || /[\r\n]/.test(deps.token)
+      || !/^v[0-9]+\.[0-9]+$/.test(deps.version) || !numero(deps.phone_number_id)
+      || !args || !numero(args.para) || typeof args.texto !== "string" || !args.texto.trim() || args.texto.length > LIMITE_TEXTO_EN_MEMORIA) return { estado: "fallido" };
+    return enviarPeticionMeta(`https://graph.facebook.com/${deps.version}/${deps.phone_number_id}/messages`, {
+      method: "POST", redirect: "error", headers: { Authorization: `Bearer ${deps.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: "text", text: { body: args.texto } }),
+    }, deps);
+  } catch { return { estado: "fallido" }; }
 }
