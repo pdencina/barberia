@@ -135,6 +135,6 @@ Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesi
 **HECHO:** prueba "EMAIL_FROM ausente" corregida y 4 nuevas (válido, vacío, ruta manual, sin destinatarios); tsc y todos los `test-agente-*` pasan.
 **NO probado:** envío real con Resend ni que el dominio re-booking.cl acepte el informe; la ruta HTTP `/api/agente/informe-diario` solo vía su función de envío, no por HTTP.
 
-## 27 oct. 2026 — T-detector-enie, complemento de #132 (espera Claude)
+## 27 oct. 2026 — PR #134: T-detector-enie, complemento de #132 (espera Claude)
 Reproducido falso positivo con n+acento+tilde pese al arreglo NFC ya mergeado; se preserva esa letra antes de retirar marcas (`src/lib/agente/respuesta-cliente.ts:33-35`), sin cambiar listas, contrato ni rutas.
 TypeScript y 239 casos pasan (229 existentes +10 nuevos); regresión falló primero contra la base. Loader tsx usado por restricción IPC; sin mensajes/datos/base reales; no mergear.
