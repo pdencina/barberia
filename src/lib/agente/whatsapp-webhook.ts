@@ -1,5 +1,5 @@
 import { fetchAllRows } from "../accounting";
-import { seleccionarRecordatorioUnico } from "./referencia-alternativa";
+import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
 import { verificarFirmaWebhook } from "./webhook-firma";
 import { crearClaveEventoEntrante } from "./clave-deduplicacion";
@@ -124,12 +124,36 @@ export function crearRepositorioWebhook(db: any, sal: string): RepositorioWebhoo
     async referenciaAlternativa(tenant,hash,ahora) {
       if(!tenant||tenant==="ALL")return null;
       const todas=(build:()=>any)=>fetchAllRows(()=>({order:(col:string,opt:unknown)=>({range:async(f:number,t:number)=>check(await build().order(col,opt).range(f,t))})}));
-      const clients=await todas(()=>db.from("clients").select("id,tenant_id,phone").eq("tenant_id",tenant));
-      const records=await todas(()=>db.from("agent_reminder_deliveries")
+      const records:Registro[]=await todas(()=>db.from("agent_reminder_deliveries")
         .select("id,tenant_id,appointment_id,channel,purpose,status,provider_accepted_at,provider_message_id,appointment:appointments!appointment_id!inner(id,tenant_id,client_id,start_time)")
         .eq("tenant_id",tenant).eq("channel","whatsapp").eq("purpose","recordatorio-cita-v1").eq("status","aceptado_proveedor")
         .eq("appointment.tenant_id",tenant).gte("provider_accepted_at",new Date(ahora-48*3600000).toISOString()).lte("provider_accepted_at",new Date(ahora).toISOString()));
-      return seleccionarRecordatorioUnico(tenant,hash,ahora,clients,records,sal);
+      const candidates=recordatoriosCandidatos(tenant,ahora,records);
+      const ids=Array.from(new Set(candidates.map(r=>r.appointment.client_id)));
+      if(!ids.length)return null;
+      const clients:Cliente[]=[];
+      // Evita listas .in grandes y el límite silencioso de 1000; no descarga otros clientes.
+      for(let from=0;from<ids.length;from+=100){
+        const batch=ids.slice(from,from+100);
+        const rows:Cliente[]=await todas(()=>db.from("clients").select("id,tenant_id,phone").eq("tenant_id",tenant).in("id",batch));
+        // También falla cerrado si el adaptador devuelve una fila fuera del lote solicitado.
+        if(rows.some(c=>c.tenant_id!==tenant||!batch.includes(c.id)))return null;
+        clients.push(...rows);
+      }
+      const selected=seleccionarRecordatorioUnico(tenant,hash,ahora,clients,candidates,sal);
+      if(!selected)return null;
+      const canonical=normalizarTelefonoWhatsApp(clients.find(c=>c.id===selected.clienteId)?.phone);
+      if(!canonical)return null;
+      // Preserva el rechazo de teléfonos compartidos incluso con un cliente SIN recordatorio.
+      // HEAD entrega solo un conteo: nunca descarga nombre/teléfono/id de esos otros clientes.
+      // PostgREST match (~): https://docs.postgrest.org/en/v12/references/api/tables_views.html#operators
+      // Consultado 2026-10-27: "match | ~". Rendimiento del plan SQL real: no verificado.
+      const pattern=patronTelefonoCanonico(canonical);
+      const quoted='"'+pattern.replace(/\\/g,"\\\\").replace(/"/g,'\\"')+'"';
+      const duplicate=check(await db.from("clients").select("id",{count:"exact",head:true})
+        .eq("tenant_id",tenant).neq("id",selected.clienteId).filter("phone","match",quoted));
+      if(typeof duplicate.count!=="number"||!Number.isSafeInteger(duplicate.count)||duplicate.count<0)throw new Error("Conteo de identidad no disponible");
+      return duplicate.count===0?selected:null;
     },
     async referencia(tenant,providerId,contactHash) {
       const record=check(await db.from("agent_reminder_deliveries").select("id,appointment_id").eq("tenant_id",tenant).eq("provider_message_id",providerId).eq("channel","whatsapp").eq("purpose","recordatorio-cita-v1").eq("status","aceptado_proveedor").maybeSingle()).data;
