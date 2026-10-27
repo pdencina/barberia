@@ -129,3 +129,8 @@ Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesi
 **HECHO:** `respuesta-cliente.ts` compone a NFC y devuelve "desconocido" si hay ñ/Ñ (también n + tilde suelta); las tildes en vocales se siguen ignorando. "coñfirmo" y "cañcelo" ya no confirman ni cancelan. Listas y contrato sin cambios.
 **HECHO:** 12 casos nuevos (mayúsculas, ñ combinada, vocales con tilde, frases válidas); 229 casos, tsc y demás pruebas del agente pasan.
 **NO probado:** otros confusables fuera de la ñ (el resto ya se rechazaba por la regla a-z); el detector sigue sin conectarse a ninguna ruta.
+### Remitente del informe — rama claude/informe-remitente
+
+**HECHO:** el informe usa `EMAIL_FROM` y, si falta o está vacío/solo espacios, el mismo respaldo del resto del sistema "re-booking <no-reply@re-booking.cl>" (`resolverRemitente` en `src/lib/agente/informe-diario-email.ts`). Ruta programada y manual comparten la función; `sendDailyReportEmail` acepta dependencias para probarla.
+**HECHO:** prueba "EMAIL_FROM ausente" corregida y 4 nuevas (válido, vacío, ruta manual, sin destinatarios); tsc y todos los `test-agente-*` pasan.
+**NO probado:** envío real con Resend ni que el dominio re-booking.cl acepte el informe; la ruta HTTP `/api/agente/informe-diario` solo vía su función de envío, no por HTTP.

@@ -84,6 +84,12 @@ export interface DependenciasCorreoInforme {
   ahora: () => number;
 }
 
+// Mismo respaldo que el resto del sistema (src/lib/resend.ts) cuando EMAIL_FROM falta o está vacío.
+export const REMITENTE_RESPALDO = "re-booking <no-reply@re-booking.cl>";
+export function resolverRemitente(valor: string | undefined): string {
+  return valor?.trim() || REMITENTE_RESPALDO;
+}
+
 // Reutiliza Resend y EMAIL_FROM; no hay dominio alternativo ni cuota comercial.
 export async function enviarInformeConResultado(
   args: ArgumentosEnvioInforme,
@@ -91,8 +97,8 @@ export async function enviarInformeConResultado(
 ): Promise<ResultadoEnvioInforme> {
   let resend: ReturnType<DependenciasCorreoInforme["cliente"]>, payload: any;
   try {
-    const from = deps.remitente();
-    if (!from?.trim() || args.recipients.length === 0) return { estado: "fallido" };
+    const from = resolverRemitente(deps.remitente());
+    if (args.recipients.length === 0) return { estado: "fallido" };
     payload = { from, to: args.recipients, subject: dailyReportSubject(args.report), html: renderDailyReportEmail(args.report, args.generadoEn ?? deps.ahora()) };
     resend = deps.cliente();
   } catch { return { estado: "fallido" }; } // No se llamó al proveedor.
@@ -106,8 +112,8 @@ export async function enviarInformeConResultado(
   } catch { return { estado: "incierto" }; }
 }
 
-export async function sendDailyReportEmail(args: ArgumentosEnvioInforme) {
-  const result = await enviarInformeConResultado(args);
+export async function sendDailyReportEmail(args: ArgumentosEnvioInforme, deps?: DependenciasCorreoInforme) {
+  const result = await enviarInformeConResultado(args, deps);
   if (result.estado !== "aceptado") throw new Error("No se pudo confirmar el envío del informe");
   return { id: result.id };
 }
