@@ -63,12 +63,14 @@ export function crearManejadorRecordatorios(config:{
   crearDependencias:()=>DependenciasRecordatorios;
   // No habilitar en producción hasta coordinar el reclamo del cron antiguo con Claude.
   permitirEnvio?:boolean;
+  configuracion?:()=>readonly string[];
 }) {
   return async (req:Request) => {
     const dryRun=new URL(req.url).searchParams.get("dryRun")==="1";
-    const totals={dryRun,procesados:0,candidatos:0,whatsapp:0,correos:0,omitidos:0,sin_cuota:0,ya_reclamados:0,fallidos:0,inciertos:0,intentos:0,migracion_pendiente:0,bloqueado_coordinacion:0};
+    const totals={dryRun,procesados:0,candidatos:0,whatsapp:0,correos:0,omitidos:0,sin_cuota:0,ya_reclamados:0,fallidos:0,inciertos:0,intentos:0,migracion_pendiente:0,bloqueado_coordinacion:0,...(dryRun?{configuracion_faltante:[] as string[]}:{})};
     try {
       const auth=await config.autorizar(req);if(!auth.ok)return json(totals,auth.status);
+      if(dryRun)totals.configuracion_faltante=[...(config.configuracion?.()??[])];
       if(!dryRun&&config.permitirEnvio!==true)return json({...totals,bloqueado_coordinacion:1},503);
       const deps=config.crearDependencias(),repo=deps.repo;
       if(!deps.sal.trim())return json(totals,503);
