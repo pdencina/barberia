@@ -84,6 +84,12 @@ const t = (name: string, ok: boolean, extra = "") => {
     { ruta: "barber-services", metodo: "POST", params: {} },
     { ruta: "barber-service-assignments", metodo: "POST", params: {} },
     { ruta: "barber/blocks", metodo: "PATCH", params: {}, qs: `?id=${ID}` },
+    { ruta: "products/[id]", metodo: "PATCH", params: { id: ID } },
+    { ruta: "gallery", metodo: "POST", params: {} },
+    { ruta: "gallery", metodo: "DELETE", params: {}, qs: `?id=${ID}` },
+    { ruta: "gallery/upload", metodo: "POST", params: {} },
+    { ruta: "invite-codes", metodo: "POST", params: {} },
+    { ruta: "invite-codes", metodo: "DELETE", params: {}, qs: `?id=${ID}` },
   ];
   for (const e of escritura) {
     const mod = await import(`../src/app/api/${e.ruta}/route`);

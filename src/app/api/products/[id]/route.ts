@@ -1,13 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, isManagerLevel } from "@/lib/supabase/server";
 
 export async function PATCH(
   req: NextRequest,
   { params }: { params: { id: string } }
 ) {
   const supabase = createAdminSupabase();
+  // SEGURIDAD: antes no pedia sesion: cualquiera podia editar precios y stock de cualquier producto, y mover el producto de negocio. Solo la gestion del negocio dueno del producto.
+  const me = await isManagerLevel();
+  if (!me.userId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!me.ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const { data: owned } = await supabase.from("products").select("tenant_id").eq("id", params.id).maybeSingle();
+  if (!owned || (me.role !== "super_admin" && (!me.tenantId || (owned as any).tenant_id !== me.tenantId))) return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
   // El navegador manda tenantId (solo sirve al crear); no es columna de products y hacia fallar todo el guardado.
-  const { tenantId: _ignored, ...body } = await req.json();
+  // Tampoco se permite cambiar la identidad ni el negocio del producto desde aqui.
+  const { tenantId: _ignored, id: _id, tenant_id: _tid, created_at: _ca, ...body } = await req.json();
 
   // If price is being changed, log it
   if (body.price !== undefined) {
