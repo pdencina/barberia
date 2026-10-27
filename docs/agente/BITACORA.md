@@ -3,7 +3,8 @@
 ## Registro Nivel 3 — lote T1 a T10
 
 - PR #108 — T1: mergeado por Codex a `agente/whatsapp` con ambos checks verdes; hoja de decisiones y regla #20 actualizada.
-- PR #109 — T2: amenazas, controles reales y faltantes, sin cambios de código; registro Nivel 3 para merge solo tras ambos checks verdes.
+- PR #109 — T2: mergeado por Codex con ambos checks verdes; amenazas, controles existentes y faltantes, sin cambios de código.
+- T3: cinco textos propuestos de WhatsApp, longitudes y condiciones de uso; categorías Meta DESCONOCIDO por fuentes bloqueadas. No aprobados ni enviados; merge documental condicionado a ambos checks verdes.
 
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.
