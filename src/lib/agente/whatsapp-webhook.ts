@@ -24,6 +24,7 @@ export interface DependenciasWebhook {
   repo: RepositorioWebhook;
   ahora: () => number;
   datosDelNegocio?: (tenantId: string) => Promise<DatosFaq | null>;
+  negocioInactivo?: (tenantId: string) => Promise<boolean>;
   accion: (tipo: "confirmar" | "cancelar", c: { tenantId: string; clienteId: string; referenciaRecordatorio: string }) => Promise<ResultadoAccionCita>;
   responder: (negocio: NegocioWebhook, para: string, texto: string) => Promise<unknown>;
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
@@ -66,7 +67,8 @@ export function crearManejadoresWebhook(config: {
             if (!para) { totals.omitidos++; continue; }
             const eventKey = crearClaveEventoEntrante({tenantId:n.tenantId,referenciaProveedor:p.id});
             // No se guarda texto: HMAC evita diccionarios de frases frecuentes sobre el hash.
-            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,text ?? p.id])).digest("hex");
+            // Texto de tipo "text" demasiado largo llega como null: se usa un valor fijo para que sus repeticiones sigan contando como idénticas.
+            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,text ?? (p.tipo === "text" ? "__texto_omitido__" : p.id)])).digest("hex");
             const ahora = deps.ahora();
             const admitted = await deps.repo.admitir({key:eventKey,tenantId:n.tenantId,contactHash:p.remitenteHash,messageHash,ahora});
             if (admitted.repetido) { totals.repetidos++; continue; }
@@ -106,6 +108,8 @@ export function crearManejadoresWebhook(config: {
                     : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                   if (!ref) {
                     // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
+                    // Negocio inactivo o suspendido: no se responde nada ni se avisa. Un error de lectura NO cuenta como inactivo.
+                    if (deps.negocioInactivo && await deps.negocioInactivo(n.tenantId)) { await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue; }
                     const faq = responderFaq(text,await deps.datosDelNegocio(n.tenantId));
                     if (faq.tipo === "respuesta") respuestaFaq = faq.texto;
                   }

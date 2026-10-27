@@ -18,6 +18,7 @@ const handlers = () => crearManejadoresWebhook({
       repo: crearRepositorioWebhook(db, process.env.AGENTE_CONTACT_HASH_SALT!), ahora: Date.now,
       accion: accionesDesdeBase(db),
       datosDelNegocio: crearRepositorioDatosNegocio(db).datosDelNegocio,
+      negocioInactivo: crearRepositorioDatosNegocio(db).negocioInactivo,
       responder: (negocio, para, texto) => enviarTexto({ para, texto }, {
         token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "",
         phone_number_id: negocio.phoneNumberId,

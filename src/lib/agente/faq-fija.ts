@@ -73,6 +73,8 @@ export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
    if(datos.sucursales?.length){
     const visibles=datos.sucursales.filter(s=>s&&datoTexto(s.nombre));
     if(!visibles.length)return traspaso("datos_incompletos");
+    // Sin semana en ninguna sucursal no hay qué mostrar: derivar en vez de preguntar cuál.
+    if(!sucursalPedida&&intencion==="horario"&&!visibles.some(s=>horarioLegible(s.horario)))return traspaso("datos_incompletos");
     if(!sucursalPedida)return {tipo:"respuesta",intencion,texto:`¿De qué sucursal necesitas ${intencion==="direccion"?"la dirección":"el horario"}? Sucursales: ${visibles.map(s=>s.nombre!.trim()).join("; ")}. Indica la sucursal en tu consulta.`};
     const matches=visibles.filter(s=>normalizar(s.nombre!)===sucursalPedida);
     if(matches.length!==1)return traspaso("coincidencia_ambigua");
