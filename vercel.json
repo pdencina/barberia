@@ -26,6 +26,10 @@
     {
       "path": "/api/cron/demo-refresh",
       "schedule": "20 */3 * * *"
+    },
+    {
+      "path": "/api/agente/informe-programado",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
