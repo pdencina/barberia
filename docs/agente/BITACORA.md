@@ -8,7 +8,8 @@
 - PR #111 — T4: mergeado por Codex con ambos checks verdes; guía operativa y pregunta RB1, sin ejecutar cambios de configuración.
 - PR #112 — T5: mergeado por Codex con ambos checks verdes; cien trampas nuevas, 217 casos pasan, sin cambios de lógica.
 - PR #113 — hallazgo T5: mergeado por Codex con ambos checks verdes; prueba negativa de ñ→n y propuesta para Claude. D1 sigue pendiente; no se arregló ni integró el detector.
-- T6: banco de 40 casos ficticios de fase 4, con 15 trampas de dato ausente y propuesta de puntaje/umbral EV1; no ejecutado contra modelo. Merge documental condicionado a ambos checks verdes.
+- PR #114 — T6: mergeado por Codex con ambos checks verdes; banco ficticio de 40 casos, 15 trampas y umbral EV1 propuesto, no evaluado contra IA.
+- T7: bocetos de configuración, conversaciones A/B e informes, sin código; PN1 deja permisos por decidir. Fuentes de tablas/lectores verificadas y botones faltantes marcados pendientes. Merge solo tras ambos checks verdes.
 
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.
