@@ -5,7 +5,8 @@
 - PR #108 — T1: mergeado por Codex a `agente/whatsapp` con ambos checks verdes; hoja de decisiones y regla #20 actualizada.
 - PR #109 — T2: mergeado por Codex con ambos checks verdes; amenazas, controles existentes y faltantes, sin cambios de código.
 - PR #110 — T3: mergeado por Codex con ambos checks verdes; cinco borradores de textos, longitudes y condiciones, sin aprobación Meta ni envío.
-- T4: guía de operación con apagado por negocio/global, incidentes, spam, proveedor y cuota. Distingue controles reales y pendientes de construir; RB1 deja responsables/canal por decidir. Solo documentación, merge condicionado a ambos checks verdes.
+- PR #111 — T4: mergeado por Codex con ambos checks verdes; guía operativa y pregunta RB1, sin ejecutar cambios de configuración.
+- T5: cien trampas añadidas sin cambiar `src/`; 217 casos del detector pasan. Hallazgo separado reproducido: normalización ñ→n acepta palabras mal escritas como órdenes (`src/lib/agente/respuesta-cliente.ts:28-30`); se documentará en PR propio con prueba negativa y propuesta para Claude. Detector aún sin integración; no se corrige lógica en este PR.
 
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.
