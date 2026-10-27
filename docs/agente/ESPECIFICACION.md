@@ -398,6 +398,8 @@ Procesos salientes separados:
 
 | RB1 | ¿Quién recibe incidentes, por qué canal y con qué suplente? | Nico coordina con Pablo/Claude (control central, depende de disponibilidad) / responsable del negocio y suplente designados (respuesta distribuida, necesita permisos y formación) | **INFERENCIA:** Nico coordina el piloto; acordar canal privado, suplente y horario antes de prometer atención. Procedimiento propuesto en `docs/agente/RUNBOOK.md`. No hay contactos operativos verificados. | _pendiente — Nico decide_ |
 
+| D1 | ¿Cómo debe tratar el detector palabras con ñ que se convierten en órdenes al quitar marcas? | Preservar ñ como letra distinta / normalizar solo acentos de vocales | **HECHO:** el falso positivo está reproducido en `docs/agente/HALLAZGO_DETECTOR_ENIE.md`; origen `src/lib/agente/respuesta-cliente.ts:28-30`. **INFERENCIA:** preservar ñ y abstenerse ante palabras no reconocidas. Corrección de código solo en otro PR revisado por Claude; no integrar acciones antes. | _pendiente — Nico/Claude_ |
+
 ## 12. Registro de decisiones
 | Fecha | Decisión | Quién |
 |---|---|---|
