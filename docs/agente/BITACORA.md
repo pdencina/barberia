@@ -1,5 +1,9 @@
 # Bitacora del agente de WhatsApp
 
+## 27 oct. 2026 — seguimiento remitente #127 (PR nuevo, espera Claude)
+Remitente igual a `src/lib/resend.ts:168`: EMAIL_FROM o respaldo si falta/vacío; handler manual extraído para probar el flujo real sin cambiar permisos ni consultas (`src/lib/agente/informe-diario-manual.ts:17`).
+TypeScript, 14 casos nuevos (incluido POST manual), 61 programado, 63 informe y 11 HTML pasan; Node con loader tsx por bloqueo IPC del CLI. Sin Supabase/Resend/sesión reales ni correos; no mergear.
+
 ## 27 oct. 2026 — pieza 4: informe programado, PR #127 (espera Claude)
 
 **HECHO:** PR #127 abierto hacia `agente/whatsapp` desde `codex/agente-informe-programado`, con ficha del Anexo B; sin merge. No se creó ni habilitó el cron. Se completa esta pieza y se espera la revisión de Claude.

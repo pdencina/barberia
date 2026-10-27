@@ -84,15 +84,15 @@ export interface DependenciasCorreoInforme {
   ahora: () => number;
 }
 
-// Reutiliza Resend y EMAIL_FROM; no hay dominio alternativo ni cuota comercial.
+// Mismo respaldo que src/lib/resend.ts:168, por decisión de Nico (27 oct. 2026).
 export async function enviarInformeConResultado(
   args: ArgumentosEnvioInforme,
   deps: DependenciasCorreoInforme = { remitente: () => process.env.EMAIL_FROM, cliente: getResendClient, ahora: Date.now },
 ): Promise<ResultadoEnvioInforme> {
   let resend: ReturnType<DependenciasCorreoInforme["cliente"]>, payload: any;
   try {
-    const from = deps.remitente();
-    if (!from?.trim() || args.recipients.length === 0) return { estado: "fallido" };
+    const from = deps.remitente()?.trim() || "re-booking <no-reply@re-booking.cl>";
+    if (args.recipients.length === 0) return { estado: "fallido" };
     payload = { from, to: args.recipients, subject: dailyReportSubject(args.report), html: renderDailyReportEmail(args.report, args.generadoEn ?? deps.ahora()) };
     resend = deps.cliente();
   } catch { return { estado: "fallido" }; } // No se llamó al proveedor.
@@ -106,8 +106,8 @@ export async function enviarInformeConResultado(
   } catch { return { estado: "incierto" }; }
 }
 
-export async function sendDailyReportEmail(args: ArgumentosEnvioInforme) {
-  const result = await enviarInformeConResultado(args);
+export async function sendDailyReportEmail(args: ArgumentosEnvioInforme, deps?: DependenciasCorreoInforme) {
+  const result = await enviarInformeConResultado(args, deps);
   if (result.estado !== "aceptado") throw new Error("No se pudo confirmar el envío del informe");
   return { id: result.id };
 }
