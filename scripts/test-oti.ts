@@ -84,5 +84,11 @@ t("«cómo cierro la caja» no es un bloqueo", pide("¿cómo cierro la caja?") =
 t("«cierre mensual» no es un bloqueo", pide("quiero hacer el cierre mensual") === null);
 t("«cómo bloqueo un día» (pregunta) va a la ayuda", pide("¿cómo bloqueo un día?") === null);
 t("texto sin verbo no es un bloqueo", pide("mañana a Nicolás") === null);
+// Mejoras 27 oct: preguntas con «puedo», otras formas de decir «no atiendo», y opciones cuando no se entiende
+t("«¿puedo cerrar mi agenda el domingo?» se entiende como pedido", ok(entenderBloqueo("¿Puedo cerrar mi agenda el domingo?", HOY, [{ id: "n1", name: "Nicolás" }], "n1")).startsWith("n1 "));
+t("«no atiendo el domingo» se entiende como pedido", ok(entenderBloqueo("no atiendo el domingo", HOY, [{ id: "n1", name: "Nicolás" }], "n1")).startsWith("n1 "));
+t("«quiero dejar libre mi agenda mañana» se entiende", ok(entenderBloqueo("quiero dejar libre mi agenda mañana", HOY, [{ id: "n1", name: "Nicolás" }], "n1")).startsWith("n1 "));
+t("«cómo cierro la caja» sigue sin ser bloqueo", pide("¿cómo cierro la caja?") === null);
+t("buscarAyuda con minimo bajo sugiere algo para «precio»", buscarAyuda("precio", undefined, 3, 2).length > 0);
 t("etiqueta de fecha legible", etiquetaFecha("2026-10-28") === "miércoles 28 de octubre");
 process.exit(fails ? 1 : 0);

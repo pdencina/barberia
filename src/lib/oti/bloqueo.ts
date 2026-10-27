@@ -52,8 +52,8 @@ function fechas(t: string, hoy: string): Fecha[] {
   return out.sort((a, b) => a.pos - b.pos);
 }
 
-const YA_DICHO_PREGUNTA = /^(como|donde|cual|cuales|que|puedo|se puede|por que|quien)\b/;
-const VERBO = /\b(cierr\w*|cerrar|bloque\w*)\b/;
+const YA_DICHO_PREGUNTA = /^(como|donde|cual|cuales|que|por que|quien)\b/;
+const VERBO = /\b(cierr\w*|cerrar|bloque\w*|ausent\w*|dia libre|libre|no (?:voy a )?(?:atiendo|atender|trabajo|trabajar|estare|puedo atender))\b/;
 const OTRO_TEMA = /\b(caja|mes|mensual|ventas?|sesion|cuenta|boleta|factura)\b/;
 
 // null = no parece un pedido de bloqueo (va a la ayuda). Si lo parece, devuelve el pedido completo o lo que falta.

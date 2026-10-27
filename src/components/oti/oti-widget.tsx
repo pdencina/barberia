@@ -9,23 +9,28 @@ import { todayInChile } from "@/lib/utils";
 import { SUPPORT_AREAS } from "@/lib/support";
 import { buscarAyuda } from "@/lib/oti/buscar";
 import { entenderBloqueo, etiquetaFecha, type MiembroEquipo, type PedidoBloqueo } from "@/lib/oti/bloqueo";
-import type { EntradaOti } from "@/lib/oti/catalogo";
+import { CATALOGO, type EntradaOti } from "@/lib/oti/catalogo";
+import { norm } from "@/lib/oti/texto";
 
 type Mensaje =
   | { de: "oti"; tipo: "texto"; texto: string }
   | { de: "yo"; tipo: "texto"; texto: string }
   | { de: "oti"; tipo: "ayuda"; entrada: EntradaOti }
   | { de: "oti"; tipo: "confirmar"; pedido: Extract<PedidoBloqueo, { ok: true }>; estado: "pendiente" | "hecho" | "cancelado" }
-  | { de: "oti"; tipo: "soporte"; pregunta: string };
+  | { de: "oti"; tipo: "soporte"; pregunta: string }
+  | { de: "oti"; tipo: "opciones"; opciones: { texto: string; ayuda?: EntradaOti; relleno?: string; soporte?: string }[] };
 
-const SUGERENCIAS = ["¿Cómo agrego MercadoPago?", "Cierra mañana a Nicolás", "¿Cómo cambio el precio de un servicio?"];
+const SUGERENCIAS = ["Cierra mañana mi agenda", "¿Cómo agrego MercadoPago?", "¿Cómo cambio el precio de un servicio?"];
+// Ejemplos de pedidos de cierre: se muestran mientras la persona escribe algo parecido.
+const EJEMPLOS_CIERRE = ["Cierra mañana mi agenda", "Cierra el domingo mi agenda", "Cierra del 28 al 30 de octubre mi agenda"];
+const PARECE_CIERRE = /\b(cier|cerr|bloq|ausent|libre|no (?:voy|atiend|trabaj))/;
 const SALUDO: Mensaje = { de: "oti", tipo: "texto", texto: "¡Hola! Soy Oti. Te ayudo con tareas pequeñas del panel: te explico dónde está algo y te abro la pantalla, o cierro días de un profesional si me lo pides. Solo sé lo que hay en re-booking; si no lo sé, te ayudo a avisar a soporte." };
 
 const falta = (r: Extract<PedidoBloqueo, { ok: false }>): string => {
   switch (r.falta) {
-    case "profesional": return "¿Para qué profesional? Escríbelo completo, por ejemplo: «cierra mañana a Nicolás».";
+    case "profesional": return "¿Para qué profesional? Escribe su nombre, por ejemplo: «cierra mañana a [nombre]», o «cierra mañana mi agenda» si es la tuya.";
     case "ambiguo": return `Hay más de un profesional con ese nombre (${(r.candidatos || []).map((c) => c.name).join(", ")}). Escribe el nombre completo.`;
-    case "fecha": return "¿Qué día? Por ejemplo: «cierra mañana a Nicolás», «el 30 de octubre» o «del 28 al 30 de octubre».";
+    case "fecha": return "¿Qué día? Por ejemplo: «mañana», «el domingo», «el 30 de octubre» o «del 28 al 30 de octubre».";
     case "hasta": return "¿Hasta cuándo? Por ejemplo: «hasta el 15 de noviembre».";
     case "pasado": return "Esa fecha ya pasó. Dime una fecha de hoy en adelante.";
     case "rango": return "No entendí el rango de fechas. Prueba: «del 28 al 30 de octubre».";
@@ -87,9 +92,21 @@ export function OtiWidget() {
         return;
       }
       // 3) No se
-      setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "Eso no lo sé: solo conozco lo que hay en re-booking. Si quieres, preparo un reporte para el soporte de re-booking." }, { de: "oti", tipo: "soporte", pregunta }]);
+      // Sin coincidencia clara: ofrece opciones parecidas, un ejemplo para cerrar días y el reporte a soporte.
+      const parecidas = buscarAyuda(pregunta, CATALOGO, 3, 2);
+      const opciones: Extract<Mensaje, { tipo: "opciones" }>["opciones"] = parecidas.map((x) => ({ texto: x.entrada.titulo, ayuda: x.entrada }));
+      if (PARECE_CIERRE.test(norm(pregunta)) || /\b(agenda|dia|dias)\b/.test(norm(pregunta))) opciones.push({ texto: "Cerrar días de un profesional", relleno: "Cierra mañana mi agenda" });
+      opciones.push({ texto: "Avisar a soporte", soporte: pregunta });
+      setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "No estoy seguro de haber entendido. ¿Quisiste decir alguna de estas?" }, { de: "oti", tipo: "opciones", opciones }]);
     } finally { setOcupado(false); }
   };
+
+  const mostrarAyuda = (entrada: EntradaOti) => setMsgs((m) => [...m, { de: "yo", tipo: "texto", texto: entrada.titulo }, { de: "oti", tipo: "ayuda", entrada }]);
+
+  // Mientras escribe: ideas parecidas (ayudas del catálogo y ejemplos de cierre).
+  const t = norm(texto);
+  const ideasAyuda = t.length >= 2 ? buscarAyuda(texto, CATALOGO, 3, 2).map((x) => x.entrada) : [];
+  const ideasCierre = t.length >= 2 && PARECE_CIERRE.test(t) ? EJEMPLOS_CIERRE : [];
 
   const confirmar = async (i: number, pedido: Extract<PedidoBloqueo, { ok: true }>) => {
     setOcupado(true);
@@ -174,6 +191,15 @@ export function OtiWidget() {
                     ) : <p className="text-xs text-brand-gray">{m.estado === "hecho" ? "Hecho." : "Sin cambios."}</p>}
                   </div>
                 );
+                if (m.tipo === "opciones") return (
+                  <div key={i} className="flex flex-col items-start gap-2">
+                    {m.opciones.map((o, k) => (
+                      <button key={k} type="button" disabled={ocupado}
+                        onClick={() => { if (o.ayuda) mostrarAyuda(o.ayuda); else if (o.relleno) setTexto(o.relleno); else if (o.soporte) setSoporte({ pregunta: o.soporte }); }}
+                        className="rounded-xl border border-brand-blue/40 px-3 py-1.5 text-left text-xs font-semibold text-brand-blue">{o.soporte ? "🛟 " : ""}{o.texto}</button>
+                    ))}
+                  </div>
+                );
                 return (
                   <div key={i}>
                     <button type="button" onClick={() => setSoporte({ pregunta: m.pregunta })} className="inline-flex items-center gap-1.5 rounded-xl border border-brand-blue/40 px-3 py-1.5 text-xs font-semibold text-brand-blue">
@@ -189,6 +215,12 @@ export function OtiWidget() {
             {msgs.length === 1 && (
               <div className="flex flex-wrap gap-2 px-4 pb-2">
                 {SUGERENCIAS.map((s) => <button key={s} type="button" onClick={() => enviar(s)} className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-brand-gray hover:border-brand-blue/40 dark:border-gray-700">{s}</button>)}
+              </div>
+            )}
+            {texto.trim().length >= 2 && (ideasCierre.length > 0 || ideasAyuda.length > 0) && (
+              <div className="flex flex-wrap gap-2 px-4 pb-2">
+                {ideasCierre.map((s) => <button key={s} type="button" onClick={() => setTexto(s)} className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-brand-gray hover:border-brand-blue/40 dark:border-gray-700">{s}</button>)}
+                {ideasAyuda.map((e) => <button key={e.id} type="button" onClick={() => { setTexto(""); mostrarAyuda(e); }} className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-brand-gray hover:border-brand-blue/40 dark:border-gray-700">{e.titulo}</button>)}
               </div>
             )}
             <form onSubmit={(e) => { e.preventDefault(); enviar(texto); }} className="flex items-center gap-2 border-t border-gray-100 p-3 dark:border-gray-800">

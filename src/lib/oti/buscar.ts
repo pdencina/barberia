@@ -9,7 +9,7 @@ const raiz = (t: string) => (t.length > 5 ? t.slice(0, 5) : t);
 const tokens = (s: string) => norm(s).split(" ").filter((t) => t.length > 1 && !PALABRAS_VACIAS.has(t)).map(raiz);
 
 // Busqueda sin IA: una frase clave contenida en lo que escribio vale mucho; si no, palabras en comun. Si nada alcanza el umbral, devuelve [] (Oti dira "no lo se").
-export function buscarAyuda(pregunta: string, catalogo: EntradaOti[] = CATALOGO, max = 3): ResultadoBusqueda[] {
+export function buscarAyuda(pregunta: string, catalogo: EntradaOti[] = CATALOGO, max = 3, minimo = 6): ResultadoBusqueda[] {
   const q = norm(pregunta);
   if (q.length < 2) return [];
   const qt = new Set(tokens(q));
@@ -25,13 +25,15 @@ export function buscarAyuda(pregunta: string, catalogo: EntradaOti[] = CATALOGO,
         const comunes = ct.filter((t) => qt.has(t)).length;
         if (ct.length > 0 && comunes === ct.length) puntaje = Math.max(puntaje, 8 + ct.length); // todas las palabras de la clave, en otro orden
         else if (comunes >= 2) puntaje = Math.max(puntaje, comunes * 2);
+        else if (comunes === 1 && minimo <= 2) puntaje = Math.max(puntaje, 2); // solo para sugerir opciones
       }
     }
     // El titulo tambien cuenta (poco).
     const tt = tokens(entrada.titulo);
     const enTitulo = tt.filter((t) => qt.has(t)).length;
     if (enTitulo >= 2) puntaje = Math.max(puntaje, enTitulo * 2);
-    if (puntaje >= 6) out.push({ entrada, puntaje });
+    else if (enTitulo === 1 && minimo <= 2) puntaje = Math.max(puntaje, 2);
+    if (puntaje >= minimo) out.push({ entrada, puntaje });
   }
   return out.sort((a, b) => b.puntaje - a.puntaje).slice(0, max);
 }
