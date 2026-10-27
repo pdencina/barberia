@@ -20,6 +20,11 @@ export interface DependenciasWhatsAppMeta {
   version: string;
   phone_number_id: string;
 }
+// Mismo namespace del extractor y de las bajas; el llamador valida/canoniza sin inferir país.
+export function hashContactoWhatsApp(sal: string, tenantId: string, remitenteCanonico: string): string {
+  return createHmac("sha256", sal).update(JSON.stringify(["agente:contacto:v1", tenantId, remitenteCanonico])).digest("hex");
+}
+
 const objeto = (valor: unknown): valor is Record<string, unknown> =>
   typeof valor === "object" && valor !== null && !Array.isArray(valor);
 const campo = (valor: unknown, nombre: string): unknown =>
@@ -140,9 +145,4 @@ export function extraerMensajesEntrantes(payload: unknown, contexto: ContextoHas
     }
     return resultado;
   } catch { return []; } // Entradas que no son JSON plano fallan cerrado, sin eco de datos.
-}
-
-// Mismo namespace del extractor y de las bajas; el llamador valida/canoniza sin inferir país.
-export function hashContactoWhatsApp(sal: string, tenantId: string, remitenteCanonico: string): string {
-  return createHmac("sha256", sal).update(JSON.stringify(["agente:contacto:v1", tenantId, remitenteCanonico])).digest("hex");
 }
