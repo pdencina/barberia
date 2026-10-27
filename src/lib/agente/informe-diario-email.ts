@@ -72,21 +72,42 @@ export function renderDailyReportEmail(report: DailyAppointmentReport, generadoE
 </body></html>`;
 }
 
-export async function sendDailyReportEmail(args: {
+interface ArgumentosEnvioInforme {
   report: DailyAppointmentReport;
   recipients: string[];
   generadoEn?: number;
-}) {
-  if (args.recipients.length === 0) throw new Error("No hay correos destinatarios configurados");
-  const generadoEn = args.generadoEn ?? Date.now();
-  const resend = getResendClient();
-  const { data, error } = await resend.emails.send({
-    // Fallback del envío manual previo; #19 ya decidido. Su retirada queda en pieza 4.
-    from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
-    to: args.recipients,
-    subject: dailyReportSubject(args.report),
-    html: renderDailyReportEmail(args.report, generadoEn),
-  });
-  if (error) throw new Error(`Error enviando informe diario: ${error.message}`);
-  return data;
+}
+export type ResultadoEnvioInforme = { estado: "aceptado"; id: string | null } | { estado: "fallido" | "incierto" };
+export interface DependenciasCorreoInforme {
+  remitente: () => string | undefined;
+  cliente: () => { emails: { send: (payload: any) => Promise<any> } };
+  ahora: () => number;
+}
+
+// Reutiliza Resend y EMAIL_FROM; no hay dominio alternativo ni cuota comercial.
+export async function enviarInformeConResultado(
+  args: ArgumentosEnvioInforme,
+  deps: DependenciasCorreoInforme = { remitente: () => process.env.EMAIL_FROM, cliente: getResendClient, ahora: Date.now },
+): Promise<ResultadoEnvioInforme> {
+  let resend: ReturnType<DependenciasCorreoInforme["cliente"]>, payload: any;
+  try {
+    const from = deps.remitente();
+    if (!from?.trim() || args.recipients.length === 0) return { estado: "fallido" };
+    payload = { from, to: args.recipients, subject: dailyReportSubject(args.report), html: renderDailyReportEmail(args.report, args.generadoEn ?? deps.ahora()) };
+    resend = deps.cliente();
+  } catch { return { estado: "fallido" }; } // No se llamó al proveedor.
+  try {
+    const { data, error } = await resend.emails.send(payload);
+    if (!error && data) return { estado: "aceptado", id: typeof data.id === "string" ? data.id : null };
+    // HECHO: el SDK convierte errores de red en application_error.
+    // Los errores 5xx o desconocidos no demuestran que no haya salido el correo.
+    const rechazo = ["missing_required_field", "invalid_access", "invalid_parameter", "invalid_region", "rate_limit_exceeded", "missing_api_key", "invalid_api_Key", "invalid_from_address", "validation_error", "not_found", "method_not_allowed"];
+    return { estado: rechazo.includes(error?.name) ? "fallido" : "incierto" };
+  } catch { return { estado: "incierto" }; }
+}
+
+export async function sendDailyReportEmail(args: ArgumentosEnvioInforme) {
+  const result = await enviarInformeConResultado(args);
+  if (result.estado !== "aceptado") throw new Error("No se pudo confirmar el envío del informe");
+  return { id: result.id };
 }
