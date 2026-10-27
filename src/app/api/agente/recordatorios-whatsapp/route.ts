@@ -1,3 +1,4 @@
+import { variablesPlantillaRecordatorio } from "@/lib/agente/plantilla-recordatorio";
 import { crearManejadorRecordatorios, crearRepositorioRecordatorios } from "@/lib/agente/recordatorios-whatsapp";
 import { crearAutorizadorInformeProgramado } from "@/lib/agente/informe-programado";
 import { enviarPlantilla } from "@/lib/agente/whatsapp-meta";
@@ -25,9 +26,7 @@ export const GET = crearManejadorRecordatorios({
       enviarWhatsApp: (negocio, cita, para) => enviarPlantilla({
         para, plantilla: process.env.WHATSAPP_REMINDER_TEMPLATE ?? "",
         idioma: process.env.WHATSAPP_REMINDER_LANGUAGE ?? "",
-        // INFERENCIA: orden propuesto; validar contra la plantilla aprobada antes de habilitar.
-        variables: [cita.date, cita.start_time.slice(11,16), cita.barber?.name ?? "Tu profesional",
-          cita.services.map(s => s.service?.name).filter(Boolean).join(", ") || "Servicio"],
+        variables: variablesPlantillaRecordatorio(cita),
       }, {
         token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "",
         phone_number_id: negocio.phoneNumberId,
