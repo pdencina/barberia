@@ -4,7 +4,8 @@
 
 - PR #108 — T1: mergeado por Codex a `agente/whatsapp` con ambos checks verdes; hoja de decisiones y regla #20 actualizada.
 - PR #109 — T2: mergeado por Codex con ambos checks verdes; amenazas, controles existentes y faltantes, sin cambios de código.
-- T3: cinco textos propuestos de WhatsApp, longitudes y condiciones de uso; categorías Meta DESCONOCIDO por fuentes bloqueadas. No aprobados ni enviados; merge documental condicionado a ambos checks verdes.
+- PR #110 — T3: mergeado por Codex con ambos checks verdes; cinco borradores de textos, longitudes y condiciones, sin aprobación Meta ni envío.
+- T4: guía de operación con apagado por negocio/global, incidentes, spam, proveedor y cuota. Distingue controles reales y pendientes de construir; RB1 deja responsables/canal por decidir. Solo documentación, merge condicionado a ambos checks verdes.
 
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.
