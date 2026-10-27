@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, isManagerLevel } from "@/lib/supabase/server";
 import { sendReceipt } from "@/lib/resend";
 
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
+  // SEGURIDAD: antes no pedia sesion: cualquiera con el id de una venta podia enviar su boleta a cualquier correo. Solo la gestion del negocio de esa venta.
+  const me = await isManagerLevel();
+  if (!me.userId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!me.ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const body = await req.json();
   const { transactionId, email } = body;
 
@@ -20,7 +24,7 @@ export async function POST(req: NextRequest) {
     .eq("id", transactionId)
     .single();
 
-  if (!tx) return NextResponse.json({ error: "Transaccion no encontrada" }, { status: 404 });
+  if (!tx || (me.role !== "super_admin" && (!me.tenantId || (tx as any).tenant_id !== me.tenantId))) return NextResponse.json({ error: "Transaccion no encontrada" }, { status: 404 });
 
   const recipientEmail = email || tx.client?.email;
   if (!recipientEmail) {
