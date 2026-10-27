@@ -1,4 +1,20 @@
+import { formatPhoneCL } from "../phone";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+
+// EMAIL_FROM es informativa/opcional: aparecer aquí no bloquea ningún envío.
+export const CONFIGURACION_WHATSAPP_OPCIONAL = Object.freeze(["EMAIL_FROM"] as const);
+const VARIABLES_CONFIGURACION_WHATSAPP = Object.freeze([
+ "WHATSAPP_APP_SECRET","WHATSAPP_VERIFY_TOKEN","AGENTE_CONTACT_HASH_SALT","WHATSAPP_ACCESS_TOKEN",
+ "WHATSAPP_API_VERSION","WHATSAPP_REMINDER_TEMPLATE","WHATSAPP_REMINDER_LANGUAGE",...CONFIGURACION_WHATSAPP_OPCIONAL,
+] as const);
+// Pura: sin entorno global, coerciones, logs ni valores en la salida; no ejecuta getters.
+export function verificarConfiguracionWhatsApp(entorno: unknown): string[] {
+ return VARIABLES_CONFIGURACION_WHATSAPP.filter(name=>{
+  try { const d=entorno!==null&&typeof entorno==="object"?Object.getOwnPropertyDescriptor(entorno,name):undefined;
+   return !d||!("value" in d)||typeof d.value!=="string"||!d.value.trim();
+  } catch { return true; }
+ });
+}
 
 // DESCONOCIDO: contrato GENÉRICO, pendiente de validar contra Meta; no conectar aún.
 // Consulta oficial 2026-10-27: payload inaccesible, plantillas y desafío HTTP 429.
@@ -145,7 +161,7 @@ export function extraerMensajesEntrantes(payload: unknown, contexto: ContextoHas
           const subtipo = campo(interactive, "type");
           const tipoRespuesta = tipo === "interactive" && (subtipo === "button_reply" || subtipo === "list_reply") ? subtipo : undefined;
           const texto = tipo === "text" ? campo(campo(mensaje, "text"), "body")
-            : tipo === "button" ? campo(campo(mensaje, "button"), "payload")
+            : tipo === "button" ? (campo(campo(mensaje, "button"), "payload") !== undefined ? campo(campo(mensaje, "button"), "payload") : campo(campo(mensaje, "button"), "text"))
             : tipoRespuesta ? campo(campo(interactive, tipoRespuesta), "id") : undefined;
           // Dominio estable para bajas por tenant aunque cambie el número del negocio.
           // No reutiliza clave-deduplicacion: aquella no es HMAC ni identifica contactos.
@@ -175,4 +191,14 @@ export async function enviarTexto(args: { para: string; texto: string }, deps: D
       body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: "text", text: { body: args.texto } }),
     }, deps);
   } catch { return { estado: "fallido" }; }
+}
+
+// Usa el criterio Chile existente; cero troncal como cron/reminders/whatsapp:70-71.
+export function normalizarTelefonoWhatsApp(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim() || !/^[+\d\s()\-]+$/.test(raw)) return null;
+  let cleaned = raw.replace(/[\s()\-]/g, "");
+  if (!cleaned.startsWith("+")) cleaned = cleaned.replace(/^0/, "");
+  if (!/\d/.test(cleaned)) return null;
+  const canonical = formatPhoneCL(cleaned).replace(/^\+/, "");
+  return /^[0-9]{1,32}$/.test(canonical) ? canonical : null;
 }

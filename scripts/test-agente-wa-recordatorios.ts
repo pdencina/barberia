@@ -20,7 +20,7 @@ function fixture(rows=[cita()]) {
       baja:async(t,h)=>bajas.has(`${t}:${h}`),existe:async(c,ch)=>claims.has(key(c,ch)),
       reclamar:async(c,ch)=>{const k=key(c,ch);if(claims.has(k))return null;const id=`claim${claims.size}`;claims.set(k,{id,status:"procesando"});return id;},
       finalizar:async(c,ch,id,status,_now,provider)=>{const r=claims.get(key(c,ch));if(!r||r.id!==id||r.status!=="procesando")throw Error("CAS perdido");r.status=status;r.provider=provider;},
-      reservarContraCronCorreo:async c=>{const r=rows.find(x=>x.id===c.id&&x.tenant_id===c.tenant_id);if(!r||r.reminder_sent)return false;r.reminder_sent=true;reservas++;return true;},
+      marcarRecordatorio:async c=>{const r=rows.find(x=>x.id===c.id&&x.tenant_id===c.tenant_id);if(!r||r.reminder_sent)return false;r.reminder_sent=true;reservas++;return true;},
     },
     tieneCuota:async()=>true,consumirCuota:async()=>{consume++;return true;},
     enviarWhatsApp:async()=>{wa++;return {estado:"aceptado",id:"wamid.synthetic"};},enviarCorreo:async()=>{email++;return {estado:"aceptado",id:"email.synthetic"};},
@@ -35,7 +35,7 @@ async function main(){
   check("aceptado queda registrado con provider id",r.whatsapp===1&&f.claims.get("tenantA:apptA:whatsapp")?.provider==="wamid.synthetic");
   check("no correo en éxito",f.counts().email===0);
   check("una cuota por ganador",f.counts().consume===1);
-  check("puente antes de envío",f.counts().reservas===1&&f.rows[0].reminder_sent);
+  check("marca después del envío",f.counts().reservas===1&&f.rows[0].reminder_sent);
   await f.run();check("repetir no manda otra vez",f.counts().wa===1);
   f=fixture();f.bajas.add(`tenantA:${hashContactoWhatsApp(sal,"tenantA","10000000001")}`);r=await f.run();
   check("baja no envía ni consume ni reclama",r.omitidos===1&&f.counts().wa===0&&f.counts().consume===0&&f.claims.size===0);
@@ -45,6 +45,12 @@ async function main(){
   check("cuota agotada entre lectura y débito no envía",r.sin_cuota===1&&f.counts().wa===0&&f.claims.get("tenantA:apptA:whatsapp")?.status==="fallido");
   f=fixture();const parallel=await Promise.all([f.run(),f.run()]);
   check("dos ejecuciones un reclamo y envío",f.counts().wa===1&&f.counts().consume===1&&parallel.reduce((s,x)=>s+x.whatsapp,0)===1);
+  f=fixture();f.deps.enviarWhatsApp=async()=>{check("no está marcado durante envío WA",!f.rows[0].reminder_sent);return {estado:"aceptado",id:"ok"};};await f.run();
+  check("aceptación marca después",f.rows[0].reminder_sent);
+  f=fixture();f.deps.enviarWhatsApp=async()=>({estado:"fallido"});f.deps.enviarCorreo=async()=>{check("respaldo empieza sin marca previa",!f.rows[0].reminder_sent);return {estado:"aceptado",id:"mail"};};await f.run();
+  check("respaldo aceptado marca después",f.rows[0].reminder_sent);
+  f=fixture();f.deps.enviarWhatsApp=async()=>({estado:"fallido"});f.deps.enviarCorreo=async()=>({estado:"fallido"});await f.run();check("dos fallos claros no marcan",!f.rows[0].reminder_sent);
+  f=fixture();f.deps.enviarWhatsApp=async()=>({estado:"incierto"});await f.run();check("incierto marca sin correo",f.rows[0].reminder_sent&&f.counts().email===0);
   f=fixture();f.deps.enviarWhatsApp=async()=>({estado:"fallido"});r=await f.run();
   check("fallo inequívoco usa respaldo",r.correos===1&&f.counts().email===1&&f.claims.get("tenantA:apptA:email")?.status==="aceptado_proveedor");
   check("canales separados",f.claims.get("tenantA:apptA:whatsapp")?.status==="fallido"&&f.claims.size===2);
@@ -61,7 +67,7 @@ async function main(){
   check("dos negocios sin mezclar baja",r.whatsapp===1&&f.claims.has("tenantB:apptB:whatsapp")&&!f.claims.has("tenantA:apptA:whatsapp"));
   f=fixture();f.deps.repo.citas=async t=>[cita("cross",t==="tenantA"?"tenantB":"tenantA")];await f.run();check("adapter malicioso no cruza tenant",f.counts().wa===0&&f.claims.size===0);
   f=fixture();f.rows[0].client!.tenant_id="tenantB";await f.run();check("cliente de otro negocio rechazado",f.counts().wa===0);
-  f=fixture();f.rows[0].client!.phone="900000000";await f.run();check("no infiere país de número local",f.counts().wa===0);
+  f=fixture();f.rows[0].client!.phone="900000000";await f.run();check("normaliza número local a Chile",f.counts().wa===1);
   f=fixture();f.rows[0].start_time="2026-10-28T09:00:00+00:00";r=await f.run();check("normaliza formato SQL sin desplazar la hora",r.whatsapp===1);
   f=fixture();f.rows[0].start_time="2026-10-28T18:00:00Z";await f.run();check("fuera de ventana no envía",f.counts().wa===0);
   f=fixture();r=await f.run(true);check("dryRun solo lecturas",r.candidatos===1&&f.claims.size===0&&f.counts().consume===0&&f.counts().reservas===0&&f.counts().wa===0);
@@ -82,7 +88,7 @@ async function main(){
   f=fixture();f.deps.repo.negocios=async()=>{throw new MigracionRecordatoriosPendiente();};r=await f.run();check("migración ausente conteo sin datos",r.migracion_pendiente===1&&f.counts().wa===0);
   f=fixture();const old=f.deps.consumirCuota;f.deps.consumirCuota=async(...args)=>{f.bajas.add(`tenantA:${hashContactoWhatsApp(sal,"tenantA","10000000001")}`);return old(...args);};await f.run();
   check("baja aparecida después del reclamo se respeta",f.counts().wa===0);
-  f=fixture();f.deps.repo.reservarContraCronCorreo=async()=>false;await f.run();check("cron ganó reserva no envía WhatsApp",f.counts().wa===0);
+  f=fixture();f.deps.repo.marcarRecordatorio=async()=>false;await f.run();check("fallo de marca tras aceptación es incierto",f.counts().wa===1);
   f=fixture();f.deps.repo.finalizar=async()=>{throw Error("fallo persistencia");};r=await f.run();check("aceptación sin registro no dispara respaldo",r.inciertos===1&&f.counts().email===0);
   f=fixture();f.deps.enviarWhatsApp=async()=>({estado:"fallido"});f.deps.enviarCorreo=async()=>({estado:"incierto"});r=await f.run();await f.run();
   check("respaldo incierto no reintenta",r.inciertos===1&&f.claims.get("tenantA:apptA:email")?.status==="incierto");

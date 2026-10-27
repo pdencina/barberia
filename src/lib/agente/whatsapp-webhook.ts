@@ -1,9 +1,11 @@
+import { fetchAllRows } from "../accounting";
+import { seleccionarRecordatorioUnico } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
 import { verificarFirmaWebhook } from "./webhook-firma";
 import { crearClaveEventoEntrante } from "./clave-deduplicacion";
 import { evaluarLimiteDeUso, type EventoUso } from "./limite-de-uso";
 import { clasificarRespuestaCliente } from "./respuesta-cliente";
-import { extraerMensajesEntrantes, resolverDesafioWebhook, hashContactoWhatsApp } from "./whatsapp-meta";
+import { extraerMensajesEntrantes, resolverDesafioWebhook, hashContactoWhatsApp, normalizarTelefonoWhatsApp } from "./whatsapp-meta";
 import { confirmarCitaPropia, cancelarCitaPropia, crearRepositorioAccionesCita, type ResultadoAccionCita } from "./acciones-cita";
 
 export interface NegocioWebhook { tenantId: string; phoneNumberId: string; enabled: boolean }
@@ -13,6 +15,8 @@ export interface RepositorioWebhook {
   terminar: (tenantId: string, key: string, estado: "procesado" | "limitado" | "fallido") => Promise<void>;
   baja: (tenantId: string, contactHash: string) => Promise<boolean>;
   guardarBaja: (tenantId: string, contactHash: string) => Promise<void>;
+  reclamarAviso: (tenantId: string, contactHash: string, eventKey: string, ahora: number) => Promise<boolean>;
+  referenciaAlternativa: (tenantId: string, contactHash: string, ahora: number) => Promise<{registroId:string;clienteId:string}|null>;
   referencia: (tenantId: string, providerId: string, contactHash: string) => Promise<{ registroId: string; clienteId: string } | null>;
 }
 export interface DependenciasWebhook {
@@ -82,8 +86,9 @@ export function crearManejadoresWebhook(config: {
             } else {
               let res: ResultadoAccionCita | null = null;
               // NUNCA extraer appointmentId ni referencia del texto, botón o payload de interacción.
-              if ((tipo === "confirmar" || tipo === "cancelar") && p.context_id) {
-                const ref = await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash);
+              if (tipo === "confirmar" || tipo === "cancelar") {
+                const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
+                  : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                 if (ref) res = await deps.accion(tipo,{tenantId:n.tenantId,clienteId:ref.clienteId,referenciaRecordatorio:ref.registroId});
               }
               if (res && (res.motivo === "ok" || res.motivo === "ya_estaba")) {
@@ -91,7 +96,7 @@ export function crearManejadoresWebhook(config: {
                 await responder(tipo === "confirmar" ? "Tu cita está confirmada." : "Tu cita está cancelada.");
               } else {
                 await responder("Te contactará una persona.");
-                await deps.avisarAdministrador(n.tenantId);
+                if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
               }
             }
             await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++;
@@ -115,13 +120,24 @@ export function crearRepositorioWebhook(db: any, sal: string): RepositorioWebhoo
     async terminar(tenant,key,status) { check(await db.from("agent_whatsapp_events").update({status}).eq("tenant_id",tenant).eq("event_key",key).eq("status","procesando")); },
     async baja(tenant,hash) { return !!check(await db.from("agent_contact_optouts").select("id").eq("tenant_id",tenant).eq("contact_hash",hash).maybeSingle()).data; },
     async guardarBaja(tenant,hash) { check(await db.from("agent_contact_optouts").upsert({tenant_id:tenant,contact_hash:hash,source:"respuesta_cliente"},{onConflict:"tenant_id,contact_hash",ignoreDuplicates:true})); },
+    async reclamarAviso(tenant,hash,key,ahora) { return check(await db.rpc("agent_claim_whatsapp_admin_notice",{p_tenant_id:tenant,p_contact_hash:hash,p_event_key:key,p_now:new Date(ahora).toISOString()})).data === true; },
+    async referenciaAlternativa(tenant,hash,ahora) {
+      if(!tenant||tenant==="ALL")return null;
+      const todas=(build:()=>any)=>fetchAllRows(()=>({order:(col:string,opt:unknown)=>({range:async(f:number,t:number)=>check(await build().order(col,opt).range(f,t))})}));
+      const clients=await todas(()=>db.from("clients").select("id,tenant_id,phone").eq("tenant_id",tenant));
+      const records=await todas(()=>db.from("agent_reminder_deliveries")
+        .select("id,tenant_id,appointment_id,channel,purpose,status,provider_accepted_at,provider_message_id,appointment:appointments!appointment_id!inner(id,tenant_id,client_id,start_time)")
+        .eq("tenant_id",tenant).eq("channel","whatsapp").eq("purpose","recordatorio-cita-v1").eq("status","aceptado_proveedor")
+        .eq("appointment.tenant_id",tenant).gte("provider_accepted_at",new Date(ahora-48*3600000).toISOString()).lte("provider_accepted_at",new Date(ahora).toISOString()));
+      return seleccionarRecordatorioUnico(tenant,hash,ahora,clients,records,sal);
+    },
     async referencia(tenant,providerId,contactHash) {
       const record=check(await db.from("agent_reminder_deliveries").select("id,appointment_id").eq("tenant_id",tenant).eq("provider_message_id",providerId).eq("channel","whatsapp").eq("purpose","recordatorio-cita-v1").eq("status","aceptado_proveedor").maybeSingle()).data;
       if (!record) return null;
       const appointment=check(await db.from("appointments").select("client_id,client:clients!client_id(id,phone,tenant_id)").eq("tenant_id",tenant).eq("id",record.appointment_id).maybeSingle()).data;
       const client=Array.isArray(appointment?.client)?appointment.client[0]:appointment?.client;
-      const phone=typeof client?.phone==="string"?client.phone.replace(/[+\s()\-]/g,""):"";
-      if (!/^[0-9]+$/.test(phone) || client.id!==appointment.client_id || client.tenant_id!==tenant) return null;
+      const phone=normalizarTelefonoWhatsApp(client?.phone);
+      if (!phone || client.id!==appointment.client_id || client.tenant_id!==tenant) return null;
       const hash=hashContactoWhatsApp(sal,tenant,phone);
       return hash===contactHash ? {registroId:record.id,clienteId:appointment.client_id} : null;
     },
