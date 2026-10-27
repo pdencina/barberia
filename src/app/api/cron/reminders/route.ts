@@ -55,7 +55,17 @@ export async function GET(req: NextRequest) {
     .gte("start_time", in20Hours.toISOString())
     .lte("start_time", in28Hours.toISOString());
 
-  if (!appointments || appointments.length === 0) {
+  // Negocios con el agente de WhatsApp encendido: sus recordatorios los envia /api/agente/recordatorios-whatsapp
+  // (WhatsApp con respaldo por correo). Se omiten aqui para que nadie reciba el aviso dos veces.
+  // Si la tabla no existe todavia o falla la lectura, no se omite a nadie (comportamiento de siempre).
+  let conAgente = new Set<string>();
+  try {
+    const { data: activos, error: aErr } = await supabase.from("agent_whatsapp_settings").select("tenant_id").eq("enabled", true);
+    if (!aErr && activos) conAgente = new Set((activos as any[]).map((r) => r.tenant_id as string));
+  } catch {}
+  const pendientes = (appointments || []).filter((a: any) => !conAgente.has(a.tenant_id));
+
+  if (pendientes.length === 0) {
     return NextResponse.json({ message: "No reminders to send", count: 0 });
   }
 
@@ -63,7 +73,7 @@ export async function GET(req: NextRequest) {
   let whatsappGenerated = 0;
   const results: Array<{ appointmentId: string; email: boolean; whatsapp: boolean }> = [];
 
-  for (const appt of appointments) {
+  for (const appt of pendientes) {
     const client = appt.client as any;
     const barber = appt.barber as any;
     const services = (appt.services as any[]) || [];
@@ -116,7 +126,7 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     message: `Reminders processed`,
-    total: appointments.length,
+    total: pendientes.length,
     emailsSent,
     whatsappGenerated,
     results,

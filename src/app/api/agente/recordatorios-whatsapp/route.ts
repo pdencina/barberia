@@ -11,9 +11,9 @@ export const dynamic = "force-dynamic";
 export const GET = crearManejadorRecordatorios({
   configuracion: () => verificarConfiguracionWhatsApp(process.env),
   autorizar: crearAutorizadorInformeProgramado(), // Reutiliza verifyCron, también para dryRun.
-  // BLOQUEO TÉCNICO: el cron antiguo no respeta reclamos en curso. No basta reminder_sent:
-  // puede haber leído ya su snapshot. Claude debe coordinar ambos antes de habilitar esta ruta.
-  permitirEnvio: false,
+  // Coordinado con /api/cron/reminders: este omite a los negocios con el agente encendido, así que no hay doble aviso.
+  // Interruptor global en Vercel: solo con AGENTE_RECORDATORIOS_ENVIO=1 se envía de verdad; sin él solo funciona dryRun.
+  permitirEnvio: process.env.AGENTE_RECORDATORIOS_ENVIO === "1",
   crearDependencias: () => {
     const db = createAdminSupabase();
     return {
