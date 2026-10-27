@@ -2,6 +2,8 @@ BORRADOR — NO EJECUTAR
 
 # Propuesta: envío automático del informe diario por correo
 
+**HECHO — actualización 26 oct. 2026:** Nico decidió suscripción por administrador (#15), sin cupo (#18), remitente desde `EMAIL_FROM` (#19). **INFERENCIA:** este diseño anterior por negocio queda reemplazado para Fase 1 por `INFORME_POR_ADMINISTRADOR.md`; sus listas libres de destinatarios no son la propuesta vigente.
+
 **INFERENCIA — propuesta pendiente de Nico y revisión de Claude.** Este documento desarrolla la pregunta 17 de la especificación. No activa envíos ni define un cron. Implementar requiere otra tarea, después de resolver las decisiones de la sección 11.
 
 ## 1. Punto de partida verificable

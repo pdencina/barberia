@@ -1,5 +1,13 @@
 # Bitacora del agente de WhatsApp
 
+## 26 oct. 2026 — informe por administrador (A/B/C)
+
+**HECHO — decisiones de Nico registradas:** #15 suscripción individual opcional y cuatro frecuencias, #18 sin consumo del cupo del negocio, #19 remitente exclusivamente desde `EMAIL_FROM`. Registro en sección 12 y hoja de pendientes actualizados.
+
+**INFERENCIA — tarea A:** rediseño documental en `INFORME_POR_ADMINISTRADOR.md`, calendario civil Santiago, aislamiento por perfil, opt-out, deduplicación por administrador y opciones de automatización. Sin implementación ni activación. Pendientes #16, #21–24 e IA1–IA6; discrepancia del helper cron documentada, no corregida.
+
+**INFERENCIA — separación:** B será PR exclusivo SQL 003, espera revisión de Claude y no se mergea ni ejecuta. C será especificación ejecutable con función simulada en script, sin `src/`. Los números de PR y resultados se registran al crearlos; documentación y pruebas solo se mergean tras ambos checks verdes.
+
 ## Cierre del lote Nivel 3 — T1 a T10
 
 **HECHO — entregas verificadas en GitHub, 26 oct. 2026:**
