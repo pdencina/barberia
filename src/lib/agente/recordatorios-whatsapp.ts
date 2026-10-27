@@ -1,6 +1,6 @@
 import { fetchAllRows } from "../accounting";
 import { obtenerFechaHoraInforme } from "./calendario-informe";
-import { hashContactoWhatsApp, type ResultadoEnvioPlantilla } from "./whatsapp-meta";
+import { hashContactoWhatsApp, normalizarTelefonoWhatsApp, type ResultadoEnvioPlantilla } from "./whatsapp-meta";
 import { PROPOSITO_RECORDATORIO_CITA } from "./acciones-cita";
 
 // INFERENCIA: cota técnica por invocación; no reemplaza cuota del negocio.
@@ -44,13 +44,8 @@ export function ventanaRecordatorios(ahora: number) {
   };
   return {desde:pared(ahora+20*3600000),hasta:pared(ahora+28*3600000)};
 }
-function telefono(c:CitaRecordatorio) {
-  // Exige prefijo internacional explícito; no adivina país ni añade 56 a datos ambiguos.
-  const raw=c.client?.phone?.trim();
-  if(!raw||!raw.startsWith("+"))return null;
-  const canon=raw.replace(/[+\s()\-]/g,"");
-  return /^[0-9]{1,32}$/.test(canon)?canon:null;
-}
+function telefono(c:CitaRecordatorio) { return normalizarTelefonoWhatsApp(c.client?.phone); }
+
 function candidata(c:CitaRecordatorio,tenant:string,window:{desde:string;hasta:string}) {
   return c.tenant_id===tenant&&!!c.client&&c.client.tenant_id===tenant&&["scheduled","confirmed"].includes(c.status)
     &&c.start_time>=window.desde&&c.start_time<=window.hasta;
