@@ -1,5 +1,27 @@
 # Bitacora del agente de WhatsApp
 
+## Cierre del lote Nivel 3 — T1 a T10
+
+**HECHO — entregas verificadas en GitHub, 26 oct. 2026:**
+
+| Tarea | PR | Estado y alcance |
+|---|---|---|
+| T1 | #108 | Mergeado por Codex tras ambos checks verdes; decisiones para Nico. |
+| T2 | #109 | Mergeado por Codex tras ambos checks verdes; amenazas y controles reales. |
+| T3 | #110 | Mergeado por Codex tras ambos checks verdes; cinco borradores de textos, sin aprobación Meta. |
+| T4 | #111 | Mergeado por Codex tras ambos checks verdes; guía operativa con controles pendientes. |
+| T5 | #112 | Mergeado por Codex tras ambos checks verdes; 100 trampas nuevas, 217 casos pasan. |
+| Hallazgo T5 | #113 | Mergeado por Codex tras ambos checks verdes; prueba negativa de ñ→n, D1 pendiente de Claude, lógica no corregida. |
+| T6 | #114 | Mergeado por Codex tras ambos checks verdes; 40 casos ficticios, 15 trampas; EV1 propuesto. |
+| T7 | #115 | Mergeado por Codex tras ambos checks verdes; bocetos del panel, PN1 pendiente. |
+| T8 | #116 | Abierto SIN MERGE, espera Claude; HMAC genérico, TypeScript y 111 casos pasan. Meta DESCONOCIDO por 429. |
+| T9 | #117 | Abierto SIN MERGE, espera Claude; ventanas/bucles parametrizados, TypeScript y 80 casos pasan. |
+| T10 | Este PR | Abierto SIN MERGE, espera Claude; claves puras, TypeScript y 3.452 comprobaciones pasan. |
+
+**INFERENCIA — tres decisiones primero para habilitar Fase 1 manual:** correos destinatarios aprobados (#15), tratamiento del cupo interno (#18) y dominio remitente confirmado por Pablo/Nico (#19). Automático requiere además hora/días/modalidad, día informado, recuperación e infraestructura (#16–17, #21–24). No se ejecutó SQL ni se envió correo para probarlas.
+
+**HECHO — límites del lote:** ningún cambio en AGENTS.md, NIVELES.md, vercel.json, package.json, supabase/, .github/ o .env; ningún cron/ruta nueva ni envío real. T8–T10 son funciones sin conexión, en ramas independientes desde la base actualizada; no se mergean autónomamente. Se termina la lista y se detiene el trabajo. **DESCONOCIDO:** integración real, entrega y datos desplegados; no probados. El hallazgo D1 debe revisarse antes de conectar el detector a acciones.
+
 ## Registro Nivel 3 — lote T1 a T10
 
 - PR #108 — T1: mergeado por Codex a `agente/whatsapp` con ambos checks verdes; hoja de decisiones y regla #20 actualizada.
