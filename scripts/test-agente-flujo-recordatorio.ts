@@ -18,7 +18,7 @@ function fixture(two=false){
   citas:async(t:string)=>rows.filter(r=>r.tenant_id===t&&!r.reminder_sent).map(r=>({...r})),actual:async(c:CitaRecordatorio)=>rows.find(r=>r.id===c.id&&r.tenant_id===c.tenant_id)??null,
   baja:async(t:string,h:string)=>optouts.has(`${t}:${h}`),existe:async(c:CitaRecordatorio,ch:string)=>deliveries.has(key(c,ch)),
   reclamar:async(c:CitaRecordatorio,ch:string)=>{const k=key(c,ch);if(deliveries.has(k))return null;deliveries.set(k,{id:k,cita:c.id,tenant:c.tenant_id,status:"procesando",channel:ch});return k;},
-  finalizar:async(c:CitaRecordatorio,ch:string,id:string,status:string,_now:number,provider:string)=>{const r=deliveries.get(key(c,ch));assert.equal(r.id,id);r.status=status;r.provider=provider;},
+  finalizar:async(c:CitaRecordatorio,ch:string,id:string,status:string,_now:number,provider?:string)=>{const r=deliveries.get(key(c,ch));assert.equal(r.id,id);r.status=status;r.provider=provider;},
   reservarContraCronCorreo:mark,marcarRecordatorio:mark,
  };
  const send=crearManejadorRecordatorios({permitirEnvio:true,autorizar:async()=>({ok:true}),crearDependencias:()=>({repo:reminderRepo,sal,ahora:()=>clock,tieneCuota:async()=>true,consumirCuota:async()=>true,
