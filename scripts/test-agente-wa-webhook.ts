@@ -33,6 +33,7 @@ function fixture() {
       }, terminar:async()=>{},
       baja:async(t,h)=>optouts.has(`${t}:${h}`),guardarBaja:async(t,h)=>{optouts.add(`${t}:${h}`);},
       reclamarAviso:async(t,h)=>{const k=`${t}:${h}`;if(avisados.has(k))return false;avisados.add(k);return true;},
+      referenciaAlternativa:async()=>null,
       referencia:async(t,id,h)=>id==="out.1"&&t==="tenantA"&&h===createHmac("sha256",salt).update(JSON.stringify(["agente:contacto:v1",t,phone])).digest("hex")?{registroId:"internal-delivery",clienteId:"clientA"}:null,
     },
     accion:async(t,c)=>{actions.push([t,c]);return {motivo:"ok"};},
@@ -67,6 +68,10 @@ async function main(){
   check("otro contacto puede avisar",f.notices.length===2);
   await f.handlers.POST(request(payload({text:{body:"duda cuatro"}},"2002")));
   check("otro negocio tiene su propio límite",f.notices.length===3);
+  f=fixture();f.deps.repo.referenciaAlternativa=async()=>({registroId:"internal-delivery",clienteId:"clientA"});
+  await f.handlers.POST(request(payload({context:undefined})));check("sin contexto usa alternativa verificada",f.actions.length===1);
+  f=fixture();f.deps.repo.referenciaAlternativa=async()=>{throw Error("no fallback de contexto explícito");};
+  await f.handlers.POST(request(payload({context:{id:"forjado"}})));check("contexto explícito inválido no busca alternativa",f.notices.length===1);
   for(const context of [undefined,{id:"forjado"}]){
     f=fixture();await f.handlers.POST(request(payload({context,text:{body:"confirmo"}})));
     check("sin contexto auténtico nunca confirma",f.actions.length===0&&f.sent[0]==="Te contactará una persona.");

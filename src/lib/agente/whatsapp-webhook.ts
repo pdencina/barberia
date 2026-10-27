@@ -1,3 +1,5 @@
+import { fetchAllRows } from "../accounting";
+import { seleccionarRecordatorioUnico } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
 import { verificarFirmaWebhook } from "./webhook-firma";
 import { crearClaveEventoEntrante } from "./clave-deduplicacion";
@@ -14,6 +16,7 @@ export interface RepositorioWebhook {
   baja: (tenantId: string, contactHash: string) => Promise<boolean>;
   guardarBaja: (tenantId: string, contactHash: string) => Promise<void>;
   reclamarAviso: (tenantId: string, contactHash: string, eventKey: string, ahora: number) => Promise<boolean>;
+  referenciaAlternativa: (tenantId: string, contactHash: string, ahora: number) => Promise<{registroId:string;clienteId:string}|null>;
   referencia: (tenantId: string, providerId: string, contactHash: string) => Promise<{ registroId: string; clienteId: string } | null>;
 }
 export interface DependenciasWebhook {
@@ -83,8 +86,9 @@ export function crearManejadoresWebhook(config: {
             } else {
               let res: ResultadoAccionCita | null = null;
               // NUNCA extraer appointmentId ni referencia del texto, botón o payload de interacción.
-              if ((tipo === "confirmar" || tipo === "cancelar") && p.context_id) {
-                const ref = await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash);
+              if (tipo === "confirmar" || tipo === "cancelar") {
+                const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
+                  : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                 if (ref) res = await deps.accion(tipo,{tenantId:n.tenantId,clienteId:ref.clienteId,referenciaRecordatorio:ref.registroId});
               }
               if (res && (res.motivo === "ok" || res.motivo === "ya_estaba")) {
@@ -117,6 +121,16 @@ export function crearRepositorioWebhook(db: any, sal: string): RepositorioWebhoo
     async baja(tenant,hash) { return !!check(await db.from("agent_contact_optouts").select("id").eq("tenant_id",tenant).eq("contact_hash",hash).maybeSingle()).data; },
     async guardarBaja(tenant,hash) { check(await db.from("agent_contact_optouts").upsert({tenant_id:tenant,contact_hash:hash,source:"respuesta_cliente"},{onConflict:"tenant_id,contact_hash",ignoreDuplicates:true})); },
     async reclamarAviso(tenant,hash,key,ahora) { return check(await db.rpc("agent_claim_whatsapp_admin_notice",{p_tenant_id:tenant,p_contact_hash:hash,p_event_key:key,p_now:new Date(ahora).toISOString()})).data === true; },
+    async referenciaAlternativa(tenant,hash,ahora) {
+      if(!tenant||tenant==="ALL")return null;
+      const todas=(build:()=>any)=>fetchAllRows(()=>({order:(col:string,opt:unknown)=>({range:async(f:number,t:number)=>check(await build().order(col,opt).range(f,t))})}));
+      const clients=await todas(()=>db.from("clients").select("id,tenant_id,phone").eq("tenant_id",tenant));
+      const records=await todas(()=>db.from("agent_reminder_deliveries")
+        .select("id,tenant_id,appointment_id,channel,purpose,status,provider_accepted_at,provider_message_id,appointment:appointments!appointment_id!inner(id,tenant_id,client_id,start_time)")
+        .eq("tenant_id",tenant).eq("channel","whatsapp").eq("purpose","recordatorio-cita-v1").eq("status","aceptado_proveedor")
+        .eq("appointment.tenant_id",tenant).gte("provider_accepted_at",new Date(ahora-48*3600000).toISOString()).lte("provider_accepted_at",new Date(ahora).toISOString()));
+      return seleccionarRecordatorioUnico(tenant,hash,ahora,clients,records,sal);
+    },
     async referencia(tenant,providerId,contactHash) {
       const record=check(await db.from("agent_reminder_deliveries").select("id,appointment_id").eq("tenant_id",tenant).eq("provider_message_id",providerId).eq("channel","whatsapp").eq("purpose","recordatorio-cita-v1").eq("status","aceptado_proveedor").maybeSingle()).data;
       if (!record) return null;
