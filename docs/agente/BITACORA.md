@@ -1,5 +1,16 @@
 # Bitacora del agente de WhatsApp
 
+## Código por administrador — piezas 1 a 3, revisión obligatoria de Claude
+
+| Pieza | PR | HECHO — validación y límites |
+|---|---|---|
+| 1: calendario | #123 | Abierto SIN MERGE. TypeScript, 56 casos reutilizados y 34 de decisión real pasan. Fuente: `src/lib/agente/calendario-informe.ts:1`. Política 16/21 PROVISIONAL centralizada. Sin red/base/envíos; reserva persistente y recuperación no probadas. |
+| 2: registro SQL | #124 | Abierto SIN MERGE. TypeScript y 63 comprobaciones existentes pasan; PGlite efímero, 20 comprobaciones del SQL local pasan. Fuente: `docs/agente/sql/004_registro_envios_informe_borrador.sql:1` en ese PR. No Supabase ni concurrencia multisession; retención DESCONOCIDO (#10). |
+
+**HECHO — pieza 3:** ruta en `src/app/api/agente/informe-preferencias/route.ts:1`, manejador inyectable en `src/lib/agente/informe-preferencias.ts:1`, contrato en `docs/agente/API_INFORME_PREFERENCIAS.md:1`. TypeScript y 95 casos con guard/base simulados pasan: 401/403, propio perfil/tenant, super_admin con negocio concreto, whitelist, fechas/horas/días, activación completa, defecto apagado, migración ausente 503, origen cruzado y conflictos de revisión/creación. **DESCONOCIDO:** autenticación Next real, Supabase, RLS de la instalación y pantalla; no probados. Sin envío ni SQL externo. El número del PR se incorpora al abrirlo.
+
+**INFERENCIA — límites del lote:** IA2, IA3, #10 y #22 siguen pendientes; 16/21 son provisionales, no decisiones definitivas. La pieza 4 NO se empieza y no hay merge autónomo en este lote. No se tocó vercel.json, dashboard, package.json, supabase/, .github/, AGENTS.md, NIVELES.md ni .env. **DESCONOCIDO:** `src/lib/cron-auth.ts` sigue no encontrado en base d746b49; falta resolver antes de pieza 4.
+
 ## 26 oct. 2026 — informe por administrador (A/B/C)
 
 **HECHO — decisiones de Nico registradas:** #15 suscripción individual opcional y cuatro frecuencias, #18 sin consumo del cupo del negocio, #19 remitente exclusivamente desde `EMAIL_FROM`. Registro en sección 12 y hoja de pendientes actualizados.
