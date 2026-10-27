@@ -2,7 +2,8 @@
 
 ## Registro Nivel 3 — lote T1 a T10
 
-- PR #108 — T1: hoja de decisiones para Nico, con recomendaciones y fases; regla #20 actualizada. Registro de auditoría; el merge de este PR requiere `pruebas` y `limites-de-carpeta` verdes conforme a `docs/agente/NIVELES.md:24`.
+- PR #108 — T1: mergeado por Codex a `agente/whatsapp` con ambos checks verdes; hoja de decisiones y regla #20 actualizada.
+- PR #109 — T2: amenazas, controles reales y faltantes, sin cambios de código; registro Nivel 3 para merge solo tras ambos checks verdes.
 
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.
