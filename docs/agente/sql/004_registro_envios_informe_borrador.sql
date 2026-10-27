@@ -7,8 +7,8 @@
 
 CREATE TABLE IF NOT EXISTS public.agent_admin_report_deliveries (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  tenant_id uuid NOT NULL REFERENCES public.tenants(id),
-  profile_id uuid NOT NULL REFERENCES public.profiles(id),
+  tenant_id uuid NOT NULL REFERENCES public.tenants(id) ON DELETE CASCADE,
+  profile_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
   report_date date NOT NULL CHECK (isfinite(report_date)),
   purpose text NOT NULL CHECK (purpose = 'informe-admin-v1'),
   status text NOT NULL DEFAULT 'pendiente'
@@ -93,5 +93,6 @@ $$;
 -- La tabla no realiza llamadas de red; no garantiza entrega exactamente una vez.
 -- Caída con estado procesando requiere conciliación; ningún timeout autoriza reenvío.
 -- Política de fallos/reintentos y límites: pregunta 22; NO decididos aquí.
--- Retención DESCONOCIDO: sin TTL, purge, cascadas de borrado ni job de limpieza.
+-- HECHO: Nico/Claude piden CASCADE al borrar el perfil o negocio (27 oct. 2026).
+-- Retención DESCONOCIDO: sin TTL, purge ni job de limpieza (#10).
 -- Aditivo/re-ejecutable para el mismo esquema; IF NOT EXISTS no repara drift previo.
