@@ -681,3 +681,49 @@ export async function sendSupplyRequestEmail(params: SendSupplyRequestParams) {
     return { success: false, error: error.message };
   }
 }
+
+
+// ==================== AVISO DE BOLETA DE HONORARIOS (al profesional) ====================
+// El administrador avisa a cada profesional por comision con retencion cuanto debe emitir en el SII.
+interface SendHonorariosNoticeParams {
+  to: string;
+  name: string;
+  businessName: string;
+  businessLogoUrl?: string | null;
+  monthLabel: string;   // "Octubre 2026"
+  gross: number;        // monto de la boleta de honorarios
+  rate: number;         // % de retencion
+  retention: number;
+  net: number;
+}
+
+export async function sendHonorariosNotice(p: SendHonorariosNoticeParams) {
+  const money = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
+  const rate = String(p.rate).replace(".", ",");
+  const html = mailShell({
+    label: "Boleta de honorarios",
+    businessLogoUrl: p.businessLogoUrl,
+    inner: `
+      <p style="font-size:15px;color:#111827;margin:8px 0 16px;">Hola <strong>${escHtml(p.name)}</strong>,</p>
+      <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 18px;">Para cerrar <strong>${escHtml(p.monthLabel)}</strong> en <strong>${escHtml(p.businessName)}</strong>, debes emitir tu boleta de honorarios en el SII por el siguiente monto:</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:18px;">
+        ${mailRow("Boleta de honorarios a emitir", money(p.gross), true)}
+        ${mailRow(`Retención ${rate}%`, `-${money(p.retention)}`)}
+        ${mailRow("Recibes", money(p.net))}
+      </table>
+      <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0;">Cuando la emitas, envía el número de folio a la administración de ${escHtml(p.businessName)} para registrarla. Este aviso es informativo.</p>`,
+  });
+  try {
+    const resend = getResendClient();
+    const { error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
+      to: p.to,
+      subject: `Tu boleta de honorarios de ${p.monthLabel} - ${p.businessName}`,
+      html,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
+  }
+}
