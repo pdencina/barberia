@@ -164,3 +164,4 @@ Webhook con firma previa, contexto Meta ligado a proveedor/contacto/tenant y con
 TypeScript, 54 casos webhook y 211 Meta pasan sin red/base/mensajes reales; SQL/RLS/concurrencia real y contrato Meta no probados; variables: WHATSAPP_APP_SECRET, WHATSAPP_VERIFY_TOKEN, AGENTE_CONTACT_HASH_SALT, WHATSAPP_ACCESS_TOKEN, WHATSAPP_API_VERSION, EMAIL_FROM, RESEND_API_KEY. BC3/BR1 pendientes.
 
 TANDA C (27 oct. 2026): C1: hecho PR #141; tsc, 24 C1 y 53 recordatorios OK; sin servicios reales; C2: pendiente; C3: pendiente; C4: pendiente; C5: pendiente; C6: pendiente; C7: pendiente; C8: pendiente.
+TANDA C (27 oct. 2026): C1: hecho PR #141; tsc, 24 C1 y 53 recordatorios OK; sin servicios reales; C2: hecho PR #143; tsc, 57 webhook y 14 PGlite OK; sin Supabase ni concurrencia multisession; C3: pendiente; C4: pendiente; C5: pendiente; C6: pendiente; C7: pendiente; C8: pendiente.

@@ -13,6 +13,7 @@ export interface RepositorioWebhook {
   terminar: (tenantId: string, key: string, estado: "procesado" | "limitado" | "fallido") => Promise<void>;
   baja: (tenantId: string, contactHash: string) => Promise<boolean>;
   guardarBaja: (tenantId: string, contactHash: string) => Promise<void>;
+  reclamarAviso: (tenantId: string, contactHash: string, eventKey: string, ahora: number) => Promise<boolean>;
   referencia: (tenantId: string, providerId: string, contactHash: string) => Promise<{ registroId: string; clienteId: string } | null>;
 }
 export interface DependenciasWebhook {
@@ -91,7 +92,7 @@ export function crearManejadoresWebhook(config: {
                 await responder(tipo === "confirmar" ? "Tu cita está confirmada." : "Tu cita está cancelada.");
               } else {
                 await responder("Te contactará una persona.");
-                await deps.avisarAdministrador(n.tenantId);
+                if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
               }
             }
             await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++;
@@ -115,6 +116,7 @@ export function crearRepositorioWebhook(db: any, sal: string): RepositorioWebhoo
     async terminar(tenant,key,status) { check(await db.from("agent_whatsapp_events").update({status}).eq("tenant_id",tenant).eq("event_key",key).eq("status","procesando")); },
     async baja(tenant,hash) { return !!check(await db.from("agent_contact_optouts").select("id").eq("tenant_id",tenant).eq("contact_hash",hash).maybeSingle()).data; },
     async guardarBaja(tenant,hash) { check(await db.from("agent_contact_optouts").upsert({tenant_id:tenant,contact_hash:hash,source:"respuesta_cliente"},{onConflict:"tenant_id,contact_hash",ignoreDuplicates:true})); },
+    async reclamarAviso(tenant,hash,key,ahora) { return check(await db.rpc("agent_claim_whatsapp_admin_notice",{p_tenant_id:tenant,p_contact_hash:hash,p_event_key:key,p_now:new Date(ahora).toISOString()})).data === true; },
     async referencia(tenant,providerId,contactHash) {
       const record=check(await db.from("agent_reminder_deliveries").select("id,appointment_id").eq("tenant_id",tenant).eq("provider_message_id",providerId).eq("channel","whatsapp").eq("purpose","recordatorio-cita-v1").eq("status","aceptado_proveedor").maybeSingle()).data;
       if (!record) return null;
