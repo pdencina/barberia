@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { todayInChile } from "@/lib/utils";
+import { authorizeWaitlistEntry } from "@/lib/waitlist-access";
 
 // GET: Admin view of waitlist
 export async function GET(req: NextRequest) {
@@ -49,6 +50,8 @@ export async function PATCH(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { id, status } = body;
+  const access = await authorizeWaitlistEntry(id);
+  if (!access.ok) return access.response;
 
   const { error } = await supabase
     .from("waitlist")

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
+import { createAdminSupabase, resolveTenantForRequest, requireRole } from "@/lib/supabase/server";
 
 // GET: List invite codes for a tenant
 export async function GET(req: NextRequest) {
@@ -23,9 +23,16 @@ export async function GET(req: NextRequest) {
 // POST: Generate a new invite code
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { tenantId, userId } = await req.json();
+  // SEGURIDAD: antes no pedia sesion y el negocio venia del navegador: cualquiera podia generar un codigo de invitacion para el negocio de otro
+  // y registrarse como profesional dentro de el. Solo el administrador (o super admin), y el negocio sale de su sesion.
+  const g = await requireRole(["admin", "super_admin"]);
+  if (!g.ok) return g.response;
+  const body = await req.json().catch(() => ({} as any));
+  const resolved = await resolveTenantForRequest(body?.tenantId);
+  const tenantId = resolved.tenantId;
+  const userId = g.userId;
 
-  if (!tenantId) {
+  if (!tenantId || tenantId === "ALL" || resolved.denied) {
     return NextResponse.json({ error: "tenantId required" }, { status: 400 });
   }
 
@@ -61,6 +68,12 @@ export async function DELETE(req: NextRequest) {
   const id = searchParams.get("id");
 
   if (!id) return NextResponse.json({ error: "id required" }, { status: 400 });
+  // SEGURIDAD: antes no pedia sesion: cualquiera podia desactivar los codigos de invitacion de cualquier negocio.
+  const g = await requireRole(["admin", "super_admin"]);
+  if (!g.ok) return g.response;
+  const { data: code } = await supabase.from("invite_codes").select("tenant_id").eq("id", id).maybeSingle();
+  if (!code) return NextResponse.json({ success: true });
+  if (g.role !== "super_admin" && (code as any).tenant_id !== g.tenantId) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   await supabase.from("invite_codes").update({ active: false }).eq("id", id);
   return NextResponse.json({ success: true });

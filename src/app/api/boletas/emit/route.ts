@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, isManagerLevel } from "@/lib/supabase/server";
 import { emitBoleta } from "@/lib/sii";
 
 // POST: Emit a boleta electrónica for a transaction
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
+  // SEGURIDAD: antes no pedia sesion: cualquiera con el id de una venta podia emitir su boleta electronica. Solo la gestion del negocio de esa venta.
+  const me = await isManagerLevel();
+  if (!me.userId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  if (!me.ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const { transactionId } = await req.json();
 
   if (!transactionId) {
@@ -15,14 +19,14 @@ export async function POST(req: NextRequest) {
   const { data: tx } = await supabase
     .from("transactions")
     .select(`
-      id, total, subtotal, discount, payment_method,
+      id, total, subtotal, discount, payment_method, tenant_id,
       client:clients(name, rut, email),
       items:transaction_items(description, quantity, unit_price, total)
     `)
     .eq("id", transactionId)
     .single();
 
-  if (!tx) return NextResponse.json({ error: "Transaccion no encontrada" }, { status: 404 });
+  if (!tx || (me.role !== "super_admin" && (!me.tenantId || (tx as any).tenant_id !== me.tenantId))) return NextResponse.json({ error: "Transaccion no encontrada" }, { status: 404 });
 
   // Check if boleta already emitted
   const { data: existing } = await supabase

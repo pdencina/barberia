@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
+import { createAdminSupabase, resolveTenantForRequest, authorizeBarberManagement, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 // GET: Calculate rental summary for all rental-mode professionals
@@ -142,6 +142,8 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { barberId, month, year, daysWorked, deductions, productBonus, notes } = body;
+  // SEGURIDAD: antes no pedia sesion: cualquiera podia registrar o alterar el arriendo de un profesional. Solo el equipo de gestion del mismo negocio.
+  if (typeof barberId !== "string" || !(await authorizeBarberManagement(barberId)).ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   const { data: prof } = await supabase
     .from("profiles")
@@ -179,6 +181,14 @@ export async function POST(req: NextRequest) {
 export async function PATCH(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { recordId, barberId, month, year } = await req.json();
+  // SEGURIDAD: antes no pedia sesion (cualquiera podia marcar un arriendo como pagado). El profesional sale del registro, nunca del navegador.
+  if (!(await getCurrentUserRoleAndTenant()).userId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  let owner: string | null = typeof barberId === "string" ? barberId : null;
+  if (recordId) {
+    const { data: rec } = await supabase.from("rental_records").select("barber_id").eq("id", recordId).maybeSingle();
+    owner = (rec as any)?.barber_id ?? null;
+  }
+  if (!owner || !(await authorizeBarberManagement(owner)).ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   if (recordId) {
     await supabase.from("rental_records").update({ paid: true, paid_at: new Date().toISOString() }).eq("id", recordId);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
+import { createAdminSupabase, resolveTenantForRequest, authorizeBarberManagement } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 // Punto 1 (Nico): rango [startUtc, endUtc) de un mes calendario de Chile, para filtrar
@@ -93,10 +93,15 @@ export async function PATCH(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { barberId, commissionRate } = body;
+  // SEGURIDAD: antes no pedia sesion: cualquiera podia cambiar el porcentaje de comision de un profesional. Solo administrador (o super admin) de su negocio.
+  const auth = typeof barberId === "string" ? await authorizeBarberManagement(barberId) : null;
+  if (!auth?.ok || (auth.role !== "admin" && auth.role !== "super_admin")) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const rate = Number(commissionRate);
+  if (!Number.isFinite(rate) || rate < 0 || rate > 100) return NextResponse.json({ error: "Porcentaje invalido" }, { status: 400 });
 
   const { error } = await supabase
     .from("profiles")
-    .update({ commission_rate: commissionRate })
+    .update({ commission_rate: rate })
     .eq("id", barberId);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -108,6 +113,8 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { barberId, amount, month, year } = body;
+  // SEGURIDAD: antes no pedia sesion: cualquiera podia marcar comisiones como pagadas. Solo el equipo de gestion del mismo negocio.
+  if (typeof barberId !== "string" || !(await authorizeBarberManagement(barberId)).ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   const { startUtc: startDate, endUtc: endDate } = monthBoundsChile(year, month);
 

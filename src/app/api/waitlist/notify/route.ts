@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { authorizeWaitlistEntry } from "@/lib/waitlist-access";
 
 // Notify waitlisted clients that a slot opened up
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { waitlistId, type } = body; // type: "email" | "whatsapp"
+  const access = await authorizeWaitlistEntry(waitlistId);
+  if (!access.ok) return access.response;
 
   const { data: entry } = await supabase
     .from("waitlist")

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, canAccessBarber } from "@/lib/supabase/server";
+import { createAdminSupabase, canAccessBarber, authorizeBarberManagement } from "@/lib/supabase/server";
 
 // GET: Get assigned services for a barber
 export async function GET(req: NextRequest) {
@@ -28,6 +28,8 @@ export async function POST(req: NextRequest) {
   if (!barberId) {
     return NextResponse.json({ error: "barberId required" }, { status: 400 });
   }
+  // SEGURIDAD: antes no pedia sesion: cualquiera podia cambiar que servicios hace un profesional. Solo el propio profesional o la gestion de su negocio.
+  if (typeof barberId !== "string" || !(await authorizeBarberManagement(barberId, { allowSelf: true })).ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   // Delete all existing assignments
   await supabase.from("barber_service_assignments").delete().eq("barber_id", barberId);
