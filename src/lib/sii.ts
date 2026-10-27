@@ -1,8 +1,20 @@
-// SII (Servicio de Impuestos Internos) - Boleta Electrónica Integration
-// Supports: Simple API (chilesystems.com), Haulmer/OpenFactura, or direct SII
-// DTE Type 39 = Boleta Electrónica, Type 41 = Boleta Exenta
-
+// Boleta electronica (SII) con la cuenta de CADA negocio. DTE 39 = Boleta Electronica.
+// Hoy solo OpenFactura/Haulmer. El payload esta por contrastar en sandbox (ver docs/TUTORIAL-BOLETAS-SII.md).
 import { todayInChile } from "./utils";
+import { decryptSecret } from "./secret-box";
+
+export interface SiiConfig {
+  enabled: boolean;
+  auto_emit: boolean;
+  provider: string;
+  environment: "sandbox" | "production";
+  emisor_rut: string | null;
+  emisor_razon_social: string | null;
+  emisor_giro: string | null;
+  emisor_direccion: string | null;
+  emisor_comuna: string | null;
+  api_key_enc: string | null;
+}
 
 interface BoletaItem {
   name: string;
@@ -11,72 +23,65 @@ interface BoletaItem {
   total: number;
 }
 
-interface EmitBoletaParams {
+export interface EmitBoletaParams {
   items: BoletaItem[];
   total: number;
-  paymentMethod: string; // 'cash', 'debit_card', 'credit_card', 'transfer'
+  paymentMethod: string;
   clientRut?: string | null;
   clientName?: string | null;
   transactionId: string;
 }
 
-interface BoletaResult {
+export interface BoletaResult {
   success: boolean;
   folio?: number;
-  pdfUrl?: string;
+  pdfUrl?: string | null;
   error?: string;
 }
 
-// Map payment methods to SII codes
-const PAYMENT_CODES: Record<string, number> = {
-  cash: 1, // Efectivo
-  debit_card: 2, // Débito
-  credit_card: 3, // Crédito
-  transfer: 4, // Transferencia
-  mixed: 5, // Otros
+// IVA general de Chile (los precios del POS ya lo incluyen).
+const IVA_RATE = 0.19;
+
+const HAULMER_URL: Record<SiiConfig["environment"], string> = {
+  sandbox: "https://dev-api.haulmer.com/v2",
+  production: "https://api.haulmer.com/v2",
 };
 
-export async function emitBoleta(params: EmitBoletaParams): Promise<BoletaResult> {
-  const provider = process.env.SII_PROVIDER || "simple_api"; // 'simple_api' | 'haulmer' | 'apigateway'
-
-  switch (provider) {
-    case "simple_api":
-      return emitViaSimpleApi(params);
-    case "haulmer":
-      return emitViaHaulmer(params);
-    default:
-      return { success: false, error: `Provider '${provider}' not supported` };
+export function missingEmisorData(c: SiiConfig): string | null {
+  if (!c.emisor_rut || !c.emisor_razon_social || !c.emisor_giro || !c.emisor_direccion || !c.emisor_comuna) {
+    return "Faltan datos del emisor (RUT, razón social, giro, dirección y comuna)";
   }
+  if (!c.api_key_enc) return "Falta la llave del proveedor";
+  return null;
 }
 
-// Simple API (chilesystems.com)
-async function emitViaSimpleApi(params: EmitBoletaParams): Promise<BoletaResult> {
-  const apiUrl = process.env.SII_SIMPLE_API_URL || "https://api.simpleapi.cl/api/v1";
-  const apiToken = process.env.SII_SIMPLE_API_TOKEN;
+export async function emitBoleta(config: SiiConfig, params: EmitBoletaParams): Promise<BoletaResult> {
+  if (config.provider !== "haulmer") return { success: false, error: `Proveedor '${config.provider}' no soportado` };
+  const missing = missingEmisorData(config);
+  if (missing) return { success: false, error: missing };
 
-  if (!apiToken) {
-    return { success: false, error: "SII_SIMPLE_API_TOKEN no configurado" };
+  let apiKey: string;
+  try {
+    apiKey = decryptSecret(config.api_key_enc as string);
+  } catch {
+    return { success: false, error: "No se pudo leer la llave del proveedor; vuelve a guardarla" };
   }
 
+  const neto = Math.round(params.total / (1 + IVA_RATE));
   const body = {
     response: ["PDF", "FOLIO"],
     dte: {
       Encabezado: {
-        IdDoc: {
-          TipoDTE: 39, // Boleta Electrónica
-          // Punto 1 (Nico): fecha de emision de la boleta debe ser el dia calendario de
-          // Chile, no el UTC del server (evita boletas emitidas con fecha del dia siguiente).
-          FchEmis: todayInChile(),
-          IndServicio: 3, // Servicios
-          FmaPago: PAYMENT_CODES[params.paymentMethod] || 1,
+        IdDoc: { TipoDTE: 39, Folio: 0, FchEmis: todayInChile(), IndServicio: 3 },
+        Emisor: {
+          RUTEmisor: config.emisor_rut,
+          RznSocEmisor: config.emisor_razon_social,
+          GiroEmisor: config.emisor_giro,
+          DirOrigen: config.emisor_direccion,
+          CmnaOrigen: config.emisor_comuna,
         },
-        Receptor: {
-          RUTRecep: params.clientRut || "66666666-6", // RUT genérico para boleta
-          RznSocRecep: params.clientName || "Cliente",
-        },
-        Totales: {
-          MntTotal: params.total,
-        },
+        Receptor: { RUTRecep: params.clientRut || "66666666-6" },
+        Totales: { MntNeto: neto, IVA: params.total - neto, MntTotal: params.total },
       },
       Detalle: params.items.map((item, i) => ({
         NroLinDet: i + 1,
@@ -85,78 +90,22 @@ async function emitViaSimpleApi(params: EmitBoletaParams): Promise<BoletaResult>
         PrcItem: item.unitPrice,
         MontoItem: item.total,
       })),
-      Referencia: [{
-        NroLinRef: 1,
-        CodRef: 0,
-        RazonRef: `POS re-booking - TX ${params.transactionId.slice(-8)}`,
-      }],
     },
   };
 
   try {
-    const res = await fetch(`${apiUrl}/dte/emitir`, {
+    const res = await fetch(`${HAULMER_URL[config.environment]}/dte/document`, {
       method: "POST",
-      headers: {
-        "Authorization": `Bearer ${apiToken}`,
-        "Content-Type": "application/json",
-      },
+      headers: { apikey: apiKey, "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-
-    const data = await res.json();
-
-    if (res.ok && data.folio) {
-      return {
-        success: true,
-        folio: data.folio,
-        pdfUrl: data.pdfUrl || data.pdf || null,
-      };
-    }
-
-    return { success: false, error: data.message || data.error || "Error emitiendo boleta" };
-  } catch (e: any) {
-    return { success: false, error: e.message };
-  }
-}
-
-// Haulmer / OpenFactura
-async function emitViaHaulmer(params: EmitBoletaParams): Promise<BoletaResult> {
-  const apiUrl = process.env.SII_HAULMER_URL || "https://dev-api.haulmer.com/v2";
-  const apiToken = process.env.SII_HAULMER_TOKEN;
-
-  if (!apiToken) {
-    return { success: false, error: "SII_HAULMER_TOKEN no configurado" };
-  }
-
-  const body = {
-    response: ["PDF"],
-    dte: {
-      Encabezado: {
-        IdDoc: { TipoDTE: 39, Folio: 0 },
-        Receptor: { RUTRecep: params.clientRut || "66666666-6" },
-        Totales: { MntTotal: params.total },
-      },
-      Detalle: params.items.map((item) => ({
-        NmbItem: item.name,
-        QtyItem: item.quantity,
-        PrcItem: item.unitPrice,
-        MontoItem: item.total,
-      })),
-    },
-  };
-
-  try {
-    const res = await fetch(`${apiUrl}/dte/document`, {
-      method: "POST",
-      headers: { "apikey": apiToken, "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (data.FOLIO) {
-      return { success: true, folio: data.FOLIO, pdfUrl: data.PDF || null };
+      // El proveedor puede devolver el PDF en base64 y no como enlace: solo se guarda si es una URL.
+      const pdf = typeof data.PDF === "string" && data.PDF.startsWith("http") ? data.PDF : null;
+      return { success: true, folio: Number(data.FOLIO), pdfUrl: pdf };
     }
-    return { success: false, error: data.MENSAJE || "Error Haulmer" };
+    return { success: false, error: data.MENSAJE || data.error?.message || `Error del proveedor (${res.status})` };
   } catch (e: any) {
     return { success: false, error: e.message };
   }
