@@ -20,6 +20,11 @@ export interface DependenciasWhatsAppMeta {
   version: string;
   phone_number_id: string;
 }
+// Mismo namespace del extractor y de las bajas; el llamador valida/canoniza sin inferir país.
+export function hashContactoWhatsApp(sal: string, tenantId: string, remitenteCanonico: string): string {
+  return createHmac("sha256", sal).update(JSON.stringify(["agente:contacto:v1", tenantId, remitenteCanonico])).digest("hex");
+}
+
 const objeto = (valor: unknown): valor is Record<string, unknown> =>
   typeof valor === "object" && valor !== null && !Array.isArray(valor);
 const campo = (valor: unknown, nombre: string): unknown =>
@@ -144,8 +149,7 @@ export function extraerMensajesEntrantes(payload: unknown, contexto: ContextoHas
             : tipoRespuesta ? campo(campo(interactive, tipoRespuesta), "id") : undefined;
           // Dominio estable para bajas por tenant aunque cambie el número del negocio.
           // No reutiliza clave-deduplicacion: aquella no es HMAC ni identifica contactos.
-          const remitenteHash = createHmac("sha256", contexto.sal)
-            .update(JSON.stringify(["agente:contacto:v1", tenantId, remitente])).digest("hex");
+          const remitenteHash = hashContactoWhatsApp(contexto.sal, tenantId, remitente);
           resultado.push(Object.freeze({
             persistible: Object.freeze({ id, tipo, phone_number_id: phoneId, remitenteHash,
               ...(identificador(contextId) ? { context_id: contextId } : {}),
