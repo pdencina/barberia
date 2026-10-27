@@ -1,6 +1,8 @@
 # Bitacora del agente de WhatsApp
 
-## Código por administrador — pieza 2 (espera Claude)
+## Código por administrador — pieza 2, PR #124 (espera Claude)
+
+**HECHO — validación:** TypeScript y 63 comprobaciones existentes del informe pasan; PR #124 abierto, sin merge. Detalle de las 20 comprobaciones locales PGlite y límites en el reporte de verificación.
 
 **HECHO:** borrador 004 en `docs/agente/sql/004_registro_envios_informe_borrador.sql:1`, y reporte local en `docs/agente/VERIFICACION_REGISTRO_ENVIOS.md:1`. PGlite efímero: 20 comprobaciones pasan, incluyendo segunda ejecución, RLS/privilegios, unicidad, reclamos en cola, estados y aislamiento de perfil/tenant. **INFERENCIA:** una restricción única y reclamo en una sentencia sostienen la reserva; no garantizan entrega exactamente una vez ni reemplazan el despachador. **DESCONOCIDO:** concurrencia multisession real, Supabase desplegado, retención (#10) e integración de envío. Ningún SQL ejecutado contra Supabase ni otra base externa. PR separado, sin merge; pieza 4 no iniciada.
 
