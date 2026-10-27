@@ -14,6 +14,7 @@ import { QuickActions } from "@/components/quick-actions";
 import { AppLock } from "@/components/app-lock";
 import { NativePushSync } from "@/components/native-push-sync";
 import { SupportWidget } from "@/components/support/support-widget";
+import { OtiWidget } from "@/components/oti/oti-widget";
 
 export default async function DashboardLayout({
   children,
@@ -90,6 +91,7 @@ export default async function DashboardLayout({
             </ErrorBoundary>
             {!isSuspended && <PushNotificationPrompt />}
             <SupportWidget role={profile?.role || "barber"} />
+            {!isSuspended && <OtiWidget />}
             {!isSuspended && <QuickActions userRole={profile?.role || "barber"} />}
             {!isSuspended && <MobileTabBar role={profile?.role || "barber"} />}
             {!isSuspended && <CommandPalette />}
