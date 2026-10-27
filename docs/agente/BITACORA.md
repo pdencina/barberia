@@ -44,4 +44,4 @@ Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesi
 
 ### T8 — espera revisión de Claude
 
-**HECHO:** verificador HMAC-SHA256 genérico, comparación de digests con `timingSafeEqual`, entradas crudas y secreto por parámetro, sin ruta/entorno/red (`src/lib/agente/webhook-firma.ts:1-22`). TypeScript y 111 casos sintéticos pasan (`scripts/test-agente-webhook-firma.ts:17-70`). **DESCONOCIDO:** firma específica de Meta por HTTP 429; fuentes y límites en `docs/agente/WEBHOOK_FIRMA.md`. No mergear este PR con código hasta revisión de Claude; ninguna integración ni envío.
+**HECHO:** verificador HMAC-SHA256 genérico, comparación de digests con `timingSafeEqual`, entradas crudas y secreto por parámetro, sin ruta/entorno/red (`src/lib/agente/webhook-firma.ts:1-22`). TypeScript y 111 casos sintéticos pasan (`scripts/test-agente-webhook-firma.ts:17-62`). **DESCONOCIDO:** firma específica de Meta por HTTP 429; fuentes y límites en `docs/agente/WEBHOOK_FIRMA.md`. No mergear este PR con código hasta revisión de Claude; ninguna integración ni envío.
