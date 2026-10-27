@@ -25,7 +25,10 @@ export function clasificarRespuestaCliente(texto: unknown): RespuestaCliente {
   if (typeof texto !== "string" || texto.length === 0 || texto.length > 160) return "desconocido";
   // Caracteres invisibles de formato (p.ej. bidi/zero-width) no se eliminan para aceptar órdenes ocultas.
   if (/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/.test(texto)) return "desconocido";
-  const normalizado = texto
+  // La ñ es otra letra, no una n con acento: "coñfirmo" no es "confirmo". Se compone a NFC (n + tilde suelta = ñ) y se rechaza.
+  const compuesto = texto.normalize("NFC");
+  if (/[ñÑ]/.test(compuesto)) return "desconocido";
+  const normalizado = compuesto
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()

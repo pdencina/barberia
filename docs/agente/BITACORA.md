@@ -124,6 +124,11 @@ Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesi
 
 **HECHO:** borrador 004 en `docs/agente/sql/004_registro_envios_informe_borrador.sql:1`, y reporte local en `docs/agente/VERIFICACION_REGISTRO_ENVIOS.md:1`. PGlite efímero: 20 comprobaciones pasan, incluyendo segunda ejecución, RLS/privilegios, unicidad, reclamos en cola, estados y aislamiento de perfil/tenant. **INFERENCIA:** una restricción única y reclamo en una sentencia sostienen la reserva; no garantizan entrega exactamente una vez ni reemplazan el despachador. **DESCONOCIDO:** concurrencia multisession real, Supabase desplegado, retención (#10) e integración de envío. Ningún SQL ejecutado contra Supabase ni otra base externa. PR separado, sin merge; pieza 4 no iniciada.
 
+### Detector: la ñ ya no se confunde con la n — rama claude/detector-enie
+
+**HECHO:** `respuesta-cliente.ts` compone a NFC y devuelve "desconocido" si hay ñ/Ñ (también n + tilde suelta); las tildes en vocales se siguen ignorando. "coñfirmo" y "cañcelo" ya no confirman ni cancelan. Listas y contrato sin cambios.
+**HECHO:** 12 casos nuevos (mayúsculas, ñ combinada, vocales con tilde, frases válidas); 229 casos, tsc y demás pruebas del agente pasan.
+**NO probado:** otros confusables fuera de la ñ (el resto ya se rechazaba por la regla a-z); el detector sigue sin conectarse a ninguna ruta.
 ### Remitente del informe — rama claude/informe-remitente
 
 **HECHO:** el informe usa `EMAIL_FROM` y, si falta o está vacío/solo espacios, el mismo respaldo del resto del sistema "re-booking <no-reply@re-booking.cl>" (`resolverRemitente` en `src/lib/agente/informe-diario-email.ts`). Ruta programada y manual comparten la función; `sendDailyReportEmail` acepta dependencias para probarla.
