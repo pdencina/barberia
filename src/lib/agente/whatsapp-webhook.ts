@@ -3,7 +3,7 @@ import { verificarFirmaWebhook } from "./webhook-firma";
 import { crearClaveEventoEntrante } from "./clave-deduplicacion";
 import { evaluarLimiteDeUso, type EventoUso } from "./limite-de-uso";
 import { clasificarRespuestaCliente } from "./respuesta-cliente";
-import { extraerMensajesEntrantes, resolverDesafioWebhook, hashContactoWhatsApp } from "./whatsapp-meta";
+import { extraerMensajesEntrantes, resolverDesafioWebhook, hashContactoWhatsApp, normalizarTelefonoWhatsApp } from "./whatsapp-meta";
 import { confirmarCitaPropia, cancelarCitaPropia, crearRepositorioAccionesCita, type ResultadoAccionCita } from "./acciones-cita";
 
 export interface NegocioWebhook { tenantId: string; phoneNumberId: string; enabled: boolean }
@@ -120,8 +120,8 @@ export function crearRepositorioWebhook(db: any, sal: string): RepositorioWebhoo
       if (!record) return null;
       const appointment=check(await db.from("appointments").select("client_id,client:clients!client_id(id,phone,tenant_id)").eq("tenant_id",tenant).eq("id",record.appointment_id).maybeSingle()).data;
       const client=Array.isArray(appointment?.client)?appointment.client[0]:appointment?.client;
-      const phone=typeof client?.phone==="string"?client.phone.replace(/[+\s()\-]/g,""):"";
-      if (!/^[0-9]+$/.test(phone) || client.id!==appointment.client_id || client.tenant_id!==tenant) return null;
+      const phone=normalizarTelefonoWhatsApp(client?.phone);
+      if (!phone || client.id!==appointment.client_id || client.tenant_id!==tenant) return null;
       const hash=hashContactoWhatsApp(sal,tenant,phone);
       return hash===contactHash ? {registroId:record.id,clienteId:appointment.client_id} : null;
     },

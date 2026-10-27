@@ -61,7 +61,7 @@ async function main(){
   check("dos negocios sin mezclar baja",r.whatsapp===1&&f.claims.has("tenantB:apptB:whatsapp")&&!f.claims.has("tenantA:apptA:whatsapp"));
   f=fixture();f.deps.repo.citas=async t=>[cita("cross",t==="tenantA"?"tenantB":"tenantA")];await f.run();check("adapter malicioso no cruza tenant",f.counts().wa===0&&f.claims.size===0);
   f=fixture();f.rows[0].client!.tenant_id="tenantB";await f.run();check("cliente de otro negocio rechazado",f.counts().wa===0);
-  f=fixture();f.rows[0].client!.phone="900000000";await f.run();check("no infiere país de número local",f.counts().wa===0);
+  f=fixture();f.rows[0].client!.phone="900000000";await f.run();check("normaliza número local a Chile",f.counts().wa===1);
   f=fixture();f.rows[0].start_time="2026-10-28T09:00:00+00:00";r=await f.run();check("normaliza formato SQL sin desplazar la hora",r.whatsapp===1);
   f=fixture();f.rows[0].start_time="2026-10-28T18:00:00Z";await f.run();check("fuera de ventana no envía",f.counts().wa===0);
   f=fixture();r=await f.run(true);check("dryRun solo lecturas",r.candidatos===1&&f.claims.size===0&&f.counts().consume===0&&f.counts().reservas===0&&f.counts().wa===0);
