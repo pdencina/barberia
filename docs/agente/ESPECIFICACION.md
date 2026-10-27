@@ -396,6 +396,8 @@ Procesos salientes separados:
 | 23 | ¿Se envía un día sin citas? | Sí, resumen en cero (confirma funcionamiento, añade correos) / omitirlo (menos ruido, no confirma actividad del sistema) | **INFERENCIA:** enviar resumen en cero durante el piloto para distinguir vacío de fallo, solo si Nico lo aprueba. | _pendiente — Nico decide_ |
 | 24 | ¿Qué mecanismo programará el envío? | Evaluar Vercel Cron ya configurado (menos componentes, capacidad por verificar) / programador externo (separación operativa, añade integración y posible costo) / conservar manual (sin nueva infraestructura, depende del equipo) | **HECHO:** ya hay configuración Vercel Cron en `vercel.json:5-8`. **INFERENCIA:** evaluar primero su capacidad con Pablo/Claude; no elegir ni agregar cron. **DESCONOCIDO:** límites/costo contratados e historial real de esta instalación. | _pendiente — Nico decide_ |
 
+| RB1 | ¿Quién recibe incidentes, por qué canal y con qué suplente? | Nico coordina con Pablo/Claude (control central, depende de disponibilidad) / responsable del negocio y suplente designados (respuesta distribuida, necesita permisos y formación) | **INFERENCIA:** Nico coordina el piloto; acordar canal privado, suplente y horario antes de prometer atención. Procedimiento propuesto en `docs/agente/RUNBOOK.md`. No hay contactos operativos verificados. | _pendiente — Nico decide_ |
+
 ## 12. Registro de decisiones
 | Fecha | Decisión | Quién |
 |---|---|---|
