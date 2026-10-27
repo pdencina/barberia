@@ -1,5 +1,9 @@
 # Bitacora del agente de WhatsApp
 
+## Registro Nivel 3 — lote T1 a T10
+
+- PR #108 — T1: hoja de decisiones para Nico, con recomendaciones y fases; regla #20 actualizada. Registro de auditoría; el merge de este PR requiere `pruebas` y `limites-de-carpeta` verdes conforme a `docs/agente/NIVELES.md:24`.
+
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.
 
