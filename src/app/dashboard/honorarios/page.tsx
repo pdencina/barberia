@@ -33,6 +33,7 @@ export default function HonorariosPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [form, setForm] = useState({ folio: "", issuedOn: "", amount: "", notes: "" });
   const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState<{ id: string; text: string } | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,7 +71,18 @@ export default function HonorariosPage() {
   const copyNotice = async (r: Row) => {
     const text = `Hola ${r.name.split(" ")[0]}, para cerrar ${MONTHS[month - 1]} ${year} debes emitir tu boleta de honorarios por ${formatCurrency(r.gross)}. ` +
       `Se te retiene el ${String(r.rate).replace(".", ",")}% (${formatCurrency(r.retention)}) y recibes ${formatCurrency(r.net)}. Cuando la emitas, envíame el número de folio.`;
-    try { await navigator.clipboard.writeText(text); showToast("Aviso copiado, pégalo en WhatsApp", "success"); } catch { showToast("No se pudo copiar", "error"); }
+    // 1) API moderna; 2) copiado clasico (navegadores integrados que bloquean el portapapeles); 3) mostrar el texto para copiarlo a mano.
+    try { await navigator.clipboard.writeText(text); showToast("Aviso copiado, pégalo en WhatsApp", "success"); setNotice(null); return; } catch { /* sigue */ }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) { showToast("Aviso copiado, pégalo en WhatsApp", "success"); setNotice(null); return; }
+    } catch { /* sigue */ }
+    setNotice({ id: r.barberId, text });
+    showToast("Copia el aviso desde el cuadro de abajo", "error");
   };
 
   return (
@@ -110,6 +122,9 @@ export default function HonorariosPage() {
             <button className={ghostButton} onClick={() => copyNotice(r)}>Copiar aviso</button>
             <button className={ghostButton} onClick={() => openForm(r)}>{r.record ? "Editar registro" : "Registrar boleta recibida"}</button>
           </div>
+          {notice?.id === r.barberId && (
+            <textarea readOnly rows={4} className={`${inputClass} mt-3`} value={notice.text} onFocus={(e) => e.currentTarget.select()} />
+          )}
           {openId === r.barberId && (
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <div><label className="block text-xs text-gray-500 mb-1">Folio</label><input className={inputClass} value={form.folio} onChange={(e) => setForm({ ...form, folio: e.target.value })} /></div>
