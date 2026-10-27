@@ -33,4 +33,8 @@ check("sin instante explícito conserva fecha sin inventar hora ni consultar rel
 });
 check("el encabezado histórico escapa la fecha recibida", () => assert.ok(!renderDailyReportEmail(report("<script>"), Date.UTC(2026,9,27,0)).includes("<script>")));
 check("instante inválido se rechaza", () => assert.throws(() => renderDailyReportEmail(report("2026-10-26"), NaN)));
+check("el pie explica como dejar de recibir el informe (Mi Perfil > Informes), sin datos del cliente", () => {
+  const html = renderDailyReportEmail(report("2026-10-26"), Date.UTC(2026, 9, 27, 0));
+  assert.ok(html.includes("Para dejar de recibirlo") && html.includes("Mi Perfil") && html.includes("Informes"));
+});
 console.log(`RESULTADO: ${checks} casos, 0 fallas; HTML con instantes fijos, sin red/base/llaves/envíos.`);
