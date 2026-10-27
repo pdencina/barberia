@@ -145,7 +145,7 @@ export function extraerMensajesEntrantes(payload: unknown, contexto: ContextoHas
           const subtipo = campo(interactive, "type");
           const tipoRespuesta = tipo === "interactive" && (subtipo === "button_reply" || subtipo === "list_reply") ? subtipo : undefined;
           const texto = tipo === "text" ? campo(campo(mensaje, "text"), "body")
-            : tipo === "button" ? campo(campo(mensaje, "button"), "payload")
+            : tipo === "button" ? (campo(campo(mensaje, "button"), "payload") !== undefined ? campo(campo(mensaje, "button"), "payload") : campo(campo(mensaje, "button"), "text"))
             : tipoRespuesta ? campo(campo(interactive, tipoRespuesta), "id") : undefined;
           // Dominio estable para bajas por tenant aunque cambie el número del negocio.
           // No reutiliza clave-deduplicacion: aquella no es HMAC ni identifica contactos.
