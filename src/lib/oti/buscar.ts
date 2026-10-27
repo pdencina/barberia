@@ -4,7 +4,9 @@ import { norm } from "./texto";
 export interface ResultadoBusqueda { entrada: EntradaOti; puntaje: number }
 
 const PALABRAS_VACIAS = new Set(["de", "del", "la", "el", "los", "las", "un", "una", "y", "o", "a", "en", "que", "como", "me", "mi", "mis", "se", "por", "para", "con", "al", "lo", "es", "puedo", "quiero", "necesito", "hacer", "donde"]);
-const tokens = (s: string) => norm(s).split(" ").filter((t) => t.length > 1 && !PALABRAS_VACIAS.has(t));
+// Raiz simple: las 5 primeras letras, para que «cambio», «cambiar» y «cambiando» (o «servicio» y «servicios») cuenten como la misma palabra.
+const raiz = (t: string) => (t.length > 5 ? t.slice(0, 5) : t);
+const tokens = (s: string) => norm(s).split(" ").filter((t) => t.length > 1 && !PALABRAS_VACIAS.has(t)).map(raiz);
 
 // Busqueda sin IA: una frase clave contenida en lo que escribio vale mucho; si no, palabras en comun. Si nada alcanza el umbral, devuelve [] (Oti dira "no lo se").
 export function buscarAyuda(pregunta: string, catalogo: EntradaOti[] = CATALOGO, max = 3): ResultadoBusqueda[] {

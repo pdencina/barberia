@@ -22,6 +22,21 @@ t("«generar codigo de invitacion» -> equipo", top("necesito generar un código
 t("«cambiar el precio de un servicio» -> servicios", top("cambiar el precio de un servicio") === "servicios");
 t("«pagar comisiones» -> comisiones", top("pagar comisiones") === "comisiones");
 t("«marcar el arriendo como pagado» -> arriendo", top("quiero pagar el arriendo") === "arriendo");
+// variaciones de conjugacion y plural (lo que de verdad escribe la gente)
+t("«¿Cómo cambio el precio de un servicio?» (la sugerencia del panel) -> servicios", top("¿Cómo cambio el precio de un servicio?") === "servicios");
+t("«como agrego un profesional» -> equipo", top("como agrego un profesional") === "equipo");
+t("«como creo un cupon» -> cupones", top("como creo un cupon") === "cupones");
+t("«como bloqueo un dia» -> bloquear", top("como bloqueo un dia") === "bloquear");
+t("«como invito a un profesional» -> equipo", top("como invito a un profesional") === "equipo");
+t("«donde veo mis comisiones» -> comisiones", top("donde veo mis comisiones") === "comisiones");
+t("«como configuro mercadopago» -> mercadopago", top("como configuro mercadopago") === "mercadopago");
+t("«como envio una boleta» -> boletas", top("como envio una boleta") === "boletas");
+t("«cambiar el plan» -> plan", top("quiero cambiar mi plan") === "plan");
+t("las tres sugerencias del panel encuentran respuesta o son un pedido de bloqueo", ["¿Cómo agrego MercadoPago?", "¿Cómo cambio el precio de un servicio?"].every((q) => buscarAyuda(q).length > 0));
+t("«como cobro con debito» -> punto de venta", top("como cobro con debito") === "pos");
+t("«como cierro el mes» -> cierre mensual (y no es un bloqueo)", top("como cierro el mes") === "cierre-mensual" && pide("como cierro el mes") === null);
+t("«quiero ver mis ventas» -> ingresos y egresos", top("quiero ver mis ventas") === "finanzas");
+t("«como cancelo una cita» -> calendario", top("como cancelo una cita") === "calendario");
 t("pregunta sin relacion -> sin respuesta (Oti dice «no lo se»)", buscarAyuda("cual es la capital de francia").length === 0 && buscarAyuda("receta de empanadas").length === 0);
 t("texto vacio o una letra -> sin respuesta", buscarAyuda("").length === 0 && buscarAyuda("a").length === 0);
 t("sin tildes ni mayusculas da lo mismo", top("COMO AGREGO MERCADO PAGO") === top("como agrego mercado pago"));
