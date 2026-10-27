@@ -87,7 +87,7 @@ export async function PATCH(
     "personal_pin", "avatar_url", "bio", "specialties",
     "intro_video_url", "years_experience", "slot_duration",
     "also_attends_clients", "instagram", "rental_cash_to_barber", "birth_date",
-    "manager_name",
+    "manager_name", "sii_enabled", "tax_rate",
   ];
 
   const update: Record<string, any> = {};
@@ -101,6 +101,14 @@ export async function PATCH(
     if (v && !/^\d{4}$/.test(v)) return NextResponse.json({ error: "El PIN debe tener 4 dígitos." }, { status: 400 });
     Object.assign(update, await pinWriteFields(supabase, v));
   }
+
+  // Impuesto por profesional (migracion 117): 0, 15.25 o 19 (u otra tasa de honorarios futura). Apagado = tasa 0.
+  if ("sii_enabled" in update) update.sii_enabled = update.sii_enabled === true;
+  if ("tax_rate" in update) {
+    const n = Number(update.tax_rate);
+    update.tax_rate = Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 100) / 100 : 0;
+  }
+  if (update.sii_enabled === false) update.tax_rate = 0;
 
   // Fecha de nacimiento: solo se acepta YYYY-MM-DD; vacio la borra.
   if ("birth_date" in update) {
@@ -136,6 +144,13 @@ export async function PATCH(
   if (error && "manager_name" in update && /manager_name/.test(error.message)) {
     const { manager_name: _omit, ...rest } = update;
     ({ data, error } = await supabase.from("profiles").update(rest).eq("id", params.id).select().single());
+  }
+
+  // sii_enabled/tax_rate son columnas nuevas (migracion 117): si aun no se aplica, no se pierde el resto.
+  if (error && ("sii_enabled" in update || "tax_rate" in update) && /sii_enabled|tax_rate/.test(error.message)) {
+    const { sii_enabled: _s, tax_rate: _r, ...rest } = update;
+    ({ data, error } = await supabase.from("profiles").update(rest).eq("id", params.id).select().single());
+    if (!error) return NextResponse.json({ error: "Falta aplicar la migración 117 para guardar el impuesto" }, { status: 503 });
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

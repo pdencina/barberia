@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { TAX_PRESETS, IVA_RATE } from "@/lib/pro-tax";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -80,6 +81,8 @@ export default function EditProfessionalPage() {
         also_attends_clients: (data as any).also_attends_clients,
         instagram: (data as any).instagram,
         rental_cash_to_barber: (data as any).rental_cash_to_barber,
+        sii_enabled: !!(data as any).sii_enabled,
+        tax_rate: (data as any).sii_enabled ? Number((data as any).tax_rate) || 0 : 0,
         // Solo se manda para recepcion (columna nueva, migracion 089): asi guardar a cualquier
         // otro perfil nunca depende de que el SQL ya este aplicado.
         ...(isReceptionistProfile ? { manager_name: (data as any).manager_name || null } : {}),
@@ -462,6 +465,41 @@ export default function EditProfessionalPage() {
             <p className="text-xs text-gray-500 mt-1">Monto fijo por día trabajado</p>
           </button>
         </div>
+      </div>
+
+
+      {/* Impuesto / SII por profesional (migracion 117): solo informativo en la liquidacion */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="font-bold text-gray-800">Integración SII</h2>
+            <p className="text-xs text-gray-500 mt-1">Calcula el impuesto de este profesional en su liquidación. No cambia el total a pagar.</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={!!(data as any).sii_enabled}
+            onClick={() => setData({ ...data, sii_enabled: !(data as any).sii_enabled, tax_rate: (data as any).sii_enabled ? 0 : ((data as any).tax_rate || (data.work_mode === "rental" ? IVA_RATE : 15.25)) } as any)}
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${(data as any).sii_enabled ? "bg-green-500" : "bg-gray-300"}`}
+          >
+            <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all ${(data as any).sii_enabled ? "left-[22px]" : "left-0.5"}`} />
+          </button>
+        </div>
+        {(data as any).sii_enabled && (
+          <div className="space-y-2">
+            {TAX_PRESETS.filter((o) => o.rate > 0).map((o) => {
+              const disabled = data.work_mode === "rental" && o.rate !== IVA_RATE;
+              return (
+                <label key={o.rate} className={`flex items-center gap-3 rounded-xl border-2 p-3 text-sm ${Number((data as any).tax_rate) === o.rate ? "border-green-500 bg-green-50" : "border-gray-200"} ${disabled ? "opacity-40" : "cursor-pointer"}`}>
+                  <input type="radio" name="tax_rate" disabled={disabled} checked={Number((data as any).tax_rate) === o.rate}
+                    onChange={() => setData({ ...data, tax_rate: o.rate } as any)} />
+                  <span>{o.label}{disabled ? " (no aplica a arriendo)" : ""}</span>
+                </label>
+              );
+            })}
+            <p className="text-xs text-gray-400">Comisión: boleta de honorarios (el negocio retiene) o IVA. Arriendo: IVA sobre el arriendo. La retención cambia cada año por ley; si cambia, avisar para actualizar el valor.</p>
+          </div>
+        )}
       </div>
 
       {/* Commission settings */}
