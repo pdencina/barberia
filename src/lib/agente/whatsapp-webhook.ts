@@ -1,3 +1,4 @@
+import { responderFaq, type DatosFaq } from "./faq-fija";
 import { fetchAllRows } from "../accounting";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
@@ -22,6 +23,7 @@ export interface RepositorioWebhook {
 export interface DependenciasWebhook {
   repo: RepositorioWebhook;
   ahora: () => number;
+  datosDelNegocio?: (tenantId: string) => Promise<DatosFaq | null>;
   accion: (tipo: "confirmar" | "cancelar", c: { tenantId: string; clienteId: string; referenciaRecordatorio: string }) => Promise<ResultadoAccionCita>;
   responder: (negocio: NegocioWebhook, para: string, texto: string) => Promise<unknown>;
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
@@ -95,8 +97,21 @@ export function crearManejadoresWebhook(config: {
                 totals.acciones++;
                 await responder(tipo === "confirmar" ? "Tu cita está confirmada." : "Tu cita está cancelada.");
               } else {
-                await responder("Te contactará una persona.");
-                if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
+                let respuestaFaq: string | null = null;
+                if (tipo === "desconocido" && deps.datosDelNegocio) {
+                  const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
+                    : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
+                  if (!ref) {
+                    // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
+                    const faq = responderFaq(text,await deps.datosDelNegocio(n.tenantId));
+                    if (faq.tipo === "respuesta") respuestaFaq = faq.texto;
+                  }
+                }
+                if (respuestaFaq !== null) await responder(respuestaFaq);
+                else {
+                  await responder("Te contactará una persona.");
+                  if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
+                }
               }
             }
             await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++;

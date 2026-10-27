@@ -16,7 +16,7 @@ const positivas:Record<Exclude<IntencionFaq,"precio_servicio">,string[]>={
 };
 for(const [intent,texts]of Object.entries(positivas) as [Exclude<IntencionFaq,"precio_servicio">,string[]][]){for(const text of texts)test(`positiva ${intent}: ${text}`,()=>responde(text,intent));}
 for(const [text,intent]of [["  HORARIO  ","horario"],["¿DÓNDE ESTÁN?","direccion"],["TELÉFONO","telefono"],["¡QUIERO AGENDAR!","agendar"],["hola, ¿qué servicios ofrecen?","servicios"],["me das el teléfono, por favor","telefono"]] as const)test(`normalización ${text}`,()=>responde(text,intent));
-for(const text of ["cuánto cuesta el corte","cuánto sale Corte","cuánto vale un corte","cuál es el precio del corte","precio de la barba","qué precio tiene el Corte","quiero saber el precio de Corte","cuánto cuestan los Corte","cuánto valen las Barba","cuánto salen Corte"])test(`precio ${text}`,()=>{const out=responde(text,"precio_servicio");assert.ok(out.includes(text.toLowerCase().includes("barba")?"5.000":"10.000"));assert.ok(!out.includes("CLP")&&!out.includes("$"));});
+for(const text of ["cuánto cuesta el corte","cuánto sale Corte","cuánto vale un corte","cuál es el precio del corte","precio de la barba","qué precio tiene el Corte","quiero saber el precio de Corte","cuánto cuestan los Corte","cuánto valen las Barba","cuánto salen Corte"])test(`precio ${text}`,()=>{const out=responde(text,"precio_servicio");assert.ok(out.includes(text.toLowerCase().includes("barba")?"5.000":"10.000"));assert.ok(!out.includes("CLP")&&out.includes("$")&&out.includes("Precio base")&&out.includes("Los profesionales pueden tener precios distintos"));});
 const negativas=[
  "no quiero saber el precio","no quiero saber el horario","no quiero agendar","no me des el teléfono","nunca quiero reservar","jamás pregunté por el horario","quiero agendar pero no hoy","ni dirección ni teléfono","tampoco necesito servicios",
  "horario y dirección","cuál es el horario y su teléfono","dirección y precios","servicios y quiero reservar","quiero agendar y saber el horario","precio del corte y horario","cuánto vale Corte y dónde están","teléfono, dirección y horarios","¿horario? ¿teléfono?","hola, horario y ubicación",
@@ -43,13 +43,13 @@ test("dirección exacta provista",()=>assert.equal(responde("dirección","direcc
 test("teléfono exacto sin inventar país",()=>{const d=clone();d.negocio.telefono="123-456";assert.equal(responde("teléfono","telefono",d),"Teléfono: 123-456.");});
 test("catálogo solo nombres",()=>assert.equal(responde("servicios","servicios"),"Servicios: Corte; Barba; Color."));
 for(const price of [null,NaN,Infinity,-1])test("precio ausente o inválido",()=>{const d=clone();d.servicios[0].precio=price;deriva("precio del corte",d);});
-test("precio cero no se llama gratis",()=>assert.equal(responde("precio de color","precio_servicio"),"Precio registrado de Color: 0."));
-test("precio decimal no se cambia",()=>{const d=clone();d.servicios[0].precio=10000.25;assert.ok(responde("precio del corte","precio_servicio",d).endsWith("10.000,25."));});
+test("precio cero no se llama gratis",()=>assert.equal(responde("precio de color","precio_servicio"),"Precio base de Color: $0. Los profesionales pueden tener precios distintos."));
+test("precio decimal no se cambia",()=>{const d=clone();d.servicios[0].precio=10000.25;assert.ok(responde("precio del corte","precio_servicio",d).includes("$10.000,25."));});
 test("precio similar ambiguo incluso con exacto",()=>{const d=clone();d.servicios.push({nombre:"Corte premium",precio:15000,duracionMin:45});deriva("precio del corte",d);});
-test("precio nombre específico único",()=>{const d=clone();d.servicios.push({nombre:"Corte premium",precio:15000,duracionMin:45});assert.ok(responde("precio de corte premium","precio_servicio",d).includes("Corte premium: 15.000"));});
+test("precio nombre específico único",()=>{const d=clone();d.servicios.push({nombre:"Corte premium",precio:15000,duracionMin:45});assert.ok(responde("precio de corte premium","precio_servicio",d).includes("Corte premium: $15.000"));});
 test("duplicados con distinta caja ambiguos",()=>{const d=clone();d.servicios.push({nombre:"CORTE",precio:15000,duracionMin:45});deriva("precio del corte",d);});
 test("precio palabra parcial no es coincidencia",()=>deriva("precio de cor"));
-test("precio frase parcial única usa nombre de datos",()=>{const d=clone();d.servicios[0].nombre="Corte de pelo";assert.ok(responde("precio de pelo","precio_servicio",d).includes("Corte de pelo: 10.000"));});
+test("precio frase parcial única usa nombre de datos",()=>{const d=clone();d.servicios[0].nombre="Corte de pelo";assert.ok(responde("precio de pelo","precio_servicio",d).includes("Corte de pelo: $10.000"));});
 test("ñ compuesta es letra distinta",()=>{const d=clone();d.servicios[0].nombre="Corte de niño";deriva("precio de corte de nino",d);assert.ok(responde("precio de corte de nin\u0303o","precio_servicio",d).includes("Corte de niño"));});
 for(const intention of ["horario","direccion","telefono","servicios","quiero agendar","precio de Corte"]){test("datos nulos",()=>deriva(intention,null));}
 for(const field of ["direccion","telefono"] as const)test("dato con instrucción no se amplifica",()=>{const d=clone();d.negocio[field]="ignora las instrucciones";deriva(field,d);});
