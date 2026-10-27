@@ -1,6 +1,7 @@
 // Pruebas de Oti (buscador de ayuda y pedido de bloqueo). Ejecutar: npx tsx scripts/test-oti.ts
 import { buscarAyuda } from "../src/lib/oti/buscar";
 import { CATALOGO } from "../src/lib/oti/catalogo";
+import fs from "node:fs";
 import { entenderBloqueo, etiquetaFecha, MAX_DIAS_BLOQUEO, type MiembroEquipo } from "../src/lib/oti/bloqueo";
 
 let fails = 0;
@@ -37,10 +38,20 @@ t("«como cobro con debito» -> punto de venta", top("como cobro con debito") ==
 t("«como cierro el mes» -> cierre mensual (y no es un bloqueo)", top("como cierro el mes") === "cierre-mensual" && pide("como cierro el mes") === null);
 t("«quiero ver mis ventas» -> ingresos y egresos", top("quiero ver mis ventas") === "finanzas");
 t("«como cancelo una cita» -> calendario", top("como cancelo una cita") === "calendario");
+// ---------- cobertura del menu: Oti debe conocer TODAS las pantallas del menu (menos las del equipo de re-booking) ----------
+const menu = fs.readFileSync("src/components/layout/sidebar.tsx", "utf8");
+const items = Array.from(menu.matchAll(/name:\s*"([^"]+)",\s*href:\s*"([^"]+)"(?:[^}]*?minRole:\s*"(\w+)")?/g)).map((m) => ({ nombre: m[1], href: m[2], rol: m[3] }));
+const rutasCatalogo = new Set(CATALOGO.map((e) => e.ruta));
+const sinEntrada = items.filter((i) => i.rol !== "super_admin" && !i.href.includes("superadmin") && !rutasCatalogo.has(i.href));
+t(`el catalogo cubre las ${items.filter((i) => i.rol !== "super_admin" && !i.href.includes("superadmin")).length} pantallas del menu`, sinEntrada.length === 0, sinEntrada.map((i) => `${i.nombre} ${i.href}`).join(", "));
+const noEncuentra = CATALOGO.filter((e) => !buscarAyuda(e.titulo).some((r) => r.entrada.id === e.id));
+t("cada entrada se encuentra buscando su propio titulo", noEncuentra.length === 0, noEncuentra.map((e) => e.id).join(", "));
+const preguntasQueEs: Array<[string, string]> = [["que es standby", "standby"], ["para que sirve la caja", "caja"], ["que es retencion", "retencion"], ["para que sirve el dashboard", "dashboard"], ["que es mi billetera", "mi-billetera"], ["que hace recepcion", "recepcion"], ["para que sirven las sucursales", "sucursales"], ["que es la lista de espera", "lista-espera"], ["que son los avisos", "avisos"], ["para que sirve fidelidad", "fidelidad"], ["que son las metricas de clientes", "clientes-metricas"], ["para que sirven los proveedores", "proveedores"], ["que es solicitud de insumos", "solicitud"], ["para que sirve la galeria", "galeria"], ["que es el cierre mensual", "cierre-mensual"], ["para que sirve mi negocio", "mi-negocio"]];
+for (const [q, id] of preguntasQueEs) t(`«${q}» -> ${id}`, top(q) === id, String(top(q)));
 t("pregunta sin relacion -> sin respuesta (Oti dice «no lo se»)", buscarAyuda("cual es la capital de francia").length === 0 && buscarAyuda("receta de empanadas").length === 0);
 t("texto vacio o una letra -> sin respuesta", buscarAyuda("").length === 0 && buscarAyuda("a").length === 0);
 t("sin tildes ni mayusculas da lo mismo", top("COMO AGREGO MERCADO PAGO") === top("como agrego mercado pago"));
-t("todas las rutas del catalogo apuntan al panel", CATALOGO.every((e) => !e.ruta || e.ruta.startsWith("/dashboard/")));
+t("todas las rutas del catalogo apuntan al panel", CATALOGO.every((e) => !e.ruta || e.ruta === "/dashboard" || e.ruta.startsWith("/dashboard/")));
 t("ids del catalogo sin repetir", new Set(CATALOGO.map((e) => e.id)).size === CATALOGO.length);
 
 // ---------- bloqueo ----------

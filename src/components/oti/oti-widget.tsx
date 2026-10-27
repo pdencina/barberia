@@ -149,6 +149,7 @@ export function OtiWidget() {
                   <div key={i} className="max-w-[92%] space-y-2 rounded-2xl bg-gray-100 px-3 py-3 text-sm text-brand-dark dark:bg-gray-800 dark:text-gray-100">
                     <p className="font-bold">{m.entrada.titulo}</p>
                     <p>{m.entrada.resumen}</p>
+                    <p className="text-[11px] text-brand-gray">Disponible para: {m.entrada.para}</p>
                     {m.entrada.pasos && <ol className="list-decimal space-y-1 pl-5 text-[13px]">{m.entrada.pasos.map((p, k) => <li key={k}>{p}</li>)}</ol>}
                     {m.entrada.ruta && (
                       <button type="button" onClick={() => { router.push(m.entrada.ruta!); setAbierto(false); }}
