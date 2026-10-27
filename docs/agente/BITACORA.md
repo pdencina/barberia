@@ -186,3 +186,4 @@ TANDA E — E1 hecho PR #165 (261 casos); E2 hecho PR #166 (72 casos, tsc y +6 c
 - PR #173 hacia agente/whatsapp publicado con autorización explícita de Nico; sin merge, pendiente de Claude. EFAQ1/E4/E5: instrucciones no encontradas en la rama actualizada.
 - 2026-10-27 — PR #173 E3 ampliado: catálogo omite solo servicios inválidos; medios no consultan FAQ. tsc OK, 118 webhook + 261 FAQ; sin merge ni activar interruptores.
 - 2026-10-27 — EFAQ1: datos y FAQ por sucursal activa, aclaración si falta nombre; tsc + 117 datos/sucursales + 261 FAQ OK. ABIERTO: semanas por branch_id incompletas derivan; sin memoria conversacional ni merge.
+- 2026-10-27 — E4: Anexo A revisado; compatibilidad sin SELECT *, revalida negocio antes del envío. tsc + 25 auditoría + 81 datos OK; composición E3/EFAQ1/E4: 118 webhook, 126 datos, 261 FAQ y 25 auditoría OK. ABIERTO: Claude debe conservar consultar al combinar declaración con EFAQ1; sin servicios reales ni merge.
