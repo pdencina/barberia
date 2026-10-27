@@ -67,7 +67,7 @@ const t = (name: string, ok: boolean, extra = "") => {
     }
   }
   // Rutas con parametro en la URL ([id]): sin sesion tampoco deben leer, editar ni borrar nada.
-  const escritura: Array<{ ruta: string; metodo: "GET" | "POST" | "PATCH" | "DELETE"; params: Record<string, string> }> = [
+  const escritura: Array<{ ruta: string; metodo: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; params: Record<string, string>; qs?: string }> = [
     { ruta: "cupones/[id]", metodo: "PATCH", params: { id: ID } },
     { ruta: "cupones/[id]", metodo: "DELETE", params: { id: ID } },
     { ruta: "retention/campaigns/[id]", metodo: "GET", params: { id: ID } },
@@ -76,13 +76,21 @@ const t = (name: string, ok: boolean, extra = "") => {
     { ruta: "services/[id]", metodo: "DELETE", params: { id: ID } },
     { ruta: "services/[id]/photo", metodo: "POST", params: { id: ID } },
     { ruta: "services/[id]/photo", metodo: "DELETE", params: { id: ID } },
+    // escrituras de dinero y de agenda que antes no pedian sesion
+    { ruta: "arriendo", metodo: "POST", params: {} },
+    { ruta: "arriendo", metodo: "PATCH", params: {} },
+    { ruta: "comisiones", metodo: "POST", params: {} },
+    { ruta: "comisiones", metodo: "PATCH", params: {} },
+    { ruta: "barber-services", metodo: "POST", params: {} },
+    { ruta: "barber-service-assignments", metodo: "POST", params: {} },
+    { ruta: "barber/blocks", metodo: "PATCH", params: {}, qs: `?id=${ID}` },
   ];
   for (const e of escritura) {
     const mod = await import(`../src/app/api/${e.ruta}/route`);
     networkCalls = 0;
     const init: any = { method: e.metodo, headers: { "content-type": "application/json" } };
-    if (e.metodo === "PATCH") init.body = JSON.stringify({ active: false });
-    const res: Response = await mod[e.metodo](new NextRequest(`http://localhost:3000/api/${e.ruta.replace("[id]", ID)}`, init), { params: e.params });
+    if (e.metodo === "PATCH" || e.metodo === "POST" || e.metodo === "PUT") init.body = JSON.stringify({ active: false, barberId: ID, recordId: ID, serviceId: ID, serviceIds: [], commissionRate: 40, month: 10, year: 2026, daysWorked: 1, amount: 1 });
+    const res: Response = await mod[e.metodo](new NextRequest(`http://localhost:3000/api/${e.ruta.replace("[id]", ID)}${e.qs ?? ""}`, init), { params: e.params });
     const cerrada = res.status === 401 || res.status === 403;
     t(`${e.metodo} /api/${e.ruta} sin sesion`, cerrada && networkCalls === 0, `status ${res.status}, llamadas a la red: ${networkCalls}`);
   }
