@@ -75,6 +75,7 @@ function fixture(){
    reclamarAviso:async(t,h)=>{const k=`${t}:${h}`;if(avisados.has(k))return false;avisados.add(k);return true;},
    referencia:async()=>null,referenciaAlternativa:async()=>null,
   },
+  negocioInactivo:tenant=>comercial.negocioInactivo(tenant),
   datosDelNegocio:async tenant=>{flags.datosLeidos++;const r=await comercial.datosDelNegocio(tenant);if(flags.bajaAlLeer)flags.baja=true;if(flags.apagarAlLeer)flags.enabled=false;return r;},
   accion:async(...args)=>{acciones.push(args);return {motivo:"ok"};},responder:async(n,_para,texto)=>{enviados.push({tenant:n.tenantId,texto});},avisarAdministrador:async t=>{avisos.push(t);},
  };
@@ -114,7 +115,7 @@ async function main(){
  ] as const){await caso("P-dato-ausente",()=>sinLogs(()=>{const d=datos();mutar(d);assert.equal(responderFaq(pregunta,d).tipo,"traspaso");}));}
  for(const valor of [null,undefined,3,{},[],{toString(){throw Error("no convertir");}}])await caso("P-tipo-no-texto",()=>sinLogs(()=>assert.equal(responderFaq(valor,datos()).tipo,"traspaso")));
  for(const tabla of ["tenants","services","business_hours","branches"]){
-  await caso(`W-ajeno-${tabla}`,()=>sinLogs(async()=>{const f=fixture();f.flags.spoof=tabla;const r=await f.post("¿Cuál es la dirección?");assert.deepEqual(f.enviados,[{tenant:"A",texto:traspaso}]);assert.ok(!JSON.stringify([f.enviados,r]).includes("AJENA_F1"));assert.equal(f.acciones.length,0);}));
+  await caso(`W-ajeno-${tabla}`,()=>sinLogs(async()=>{const f=fixture();f.flags.spoof=tabla;const r=await f.post("¿Cuál es la dirección?");assert.deepEqual(f.enviados,tabla==="tenants"?[]:[{tenant:"A",texto:traspaso}]);assert.ok(!JSON.stringify([f.enviados,r]).includes("AJENA_F1"));assert.equal(f.acciones.length,0);}));
   await caso(`W-error-${tabla}`,()=>sinLogs(async()=>{const f=fixture();f.flags.error=tabla;await f.post("¿Qué horario tienen?");assert.deepEqual(f.enviados,[{tenant:"A",texto:traspaso}]);assert.deepEqual(f.avisos,["A"]);}));
  }
  for(const estado of ["inactive","suspended"]){
@@ -134,12 +135,12 @@ async function main(){
  await caso("W-limite-hora",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<11;i++)await f.post(i%2?"¿Cuál es la dirección?":"¿Cuál es su teléfono?");assert.equal(f.enviados.length,10);}));
  await caso("W-baja-entre-consultas",()=>sinLogs(async()=>{const f=fixture();await f.post("¿Cuál es la dirección?");await f.post("baja");await f.post("¿Cuál es su teléfono?");assert.equal(f.enviados.length,2);assert.equal(f.enviados[1].texto,"Tu solicitud de baja quedó registrada.");}));
  // Casos fallidos retirados del ejecutable por instrucción de Nico. No cuentan como aprobados.
- // EXCLUIDO F1-01: negocio active=false con agente enabled=true envía traspaso; ver HALLAZGOS-F1.md.
- // EXCLUIDO F1-02: tenant suspended con agente enabled=true envía traspaso; ver HALLAZGOS-F1.md.
- // EXCLUIDO F1-03: horario sin sucursal y todas sin semana pide cuál, no traspasa; ver HALLAZGOS-F1.md.
+ await caso("W-inactivo-no-envia",()=>sinLogs(async()=>{const f=fixture();f.tablas.tenants[0].active=false;await f.post("¿Cuál es la dirección?");assert.equal(f.enviados.length,0);}));
+ await caso("W-suspendido-no-envia",()=>sinLogs(async()=>{const f=fixture();f.tablas.tenants[0].status="suspended";await f.post("¿Cuál es la dirección?");assert.equal(f.enviados.length,0);}));
+ await caso("P-sucursales-todas-sin-horario",()=>sinLogs(()=>{const d=datos();d.sucursales=[{id:"centro",nombre:"Centro",direccion:null,horario:[]}];assert.equal(responderFaq("¿Qué horario tienen?",d).tipo,"traspaso");}));
  await caso("W-tercer-identico-largo",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<3;i++)await f.post("x".repeat(5000));assert.equal(f.enviados.length,2);}));
- // EXCLUIDO F1-03 (webhook): tampoco traspasa la consulta general sin semanas de sucursales; ver HALLAZGOS-F1.md.
- // EXCLUIDO F1-04: tres textos idénticos de LIMITE_TEXTO_EN_MEMORIA+1 generan tres respuestas; ver HALLAZGOS-F1.md.
+ await caso("W-sucursales-todas-sin-horario",()=>sinLogs(async()=>{const f=fixture();f.tablas.branches=[{id:"centro",tenant_id:"A",name:"Centro",address:null,active:true}];await f.post("¿Qué horario tienen?");assert.equal(f.enviados[0]?.texto,"Te contactará una persona.");}));
+ await caso("W-tercer-identico-fuera-memoria",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<3;i++)await f.post("x".repeat(16385));assert.equal(f.enviados.length,2);}));
  for(const [entrada,esperado] of [
   ["¿Qué horario tienen?","Horario semanal: Lunes a viernes de 10:00 a 20:00; sábado de 10:00 a 15:00; domingo cerrado."],
   ["¿Cuál es la dirección?","Dirección: Av. Sintética 123."],

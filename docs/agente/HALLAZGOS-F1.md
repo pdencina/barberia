@@ -40,3 +40,6 @@ Base: `claude/e3-e4-combinado`, commit `a898cc4`. Solo pruebas y documentación;
 `npx tsx scripts/test-agente-faq-adversarial.ts`: 227 casos pasan, cinco retirados. Captura `log/info/warn/error/debug` durante cada caso y exige silencio; verifica ausencia del mensaje completo y del marcador privado en HTTP, respuestas simuladas, avisos, consultas y datos persistibles. Vacío/espacios se prueban como traspaso, sin comparar la subcadena vacía. Los controles positivos verifican las seis intenciones para evitar que un traspaso general haga pasar toda la suite.
 
 No se probó Meta, correo, producción ni una base real. No se leyeron llaves ni entorno. `permitirEnvio` y `permitirBorrado` no se tocaron. Fuentes con rutas abreviadas de arriba: todas pertenecen a `src/lib/agente/`. Los fallos necesitan revisión de Claude en un PR de código posterior, fuera de F1.
+
+## Resueltos por Claude
+F1-01 a F1-04 corregidos en `claude/f1-hallazgos` (negocioInactivo, derivar si ninguna sucursal tiene semana, hash fijo para textos largos). Los 5 casos retirados vuelven a ejecutarse y pasan.
