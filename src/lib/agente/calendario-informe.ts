@@ -12,7 +12,7 @@ export interface PreferenciaCalendarioInforme {
   weekly_weekday: number | null;
   anchor_date: string | null;
   send_local_time: string | null;
-  effective_from: string;
+  effective_from: string | null;
 }
 export type DecisionCalendarioInforme =
   | { toca: true; fechaInformada: string; fechaProgramada: string }
@@ -42,16 +42,17 @@ function segundos(value: string): number {
 }
 function validar(p: PreferenciaCalendarioInforme): void {
   if (!p || typeof p.enabled !== "boolean" || !["daily", "every_3_days", "weekly", "custom"].includes(p.frequency)) throw new Error("Preferencia inválida");
-  ordinal(p.effective_from);
+  if (p.effective_from !== null) ordinal(p.effective_from);
+  else if (p.enabled) throw new Error("Falta fecha de vigencia");
   if (p.anchor_date !== null) ordinal(p.anchor_date);
-  if (p.frequency === "every_3_days" && p.anchor_date === null) throw new Error("Falta fecha ancla");
-  if (p.frequency === "weekly" && (!Number.isInteger(p.weekly_weekday) || p.weekly_weekday! < 0 || p.weekly_weekday! > 6)) throw new Error("Día semanal inválido");
+  if (p.enabled && p.frequency === "every_3_days" && p.anchor_date === null) throw new Error("Falta fecha ancla");
+  if (p.frequency === "weekly" && (p.weekly_weekday !== null || p.enabled) && (!Number.isInteger(p.weekly_weekday) || p.weekly_weekday! < 0 || p.weekly_weekday! > 6)) throw new Error("Día semanal inválido");
   if (!Array.isArray(p.custom_weekdays) || p.custom_weekdays.some(d => !Number.isInteger(d) || d < 0 || d > 6) || new Set(p.custom_weekdays).size !== p.custom_weekdays.length) throw new Error("Días personalizados inválidos");
-  if (p.frequency === "custom" && p.custom_weekdays.length === 0) throw new Error("Elige días personalizados");
+  if (p.enabled && p.frequency === "custom" && p.custom_weekdays.length === 0) throw new Error("Elige días personalizados");
   if (p.send_local_time !== null) segundos(p.send_local_time);
 }
 function corresponde(p: PreferenciaCalendarioInforme, day: number): boolean {
-  if (!p.enabled || day < ordinal(p.effective_from)) return false;
+  if (!p.enabled || day < ordinal(p.effective_from!)) return false;
   const weekday = ((day + 4) % 7 + 7) % 7;
   switch (p.frequency) {
     case "daily": return true;
@@ -70,7 +71,8 @@ export function enumerarFechasInforme(p: PreferenciaCalendarioInforme, desde: st
   const start = ordinal(desde), end = ordinal(hasta);
   if (end < start) throw new Error("Intervalo inválido");
   const dates: string[] = [];
-  for (let day = Math.max(start, ordinal(p.effective_from)); day <= end; day++) {
+  if (!p.enabled) return dates;
+  for (let day = Math.max(start, ordinal(p.effective_from!)); day <= end; day++) {
     if (corresponde(p, day)) dates.push(civil(day));
   }
   return dates;

@@ -1,6 +1,8 @@
 # Bitacora del agente de WhatsApp
 
-## Código por administrador — pieza 1 (espera Claude)
+## Código por administrador — pieza 1, PR #123 (espera Claude)
+
+**HECHO — validación:** `npx tsc --noEmit` pasa; 56 casos reutilizados y 34 casos de decisión real pasan, incluidos fila apagada sin vigencia/hora y rechazo de activación sin vigencia. Sin integración ni entrega real. PR #123 abierto, sin merge.
 
 **HECHO:** calendario puro en `src/lib/agente/calendario-informe.ts:1`; la prueba anterior importa el enumerador real (`scripts/test-agente-informe-frecuencia.ts:6`), y `scripts/test-agente-calendario-informe.ts:1` prueba decisión por instante, hora, vigencia y última fecha informada. Sin reloj real, red, base ni correo. **INFERENCIA:** política provisional centralizada, preguntas 16/21 aún sin confirmar; IA2 se representa mediante ancla/vigencia explícitas, sin elegir cómo editarlas. Hora inexistente elegible en primera pasada posterior del día: comportamiento propuesto IA3, pendiente de Nico. No hay recuperación automática de días pasados (#22), reserva atómica ni revisión de trabajos en esta función. Son requisitos del despachador futuro, no garantías del calendario.
 

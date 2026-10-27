@@ -16,6 +16,8 @@ check("última fecha futura falla cerrado", () => assert.equal(decision(Date.UTC
 check("fecha anterior no bloquea siguiente informe", () => assert.equal(decision(Date.UTC(2026,9,26,12), {}, "2026-10-24").toca, true));
 check("effective_from futuro no recibe", () => assert.deepEqual(decision(Date.UTC(2026,9,26,12), { effective_from: "2026-10-27" }), { toca: false, motivo: "fuera_de_calendario" }));
 check("apagado no recibe", () => assert.deepEqual(decision(Date.UTC(2026,9,26,12), { enabled: false }), { toca: false, motivo: "apagado" }));
+check("fila apagada sin vigencia ni hora tolera configuración incompleta", () => assert.deepEqual(decision(Date.UTC(2026,9,26,12), { enabled: false, effective_from: null, frequency: "weekly", weekly_weekday: null }), { toca: false, motivo: "apagado" }));
+check("encendido sin vigencia se rechaza", () => assert.throws(() => decision(Date.UTC(2026,9,26,12), { effective_from: null })));
 check("medianoche conserva día anterior al cambio", () => assert.deepEqual(decision(Date.UTC(2026,9,27,2,59), { send_local_time: "00:00" }), { toca: true, fechaInformada: "2026-10-25", fechaProgramada: "2026-10-26" }));
 check("medianoche nueva informa fecha anterior correcta", () => assert.deepEqual(decision(Date.UTC(2026,9,27,3), { send_local_time: "00:00" }), { toca: true, fechaInformada: "2026-10-26", fechaProgramada: "2026-10-27" }));
 for (const [year, month, day, expected] of [[2027,0,1,"2026-12-31"], [2028,2,1,"2028-02-29"], [2026,2,1,"2026-02-28"]] as const) {
