@@ -1,8 +1,8 @@
-// INFERENCIA: política provisional solicitada para revisión; Nico NO la confirmó.
-// ÚNICO lugar para cambiar día informado y hora por defecto (preguntas 16/21).
-export const POLITICA_PROVISIONAL_INFORME = Object.freeze({
-  diasAntes: 1,
-  horaPredeterminada: "08:00",
+// HECHO: decisión de Nico, 26 oct. 2026; registro ESPECIFICACION.md, sección 12.
+// ÚNICA constante de política: mismo día local y hora predeterminada modificable por admin.
+export const POLITICA_INFORME = Object.freeze({
+  diasAntes: 0,
+  horaPredeterminada: "21:00",
 });
 
 export interface PreferenciaCalendarioInforme {
@@ -83,6 +83,17 @@ const formato = new Intl.DateTimeFormat("en-GB", {
   hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23",
 });
 
+// Compartido con el texto del correo: ambas fechas/horas salen de la misma zona.
+export function obtenerFechaHoraInforme(ahora: number): { fecha: string; hora: string; segundos: number } {
+  if (!Number.isFinite(ahora) || !Number.isFinite(new Date(ahora).getTime())) throw new Error("Instante inválido");
+  const parts = formato.formatToParts(new Date(ahora));
+  const part = (type: string) => parts.find(p => p.type === type)!.value;
+  const fecha = `${part("year").padStart(4, "0")}-${part("month")}-${part("day")}`;
+  ordinal(fecha);
+  const hora = `${part("hour")}:${part("minute")}`;
+  return { fecha, hora, segundos: segundos(`${hora}:${part("second")}`) };
+}
+
 // Pura: ahora es un instante UTC en milisegundos suministrado por el llamador.
 // No usa reloj, base, red, entorno ni fechas de citas. Última fecha = informe ya aceptado.
 // INFERENCIA IA3: evalúa desde la hora elegida hasta el fin de esa fecha civil;
@@ -92,17 +103,14 @@ export function decidirInforme(
   p: PreferenciaCalendarioInforme, ahora: number, ultimaFechaInformada: string | null,
 ): DecisionCalendarioInforme {
   validar(p);
-  if (!Number.isFinite(ahora) || !Number.isFinite(new Date(ahora).getTime())) throw new Error("Instante inválido");
+  const local = obtenerFechaHoraInforme(ahora);
   if (ultimaFechaInformada !== null) ordinal(ultimaFechaInformada);
   if (!p.enabled) return { toca: false, motivo: "apagado" };
-  const parts = formato.formatToParts(new Date(ahora));
-  const part = (type: string) => parts.find(p => p.type === type)!.value;
-  const fechaProgramada = `${part("year").padStart(4, "0")}-${part("month")}-${part("day")}`;
+  const fechaProgramada = local.fecha;
   const day = ordinal(fechaProgramada);
   if (!corresponde(p, day)) return { toca: false, motivo: "fuera_de_calendario" };
-  const horaActual = segundos(`${part("hour")}:${part("minute")}:${part("second")}`);
-  if (horaActual < segundos(p.send_local_time ?? POLITICA_PROVISIONAL_INFORME.horaPredeterminada)) return { toca: false, motivo: "antes_de_hora" };
-  const fechaInformada = civil(day - POLITICA_PROVISIONAL_INFORME.diasAntes);
+  if (local.segundos < segundos(p.send_local_time ?? POLITICA_INFORME.horaPredeterminada)) return { toca: false, motivo: "antes_de_hora" };
+  const fechaInformada = civil(day - POLITICA_INFORME.diasAntes);
   if (ultimaFechaInformada !== null && ordinal(ultimaFechaInformada) >= ordinal(fechaInformada)) return { toca: false, motivo: "ya_informado" };
   return { toca: true, fechaInformada, fechaProgramada };
 }
