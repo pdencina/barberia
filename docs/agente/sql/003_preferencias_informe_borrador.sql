@@ -1,7 +1,8 @@
 -- BORRADOR — NO EJECUTAR
 -- INFERENCIA: propuesta de preferencias, no migración aprobada. Espera a Claude.
--- HECHO: perfiles tienen id/email/role/active (001_initial_schema.sql:13-23),
--- y tenant_id (028_multi_tenant.sql:81). Decisiones Nico 26 oct. 2026: #15/#18/#19.
+-- HECHO: id/email/role/active: supabase/migrations/001_initial_schema.sql:13-23;
+-- tenant_id: supabase/migrations/028_multi_tenant.sql:81.
+-- HECHO: decisiones Nico 26 oct. 2026: #15/#18/#19, ESPECIFICACION.md sección 12.
 -- INFERENCIA: una fila por administrador; NO guarda correo, citas, clientes,
 -- llaves, textos, cupos ni registro de entregas. No habilita envíos ni crea cron.
 -- DESCONOCIDO: no probado en PostgreSQL ni aplicado a ninguna base.
