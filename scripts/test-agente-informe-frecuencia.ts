@@ -1,8 +1,9 @@
-// INFERENCIA: especificación ejecutable del calendario propuesto, NO implementación.
-// Función simulada local; no importa src/, red, base, entorno ni correo.
+// HECHO: ejercita el calendario real; reserva/cambio de configuración siguen simulados.
+// No usa red, base, entorno, reloj real ni correo.
 // Hora, fecha informada, ancla, día semanal y cambios de ciclo los decide Nico.
 // IA2 se prueba con alternativas explícitas; ninguna queda elegida para producto.
 import assert from "node:assert/strict";
+import { enumerarFechasInforme } from "../src/lib/agente/calendario-informe";
 
 type Frequency = "daily" | "every_3_days" | "weekly" | "custom";
 interface Preference {
@@ -31,29 +32,12 @@ function civil(day: number): string {
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1)}-${pad(date.getUTCDate())}`;
 }
 const weekday = (day: number) => ((day + 4) % 7 + 7) % 7;
-function valid(p: Preference): void {
-  ordinal(p.effective);
-  if (p.frequency === "every_3_days") ordinal(p.anchor || "");
-  if (p.frequency === "weekly" && (!Number.isInteger(p.weekday) || p.weekday! < 0 || p.weekday! > 6)) throw new Error("Día semanal inválido");
-  if (p.frequency === "custom" && (!p.days?.length || new Set(p.days).size !== p.days.length || p.days.some(d => !Number.isInteger(d) || d < 0 || d > 6))) throw new Error("Días personalizados inválidos");
-  if (!["daily", "every_3_days", "weekly", "custom"].includes(p.frequency)) throw new Error("Frecuencia inválida");
-}
-// SIMULADA: enumera ocurrencias debidas; no envía ni decide recuperar atrasos.
+// Adaptador de los fixtures originales a la función REAL, no copia del algoritmo.
 function calendarioSimulado(p: Preference, from: string, through: string): string[] {
-  valid(p);
-  const start = ordinal(from), end = ordinal(through), effective = ordinal(p.effective);
-  if (end < start) throw new Error("Intervalo inválido");
-  if (!p.enabled) return [];
-  const anchor = p.anchor ? ordinal(p.anchor) : effective;
-  const result: string[] = [];
-  for (let day = Math.max(start, effective); day <= end; day++) {
-    const due = p.frequency === "daily"
-      || (p.frequency === "every_3_days" && day >= anchor && (day - anchor) % 3 === 0)
-      || (p.frequency === "weekly" && weekday(day) === p.weekday)
-      || (p.frequency === "custom" && p.days!.includes(weekday(day)));
-    if (due) result.push(civil(day));
-  }
-  return result;
+  return enumerarFechasInforme({ enabled: p.enabled, frequency: p.frequency,
+    effective_from: p.effective, anchor_date: p.anchor ?? null,
+    custom_weekdays: p.days ?? [], weekly_weekday: p.weekday ?? null,
+    send_local_time: null }, from, through);
 }
 
 const localFormat = new Intl.DateTimeFormat("en-GB", {
@@ -186,4 +170,4 @@ check("evaluación por bloques conserva todas las ocurrencias sin solapar", () =
   assert.deepEqual(chunks, full); assert.equal(new Set(chunks).size, full.length);
   for (let i = 1; i < full.length; i++) assert.equal(ordinal(full[i]) - ordinal(full[i - 1]), 3);
 });
-console.log(`RESULTADO: ${checks} casos, 0 fallas. SIMULACIÓN de calendario; sin src/red/base/llaves/envíos. IA2 no decidida.`);
+console.log(`RESULTADO: ${checks} casos, 0 fallas. Calendario REAL; reserva simulada; sin red/base/llaves/envíos. IA2 no decidida.`);

@@ -1,5 +1,15 @@
 # Bitacora del agente de WhatsApp
 
+## Código por administrador — pieza 1, PR #123 (espera Claude)
+
+**HECHO — actualización de Nico, 26 oct. 2026:** #16 y #21 respondidas: mismo día local de Santiago, 21:00 por defecto modificable por administrador. Sustituida la política provisional por `POLITICA_INFORME` (`src/lib/agente/calendario-informe.ts:3-6`). Texto del correo con fecha/hora de Santiago y advertencia de información modificable; los informes históricos manuales conservan fecha explícita. PR #123 actualizado, sin merge. No se inició pieza 4, no se enviaron correos ni se ejecutó SQL en esta actualización.
+
+**HECHO — validación:** `npx tsc --noEmit` pasa; 56 casos reutilizados, 44 de decisión real y 11 del texto horario del correo pasan. Incluyen 20:59:59/21:00, fecha UTC de mañana, medianoche, ambos cambios DST y hora personalizada. **DESCONOCIDO:** integración real, reserva y entrega; no probadas. PR #123 abierto, sin merge.
+
+**HECHO:** calendario puro en `src/lib/agente/calendario-informe.ts:1`; la prueba anterior importa el enumerador real (`scripts/test-agente-informe-frecuencia.ts:6`), y `scripts/test-agente-calendario-informe.ts:1` prueba decisión por instante, hora, vigencia y última fecha informada. Sin reloj real, red, base ni correo en las pruebas. **INFERENCIA:** IA2 se representa mediante ancla/vigencia explícitas, sin elegir cómo editarlas. Hora personalizada inexistente elegible en primera pasada posterior del día: comportamiento propuesto IA3, pendiente de Nico. No hay recuperación automática de días pasados (#22), reserva atómica ni revisión de trabajos en esta función. Son requisitos del despachador futuro, no garantías del calendario.
+
+**HECHO comunicado por Nico:** tabla 003 aplicada en pruebas y ausente en producción; Codex no accedió a ninguna base. **DESCONOCIDO:** `src/lib/cron-auth.ts` sigue sin encontrarse en base d746b49; pieza 4 no iniciada, pendiente de merges 1–3 y revisión de Claude. Todos estos PRs quedan abiertos, ninguno se mergea autónomamente.
+
 ## 26 oct. 2026 — informe por administrador (A/B/C)
 
 **HECHO — decisiones de Nico registradas:** #15 suscripción individual opcional y cuatro frecuencias, #18 sin consumo del cupo del negocio, #19 remitente exclusivamente desde `EMAIL_FROM`. Registro en sección 12 y hoja de pendientes actualizados.

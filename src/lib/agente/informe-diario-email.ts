@@ -1,5 +1,6 @@
 import { getResendClient } from "@/lib/resend-client";
 import type { DailyAppointmentReport } from "./informe-diario";
+import { obtenerFechaHoraInforme } from "./calendario-informe";
 
 const escapeHtml = (value: unknown): string =>
   String(value ?? "")
@@ -22,7 +23,13 @@ export function dailyReportSubject(report: DailyAppointmentReport): string {
   return `Informe diario de citas · ${report.businessName} · ${report.date}`;
 }
 
-export function renderDailyReportEmail(report: DailyAppointmentReport): string {
+// Instante opcional para conservar los llamadores de render existentes sin reloj real.
+// El envío siempre lo proporciona; no se etiqueta "hoy" a un informe histórico.
+export function renderDailyReportEmail(report: DailyAppointmentReport, generadoEn?: number): string {
+  const local = generadoEn === undefined ? null : obtenerFechaHoraInforme(generadoEn);
+  const encabezado = local
+    ? `${report.date === local.fecha ? "Citas de hoy" : `Citas del ${escapeHtml(report.date)}`}, generado a las ${local.hora}${report.date === local.fecha ? "" : ` del ${local.fecha}`} (hora de Santiago)`
+    : `Citas del ${escapeHtml(report.date)}`;
   const professionalSections = report.professionals.length === 0
     ? `<p style="margin:20px 0;color:#4b5563;">No hay citas registradas para este día.</p>`
     : report.professionals.map((professional) => `
@@ -50,7 +57,8 @@ export function renderDailyReportEmail(report: DailyAppointmentReport): string {
       <tr><td style="padding:28px;">
         <div style="font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:#0f766e;">Informe diario</div>
         <h1 style="margin:8px 0 4px;font-size:24px;">${escapeHtml(report.businessName)}</h1>
-        <p style="margin:0 0 20px;color:#6b7280;">Citas del ${escapeHtml(report.date)}</p>
+        <p style="margin:0 0 20px;color:#6b7280;">${encabezado}</p>
+        ${local ? '<p style="color:#6b7280;font-size:12px;">La información puede cambiar después de esta hora.</p>' : ""}
         <table role="presentation" cellpadding="0" cellspacing="0"><tr>
           <td style="padding:10px 16px;background:#f0fdfa;border-radius:8px;"><strong>${report.totalAppointments}</strong><br><span style="font-size:12px;color:#4b5563;">Citas totales</span></td>
           <td width="12"></td>
@@ -67,15 +75,17 @@ export function renderDailyReportEmail(report: DailyAppointmentReport): string {
 export async function sendDailyReportEmail(args: {
   report: DailyAppointmentReport;
   recipients: string[];
+  generadoEn?: number;
 }) {
   if (args.recipients.length === 0) throw new Error("No hay correos destinatarios configurados");
+  const generadoEn = args.generadoEn ?? Date.now();
   const resend = getResendClient();
   const { data, error } = await resend.emails.send({
-    // Mismo fallback que resend.ts (recibos y avisos internos); dominios pendientes de Nico en la pregunta 19.
+    // Fallback del envío manual previo; #19 ya decidido. Su retirada queda en pieza 4.
     from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to: args.recipients,
     subject: dailyReportSubject(args.report),
-    html: renderDailyReportEmail(args.report),
+    html: renderDailyReportEmail(args.report, generadoEn),
   });
   if (error) throw new Error(`Error enviando informe diario: ${error.message}`);
   return data;

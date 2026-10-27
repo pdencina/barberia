@@ -8,9 +8,9 @@
 | 15 | **RESPONDIDA — Nico, 26 oct. 2026.** | Opcional por administrador, correo de su perfil; diaria / cada 3 días / semanal / personalizada. | No reabrir destinatarios; implementar preferencias propias. |
 | 18 | **RESPONDIDA — Nico, 26 oct. 2026.** | NO consume cupo de correos del negocio. | No aplicar cuota comercial. |
 | 19 | **RESPONDIDA — Nico, 26 oct. 2026.** | `no-reply@re-booking.cl`, solo desde `EMAIL_FROM`. Verificación productiva informada por Nico. | Quitar fallback literal en futura tarea de código. |
-| 16 | ¿Qué hora y días? | Hora local configurable; respeta cada negocio. | **F1-auto:** horario. |
+| 16 | **RESPONDIDA — Nico, 26 oct. 2026.** | 21:00 hora de Santiago por defecto; cada administrador puede cambiarla. | Horario decidido; implementación/revisión pendientes. |
 | 17 | ¿Manual, automático o ambos? | Manual para piloto; ambos después si apruebas automatizar. | **F1-auto:** modalidad. |
-| 21 | ¿Agenda de hoy o resultado de ayer? | Ayer para resultados; hoy si quieres preparar jornada. | **F1-auto:** día informado. |
+| 21 | **RESPONDIDA — Nico, 26 oct. 2026.** | Citas del MISMO DÍA local del envío. “Citas de hoy, generado a las HH:MM”; información modificable después. | Día decidido; no reabrir. |
 | 22 | ¿Qué hacer si falla o llega tarde? | Revisar manualmente al principio; evita duplicados. | **F1-auto:** recuperación. |
 | 23 | ¿Enviar también con cero citas? | Sí durante piloto; distingue vacío de fallo. | **F1-auto:** días vacíos. |
 | 24 | ¿Qué servicio programa el envío? | Evaluar Vercel existente con Pablo; capacidad/costo sin verificar. | **F1-auto:** implementación posterior. |
@@ -42,4 +42,4 @@
 | 8 | ¿Qué cupo consumen mensajes del agente? | Categoría y límite explícitos; evita cambios de cobro implícitos. | **F2:** cuota WhatsApp. |
 | 20 | ¿Quién puede mergear PRs? | **HECHO:** aclarado por Claude/Nico; Nivel 3 activo (`AGENTS.md:122`, `docs/agente/NIVELES.md:24`). | Resuelto; código/SQL esperan a Claude. |
 
-**HECHO:** #15, #18 y #19 respondidas por Nico el 26 oct. 2026; registro en sección 12. **INFERENCIA:** para automatizar faltan #16–17 y #21–24, además de IA1–IA6 (ancla, cambios de frecuencia, horario de verano, autenticación, límites operativos y baja). Opciones y recomendación en sección 11 y `INFORME_POR_ADMINISTRADOR.md`. No se activa nada.
+**HECHO:** #15, #16, #18, #19 y #21 respondidas por Nico el 26 oct. 2026; registro en sección 12. **INFERENCIA:** para automatizar faltan #17, #22–24 e IA1–IA6 (ancla, cambios de frecuencia, hora personalizada inexistente, autenticación, límites operativos y baja). Opciones y recomendación en sección 11 y `INFORME_POR_ADMINISTRADOR.md`. No se activa nada; piezas 1–3 esperan a Claude antes de iniciar la 4.
