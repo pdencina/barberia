@@ -1,5 +1,11 @@
 # Bitacora del agente de WhatsApp
 
+## Código por administrador — pieza 1 (espera Claude)
+
+**HECHO:** calendario puro en `src/lib/agente/calendario-informe.ts:1`; la prueba anterior importa el enumerador real (`scripts/test-agente-informe-frecuencia.ts:6`), y `scripts/test-agente-calendario-informe.ts:1` prueba decisión por instante, hora, vigencia y última fecha informada. Sin reloj real, red, base ni correo. **INFERENCIA:** política provisional centralizada, preguntas 16/21 aún sin confirmar; IA2 se representa mediante ancla/vigencia explícitas, sin elegir cómo editarlas. Hora inexistente elegible en primera pasada posterior del día: comportamiento propuesto IA3, pendiente de Nico. No hay recuperación automática de días pasados (#22), reserva atómica ni revisión de trabajos en esta función. Son requisitos del despachador futuro, no garantías del calendario.
+
+**HECHO comunicado por Nico:** tabla 003 aplicada en pruebas y ausente en producción; Codex no accedió a ninguna base. **DESCONOCIDO:** `src/lib/cron-auth.ts` sigue sin encontrarse en base d746b49; pieza 4 no iniciada, pendiente de merges 1–3 y revisión de Claude. Todos estos PRs quedan abiertos, ninguno se mergea autónomamente.
+
 ## 26 oct. 2026 — informe por administrador (A/B/C)
 
 **HECHO — decisiones de Nico registradas:** #15 suscripción individual opcional y cuatro frecuencias, #18 sin consumo del cupo del negocio, #19 remitente exclusivamente desde `EMAIL_FROM`. Registro en sección 12 y hoja de pendientes actualizados.
