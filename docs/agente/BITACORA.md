@@ -1,16 +1,5 @@
 # Bitacora del agente de WhatsApp
 
-## Código por administrador — piezas 1 a 3, revisión obligatoria de Claude
-
-| Pieza | PR | HECHO — validación y límites |
-|---|---|---|
-| 1: calendario | #123 | Abierto SIN MERGE. TypeScript, 56 casos reutilizados y 34 de decisión real pasan. Fuente: `src/lib/agente/calendario-informe.ts:1`. Política 16/21 PROVISIONAL centralizada. Sin red/base/envíos; reserva persistente y recuperación no probadas. |
-| 2: registro SQL | #124 | Abierto SIN MERGE. TypeScript y 63 comprobaciones existentes pasan; PGlite efímero, 20 comprobaciones del SQL local pasan. Fuente: `docs/agente/sql/004_registro_envios_informe_borrador.sql:1` en ese PR. No Supabase ni concurrencia multisession; retención DESCONOCIDO (#10). |
-
-**HECHO — pieza 3, PR #125 abierto SIN MERGE:** ruta en `src/app/api/agente/informe-preferencias/route.ts:1`, manejador inyectable en `src/lib/agente/informe-preferencias.ts:1`, contrato en `docs/agente/API_INFORME_PREFERENCIAS.md:1`. TypeScript y 95 casos con guard/base simulados pasan: 401/403, propio perfil/tenant, super_admin con negocio concreto, whitelist, fechas/horas/días, activación completa, defecto apagado, migración ausente 503, origen cruzado y conflictos de revisión/creación. **DESCONOCIDO:** autenticación Next real, Supabase, RLS de la instalación y pantalla; no probados. Sin envío ni SQL externo; espera Claude.
-
-**INFERENCIA — límites del lote:** IA2, IA3, #10 y #22 siguen pendientes; 16/21 son provisionales, no decisiones definitivas. La pieza 4 NO se empieza y no hay merge autónomo en este lote. No se tocó vercel.json, dashboard, package.json, supabase/, .github/, AGENTS.md, NIVELES.md ni .env. **DESCONOCIDO:** `src/lib/cron-auth.ts` sigue no encontrado en base d746b49; falta resolver antes de pieza 4.
-
 ## 26 oct. 2026 — informe por administrador (A/B/C)
 
 **HECHO — decisiones de Nico registradas:** #15 suscripción individual opcional y cuatro frecuencias, #18 sin consumo del cupo del negocio, #19 remitente exclusivamente desde `EMAIL_FROM`. Registro en sección 12 y hoja de pendientes actualizados.
@@ -42,6 +31,17 @@
 **INFERENCIA — tres decisiones primero para habilitar Fase 1 manual:** correos destinatarios aprobados (#15), tratamiento del cupo interno (#18) y dominio remitente confirmado por Pablo/Nico (#19). Automático requiere además hora/días/modalidad, día informado, recuperación e infraestructura (#16–17, #21–24). No se ejecutó SQL ni se envió correo para probarlas.
 
 **HECHO — límites del lote:** ningún cambio en AGENTS.md, NIVELES.md, vercel.json, package.json, supabase/, .github/ o .env; ningún cron/ruta nueva ni envío real. T8–T10 son funciones sin conexión, en ramas independientes desde la base actualizada; no se mergean autónomamente. Se termina la lista y se detiene el trabajo. **DESCONOCIDO:** integración real, entrega y datos desplegados; no probados. El hallazgo D1 debe revisarse antes de conectar el detector a acciones.
+
+## Código por administrador — piezas 1 a 3, revisión obligatoria de Claude
+
+| Pieza | PR | HECHO — validación y límites |
+|---|---|---|
+| 1: calendario | #123 | Abierto SIN MERGE. TypeScript, 56 casos reutilizados y 34 de decisión real pasan. Fuente: `src/lib/agente/calendario-informe.ts:1`. Política 16/21 PROVISIONAL centralizada. Sin red/base/envíos; reserva persistente y recuperación no probadas. |
+| 2: registro SQL | #124 | Abierto SIN MERGE. TypeScript y 63 comprobaciones existentes pasan; PGlite efímero, 20 comprobaciones del SQL local pasan. Fuente: `docs/agente/sql/004_registro_envios_informe_borrador.sql:1` en ese PR. No Supabase ni concurrencia multisession; retención DESCONOCIDO (#10). |
+
+**HECHO — pieza 3, PR #125 abierto SIN MERGE:** ruta en `src/app/api/agente/informe-preferencias/route.ts:1`, manejador inyectable en `src/lib/agente/informe-preferencias.ts:1`, contrato en `docs/agente/API_INFORME_PREFERENCIAS.md:1`. TypeScript y 95 casos con guard/base simulados pasan: 401/403, propio perfil/tenant, super_admin con negocio concreto, whitelist, fechas/horas/días, activación completa, defecto apagado, migración ausente 503, origen cruzado y conflictos de revisión/creación. **DESCONOCIDO:** autenticación Next real, Supabase, RLS de la instalación y pantalla; no probados. Sin envío ni SQL externo; espera Claude.
+
+**INFERENCIA — límites del lote:** IA2, IA3, #10 y #22 siguen pendientes; 16/21 son provisionales, no decisiones definitivas. La pieza 4 NO se empieza y no hay merge autónomo en este lote. No se tocó vercel.json, dashboard, package.json, supabase/, .github/, AGENTS.md, NIVELES.md ni .env. **DESCONOCIDO:** `src/lib/cron-auth.ts` sigue no encontrado en base d746b49; falta resolver antes de pieza 4.
 
 ## Registro Nivel 3 — lote T1 a T10
 
