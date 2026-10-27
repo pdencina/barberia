@@ -1,4 +1,4 @@
-// E1: respondedor determinista, puro y sin integración en webhook (E3 queda fuera).
+// Respondedor determinista puro; datos comerciales inyectados.
 export interface DatosFaq {
  negocio:{nombre:string|null;direccion:string|null;telefono:string|null;linkReserva:string|null};
  horario:{dia:number;cerrado:boolean;abre:string|null;cierra:string|null}[];
@@ -75,14 +75,20 @@ export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
    const url=new URL(link);if(!["https:","http:"].includes(url.protocol)||url.username||url.password)return traspaso("datos_incompletos");
    respuesta=`Puedes solicitar tu hora aquí: ${link.trim()}`;
   }else{
-   if(!Array.isArray(datos.servicios)||!datos.servicios.length||datos.servicios.some(s=>!s||!datoTexto(s.nombre)))return traspaso("datos_incompletos");
-   if(intencion==="servicios")respuesta=`Servicios: ${datos.servicios.map(s=>s.nombre.trim()).join("; ")}.`;
+   if(!Array.isArray(datos.servicios)||!datos.servicios.length)return traspaso("datos_incompletos");
+   if(intencion==="servicios"){
+    const visibles=datos.servicios.filter(s=>s&&datoTexto(s.nombre));
+    if(!visibles.length)return traspaso("datos_incompletos");
+    respuesta=`Servicios: ${visibles.map(s=>s.nombre.trim()).join("; ")}.`;
+   }
    else{
+    // Un nombre inválido impide demostrar un precio único; el listado sí puede omitirlo.
+    if(datos.servicios.some(s=>!s||!datoTexto(s.nombre)))return traspaso("datos_incompletos");
     const candidates=datos.servicios.filter(s=>(" "+normalizar(s.nombre)+" ").includes(" "+servicioPedido+" "));
     if(candidates.length>1)return traspaso("coincidencia_ambigua");
     if(candidates.length!==1||typeof candidates[0].precio!=="number"||!Number.isFinite(candidates[0].precio)||candidates[0].precio<0)return traspaso("datos_incompletos");
-    // La moneda no viene en datos: no inventar CLP, símbolo, descuentos ni precio final.
-    respuesta=`Precio registrado de ${candidates[0].nombre.trim()}: ${precio.format(candidates[0].precio!)}.`;
+    // Precio base autorizado por Nico; los profesionales pueden tener precios distintos.
+    respuesta=`Precio base de ${candidates[0].nombre.trim()}: $${precio.format(candidates[0].precio!)}. Los profesionales pueden tener precios distintos.`;
    }
   }
   return {tipo:"respuesta",intencion,texto:respuesta};

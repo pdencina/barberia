@@ -1,3 +1,4 @@
+import { crearRepositorioDatosNegocio } from "@/lib/agente/datos-negocio";
 import { crearManejadoresWebhook, crearRepositorioWebhook, accionesDesdeBase } from "@/lib/agente/whatsapp-webhook";
 import { enviarTexto } from "@/lib/agente/whatsapp-meta";
 import { createAdminSupabase } from "@/lib/supabase/server";
@@ -16,6 +17,7 @@ const handlers = () => crearManejadoresWebhook({
     return {
       repo: crearRepositorioWebhook(db, process.env.AGENTE_CONTACT_HASH_SALT!), ahora: Date.now,
       accion: accionesDesdeBase(db),
+      datosDelNegocio: crearRepositorioDatosNegocio(db).datosDelNegocio,
       responder: (negocio, para, texto) => enviarTexto({ para, texto }, {
         token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "",
         phone_number_id: negocio.phoneNumberId,

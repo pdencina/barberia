@@ -180,3 +180,8 @@ TANDA E — E1 hecho (PR por abrir): FAQ pura con seis intenciones cerradas, sin
 TANDA E — E1 hecho PR #165: 261 casos/tsc OK, espera Claude SIN merge; E2 pendiente de implementación (fuentes ya verificadas); E3 no iniciado.
 TANDA E — E2 hecho (PR por abrir): lector comercial con base inyectada, filtros tenant (tenants.id como padre), servicios activos paginados y nulos sin defaults; 72 casos y tsc OK, compatibilidad tipada E1/E2 +6 consultas puras en copia temporal OK. Fuente real del enlace retention.ts:214-220, sin fallback genérico; sucursal no elegida (EFAQ1 pendiente). E1 #165 abierto; E3 no iniciado; sin servicios reales ni SQL.
 TANDA E — E1 hecho PR #165 (261 casos); E2 hecho PR #166 (72 casos, tsc y +6 comprobaciones E1/E2 en copia temporal); ambos hacia agente/whatsapp, SIN merge y esperando Claude. EFAQ1 ubicación por sucursal pendiente; E3 NO iniciado. Me detengo al completar E1/E2.
+
+- 2026-10-27 — E3: FAQ y datos comerciales integrados al webhook para desconocidos sin recordatorio; precio base con $, traspaso ante dato faltante.
+- Validación: tsc --noEmit OK; 90 webhook, 261 FAQ, 72 datos, 14 vínculo y 3070 comprobaciones identidad/rendimiento; todo simulado. Código pendiente de revisión de Claude; sin merge.
+- PR #173 hacia agente/whatsapp publicado con autorización explícita de Nico; sin merge, pendiente de Claude. EFAQ1/E4/E5: instrucciones no encontradas en la rama actualizada.
+- 2026-10-27 — PR #173 E3 ampliado: catálogo omite solo servicios inválidos; medios no consultan FAQ. tsc OK, 118 webhook + 261 FAQ; sin merge ni activar interruptores.
