@@ -154,3 +154,7 @@ TypeScript y 239 casos pasan (229 existentes +10 nuevos); regresión falló prim
 ## 27 oct. 2026 — PR #137: cliente Meta genérico, tanda A (espera Claude)
 Cliente puro con fetch/parámetros inyectados, desafío constante, HMAC por tenant y texto separado no serializable (`src/lib/agente/whatsapp-meta.ts:1`); formato Meta DESCONOCIDO por fuentes oficiales inaccesibles/429, URLs y fecha en el código.
 TypeScript y 211 casos simulados pasan; sin API Meta/red/base/tokens reales ni integración de rutas; contrato genérico, sin merge y B no iniciada.
+
+## 27 oct. 2026 — T-wa-webhook (espera Claude)
+Webhook con firma previa, contexto Meta ligado a proveedor/contacto/tenant y confirmación tras acciones verificadas (`src/lib/agente/whatsapp-webhook.ts:31`); SQL006 autorizado por Nico, BORRADOR sin ejecutar; ausente bloquea acciones.
+TypeScript, 54 casos webhook y 211 Meta pasan sin red/base/mensajes reales; SQL/RLS/concurrencia real y contrato Meta no probados; variables: WHATSAPP_APP_SECRET, WHATSAPP_VERIFY_TOKEN, AGENTE_CONTACT_HASH_SALT, WHATSAPP_ACCESS_TOKEN, WHATSAPP_API_VERSION, EMAIL_FROM, RESEND_API_KEY. BC3/BR1 pendientes.
