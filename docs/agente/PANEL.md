@@ -2,6 +2,8 @@ BORRADOR — NO EJECUTAR
 
 # Bocetos del panel del negocio
 
+**HECHO — actualización 26 oct. 2026:** preferencias de informe propias del administrador, correo de su perfil y acceso solo propio/super_admin, por decisión de Nico. **INFERENCIA:** para Fase 1 rige el boceto de `INFORME_POR_ADMINISTRADOR.md`, sección 6; la lista libre por negocio de este boceto anterior queda superada. PN1 sigue abierta solo para WhatsApp.
+
 **INFERENCIA — propuesta de pantallas, sin código ni activación.** Desarrolla sección 8 de la especificación. Ninguna pantalla de este documento existe por aprobar el PR. Botones, permisos de edición y persistencia nuevos están pendientes de construir/revisar; Nico decide PN1, preguntas 9–10, 14–19 y 21–24.
 
 ## 1. Configuración

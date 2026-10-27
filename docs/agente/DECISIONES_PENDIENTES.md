@@ -5,9 +5,9 @@
 | # / tema | Pregunta simple | Recomendación y motivo | Desbloquea |
 |---|---|---|---|
 | **Informe diario** | | | |
-| 15 | ¿A qué correos llega? | Lista aprobada por negocio; evita destinatarios supuestos. | **F1:** prueba de envío autorizada. |
-| 18 | ¿Consume el cupo de correos? | Aclarar tratamiento interno; no cobrar como aviso a cliente por defecto. | **F1:** regla de uso/costo. |
-| 19 | ¿Qué dirección aparece como remitente? | Pablo verifica dominio autorizado; hay dos versiones. | **F1:** validar remitente. |
+| 15 | **RESPONDIDA — Nico, 26 oct. 2026.** | Opcional por administrador, correo de su perfil; diaria / cada 3 días / semanal / personalizada. | No reabrir destinatarios; implementar preferencias propias. |
+| 18 | **RESPONDIDA — Nico, 26 oct. 2026.** | NO consume cupo de correos del negocio. | No aplicar cuota comercial. |
+| 19 | **RESPONDIDA — Nico, 26 oct. 2026.** | `no-reply@re-booking.cl`, solo desde `EMAIL_FROM`. Verificación productiva informada por Nico. | Quitar fallback literal en futura tarea de código. |
 | 16 | ¿Qué hora y días? | Hora local configurable; respeta cada negocio. | **F1-auto:** horario. |
 | 17 | ¿Manual, automático o ambos? | Manual para piloto; ambos después si apruebas automatizar. | **F1-auto:** modalidad. |
 | 21 | ¿Agenda de hoy o resultado de ayer? | Ayer para resultados; hoy si quieres preparar jornada. | **F1-auto:** día informado. |
@@ -42,4 +42,4 @@
 | 8 | ¿Qué cupo consumen mensajes del agente? | Categoría y límite explícitos; evita cambios de cobro implícitos. | **F2:** cuota WhatsApp. |
 | 20 | ¿Quién puede mergear PRs? | **HECHO:** aclarado por Claude/Nico; Nivel 3 activo (`AGENTS.md:122`, `docs/agente/NIVELES.md:24`). | Resuelto; código/SQL esperan a Claude. |
 
-**INFERENCIA — tres respuestas primero para F1 manual:** destinatarios (#15), tratamiento de cuota (#18) y remitente (#19). Si eliges automatizar, siguen #16–17 y #21–24. Esta prioridad es propuesta, no una decisión de Nico.
+**HECHO:** #15, #18 y #19 respondidas por Nico el 26 oct. 2026; registro en sección 12. **INFERENCIA:** para automatizar faltan #16–17 y #21–24, además de IA1–IA6 (ancla, cambios de frecuencia, horario de verano, autenticación, límites operativos y baja). Opciones y recomendación en sección 11 y `INFORME_POR_ADMINISTRADOR.md`. No se activa nada.
