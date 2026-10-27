@@ -360,9 +360,9 @@ Procesos salientes separados:
 
 ## 11. Preguntas abiertas para Nico
 
-**HECHO — remitente:** en `src/lib/resend.ts:168` se usa `re-booking <no-reply@re-booking.cl>` como fallback y en `src/lib/resend.ts:272` se usa `re-booking <no-reply@rebooking.cl>`. Ambos priorizan `EMAIL_FROM`. El cliente compartido configura la llave y el pie HTML, pero no el remitente (`src/lib/resend-client.ts:14-21`); no se encontró una función o constante común de remitente al buscar en `src/lib/`. El informe aplica la actualización de Nico del 27 oct. 2026: `EMAIL_FROM` y, si falta o está vacío, el mismo respaldo de recibos (`src/lib/agente/informe-diario-email.ts:94-96`, `src/lib/resend.ts:168`). Los fallbacks históricos de otros módulos no se cambian en esta pieza.
+**HECHO — remitente:** en `src/lib/resend.ts:168` se usa `re-booking <no-reply@re-booking.cl>` como fallback y en `src/lib/resend.ts:272` se usa `re-booking <no-reply@rebooking.cl>`. Ambos priorizan `EMAIL_FROM`. El cliente compartido configura la llave y el pie HTML, pero no el remitente (`src/lib/resend-client.ts:14-21`); no se encontró una función o constante común de remitente al buscar en `src/lib/`. El informe aplica la decisión #19: exige `EMAIL_FROM` sin fallback y rechaza antes del proveedor si falta (`src/lib/agente/informe-diario-email.ts:87-98`). Los fallbacks históricos de otros módulos no se cambian en esta pieza.
 
-**HECHO — decisión #19 de Nico, 26 oct. 2026:** usar `no-reply@re-booking.cl` exclusivamente desde `EMAIL_FROM`, sin dominio literal en código nuevo. Nico informa verificarlo en un correo recibido hoy en producción; Codex no consultó variables ni realizó envíos. **HECHO:** Nico actualizó #19 el 27 oct. 2026: respaldar con el remitente de recibos si falta o está vacía la variable (`src/lib/resend.ts:168`); no se verifica ni cambia configuración de producción.
+**HECHO — decisión #19 de Nico, 26 oct. 2026:** usar `no-reply@re-booking.cl` exclusivamente desde `EMAIL_FROM`, sin dominio literal en código nuevo. Nico informa verificarlo en un correo recibido hoy en producción; Codex no consultó variables ni realizó envíos. **HECHO:** la pieza 4 retira el fallback del informe (`src/lib/agente/informe-diario-email.ts:87-98`); no verifica ni cambia variables de producción.
 
 | # | Pregunta | Opciones | Recomendación | Decisión |
 |---|---|---|---|---|
@@ -391,7 +391,7 @@ Procesos salientes separados:
 | 16 | ¿A qué hora se envía el informe diario? | Hora elegida por administrador | **HECHO — decisión de Nico:** 21:00 de Santiago por defecto; cada administrador puede cambiarla. Única constante `POLITICA_INFORME` (`src/lib/agente/calendario-informe.ts:3-6`). | **RESPONDIDA por Nico, 2026-10-26.** |
 | 17 | ¿Se agenda automáticamente el informe? | Manual solamente / automático diario / ambos | **INFERENCIA:** mantener manual durante el piloto; si Nico autoriza automatizar, recomendar ambos con control común de duplicados. Pros, riesgos y vuelta atrás en `docs/agente/ENVIO_DIARIO_PROPUESTA.md`, secciones 2 a 6. Implementación en otra tarea. | _pendiente — Nico decide_ |
 | 18 | ¿El informe interno consume cuota de correo? | No consume | **HECHO — decisión de Nico:** no descontar del cupo de correos del negocio. | **RESPONDIDA por Nico, 2026-10-26.** |
-| 19 | ¿Qué remitente usa? | `EMAIL_FROM` o respaldo de recibos si falta/está vacío | **HECHO — actualización de Nico:** respaldo `re-booking <no-reply@re-booking.cl>`, igual a `src/lib/resend.ts:168`; no se lee configuración real de Vercel. | **RESPONDIDA y actualizada por Nico, 2026-10-27.** |
+| 19 | ¿Qué remitente usa? | `EMAIL_FROM`, misma fuente que los demás correos | **HECHO — decisión de Nico:** `no-reply@re-booking.cl`; verificación en producción informada por Nico, no realizada por Codex. Ningún dominio literal en código nuevo. | **RESPONDIDA por Nico, 2026-10-26.** |
 | 20 | ¿Cómo se alinea la regla de merge del Nivel 2? | Aclaración por Nico/Claude | **HECHO:** `AGENTS.md:122` ya exige revisión y OK mientras Nivel 3 esté inactivo; activación expresa en `docs/agente/NIVELES.md:24` permite ahora solo documentación sin SQL/pruebas con checks verdes. Código y SQL esperan a Claude. | **RESUELTO por Nico/Claude:** regla corregida y Nivel 3 activado; no se modifican aquí esos documentos. |
 | 21 | ¿Qué día informa? | Mismo día local del envío | **HECHO — decisión de Nico:** citas del MISMO DÍA en America/Santiago, como resumen de jornada al generar; no cierre inmutable. Correo: “Citas de hoy, generado a las HH:MM”. Única política en `src/lib/agente/calendario-informe.ts:3-6`. | **RESPONDIDA por Nico, 2026-10-26.** |
 | 22 | ¿Cómo recuperar fallos y envíos atrasados? | Revisión manual (menos duplicados, exige atención) / reintentos acotados de fallos inequívocos (menos trabajo, requiere límite y ventana) / recuperación de atrasos (recupera información, puede saturar el correo) | **INFERENCIA:** revisión manual para el piloto; sin reenvío automático de estado incierto ni de envíos aceptados. Nico define cantidad, ventana de reintentos, atrasos y reenvíos deliberados antes de implementarlos. | _pendiente — Nico decide_ |
@@ -424,7 +424,20 @@ Procesos salientes separados:
 | 2026-10-26 | #19: remitente no-reply@re-booking.cl exclusivamente desde EMAIL_FROM, misma fuente que los otros correos, sin dominio escrito a mano. Nico informa verificarlo en un correo real recibido en producción hoy; Codex no realizó esa verificación. | Nico — instrucción de esta tarea |
 | 2026-10-26 | #16: hora predeterminada 21:00 en America/Santiago; cada administrador puede cambiarla. Reemplaza la propuesta provisional anterior. | Nico — actualización explícita |
 | 2026-10-26 | #21: informe de citas del MISMO DÍA local de Santiago del instante de envío; correo “Citas de hoy, generado a las HH:MM”, sin prometer cierre inmutable. Reemplaza el día anterior provisional. | Nico — actualización explícita |
-| 2026-10-27 | #19 actualizada: usar EMAIL_FROM; si no existe o está vacía, usar re-booking <no-reply@re-booking.cl>, igual que recibos (src/lib/resend.ts:168). Sustituye la exigencia anterior de variable sin respaldo. | Nico — aclaración explícita |
+| 2026-10-27 | #19 (aclaración): el remitente es EMAIL_FROM o, si falta o está vacío, el respaldo común de `src/lib/resend.ts:168` ("re-booking <no-reply@re-booking.cl>"); nunca otro dominio. | Claude, por hallazgo del PR #127 |
+| 2026-10-27 | R2: recordatorio por WHATSAPP como canal principal y CORREO de respaldo si falla. | Nico |
+| 2026-10-27 | R1: el cliente puede CONFIRMAR y CANCELAR su propia cita respondiendo el recordatorio. Pendiente de diseño: plazo de cancelación (base: corte de 2 horas de `src/app/api/public/cancel/route.ts:26-44`) y qué pasa con abonos (BC3). | Nico |
+| 2026-10-27 | R3: una baja ("no quiero más mensajes") se aplica sola y no se vuelve a escribir al contacto. | Nico |
+| 2026-10-27 | #3: proveedor Meta directo, operado por Pablo (si Pablo confirma que puede). Nico pidió ver opciones y precios; no hay tarifas verificadas de Chile (están en el archivo de tarifas de Meta). | Nico |
+| 2026-10-27 | #4: usar el NÚMERO ACTUAL del negocio. ADVERTENCIA verificada (documentación de Meta): un número ya usado en WhatsApp no se registra sin borrarlo antes y un número registrado en la API no se usa en la app de WhatsApp normal; la coexistencia es DESCONOCIDA. Nico fue informado y mantuvo la elección. | Nico |
+| 2026-10-27 | #8: los mensajes del agente descuentan del cupo de recordatorios que ya existe (`src/lib/message-quota.ts`). | Nico |
+| 2026-10-27 | #10: retención entre 15 y 30 días, configurable por negocio (valor por defecto: 30). Requiere un ajuste por negocio; sin validación legal. | Nico |
+| 2026-10-27 | #14: no se guarda el texto de los mensajes de clientes; solo el estado (confirmó, canceló, baja). | Nico |
+| 2026-10-27 | #9: si el asistente no entiende, responde "te contactará una persona" y avisa por correo al administrador. | Nico |
+| 2026-10-27 | #11: fotos, audios y stickers no se interpretan ni se guardan; se avisa a una persona. | Nico |
+| 2026-10-27 | #12: límite de 10 mensajes por hora por contacto; se frena al 3.er mensaje idéntico seguido. | Nico |
+| 2026-10-27 | #13: solo español; otros idiomas van a una persona. | Nico |
+| 2026-10-27 | R4: Claude y Pablo verifican las reglas de Meta con fuentes oficiales antes del piloto. | Nico |
 
 ---
 

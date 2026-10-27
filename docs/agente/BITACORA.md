@@ -1,8 +1,8 @@
 # Bitacora del agente de WhatsApp
 
 ## 27 oct. 2026 — PR #133: seguimiento remitente #127 (espera Claude)
-Remitente igual a `src/lib/resend.ts:168`: EMAIL_FROM o respaldo si falta/vacío; handler manual extraído para probar el flujo real sin cambiar permisos ni consultas (`src/lib/agente/informe-diario-manual.ts:17`).
-TypeScript, 14 casos nuevos (incluido POST manual), 61 programado, 63 informe y 11 HTML pasan; Node con loader tsx por bloqueo IPC del CLI. Sin Supabase/Resend/sesión reales ni correos; no mergear.
+Tras merge #131 se reutiliza resolverRemitente existente (sin duplicarlo); se completa la prueba del POST manual con handler extraído sin cambiar permisos/consultas (`src/lib/agente/informe-diario-manual.ts:17`).
+TypeScript, 14 casos nuevos (incluido POST manual), 65 programado, 63 informe y 11 HTML pasan; Node con loader tsx por bloqueo IPC del CLI. Sin Supabase/Resend/sesión reales ni correos; no mergear.
 
 ## 27 oct. 2026 — pieza 4: informe programado, PR #127 (espera Claude)
 
@@ -127,3 +127,14 @@ Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesi
 **HECHO — validación:** TypeScript y 63 comprobaciones existentes del informe pasan; PR #124 abierto, sin merge. Detalle de las 20 comprobaciones locales PGlite y límites en el reporte de verificación.
 
 **HECHO:** borrador 004 en `docs/agente/sql/004_registro_envios_informe_borrador.sql:1`, y reporte local en `docs/agente/VERIFICACION_REGISTRO_ENVIOS.md:1`. PGlite efímero: 20 comprobaciones pasan, incluyendo segunda ejecución, RLS/privilegios, unicidad, reclamos en cola, estados y aislamiento de perfil/tenant. **INFERENCIA:** una restricción única y reclamo en una sentencia sostienen la reserva; no garantizan entrega exactamente una vez ni reemplazan el despachador. **DESCONOCIDO:** concurrencia multisession real, Supabase desplegado, retención (#10) e integración de envío. Ningún SQL ejecutado contra Supabase ni otra base externa. PR separado, sin merge; pieza 4 no iniciada.
+
+### Detector: la ñ ya no se confunde con la n — rama claude/detector-enie
+
+**HECHO:** `respuesta-cliente.ts` compone a NFC y devuelve "desconocido" si hay ñ/Ñ (también n + tilde suelta); las tildes en vocales se siguen ignorando. "coñfirmo" y "cañcelo" ya no confirman ni cancelan. Listas y contrato sin cambios.
+**HECHO:** 12 casos nuevos (mayúsculas, ñ combinada, vocales con tilde, frases válidas); 229 casos, tsc y demás pruebas del agente pasan.
+**NO probado:** otros confusables fuera de la ñ (el resto ya se rechazaba por la regla a-z); el detector sigue sin conectarse a ninguna ruta.
+### Remitente del informe — rama claude/informe-remitente
+
+**HECHO:** el informe usa `EMAIL_FROM` y, si falta o está vacío/solo espacios, el mismo respaldo del resto del sistema "re-booking <no-reply@re-booking.cl>" (`resolverRemitente` en `src/lib/agente/informe-diario-email.ts`). Ruta programada y manual comparten la función; `sendDailyReportEmail` acepta dependencias para probarla.
+**HECHO:** prueba "EMAIL_FROM ausente" corregida y 4 nuevas (válido, vacío, ruta manual, sin destinatarios); tsc y todos los `test-agente-*` pasan.
+**NO probado:** envío real con Resend ni que el dominio re-booking.cl acepte el informe; la ruta HTTP `/api/agente/informe-diario` solo vía su función de envío, no por HTTP.

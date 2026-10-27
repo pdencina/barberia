@@ -84,14 +84,20 @@ export interface DependenciasCorreoInforme {
   ahora: () => number;
 }
 
-// Mismo respaldo que src/lib/resend.ts:168, por decisión de Nico (27 oct. 2026).
+// Mismo respaldo que el resto del sistema (src/lib/resend.ts) cuando EMAIL_FROM falta o está vacío.
+export const REMITENTE_RESPALDO = "re-booking <no-reply@re-booking.cl>";
+export function resolverRemitente(valor: string | undefined): string {
+  return valor?.trim() || REMITENTE_RESPALDO;
+}
+
+// Reutiliza Resend y EMAIL_FROM; no hay dominio alternativo ni cuota comercial.
 export async function enviarInformeConResultado(
   args: ArgumentosEnvioInforme,
   deps: DependenciasCorreoInforme = { remitente: () => process.env.EMAIL_FROM, cliente: getResendClient, ahora: Date.now },
 ): Promise<ResultadoEnvioInforme> {
   let resend: ReturnType<DependenciasCorreoInforme["cliente"]>, payload: any;
   try {
-    const from = deps.remitente()?.trim() || "re-booking <no-reply@re-booking.cl>";
+    const from = resolverRemitente(deps.remitente());
     if (args.recipients.length === 0) return { estado: "fallido" };
     payload = { from, to: args.recipients, subject: dailyReportSubject(args.report), html: renderDailyReportEmail(args.report, args.generadoEn ?? deps.ahora()) };
     resend = deps.cliente();

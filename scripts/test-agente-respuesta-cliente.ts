@@ -226,8 +226,21 @@ const adicionales: Caso[] = [
   ["T5-98 paréntesis", "(cancelo)", "desconocido"],
   ["T5-99 puntuación medio", "con.firmo", "desconocido"],
   ["T5-100 sin contenido útil", "\t\u00a0\n", "desconocido"],
+  // Letra ñ: no se confunde con la n normal; las tildes en vocales se siguen ignorando.
+  ["ENIE-01 coñfirmo", "coñfirmo", "desconocido"],
+  ["ENIE-02 cañcelo", "cañcelo", "desconocido"],
+  ["ENIE-03 mayúscula", "COÑFIRMO", "desconocido"],
+  ["ENIE-04 Ñ mayúscula suelta", "Ñ", "desconocido"],
+  ["ENIE-05 n + tilde combinada", "con\u0303firmo", "desconocido"],
+  ["ENIE-06 ñ en frase de baja", "no quiero mañana mensajes", "desconocido"],
+  ["ENIE-07 baja con ñ", "dejen de escribirmñe", "desconocido"],
+  ["ENIE-08 confirmar con vocal con tilde", "Confírmo", "confirmar"],
+  ["ENIE-09 cancelar con tilde y mayúsculas", "CANCÉLO", "cancelar"],
+  ["ENIE-10 baja válida sin ñ", "No quiero más mensajes", "no_quiero_mensajes"],
+  ["ENIE-11 confirmar válido con signo", "Confirmo!", "confirmar"],
+  ["ENIE-12 palabra con ñ y frase válida", "confirmo año", "desconocido"],
 ];
-assert.equal(adicionales.length, 100, "T5 requiere exactamente cien casos adicionales");
+assert.equal(adicionales.length, 112, "100 casos T5 + 12 de la ñ");
 
 for (const [nombre, texto, esperado] of [...casos, ...adicionales]) {
   const resultado = clasificarRespuestaCliente(texto);
