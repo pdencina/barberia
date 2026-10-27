@@ -1,11 +1,5 @@
 # Bitacora del agente de WhatsApp
 
-## Código por administrador — pieza 2, PR #124 (espera Claude)
-
-**HECHO — validación:** TypeScript y 63 comprobaciones existentes del informe pasan; PR #124 abierto, sin merge. Detalle de las 20 comprobaciones locales PGlite y límites en el reporte de verificación.
-
-**HECHO:** borrador 004 en `docs/agente/sql/004_registro_envios_informe_borrador.sql:1`, y reporte local en `docs/agente/VERIFICACION_REGISTRO_ENVIOS.md:1`. PGlite efímero: 20 comprobaciones pasan, incluyendo segunda ejecución, RLS/privilegios, unicidad, reclamos en cola, estados y aislamiento de perfil/tenant. **INFERENCIA:** una restricción única y reclamo en una sentencia sostienen la reserva; no garantizan entrega exactamente una vez ni reemplazan el despachador. **DESCONOCIDO:** concurrencia multisession real, Supabase desplegado, retención (#10) e integración de envío. Ningún SQL ejecutado contra Supabase ni otra base externa. PR separado, sin merge; pieza 4 no iniciada.
-
 ## 26 oct. 2026 — informe por administrador (A/B/C)
 
 **HECHO — decisiones de Nico registradas:** #15 suscripción individual opcional y cuatro frecuencias, #18 sin consumo del cupo del negocio, #19 remitente exclusivamente desde `EMAIL_FROM`. Registro en sección 12 y hoja de pendientes actualizados.
@@ -88,3 +82,10 @@ Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesi
 ### T8 — espera revisión de Claude
 
 **HECHO:** verificador HMAC-SHA256 genérico, comparación de digests con `timingSafeEqual`, entradas crudas y secreto por parámetro, sin ruta/entorno/red (`src/lib/agente/webhook-firma.ts:1-22`). TypeScript y 111 casos sintéticos pasan (`scripts/test-agente-webhook-firma.ts:17-62`). **DESCONOCIDO:** firma específica de Meta por HTTP 429; fuentes y límites en `docs/agente/WEBHOOK_FIRMA.md`. No mergear este PR con código hasta revisión de Claude; ninguna integración ni envío.
+
+## Código por administrador — pieza 2, PR #124 (espera Claude)
+
+**HECHO — validación:** TypeScript y 63 comprobaciones existentes del informe pasan; PR #124 abierto, sin merge. Detalle de las 20 comprobaciones locales PGlite y límites en el reporte de verificación.
+
+**HECHO:** borrador 004 en `docs/agente/sql/004_registro_envios_informe_borrador.sql:1`, y reporte local en `docs/agente/VERIFICACION_REGISTRO_ENVIOS.md:1`. PGlite efímero: 20 comprobaciones pasan, incluyendo segunda ejecución, RLS/privilegios, unicidad, reclamos en cola, estados y aislamiento de perfil/tenant. **INFERENCIA:** una restricción única y reclamo en una sentencia sostienen la reserva; no garantizan entrega exactamente una vez ni reemplazan el despachador. **DESCONOCIDO:** concurrencia multisession real, Supabase desplegado, retención (#10) e integración de envío. Ningún SQL ejecutado contra Supabase ni otra base externa. PR separado, sin merge; pieza 4 no iniciada.
+
