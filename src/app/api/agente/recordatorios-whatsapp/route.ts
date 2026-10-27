@@ -1,6 +1,6 @@
 import { crearManejadorRecordatorios, crearRepositorioRecordatorios } from "@/lib/agente/recordatorios-whatsapp";
 import { crearAutorizadorInformeProgramado } from "@/lib/agente/informe-programado";
-import { enviarPlantilla } from "@/lib/agente/whatsapp-meta";
+import { enviarPlantilla, verificarConfiguracionWhatsApp } from "@/lib/agente/whatsapp-meta";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getQuotaStatus, tryConsumeQuota } from "@/lib/message-quota";
 import { sendAppointmentReminder } from "@/lib/resend";
@@ -8,6 +8,7 @@ import { parseWallClock } from "@/lib/wallclock";
 
 export const dynamic = "force-dynamic";
 export const GET = crearManejadorRecordatorios({
+  configuracion: () => verificarConfiguracionWhatsApp(process.env),
   autorizar: crearAutorizadorInformeProgramado(), // Reutiliza verifyCron, también para dryRun.
   // BLOQUEO TÉCNICO: el cron antiguo no respeta reclamos en curso. No basta reminder_sent:
   // puede haber leído ya su snapshot. Claude debe coordinar ambos antes de habilitar esta ruta.

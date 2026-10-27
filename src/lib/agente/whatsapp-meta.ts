@@ -1,5 +1,20 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
+// EMAIL_FROM es informativa/opcional: aparecer aquí no bloquea ningún envío.
+export const CONFIGURACION_WHATSAPP_OPCIONAL = Object.freeze(["EMAIL_FROM"] as const);
+const VARIABLES_CONFIGURACION_WHATSAPP = Object.freeze([
+ "WHATSAPP_APP_SECRET","WHATSAPP_VERIFY_TOKEN","AGENTE_CONTACT_HASH_SALT","WHATSAPP_ACCESS_TOKEN",
+ "WHATSAPP_API_VERSION","WHATSAPP_REMINDER_TEMPLATE","WHATSAPP_REMINDER_LANGUAGE",...CONFIGURACION_WHATSAPP_OPCIONAL,
+] as const);
+// Pura: sin entorno global, coerciones, logs ni valores en la salida; no ejecuta getters.
+export function verificarConfiguracionWhatsApp(entorno: unknown): string[] {
+ return VARIABLES_CONFIGURACION_WHATSAPP.filter(name=>{
+  try { const d=entorno!==null&&typeof entorno==="object"?Object.getOwnPropertyDescriptor(entorno,name):undefined;
+   return !d||!("value" in d)||typeof d.value!=="string"||!d.value.trim();
+  } catch { return true; }
+ });
+}
+
 // DESCONOCIDO: contrato GENÉRICO, pendiente de validar contra Meta; no conectar aún.
 // Consulta oficial 2026-10-27: payload inaccesible, plantillas y desafío HTTP 429.
 // https://developers.facebook.com/docs/whatsapp/cloud-api/webhooks/payload-examples
