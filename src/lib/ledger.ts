@@ -14,6 +14,7 @@
 
 import { chileDayBoundsUtc } from "@/lib/utils";
 import { fetchAllRows, monthEnd } from "@/lib/accounting";
+import { computeProTax, ProTax } from "@/lib/pro-tax";
 
 export type ProMode = "commission" | "rental";
 
@@ -65,6 +66,7 @@ export interface ProMonth {
   pending: number;
   paidAt: string | null;
   paidBy: string | null;
+  tax: ProTax | null;        // impuesto del profesional (migracion 117); solo informativo, no cambia el total
 }
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
@@ -91,11 +93,14 @@ export async function computeProMonths(
   const endUtc = chileDayBoundsUtc(last).endUtc;
 
   // Profesionales del modo pedido (work_mode vacio = comision, el valor por defecto).
-  let pq = supabase.from("profiles")
-    .select("id, name, work_mode, commission_rate, rental_daily_rate")
-    .eq("tenant_id", tenantId).eq("role", "barber").eq("active", true).order("name");
-  pq = mode === "rental" ? pq.eq("work_mode", "rental") : pq.or("work_mode.eq.commission,work_mode.is.null");
-  const { data: pros } = await pq;
+  // sii_enabled/tax_rate son de la migracion 117: si aun no esta aplicada se reintenta sin ellas.
+  const loadPros = (cols: string) => {
+    let pq = supabase.from("profiles").select(cols)
+      .eq("tenant_id", tenantId).eq("role", "barber").eq("active", true).order("name");
+    return mode === "rental" ? pq.eq("work_mode", "rental") : pq.or("work_mode.eq.commission,work_mode.is.null");
+  };
+  let { data: pros, error: prosErr } = await loadPros("id, name, work_mode, commission_rate, rental_daily_rate, sii_enabled, tax_rate");
+  if (prosErr) ({ data: pros } = await loadPros("id, name, work_mode, commission_rate, rental_daily_rate"));
   if (!pros || pros.length === 0) return [];
   const ids: string[] = pros.map((p: any) => p.id);
 
@@ -246,6 +251,7 @@ export async function computeProMonths(
     return {
       barberId: p.id, name: p.name, mode, base, baseLabel, lines, adjustments, total,
       paid, pending: total - paid, paidAt: st?.paid_at || null, paidBy: st?.updated_by_name || null, ...extra,
+      tax: p.sii_enabled ? computeProTax(mode, base, true, Number(p.tax_rate) || 0) : null,
     };
   });
 }

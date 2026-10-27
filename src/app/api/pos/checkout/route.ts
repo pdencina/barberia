@@ -230,6 +230,20 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Boleta electronica automatica (SII): solo si el negocio la activo y dejo "Emitir automaticamente" encendido.
+  // Nunca debe hacer fallar el cobro: si el proveedor falla, la venta queda sin boleta y se reintenta desde Boletas.
+  let boleta: { folio: number; pdfUrl: string | null; pdfBase64: string | null } | null = null;
+  if (tenantId) {
+    try {
+      const { emitForTransaction } = await import("@/lib/sii-emit");
+      const r = await emitForTransaction(supabase, tenantId, tx.id, { onlyAuto: true, barberId });
+      if (r.ok && r.folio) boleta = { folio: r.folio, pdfUrl: r.pdfUrl || null, pdfBase64: r.pdfBase64 || null };
+      else if (!r.ok && (!r.skipped || !(["apagada", "manual"].includes(r.skipped) || r.skipped.startsWith("Falta aplicar")))) console.error("Boleta SII automatica no emitida:", r.error || r.skipped);
+    } catch (e) {
+      console.error("Error emitiendo boleta SII:", e);
+    }
+  }
+
   // Auto-send receipt if client has email
   if (clientId) {
     try {
@@ -277,6 +291,9 @@ export async function POST(req: NextRequest) {
           barberName: barber?.name || "Tu profesional",
           businessLogoUrl,
           businessName,
+          boletaFolio: boleta?.folio ?? null,
+          boletaPdfUrl: boleta?.pdfUrl ?? null,
+          boletaPdfBase64: boleta?.pdfBase64 ?? null,
         });
 
         await supabase

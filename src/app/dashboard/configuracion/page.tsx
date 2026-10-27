@@ -651,6 +651,30 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
+      {/* Boleta electronica SII del negocio (migracion 116, apagada por defecto) */}
+      {isAdmin && (
+        <a href="/dashboard/configuracion/boleta-sii" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-brand-dark">Boleta electrónica (SII)</p>
+            <p className="text-xs text-brand-gray">Conecta tu proveedor y emite la boleta automáticamente al cobrar</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+
+      {/* Boletas de honorarios de profesionales por comision (migracion 119) */}
+      {isAdmin && (
+        <a href="/dashboard/honorarios" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-brand-dark">Boletas de honorarios</p>
+            <p className="text-xs text-brand-gray">Cuánto debe emitir cada profesional, boletas recibidas y retención del mes</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+
       {/* Publicidad: de que anuncio viene cada reserva por link (migracion 112, apagado por defecto) */}
       {isAdmin && (
         <a href="/dashboard/origen-de-reservas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
