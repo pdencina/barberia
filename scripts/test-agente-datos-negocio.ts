@@ -33,7 +33,17 @@ function fixture(){
  const repo=crearRepositorioDatosNegocio(db,{enlace:async(base,id)=>{assert.equal(base,db);flags.links++;return `https://synthetic.invalid/b/negocio-${id.toLowerCase()}`;}});
  return {tables,queries,missingTables,missingColumns,flags,db,repo};
 }
+async function comprobarCompatibilidad(){
+ let f=fixture(),r=await f.repo.datosDelNegocio("A");
+ for(const [table,column] of [["tenants","address"],["services","price"],["business_hours","open_time"]]){
+  f=fixture();f.missingColumns.set(table,new Set([column]));r=await f.repo.datosDelNegocio("A");
+  check("compatibilidad conserva datos disponibles",!!r);
+  check("compatibilidad no consulta columnas privadas ni wildcard",f.queries.every(q=>q.select!=="*"&&!q.select.includes("privado")));
+  check("compatibilidad conserva aislamiento en cada proyección",f.queries.every(q=>q.filters.some(([k,v])=>k===(q.table==="tenants"?"id":"tenant_id")&&v==="A")));
+ }
+}
 async function main(){
+ await comprobarCompatibilidad();
  let f=fixture(),r=await f.repo.datosDelNegocio("A");
  check("nombre/direccion/telefono comerciales propios",r?.negocio.nombre==="Negocio A"&&r.negocio.direccion==="Direccion A"&&r.negocio.telefono==="telA");
  check("servicios activos propios",r?.servicios.length===1&&r.servicios[0].nombre==="Corte A"&&r.servicios[0].precio===10000&&r.servicios[0].duracionMin===30);

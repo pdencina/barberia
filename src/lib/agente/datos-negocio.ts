@@ -11,6 +11,21 @@ const revisar=(r:any)=>{
  if(r?.error){if(["42P01","42703","PGRST204","PGRST205"].includes(r.error.code))throw new EsquemaAusente();throw new Error("Lectura comercial no disponible");}
  return r;
 };
+// Compatibilidad sin SELECT *: solo columnas comerciales autorizadas, incluso si falta una.
+async function lecturaCompatible(consultar:(columns:string)=>Promise<any>,columns:string,obligatorias:string[]){
+ const base=await consultar(obligatorias.join(","));
+ if(base===null)return null;
+ const esLista=Array.isArray(base),filas:any[]=esLista?base:[base];
+ for(const campo of columns.split(",").filter(c=>!obligatorias.includes(c))){
+  let valor:any;
+  try{valor=await consultar([...obligatorias,campo].join(","));}catch(e){if(e instanceof EsquemaAusente)continue;throw e;}
+  const rows:any[]=Array.isArray(valor)?valor:valor?[valor]:[];
+  // Un cambio de identidad o conjunto concurrente nunca mezcla proyecciones parciales.
+  if(rows.length!==filas.length||rows.some((row,i)=>obligatorias.some(key=>row[key]!==filas[i][key])))throw new Error("Lectura comercial cambió");
+  rows.forEach((row,i)=>{if(campo in row)filas[i][campo]=row[campo];});
+ }
+ return esLista?filas:filas[0]??null;
+}
 const texto=(v:unknown)=>typeof v==="string"&&v.trim()?v.trim():null;
 const numero=(v:unknown)=>typeof v==="number"&&Number.isFinite(v)&&v>=0?v:null;
 const hora=(v:unknown)=>typeof v==="string"&&/^([01]\d|2[0-3]):[0-5]\d(?::00(?:\.0+)?)?$/.test(v)?v.slice(0,5):null;
@@ -21,18 +36,19 @@ const hora=(v:unknown)=>typeof v==="string"&&/^([01]\d|2[0-3]):[0-5]\d(?::00(?:\
 export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof tenantBookingUrl}={}){
  const enlace=dependencias.enlace??tenantBookingUrl;
  async function negocio(tenant:string){
-  const leer=async(columns:string)=>revisar(await db.from("tenants").select(columns).eq("id",tenant).eq("active",true).maybeSingle()).data;
+  const consultar=async(columns:string)=>revisar(await db.from("tenants").select(columns).eq("id",tenant).eq("active",true).maybeSingle()).data;
+  const leer=(columns:string)=>columns==="*"?lecturaCompatible(consultar,"id,name,address,phone,slug,active,status",["id","active"]):consultar(columns);
   try{return await leer("id,name,address,phone,slug,active,status");}
   catch(e){if(!(e instanceof EsquemaAusente))throw e;try{return await leer("*");}catch(next){if(next instanceof EsquemaAusente)return null;throw next;}}
  }
- async function filas(table:"business_hours"|"services",tenant:string,columns:string):Promise<any[]>{
-  const leer=(selection:string)=>fetchAllRows(()=>{
+ async function filas(table:"business_hours"|"services"|"branches",tenant:string,columns:string):Promise<any[]>{
+  const consultar=(selection:string)=>fetchAllRows(()=>{
    let q=db.from(table).select(selection).eq("tenant_id",tenant);
-   if(table==="services")q=q.eq("active",true);
+   if(table==="services"||table==="branches")q=q.eq("active",true);
    return {order:(col:string,opt:unknown)=>({range:async(from:number,to:number)=>revisar(await q.order(col,opt).range(from,to))})};
   });
-  // Patrón whitelist de src/app/api/public/business-info/route.ts:5-24: si falta una columna opcional, leer lo existente
-  // y proyectar SOLO campos comerciales. Nunca retirar filtros tenant/active al reintentar.
+  const leer=(selection:string)=>selection==="*"?lecturaCompatible(consultar,columns,table==="business_hours"?["id","tenant_id"]:["id","tenant_id","active"]):consultar(selection);
+  // Nunca retirar filtros tenant/active ni descargar columnas no comerciales al reintentar.
   try{return await leer(columns);}
   catch(e){if(!(e instanceof EsquemaAusente))throw e;try{return await leer("*");}catch(next){if(next instanceof EsquemaAusente)return [];throw next;}}
  }
