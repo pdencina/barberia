@@ -9,10 +9,14 @@
 - PR #112 — T5: mergeado por Codex con ambos checks verdes; cien trampas nuevas, 217 casos pasan, sin cambios de lógica.
 - PR #113 — hallazgo T5: mergeado por Codex con ambos checks verdes; prueba negativa de ñ→n y propuesta para Claude. D1 sigue pendiente; no se arregló ni integró el detector.
 - PR #114 — T6: mergeado por Codex con ambos checks verdes; banco ficticio de 40 casos, 15 trampas y umbral EV1 propuesto, no evaluado contra IA.
-- T7: bocetos de configuración, conversaciones A/B e informes, sin código; PN1 deja permisos por decidir. Fuentes de tablas/lectores verificadas y botones faltantes marcados pendientes. Merge solo tras ambos checks verdes.
+- PR #115 — T7: mergeado por Codex con ambos checks verdes; bocetos A/B, configuración e informes, PN1 pendiente, sin construir pantallas.
 
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.
+
+### T9 — espera revisión de Claude
+
+**HECHO:** evaluador puro de ventanas por contacto/negocio y repetición de hash de mensaje (`src/lib/agente/limite-de-uso.ts:35-51`); 80 pruebas y TypeScript pasan. Todos los máximos/ventanas y “ahora” son parámetros. Sin almacenamiento, red, texto crudo, reloj real ni ruta; no reserva atómicamente. Pregunta 12 y retención siguen con Nico. PR #117 abierto SIN MERGE; T8 permanece abierto como PR #116 esperando a Claude.
 
 ## Semana del 26 oct. 2026
 - Hecho: especificacion completada (PR #88 y #91), borrador SQL, reglas del Nivel 2, revision automatica de PRs y regla de proteccion de la rama.
