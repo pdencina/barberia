@@ -30,6 +30,10 @@ TypeScript, 14 casos nuevos (incluido POST manual), 65 programado, 63 informe y 
 
 **HECHO comunicado por Nico:** tabla 003 aplicada en pruebas y ausente en producción; Codex no accedió a ninguna base. **DESCONOCIDO:** `src/lib/cron-auth.ts` sigue sin encontrarse en base d746b49; pieza 4 no iniciada, pendiente de merges 1–3 y revisión de Claude. Todos estos PRs quedan abiertos, ninguno se mergea autónomamente.
 
+## 27 oct. 2026 — PR #138: acciones sobre cita propia, tanda A (espera Claude)
+Referencia del recordatorio emitido y tenant/cliente autenticados; CAS de estado/horario, corte de pared Chile y notify público solo al ganar (`src/lib/agente/acciones-cita.ts:55-99`); sin abonos/devoluciones, BC3 pendiente.
+TypeScript y 23 pruebas simuladas pasan (propiedad, estados, 2h exactas, DST/medianoche, concurrencia, aviso fallido); sin Supabase/notify reales ni rutas; sin merge y B no iniciada.
+
 ## 26 oct. 2026 — informe por administrador (A/B/C)
 
 **HECHO — decisiones de Nico registradas:** #15 suscripción individual opcional y cuatro frecuencias, #18 sin consumo del cupo del negocio, #19 remitente exclusivamente desde `EMAIL_FROM`. Registro en sección 12 y hoja de pendientes actualizados.
