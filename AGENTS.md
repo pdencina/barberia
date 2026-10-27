@@ -146,4 +146,8 @@ Estas reglas valen para TODA tarea en `agente/whatsapp`; Nico y Claude no las re
 6. **Informe final al terminar (maximo 6 lineas):** numero de PR, que cambia en una frase, pruebas que pasan (cuantas), que NO probaste, y que decision necesitas de Nico si hay alguna. Nada mas.
 7. **Nunca:** `main`, produccion, ejecutar SQL, llaves o `.env*`, correos o mensajes reales, `vercel.json`, `package.json`, `supabase/`, `.github/`, `src/app/dashboard/`, AGENTS.md y NIVELES.md.
 8. **Sin trabajo doble:** si ya existe un helper o una constante en el repo (por ejemplo `verifyCron`, `fetchAllRows`, el remitente de `resend.ts`), reutilizalo; no lo copies ni lo reescribas.
+9. **Ahorro de tokens (obligatorio):** NO leas completos `docs/agente/ESPECIFICACION.md` (60 KB) ni `docs/agente/BITACORA.md`; lee la tarea y solo los archivos que cita. De la bitacora solo agregas lineas al final (3 como maximo por PR). Si necesitas una decision de Nico, busca solo la fila en la seccion 12 de la especificacion.
+10. **No abras paginas de Meta ni de la ley** si ya fallaron antes (error 429 o bloqueo): marca DESCONOCIDO y sigue; no repitas el intento en la misma tarea.
+11. **Respuestas cortas:** sin tablas, sin repetir lo que ya esta en la tarea. Si te acercas al limite de uso, deja la bitacora al dia (una linea por pieza: hecho, en curso o pendiente) y detente.
+12. **Retomar:** si Nico escribe "continua con lo pendiente", abre la ultima tanda en `docs/agente/tareas/` y la bitacora (solo sus ultimas 30 lineas) y sigue por el primer punto sin terminar, sin rehacer los hechos.
 
