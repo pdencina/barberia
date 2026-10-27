@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase } from "@/lib/supabase/server";
+import { createAdminSupabase, canAccessBarber } from "@/lib/supabase/server";
+import { requireStaff } from "@/lib/pos-access";
 
 // TUU (Haulmer) "Pago Remoto" — same role as /api/mercadopago but for the TUU
 // terminal. Kept as a fully separate endpoint so MercadoPago tenants are never
@@ -16,8 +17,11 @@ const TUU_BASE_URL = "https://integrations.payment.haulmer.com";
 // POST: Create a remote payment request on a TUU terminal
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const staff = await requireStaff();
+  if (!staff.ok) return staff.response;
   const body = await req.json();
   const { barberId, amount, description, cartType, cardMethod } = body;
+  if (typeof barberId !== "string" || !(await canAccessBarber(barberId))) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   // cardMethod: "debit_card" | "credit_card" — TUU requires this explicitly
   // (paymentMethod: 1 = credito, 2 = debito), unlike MercadoPago which doesn't need it
   // at charge time.
