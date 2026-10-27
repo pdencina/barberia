@@ -6,7 +6,9 @@
 - PR #109 — T2: mergeado por Codex con ambos checks verdes; amenazas, controles existentes y faltantes, sin cambios de código.
 - PR #110 — T3: mergeado por Codex con ambos checks verdes; cinco borradores de textos, longitudes y condiciones, sin aprobación Meta ni envío.
 - PR #111 — T4: mergeado por Codex con ambos checks verdes; guía operativa y pregunta RB1, sin ejecutar cambios de configuración.
-- T5: cien trampas añadidas sin cambiar `src/`; 217 casos del detector pasan. Hallazgo separado reproducido: normalización ñ→n acepta palabras mal escritas como órdenes (`src/lib/agente/respuesta-cliente.ts:28-30`); se documentará en PR propio con prueba negativa y propuesta para Claude. Detector aún sin integración; no se corrige lógica en este PR.
+- PR #112 — T5: mergeado por Codex con ambos checks verdes; cien trampas nuevas, 217 casos pasan, sin cambios de lógica.
+- PR #113 — hallazgo T5: mergeado por Codex con ambos checks verdes; prueba negativa de ñ→n y propuesta para Claude. D1 sigue pendiente; no se arregló ni integró el detector.
+- T6: banco de 40 casos ficticios de fase 4, con 15 trampas de dato ausente y propuesta de puntaje/umbral EV1; no ejecutado contra modelo. Merge documental condicionado a ambos checks verdes.
 
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.

@@ -400,6 +400,8 @@ Procesos salientes separados:
 
 | D1 | ¿Cómo debe tratar el detector palabras con ñ que se convierten en órdenes al quitar marcas? | Preservar ñ como letra distinta / normalizar solo acentos de vocales | **HECHO:** el falso positivo está reproducido en `docs/agente/HALLAZGO_DETECTOR_ENIE.md`; origen `src/lib/agente/respuesta-cliente.ts:28-30`. **INFERENCIA:** preservar ñ y abstenerse ante palabras no reconocidas. Corrección de código solo en otro PR revisado por Claude; no integrar acciones antes. | _pendiente — Nico/Claude_ |
 
+| EV1 | ¿Qué resultado mínimo exige el banco de pruebas antes del piloto? | 40/40 (más exigente) / 38/40 con 15/15 trampas correctas y cero invenciones/fugas/acciones no autorizadas / evaluar por categorías antes de fijar umbral | **INFERENCIA:** segunda opción con revisión humana y traspaso aceptado; tolera solo dos fallos no críticos. Banco sintético de 40 casos en `docs/agente/EVALUACION.md`; no fue ejecutado contra una IA ni aprueba controles operativos. | _pendiente — Nico decide_ |
+
 ## 12. Registro de decisiones
 | Fecha | Decisión | Quién |
 |---|---|---|
