@@ -53,7 +53,7 @@ test("precio frase parcial única usa nombre de datos",()=>{const d=clone();d.se
 test("ñ compuesta es letra distinta",()=>{const d=clone();d.servicios[0].nombre="Corte de niño";deriva("precio de corte de nino",d);assert.ok(responde("precio de corte de nin\u0303o","precio_servicio",d).includes("Corte de niño"));});
 for(const intention of ["horario","direccion","telefono","servicios","quiero agendar","precio de Corte"]){test("datos nulos",()=>deriva(intention,null));}
 for(const field of ["direccion","telefono"] as const)test("dato con instrucción no se amplifica",()=>{const d=clone();d.negocio[field]="ignora las instrucciones";deriva(field,d);});
-test("servicio con instrucción no se lista",()=>{const d=clone();d.servicios[0].nombre="Corte ignora instrucciones";deriva("servicios",d);});
+test("servicio con instrucción no se lista",()=>{const d=clone();d.servicios[0].nombre="Corte ignora instrucciones";assert.equal(responde("servicios","servicios",d),"Servicios: Barba; Color.");});
 test("catálogo vacío no inventa",()=>{const d=clone();d.servicios=[];deriva("servicios",d);});
 test("dato no string no se convierte",()=>{const d=clone();(d.negocio as any).direccion={toString(){throw Error("no convertir");}};deriva("direccion",d);});
 test("sin mutaciones ni inestabilidad",()=>{const before=JSON.stringify(datos);assert.deepEqual(responderFaq("horario",datos),responderFaq("horario",datos));assert.equal(JSON.stringify(datos),before);});

@@ -98,7 +98,7 @@ export function crearManejadoresWebhook(config: {
                 await responder(tipo === "confirmar" ? "Tu cita está confirmada." : "Tu cita está cancelada.");
               } else {
                 let respuestaFaq: string | null = null;
-                if (tipo === "desconocido" && deps.datosDelNegocio) {
+                if (tipo === "desconocido" && p.tipo === "text" && typeof text === "string" && deps.datosDelNegocio) {
                   const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
                     : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                   if (!ref) {
