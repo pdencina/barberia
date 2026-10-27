@@ -1,6 +1,8 @@
 # Bitacora del agente de WhatsApp
 
-## 27 oct. 2026 — pieza 4: informe programado (espera Claude)
+## 27 oct. 2026 — pieza 4: informe programado, PR #127 (espera Claude)
+
+**HECHO:** PR #127 abierto hacia `agente/whatsapp` desde `codex/agente-informe-programado`, con ficha del Anexo B; sin merge. No se creó ni habilitó el cron. Se completa esta pieza y se espera la revisión de Claude.
 
 **HECHO — base y autenticación:** piezas 1–3 presentes en base e3cbfe8; al detectar ausencia del helper se mantuvo la conexión bloqueada. Nico confirmó esperar a su sincronización; tras el merge de #126 se actualizó a 792aaa4 y se reutilizó `verifyCron` sin copiar/modificarlo (`src/lib/cron-auth.ts:9-21`). Dependencias reales después del guard (`src/app/api/agente/informe-programado/route.ts:8-17`); dryRun exige secreto válido también en desarrollo.
 
