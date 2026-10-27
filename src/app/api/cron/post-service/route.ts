@@ -1,11 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { verifyCron } from "@/lib/cron-auth";
 
 export const dynamic = "force-dynamic";
 
 // GET: Send post-service thank you email + review request
 // Called by cron every hour — checks for appointments completed in the last 2 hours
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const denied = verifyCron(req);
+  if (denied) return denied;
+
   const supabase = createAdminSupabase();
 
   const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();

@@ -4,7 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { sendBookingConfirmation } from "@/lib/resend";
 import { tryConsumeQuota } from "@/lib/message-quota";
-import { isSlotFull, exceededAfterInsert } from "@/lib/capacity";
+import { isSlotFull, exceededAfterInsert, getSlotCapacity } from "@/lib/capacity";
+import { blockConflict } from "@/lib/blocks";
 import { parseWallClock } from "@/lib/wallclock";
 import { isOnVacation } from "@/lib/vacations";
 import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
@@ -81,6 +82,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El profesional no atiende ese día. Selecciona otra fecha." }, { status: 409 });
   }
   const { data: barberForCap } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
+  // Bloqueos del profesional: la pantalla no ofrece esas horas, pero la reserva tambien debe rechazarlas (antes solo las vacaciones y los cupos).
+  {
+    let { data: blks, error: blkErr } = (await supabase.from("barber_blocks").select("all_day, start_time, end_time, spots").eq("barber_id", barberId).eq("date", date)) as { data: any[] | null; error: any };
+    if (blkErr) ({ data: blks } = await supabase.from("barber_blocks").select("all_day, start_time, end_time").eq("barber_id", barberId).eq("date", date)); // sin la migracion 102
+    const cap = await getSlotCapacity(supabase, barberForCap?.tenant_id);
+    const conflict = blockConflict(blks, cap, start.getUTCHours() * 60 + start.getUTCMinutes(), end.getUTCHours() * 60 + end.getUTCMinutes());
+    if (conflict === "day") return NextResponse.json({ error: "El profesional no atiende ese día. Selecciona otra fecha." }, { status: 409 });
+    if (conflict === "time") return NextResponse.json({ error: "Horario no disponible. Selecciona otro." }, { status: 409 });
+  }
   if (isBeyondWindow(date, await getWindowDays(supabase, barberForCap?.tenant_id))) {
     return NextResponse.json({ error: "Esa fecha todavía no está disponible para reservar. Elige una más cercana." }, { status: 409 });
   }

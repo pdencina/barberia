@@ -2,21 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { sendAppointmentReminder } from "@/lib/resend";
 import { tryConsumeQuota } from "@/lib/message-quota";
+import { verifyCron } from "@/lib/cron-auth";
 
 // This endpoint is called by Vercel Cron Jobs every hour
 // It finds appointments in the next 24h that haven't been reminded yet
 
 export async function GET(req: NextRequest) {
-  // Verify cron secret (prevents unauthorized calls)
-  const authHeader = req.headers.get("authorization");
-  if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    // In development, allow without secret
-    if (process.env.NODE_ENV === "production" && !process.env.CRON_SECRET) {
-      // No secret configured, allow
-    } else if (process.env.CRON_SECRET && authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-  }
+  const denied = verifyCron(req);
+  if (denied) return denied;
 
   const supabase = createAdminSupabase();
 
