@@ -30,6 +30,8 @@ export function clasificarRespuestaCliente(texto: unknown): RespuestaCliente {
   if (/[ñÑ]/.test(compuesto)) return "desconocido";
   const normalizado = compuesto
     .normalize("NFD")
+    // También preservar ñ si otra marca impide componer n+tilde directamente en NFC.
+    .replace(/n(?=[\u0300-\u036f]*\u0303)/gi, "ñ")
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim()

@@ -1,5 +1,9 @@
 # Bitacora del agente de WhatsApp
 
+## 27 oct. 2026 — T-detector-enie, complemento de #132 (espera Claude)
+Reproducido falso positivo con n+acento+tilde pese al arreglo NFC ya mergeado; se preserva esa letra antes de retirar marcas (`src/lib/agente/respuesta-cliente.ts:33-35`), sin cambiar listas, contrato ni rutas.
+TypeScript y 239 casos pasan (229 existentes +10 nuevos); regresión falló primero contra la base. Loader tsx usado por restricción IPC; sin mensajes/datos/base reales; no mergear.
+
 ## 27 oct. 2026 — pieza 4: informe programado, PR #127 (espera Claude)
 
 **HECHO:** PR #127 abierto hacia `agente/whatsapp` desde `codex/agente-informe-programado`, con ficha del Anexo B; sin merge. No se creó ni habilitó el cron. Se completa esta pieza y se espera la revisión de Claude.

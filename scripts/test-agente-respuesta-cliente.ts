@@ -124,7 +124,7 @@ const casos: Caso[] = [
   ["toString no se ejecuta", { toString() { throw new Error("No ejecutar"); } }, "desconocido"],
 ];
 
-// T5: cien casos adicionales. El hallazgo ñ→n se documenta por separado sin cambiar src/.
+// T5 y regresiones de ñ: todas exigen la categoría correcta como pruebas normales.
 const adicionales: Caso[] = [
   ["T5-01 mayúsculas con acentos", "CÓnFÍrMÓ", "confirmar"],
   ["T5-02 baja mayúsculas", "NÓ QUIÉRÓ MÁS MÉNSÁJÉS", "no_quiero_mensajes"],
@@ -242,10 +242,23 @@ const adicionales: Caso[] = [
 ];
 assert.equal(adicionales.length, 112, "100 casos T5 + 12 de la ñ");
 
-for (const [nombre, texto, esperado] of [...casos, ...adicionales]) {
+const marcasEnie: Caso[] = [
+  ["ñ con acento intercalado", "coN\u0301\u0303firmo", "desconocido"],
+  ["ñ con orden inverso de marcas", "con\u0303\u0301firmo", "desconocido"],
+  ["ñ con acento al cancelar", "can\u0301\u0303celo", "desconocido"],
+  ["ñ mayúscula con marcas en frase", "CAN\u0301\u0303CELO MI CITA", "desconocido"],
+  ["ñ con marcas en mensajes", "no quiero recibir men\u0301\u0303sajes", "desconocido"],
+  ["ñ con marcas en contacto", "no me con\u0301\u0303tacten", "desconocido"],
+  ["ñ con diéresis intercalada", "con\u0308\u0303firmo", "desconocido"],
+  ["n acentuada precompuesta más tilde", "co\u0144\u0303firmo", "desconocido"],
+  ["vocales acentuadas siguen confirmando", "QUIERO CONFÍRMAR MI CITA", "confirmar"],
+  ["vocal descompuesta sigue dando baja", "NO QUIERO MA\u0301S MENSAJES", "no_quiero_mensajes"],
+];
+
+for (const [nombre, texto, esperado] of [...casos, ...adicionales, ...marcasEnie]) {
   const resultado = clasificarRespuestaCliente(texto);
   // Nunca imprimir texto de entrada, incluso si la prueba falla.
   assert.equal(resultado, esperado, `Caso ${nombre}: clasificación inesperada`);
   assert.ok(["confirmar", "cancelar", "no_quiero_mensajes", "desconocido"].includes(resultado), `Caso ${nombre}: salida fuera de contrato`);
 }
-console.log(`OK: ${casos.length + adicionales.length} casos sintéticos (${adicionales.length} nuevos T5); solo categorías, sin red/base/llaves ni texto original en salida.`);
+console.log(`OK: ${casos.length + adicionales.length + marcasEnie.length} casos sintéticos (${marcasEnie.length} de ñ con marcas); solo categorías, sin red/base/llaves ni texto original en salida.`);
