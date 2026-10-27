@@ -64,7 +64,7 @@ Cada negocio usa **su propia cuenta** con un proveedor autorizado por el SII (ho
 
 La boleta de honorarios **no** la emite re-booking ni el proveedor de boletas: la emite el profesional en el SII con su clave tributaria. re-booking calcula, avisa y registra.
 
-1. Administrador → ficha del profesional → Trabajo → **Integración SII**: encender y elegir "Boleta de honorarios, retención 15,25 %". Con retención, la boleta al cliente sale con la cuenta del negocio (no se puede usar la cuenta propia del profesional).
+1. Administrador → ficha del profesional → Modalidad de trabajo → **Integración SII**: encender y elegir "Boleta de honorarios, retención 15,25 %". Con retención, la boleta al cliente sale con la cuenta del negocio (no se puede usar la cuenta propia del profesional).
 2. Configuración → **Boletas de honorarios**: elegir el mes. Cada profesional muestra cuánto debe emitir, la retención y lo que recibe.
 3. **Copiar aviso** y pegarlo en WhatsApp al profesional.
 4. Cuando el profesional entregue su boleta: **Registrar boleta recibida** (folio, fecha, monto). Si el monto no coincide con lo esperado queda como "Monto distinto".
