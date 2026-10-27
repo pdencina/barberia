@@ -3,6 +3,7 @@ export interface DatosFaq {
  negocio:{nombre:string|null;direccion:string|null;telefono:string|null;linkReserva:string|null};
  horario:{dia:number;cerrado:boolean;abre:string|null;cierra:string|null}[];
  servicios:{nombre:string;precio:number|null;duracionMin:number|null}[];
+ sucursales?:{id:string;nombre:string|null;direccion:string|null;horario:DatosFaq["horario"]}[]|null;
 }
 export type IntencionFaq="horario"|"direccion"|"telefono"|"precio_servicio"|"servicios"|"agendar";
 export type ResultadoFaq={tipo:"respuesta";intencion:IntencionFaq;texto:string}|{tipo:"traspaso";motivo:"mensaje_no_admitido"|"sin_intencion"|"datos_incompletos"|"coincidencia_ambigua"};
@@ -46,8 +47,14 @@ export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
  let pedido=normalizar(texto);
  if(instrucciones.test(pedido)||excluido.test(pedido)||/(^|[^a-zñ0-9_])(no|nunca|jamas|tampoco|ni)(?=$|[^a-zñ0-9_])/.test(pedido))return traspaso("mensaje_no_admitido");
  pedido=pedido.replace(/^hola(?:,|\s)+/,"").replace(/,? por favor[.!?]*$/,"").trim().replace(/^[¿¡]+/,"").replace(/[?!.]+$/,"").trim();
- let intencion:IntencionFaq|null=null,servicioPedido:string|null=null;
+ let intencion:IntencionFaq|null=null,servicioPedido:string|null=null,sucursalPedida:string|null=null;
  for(const key of Object.keys(frases) as Exclude<IntencionFaq,"precio_servicio">[])if(frases[key].has(pedido))intencion=key;
+ if(!intencion){
+  const sucursal=/^(.*?) (?:de|en)(?: la)?(?: sucursal)? (.+)$/.exec(pedido)??/^(.*?) (?:la )?sucursal (.+)$/.exec(pedido);
+  if(sucursal){
+   for(const key of ["direccion","horario"] as const)if(frases[key].has(sucursal[1])){intencion=key;sucursalPedida=sucursal[2];}
+  }
+ }
  if(!intencion){
   const match=/^(?:cuanto (?:cuesta|cuestan|vale|valen|sale|salen)|(?:cual es el )?precio (?:de|del)|que precio tiene|quiero saber el precio (?:de|del)) (.+)$/.exec(pedido);
   if(match){
@@ -60,15 +67,27 @@ export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
  if(!intencion)return traspaso("sin_intencion");
  try{
   if(!datos||!datos.negocio)return traspaso("datos_incompletos");
+  let direccion=datos.negocio.direccion,horario=datos.horario;
+  if(intencion==="direccion"||intencion==="horario"){
+   if(datos.sucursales===null)return traspaso("datos_incompletos");
+   if(datos.sucursales?.length){
+    const visibles=datos.sucursales.filter(s=>s&&datoTexto(s.nombre));
+    if(!visibles.length)return traspaso("datos_incompletos");
+    if(!sucursalPedida)return {tipo:"respuesta",intencion,texto:`¿De qué sucursal necesitas ${intencion==="direccion"?"la dirección":"el horario"}? Sucursales: ${visibles.map(s=>s.nombre!.trim()).join("; ")}. Indica la sucursal en tu consulta.`};
+    const matches=visibles.filter(s=>normalizar(s.nombre!)===sucursalPedida);
+    if(matches.length!==1)return traspaso("coincidencia_ambigua");
+    direccion=matches[0].direccion;horario=matches[0].horario;
+   }else if(sucursalPedida)return traspaso("datos_incompletos");
+  }
   let respuesta:string;
   if(intencion==="direccion"){
-   if(!datoTexto(datos.negocio.direccion))return traspaso("datos_incompletos");
-   respuesta=`Dirección: ${datos.negocio.direccion.trim()}.`;
+   if(!datoTexto(direccion))return traspaso("datos_incompletos");
+   respuesta=`Dirección: ${direccion!.trim()}.`;
   }else if(intencion==="telefono"){
    if(!datoTexto(datos.negocio.telefono))return traspaso("datos_incompletos");
    respuesta=`Teléfono: ${datos.negocio.telefono.trim()}.`;
   }else if(intencion==="horario"){
-   const valor=horarioLegible(datos.horario);if(!valor)return traspaso("datos_incompletos");
+   const valor=horarioLegible(horario);if(!valor)return traspaso("datos_incompletos");
    respuesta=`Horario semanal: ${valor[0].toUpperCase()+valor.slice(1)}.`;
   }else if(intencion==="agendar"){
    const link=datos.negocio.linkReserva;if(!datoTexto(link))return traspaso("datos_incompletos");
