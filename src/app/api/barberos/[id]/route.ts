@@ -161,7 +161,9 @@ export async function PATCH(
   if (error && ("sii_enabled" in update || "tax_rate" in update) && /sii_enabled|tax_rate/.test(error.message)) {
     const { sii_enabled: _s, tax_rate: _r, ...rest } = update;
     ({ data, error } = await supabase.from("profiles").update(rest).eq("id", params.id).select().single());
-    if (!error) return NextResponse.json({ error: "Falta aplicar la migración 117 para guardar el impuesto" }, { status: 503 });
+    // Solo es un error si de verdad se queria encender el impuesto; con los valores por defecto (apagado) no se pierde nada
+    // y el guardado del perfil debe salir normal aunque la migracion 117 aun no este en esta base.
+    if (!error && update.sii_enabled === true) return NextResponse.json({ error: "Falta aplicar la migración 117 para guardar el impuesto" }, { status: 503 });
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
