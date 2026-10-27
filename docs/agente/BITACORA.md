@@ -14,6 +14,10 @@
 Resumen corto para la auditoria semanal de Nico y Claude (AGENTS.md, seccion 12, punto 10).
 Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesitan de Nico.
 
+### T9 — espera revisión de Claude
+
+**HECHO:** evaluador puro de ventanas por contacto/negocio y repetición de hash de mensaje (`src/lib/agente/limite-de-uso.ts:35-51`); 80 pruebas y TypeScript pasan. Todos los máximos/ventanas y “ahora” son parámetros. Sin almacenamiento, red, texto crudo, reloj real ni ruta; no reserva atómicamente. Pregunta 12 y retención siguen con Nico. PR #117 abierto SIN MERGE; T8 permanece abierto como PR #116 esperando a Claude.
+
 ## Semana del 26 oct. 2026
 - Hecho: especificacion completada (PR #88 y #91), borrador SQL, reglas del Nivel 2, revision automatica de PRs y regla de proteccion de la rama.
 - Abierto: 14 preguntas de la seccion 11 de la especificacion; fuentes de la ley 21.719 por verificar.
@@ -42,7 +46,3 @@ Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesi
 ### Hallazgo documental de T5 — pendiente de corrección
 
 **HECHO:** reproducción negativa local falla al esperar `desconocido` para una palabra con ñ; el detector devuelve `confirmar` por normalización (`src/lib/agente/respuesta-cliente.ts:28-30`). Evidencia y propuesta en `docs/agente/HALLAZGO_DETECTOR_ENIE.md`. D1 queda para Nico/Claude. Este PR documental no corrige código ni integra acciones; los scripts de regresión existentes siguen verdes. No se oculta el fallo dentro de una expectativa de aceptación.
-
-### T9 — espera revisión de Claude
-
-**HECHO:** evaluador puro de ventanas por contacto/negocio y repetición de hash de mensaje (`src/lib/agente/limite-de-uso.ts:35-51`); 80 pruebas y TypeScript pasan. Todos los máximos/ventanas y “ahora” son parámetros. Sin almacenamiento, red, texto crudo, reloj real ni ruta; no reserva atómicamente. Pregunta 12 y retención siguen con Nico. No mergear el PR de código; T8 permanece abierto como PR #116 esperando a Claude.
