@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
+import { createAdminSupabase, requireRole, canAccessBarber } from "@/lib/supabase/server";
+import { requireStaff } from "@/lib/pos-access";
 
 // GET: Get terminal info for a barber (or house terminal)
 export async function GET(req: NextRequest) {
@@ -47,8 +48,11 @@ export async function GET(req: NextRequest) {
 // POST: Create payment intent on the barber's terminal
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
+  const staff = await requireStaff();
+  if (!staff.ok) return staff.response;
   const body = await req.json();
   const { barberId, amount, description, externalReference, cartType } = body;
+  if (typeof barberId !== "string" || !(await canAccessBarber(barberId))) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   // cartType: "services" | "products" | "mixed" — determines which terminal to use
 
   // Determine which token to use
