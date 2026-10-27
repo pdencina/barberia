@@ -1,3 +1,4 @@
+import { formatPhoneCL } from "../phone";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 // DESCONOCIDO: contrato GENÉRICO, pendiente de validar contra Meta; no conectar aún.
@@ -175,4 +176,14 @@ export async function enviarTexto(args: { para: string; texto: string }, deps: D
       body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: "text", text: { body: args.texto } }),
     }, deps);
   } catch { return { estado: "fallido" }; }
+}
+
+// Usa el criterio Chile existente; cero troncal como cron/reminders/whatsapp:70-71.
+export function normalizarTelefonoWhatsApp(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.trim() || !/^[+\d\s()\-]+$/.test(raw)) return null;
+  let cleaned = raw.replace(/[\s()\-]/g, "");
+  if (!cleaned.startsWith("+")) cleaned = cleaned.replace(/^0/, "");
+  if (!/\d/.test(cleaned)) return null;
+  const canonical = formatPhoneCL(cleaned).replace(/^\+/, "");
+  return /^[0-9]{1,32}$/.test(canonical) ? canonical : null;
 }
