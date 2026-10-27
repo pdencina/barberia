@@ -1,0 +1,12 @@
+# Tanda C — resumen para Nico (27 oct. 2026)
+- HECHO C1 [#141](https://github.com/pdencina/barberia/pull/141): teléfonos Chile/extranjero coherentes al enviar/verificar; 24 casos (`src/lib/agente/whatsapp-meta.ts:182`, rama C1).
+- HECHO C2 [#143](https://github.com/pdencina/barberia/pull/143): aviso por contacto/hora/negocio; 57 webhook, 14 PGlite; SQL007 BORRADOR (`src/lib/agente/whatsapp-webhook.ts:95`, rama C2).
+- HECHO C3 [#145](https://github.com/pdencina/barberia/pull/145): marca tras aceptación/incertidumbre, no ante fallo claro; 59 casos; envío real bloqueado; Claude agenda en otra hora que el cron antiguo (`src/lib/agente/recordatorios-whatsapp.ts:117`, rama C3).
+- HECHO C4 [#146](https://github.com/pdencina/barberia/pull/146): fecha legible, cuatro variables, dos botones y fallback a button.text; 15 casos; contrato propuesto sin aprobación Meta (`src/lib/agente/plantilla-recordatorio.ts:5`, rama C4).
+- HECHO C5 [#147](https://github.com/pdencina/barberia/pull/147): sin contexto exige único recordatorio aceptado en 48h y teléfono no compartido; 14 casos +56 webhook (`src/lib/agente/referencia-alternativa.ts:7`, rama C5).
+- HECHO C6 [#149](https://github.com/pdencina/barberia/pull/149): flujo con cuatro módulos reales y puertos simulados; 20 comprobaciones (`scripts/test-agente-flujo-recordatorio.ts:39`, rama C6).
+- HECHO C7 [#151](https://github.com/pdencina/barberia/pull/151): retención 15..30/default30; nunca borra bajas; borrado real bloqueado; 16 casos (`src/lib/agente/limpieza-retencion.ts:15`, rama C7).
+- HECHO C8 [#152](https://github.com/pdencina/barberia/pull/152): dryRun diagnostica nombres, nunca valores; EMAIL_FROM opcional/informativa; 51 casos independientes y53 con C7 (`src/lib/agente/whatsapp-meta.ts:10`, rama C8).
+NO probado: Supabase, Meta ni Resend reales, HTTP desplegado o concurrencia PostgreSQL multisession; SQL007 solo se probó en PGlite efímero. TypeScript y pruebas seleccionadas C1–C8 pasan también en copia temporal consolidada, sin mergear ramas.
+Abiertas relevantes de sección 11: BC3 abonos/devoluciones, BR1 otro recordatorio al cambiar hora, R4 validación oficial/operativa Meta y CT1 token compartido o por negocio; las decisiones ya registradas de Nico no se reabren.
+INFERENCIA: revisar C1→C2(SQL007)→C3→C4→C5→C6→C7→C8 y conciliar archivos compartidos, rerun de pruebas tras integración; todos esperan a Claude, sin merge de Codex ni activación de envíos/borrado reales.

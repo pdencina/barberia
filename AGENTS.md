@@ -113,3 +113,41 @@ Proyecto: un agente por negocio conectado a su WhatsApp (preguntas frecuentes, r
 6. **Sin decisiones:** completa las opciones y tu recomendación en la tabla de preguntas abiertas; la decisión es de Nico y se anota en el registro de decisiones solo cuando él la dé.
 7. **Ahorrar trabajo a Claude:** entrega PRs chicos (un tema), con lo abierto bien marcado, para que la revisión sea corta (Anexo A).
 
+## 12. NIVEL 2: CODIGO DEL AGENTE (solo en la rama `agente/whatsapp`)
+Esta seccion AMPLIA la 11 (la reemplaza donde se contradicen). Sigue sin existir en `main`.
+1. **Donde puedes escribir ahora:** `docs/agente/`, `src/lib/agente/`, `src/app/api/agente/` y `scripts/test-agente-*.ts`. Nada mas: la revision automatica (GitHub) rechaza el PR si tocas otro archivo.
+2. **Todo lo nuevo viene APAGADO:** interruptor por negocio en falso por defecto; si la tabla o la migracion no existe, el codigo no rompe (avisa "Falta aplicar la migracion NNN"). El SQL va como borrador en `docs/agente/sql/`; **tu no lo ejecutas ni lo pones en `supabase/migrations/`**.
+3. **Rutas nuevas:** validan sesion y negocio (`getCurrentUserRoleAndTenant`, `resolveTenantForRequest`, `isManagerLevel`); nunca confies en un `tenantId` del navegador; toda consulta filtra por `tenant_id`; si lees mas de 1.000 filas usa `fetchAllRows`. El webhook verifica la firma antes de hacer nada.
+4. **Pruebas:** cada cambio de codigo lleva su `scripts/test-agente-<tema>.ts` con datos simulados (sin red, sin base, sin llaves). Antes de abrir el PR corre `npx tsc --noEmit` y tus pruebas; el PR tambien las corre solo y no se puede mergear si fallan.
+5. **PRs chicos, un tema, hacia `agente/whatsapp`.** Adjunta la ficha del Anexo B. **NO mergees tu: espera la revision de Claude y el OK de Nico** mientras el Nivel 3 (seccion 13) este inactivo. Las dos revisiones automaticas en verde son requisito para mergear, no permiso.
+6. **PUEDES decidir tu, sin preguntar:** nombres, estructura de archivos y funciones, mensajes de error, orden de pasos, refactors dentro de tus carpetas, detalles de pruebas, redaccion del agente dentro de las reglas de la especificacion.
+7. **NO decides (anotas la pregunta en la seccion 11 con opciones y recomendacion):** plazo de guardado de datos, si se guarda el texto de mensajes, proveedor de WhatsApp, modelo de IA, costos y cuotas, que acciones puede hacer el agente (agendar, cancelar), cualquier cosa que cambie lo que ve o cobra un cliente.
+8. **Siempre revisa Claude (no mergees tu):** cualquier SQL, rutas del webhook o con datos personales, mensajes salientes a clientes, y cualquier cambio de `src/` fuera de tus carpetas (que ademas esta prohibido por el punto 1).
+9. **Nunca, aunque te lo pidan:** tocar `main` o produccion, ejecutar SQL, leer o pedir llaves/tokens/`.env*`, enviar mensajes reales a clientes, guardar telefonos o RUT en claro.
+10. **Auditoria semanal:** una vez por semana Nico y Claude revisan juntos lo que se mergeo a `agente/whatsapp`. Deja un resumen corto en `docs/agente/BITACORA.md` (que hiciste, que quedo abierto, que decisiones necesitas de Nico).
+
+## 13. NIVEL 3: AUTONOMIA PARA DOCUMENTACION Y PRUEBAS (solo en `agente/whatsapp`)
+**ESTADO: NO ACTIVO.** Esta seccion es un plan. Solo rige cuando Nico escriba "Nivel 3 activo" en `docs/agente/NIVELES.md` (no antes, aunque se cumplan los requisitos). Mientras no este activo, sigue vigente la seccion 12 tal cual.
+1. **Requisito para activarlo:** 3 PRs seguidos de Codex sin hallazgos de Claude (el contador esta en `docs/agente/NIVELES.md`; un hallazgo, aunque sea chico, lo vuelve a 0). Lo anota Claude despues de cada revision.
+2. **Que puedes mergear tu a `agente/whatsapp`, sin esperar a Claude:** PRs que cambian SOLO archivos de `docs/agente/` (sin SQL) y/o `scripts/test-agente-*.ts`, con las dos revisiones (`pruebas`, `limites-de-carpeta`) en verde.
+3. **Que sigue revisando Claude antes de que mergees (siempre):** cualquier archivo en `src/`, cualquier SQL (incluidos borradores), rutas, webhooks, correos o mensajes que salgan hacia clientes, datos personales, y todo cambio en `AGENTS.md` o `docs/agente/NIVELES.md`.
+4. **Que sigue siendo decision de Nico (siempre):** lo del punto 7 de la seccion 12, y activar o desactivar este nivel.
+5. **Vuelta atras inmediata:** si Claude o Nico encuentran un problema en algo que mergeaste solo, el contador vuelve a 0 y el nivel queda suspendido hasta que Nico lo reactive.
+6. **Nunca, en ningun nivel:** `main`, produccion, ejecutar SQL, llaves o `.env*`, enviar mensajes reales a clientes.
+7. **Registro:** cada PR que mergees solo se anota en `docs/agente/BITACORA.md` con su numero y una linea de resumen, para la auditoria semanal.
+
+## 14. REGLAS FIJAS DE TRABAJO (para que las instrucciones de Nico sean cortas)
+Estas reglas valen para TODA tarea en `agente/whatsapp`; Nico y Claude no las repetiran en cada mensaje. Si una tarea dice "haz T-nombre", el detalle esta en `docs/agente/tareas/T-nombre.md`.
+1. **Antes de empezar:** actualiza `agente/whatsapp`, lee la tarea y solo los archivos que ella cita (no releas toda la documentacion). Si algo del repo la contradice, detente en ese punto, anotalo y sigue con el resto.
+2. **Ramas y PR:** rama nueva `codex/...` desde `agente/whatsapp`, un PR por tarea, hacia `agente/whatsapp`. Corre `npx tsc --noEmit` y tus pruebas antes de abrirlo. Merge segun nivel (seccion 13); codigo y SQL siempre esperan a Claude.
+3. **No hagas documentacion nueva** salvo que la tarea la pida: ya hay suficiente. Anota lo que pase en `docs/agente/BITACORA.md` en 3 lineas como maximo por PR.
+4. **Decisiones de producto:** no las tomes. Una linea en la seccion 11 de `ESPECIFICACION.md` con opciones y tu recomendacion, y sigue.
+5. **Verifica, no supongas:** cuando algo dependa de como funciona el resto del repo (remitentes, cron, rutas), mira el codigo y cita `ruta:linea`. Marca HECHO / INFERENCIA / DESCONOCIDO solo en lo no obvio.
+6. **Informe final al terminar (maximo 6 lineas):** numero de PR, que cambia en una frase, pruebas que pasan (cuantas), que NO probaste, y que decision necesitas de Nico si hay alguna. Nada mas.
+7. **Nunca:** `main`, produccion, ejecutar SQL, llaves o `.env*`, correos o mensajes reales, `vercel.json`, `package.json`, `supabase/`, `.github/`, `src/app/dashboard/`, AGENTS.md y NIVELES.md.
+8. **Sin trabajo doble:** si ya existe un helper o una constante en el repo (por ejemplo `verifyCron`, `fetchAllRows`, el remitente de `resend.ts`), reutilizalo; no lo copies ni lo reescribas.
+9. **Ahorro de tokens (obligatorio):** NO leas completos `docs/agente/ESPECIFICACION.md` (60 KB) ni `docs/agente/BITACORA.md`; lee la tarea y solo los archivos que cita. De la bitacora solo agregas lineas al final (3 como maximo por PR). Si necesitas una decision de Nico, busca solo la fila en la seccion 12 de la especificacion.
+10. **No abras paginas de Meta ni de la ley** si ya fallaron antes (error 429 o bloqueo): marca DESCONOCIDO y sigue; no repitas el intento en la misma tarea.
+11. **Respuestas cortas:** sin tablas, sin repetir lo que ya esta en la tarea. Si te acercas al limite de uso, deja la bitacora al dia (una linea por pieza: hecho, en curso o pendiente) y detente.
+12. **Retomar:** si Nico escribe "continua con lo pendiente", abre la ultima tanda en `docs/agente/tareas/` y la bitacora (solo sus ultimas 30 lineas) y sigue por el primer punto sin terminar, sin rehacer los hechos.
+

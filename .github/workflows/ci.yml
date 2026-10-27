@@ -1,0 +1,50 @@
+name: CI
+
+# Revision automatica de cada PR hacia agente/whatsapp (y hacia main): tipos, pruebas y limites de carpeta.
+# No usa llaves ni base de datos: las pruebas corren con datos simulados.
+on:
+  pull_request:
+    branches: [agente/whatsapp, main]
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Tipos (tsc)
+        run: npx tsc --noEmit
+      - name: Pruebas (scripts/test-*.ts)
+        env:
+          RESEND_API_KEY: x
+        run: |
+          fallas=0
+          for f in scripts/test-*.ts; do
+            echo "== $f"
+            npx tsx "$f" || { echo "FALLA: $f"; fallas=1; }
+          done
+          exit $fallas
+
+  limites-de-carpeta:
+    # Solo PRs hacia agente/whatsapp: Codex solo puede tocar sus carpetas (AGENTS.md, seccion 12).
+    if: github.base_ref == 'agente/whatsapp' && startsWith(github.head_ref, 'codex/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archivos fuera de las carpetas permitidas
+        run: |
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" > cambiados.txt
+          cat cambiados.txt
+          malos=$(grep -Ev '^(docs/agente/|src/lib/agente/|src/app/api/agente/|scripts/test-agente-[^/]*\.ts$)' cambiados.txt || true)
+          if [ -n "$malos" ]; then
+            echo "::error::Archivos fuera de las carpetas permitidas para Codex:"
+            echo "$malos"
+            exit 1
+          fi
