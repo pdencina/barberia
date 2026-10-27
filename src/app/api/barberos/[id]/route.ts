@@ -94,6 +94,11 @@ export async function PATCH(
   for (const key of auth.self ? selfEditableFields : allowedFields) {
     if (body[key] !== undefined) update[key] = body[key];
   }
+  // Impuesto/SII por profesional: solo el administrador (no el propio profesional ni recepcion).
+  if (auth.role !== "admin" && auth.role !== "super_admin") {
+    delete update.sii_enabled;
+    delete update.tax_rate;
+  }
 
   // PIN: se valida (4 dígitos o vacío) y se guarda junto con su huella.
   if ("personal_pin" in update) {

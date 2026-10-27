@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { TAX_PRESETS, IVA_RATE } from "@/lib/pro-tax";
+import { ProSiiAccount } from "@/components/barberos/pro-sii-account";
 import { useParams, useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -501,6 +502,8 @@ export default function EditProfessionalPage() {
           </div>
         )}
       </div>
+
+      {(data as any).sii_enabled && (effectiveRole === "admin" || effectiveRole === "super_admin") && <ProSiiAccount barberId={String(params.id)} />}
 
       {/* Commission settings */}
       {data.work_mode === "commission" && (

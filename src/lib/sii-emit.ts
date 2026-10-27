@@ -19,20 +19,42 @@ export async function emitForTransaction(
   transactionId: string,
   opts: { onlyAuto?: boolean } = {}
 ): Promise<EmitForTxResult> {
-  const { data: config, error: cfgErr } = await supabase
-    .from("tenant_billing_sii").select("*").eq("tenant_id", tenantId).maybeSingle();
-  if (cfgErr) return { ok: false, skipped: "Falta aplicar la migración 116", error: "Falta aplicar la migración 116", status: 503 };
-  if (!config?.enabled) return { ok: false, skipped: "apagada", error: "La boleta electrónica no está activada en este negocio", status: 400 };
-  if (opts.onlyAuto && !config.auto_emit) return { ok: false, skipped: "manual" };
-
   const { data: tx } = await supabase
     .from("transactions")
-    .select("id, type, status, total, payment_method, client:clients(name, rut), items:transaction_items(description, quantity, unit_price, total)")
+    .select("id, type, status, total, payment_method, barber_id, client:clients(name, rut), items:transaction_items(description, quantity, unit_price, total)")
     .eq("id", transactionId).eq("tenant_id", tenantId).maybeSingle();
   if (!tx) return { ok: false, error: "Venta no encontrada", status: 404 };
   if (tx.type !== "income" || tx.status !== "completed") {
     return { ok: false, error: "Solo se emite boleta de ventas completadas", status: 400 };
   }
+
+  // Que cuenta emite: si el profesional paga su propio impuesto (tax_bearer = 'professional', migracion 118), la boleta
+  // sale con SU cuenta; si no, con la del negocio. Si le corresponde la suya y no esta lista NO se emite con la del
+  // negocio (saldria a nombre equivocado): se avisa para que el administrador la complete.
+  let issuerProfileId: string | null = null;
+  let config: any = null;
+  let cfgErr: any = null;
+  if (tx.barber_id) {
+    const { data: prof, error: profErr } = await supabase.from("profiles").select("name, tax_bearer, sii_enabled").eq("id", tx.barber_id).maybeSingle();
+    if (!profErr && prof?.sii_enabled && prof.tax_bearer === "professional") {
+      const r = await supabase.from("professional_billing_sii").select("*").eq("profile_id", tx.barber_id).maybeSingle();
+      if (r.error) return { ok: false, skipped: "Falta aplicar la migración 118", error: "Falta aplicar la migración 118", status: 503 };
+      if (!r.data?.enabled) {
+        const msg = `La cuenta SII de ${prof.name || "este profesional"} no está activa: un administrador debe completarla`;
+        return { ok: false, skipped: opts.onlyAuto ? msg : undefined, error: msg, status: 400 };
+      }
+      config = r.data;
+      issuerProfileId = tx.barber_id;
+    }
+  }
+  if (!config) {
+    const r = await supabase.from("tenant_billing_sii").select("*").eq("tenant_id", tenantId).maybeSingle();
+    config = r.data;
+    cfgErr = r.error;
+  }
+  if (cfgErr) return { ok: false, skipped: "Falta aplicar la migración 116", error: "Falta aplicar la migración 116", status: 503 };
+  if (!config?.enabled) return { ok: false, skipped: "apagada", error: "La boleta electrónica no está activada en este negocio", status: 400 };
+  if (opts.onlyAuto && !config.auto_emit) return { ok: false, skipped: "manual" };
 
   const { data: existing } = await supabase
     .from("boletas_emitidas").select("id").eq("transaction_id", transactionId).eq("status", "emitida").maybeSingle();
@@ -53,7 +75,7 @@ export async function emitForTransaction(
     pdf_url: result.pdfUrl || null, client_rut: tx.client?.rut || null, status: "emitida",
   };
   // tenant_id/environment vienen de la migracion 116; si faltaran, se guarda igual sin ellos.
-  const { error: insErr } = await supabase.from("boletas_emitidas").insert({ ...row, tenant_id: tenantId, environment: config.environment });
+  const { error: insErr } = await supabase.from("boletas_emitidas").insert({ ...row, tenant_id: tenantId, environment: config.environment, issuer_profile_id: issuerProfileId });
   if (insErr) await supabase.from("boletas_emitidas").insert(row);
   await supabase.from("transactions").update({ boleta_folio: result.folio, boleta_emitida: true }).eq("id", transactionId);
 
