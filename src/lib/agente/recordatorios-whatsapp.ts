@@ -24,8 +24,8 @@ export interface RepositorioRecordatorios {
   existe: (c: CitaRecordatorio, canal: Canal) => Promise<boolean>;
   reclamar: (c: CitaRecordatorio, canal: Canal, ahora: number) => Promise<string | null>;
   finalizar: (c: CitaRecordatorio, canal: Canal, id: string, estado: Final, ahora: number, proveedor?: string) => Promise<void>;
-  // Puente conservador: impide nuevas lecturas del cron antiguo; NO protege su snapshot ya leído.
-  reservarContraCronCorreo: (c: CitaRecordatorio, ahora: number) => Promise<boolean>;
+  // Marca tras aceptación/incertidumbre, nunca antes de transportar. No protege snapshots del cron antiguo.
+  marcarRecordatorio: (c: CitaRecordatorio, ahora: number) => Promise<boolean>;
 }
 export interface DependenciasRecordatorios {
   repo: RepositorioRecordatorios; ahora: () => number; sal: string;
@@ -102,13 +102,14 @@ export function crearManejadorRecordatorios(config:{
             if(!await deps.consumirCuota(n.tenantId,"whatsapp",c.id)){
               await repo.finalizar(c,"whatsapp",claim,"fallido",deps.ahora());totals.sin_cuota++;continue;
             }
-            if(!await vigente()||!await repo.reservarContraCronCorreo(c,deps.ahora())){
+            if(!await vigente()){
               await repo.finalizar(c,"whatsapp",claim,"fallido",deps.ahora());totals.omitidos++;continue;
             }
-            // Releer baja tras el puente, justo antes de transportar; sin interpretar texto.
+            // Última relectura antes de transportar; todavía reminder_sent=false.
             if(!await vigente(true)){await repo.finalizar(c,"whatsapp",claim,"fallido",deps.ahora());totals.omitidos++;continue;}
             totals.candidatos++;totals.intentos++;invocado=true;
             const result=await deps.enviarWhatsApp(n,c,para);
+            if(result.estado!=="fallido"&&!await repo.marcarRecordatorio(c,deps.ahora()))throw new Error("Marca no persistida");
             await repo.finalizar(c,"whatsapp",claim,result.estado==="aceptado"?"aceptado_proveedor":result.estado,deps.ahora(),result.estado==="aceptado"?result.id:undefined);
             if(result.estado==="aceptado"){totals.whatsapp++;continue;}
             if(result.estado==="incierto"){totals.inciertos++;continue;}
@@ -127,14 +128,17 @@ export function crearManejadorRecordatorios(config:{
               }
               emailInvocado=true;totals.intentos++;
               const r=await deps.enviarCorreo(c);
+              if(r.estado!=="fallido"&&!await repo.marcarRecordatorio(c,deps.ahora()))throw new Error("Marca no persistida");
               await repo.finalizar(c,"email",emailClaim,r.estado==="aceptado"?"aceptado_proveedor":r.estado,deps.ahora(),r.estado==="aceptado"?r.id:undefined);
               if(r.estado==="aceptado")totals.correos++;else if(r.estado==="incierto")totals.inciertos++;else totals.fallidos++;
             }catch{
+              if(emailInvocado){try{await repo.marcarRecordatorio(c,deps.ahora());}catch{}}
               try{await repo.finalizar(c,"email",emailClaim,emailInvocado?"incierto":"fallido",deps.ahora());}catch{}
               if(emailInvocado)totals.inciertos++;else totals.fallidos++;
             }
           }catch(e){
             if(e instanceof MigracionRecordatoriosPendiente)totals.migracion_pendiente++;
+            if(invocado){try{await repo.marcarRecordatorio(c,deps.ahora());}catch{}}
             if(claim){try{await repo.finalizar(c,"whatsapp",claim,invocado?"incierto":"fallido",deps.ahora());}catch{}}
             if(invocado)totals.inciertos++;else totals.fallidos++;
           }
@@ -177,6 +181,6 @@ export function crearRepositorioRecordatorios(db:any):RepositorioRecordatorios {
       const r=check(await db.from(table).update(patch).eq("tenant_id",c.tenant_id).eq("appointment_id",c.id).eq("channel",channel).eq("purpose",purpose).eq("id",id).eq("status","procesando").select("id").maybeSingle());
       if(!r.data)throw new Error("Registro no actualizado");
     },
-    async reservarContraCronCorreo(c,ahora){return !!check(await db.from("appointments").update({reminder_sent:true,reminder_sent_at:ts(ahora)}).eq("tenant_id",c.tenant_id).eq("id",c.id).eq("client_id",c.client!.id).eq("status",c.status).eq("start_time",c.start_time).eq("date",c.date).eq("reminder_sent",false).select("id").maybeSingle()).data;},
+    async marcarRecordatorio(c,ahora){return !!check(await db.from("appointments").update({reminder_sent:true,reminder_sent_at:ts(ahora)}).eq("tenant_id",c.tenant_id).eq("id",c.id).eq("client_id",c.client!.id).eq("status",c.status).eq("start_time",c.start_time).eq("date",c.date).eq("reminder_sent",false).select("id").maybeSingle()).data;},
   };
 }
