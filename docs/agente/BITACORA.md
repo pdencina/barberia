@@ -1,6 +1,6 @@
 # Bitacora del agente de WhatsApp
 
-## 27 oct. 2026 — tanda A: SQL005 recordatorios (espera Claude)
+## 27 oct. 2026 — PR #136: SQL005 recordatorios, tanda A (espera Claude)
 SQL aditivo, apagado, RLS sin políticas, HMAC por negocio y cascadas hacia cita/tenant; sin texto/teléfonos; limpieza DESCONOCIDO (`docs/agente/sql/005_recordatorios_whatsapp_borrador.sql:1`).
 TypeScript y 66 comprobaciones PGlite pasan (003→004→005 completos repetidos, permisos/reclamo/borrados con función072 y orden real del cliente); no Supabase ni concurrencia multisession; sin merge, B no iniciada.
 
