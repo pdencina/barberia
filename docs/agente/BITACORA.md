@@ -151,7 +151,7 @@ Una entrada por semana: que se hizo, que quedo abierto, que decisiones se necesi
 Reproducido falso positivo con n+acento+tilde pese al arreglo NFC ya mergeado; se preserva esa letra antes de retirar marcas (`src/lib/agente/respuesta-cliente.ts:33-35`), sin cambiar listas, contrato ni rutas.
 TypeScript y 239 casos pasan (229 existentes +10 nuevos); regresión falló primero contra la base. Loader tsx usado por restricción IPC; sin mensajes/datos/base reales; no mergear.
 
-## 27 oct. 2026 — T-wa-recordatorios (espera Claude; envío real bloqueado)
+## 27 oct. 2026 — PR #140: T-wa-recordatorios (espera Claude; envío real bloqueado)
 Núcleo inyectado y dryRun autenticado: 20..28h reales expresadas en pared Santiago, fetchAllRows por tenant, bajas/cuota/reclamo por canal; TypeScript, 53 casos nuevos y 211 Meta pasan sin red/base/SQL/mensajes reales; código: `src/lib/agente/recordatorios-whatsapp.ts:1`; plantilla/operación Meta DESCONOCIDAS, BC3 y BR1 (PR #139) pendientes.
 Para Claude: coordinar atómicamente el cron de correo (`src/app/api/cron/reminders/route.ts:45-63`, snapshot ya leído no se protege con reminder_sent) con el registro 005; exponer aceptación/error de `sendAppointmentReminder` (`src/lib/resend.ts:457-465`, hoy void, aquí incierto), revisar su zona horaria/texto y el contrato de plantilla antes de quitar el bloqueo (`src/app/api/agente/recordatorios-whatsapp/route.ts:12-14`); no se tocó cron/vercel ni el helper de correo.
 
