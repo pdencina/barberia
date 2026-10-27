@@ -130,8 +130,7 @@ export function extraerMensajesEntrantes(payload: unknown, contexto: ContextoHas
           const texto = tipo === "text" ? campo(campo(mensaje, "text"), "body") : undefined;
           // Dominio estable para bajas por tenant aunque cambie el número del negocio.
           // No reutiliza clave-deduplicacion: aquella no es HMAC ni identifica contactos.
-          const remitenteHash = createHmac("sha256", contexto.sal)
-            .update(JSON.stringify(["agente:contacto:v1", tenantId, remitente])).digest("hex");
+          const remitenteHash = hashContactoWhatsApp(contexto.sal, tenantId, remitente);
           resultado.push(Object.freeze({
             persistible: Object.freeze({ id, tipo, phone_number_id: phoneId, remitenteHash }),
             memoria: new TextoEntranteEnMemoria(typeof texto === "string" && texto.length <= LIMITE_TEXTO_EN_MEMORIA ? texto : null),
@@ -141,4 +140,9 @@ export function extraerMensajesEntrantes(payload: unknown, contexto: ContextoHas
     }
     return resultado;
   } catch { return []; } // Entradas que no son JSON plano fallan cerrado, sin eco de datos.
+}
+
+// Mismo namespace del extractor y de las bajas; el llamador valida/canoniza sin inferir país.
+export function hashContactoWhatsApp(sal: string, tenantId: string, remitenteCanonico: string): string {
+  return createHmac("sha256", sal).update(JSON.stringify(["agente:contacto:v1", tenantId, remitenteCanonico])).digest("hex");
 }
