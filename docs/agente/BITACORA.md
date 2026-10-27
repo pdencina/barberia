@@ -1,5 +1,15 @@
 # Bitacora del agente de WhatsApp
 
+## 27 oct. 2026 — pieza 4: informe programado (espera Claude)
+
+**HECHO — base y autenticación:** piezas 1–3 presentes en base e3cbfe8; al detectar ausencia del helper se mantuvo la conexión bloqueada. Nico confirmó esperar a su sincronización; tras el merge de #126 se actualizó a 792aaa4 y se reutilizó `verifyCron` sin copiar/modificarlo (`src/lib/cron-auth.ts:9-21`). Dependencias reales después del guard (`src/app/api/agente/informe-programado/route.ts:8-17`); dryRun exige secreto válido también en desarrollo.
+
+**HECHO — implementación:** paginación por perfil, último informe aceptado, reclamo único sin sobrescritura, relectura de perfil/negocio/preferencia después de generar, destinatario exclusivamente del perfil y fecha/hora única del calendario. Registro aceptado/fallido/incierto, sin reintentos de filas existentes y sin tocar procesando previos. Salida de conteos, sin datos personales ni errores crudos. Remitente solo `EMAIL_FROM`, sin fallback ni cupo comercial (`src/lib/agente/informe-diario-email.ts:87-112`). Contrato y límites: `docs/agente/INFORME_PROGRAMADO.md:1`.
+
+**HECHO — verificación:** `npx tsc --noEmit` pasa; 61 casos del nuevo script pasan, con verifyCron real y entorno/base/proveedor/reloj simulados, incluidos dos ejecuciones simultáneas con reclamo simulado, paginación de 1.005 preferencias, cambios de datos durante generación, medianoche/DST, fallos de proveedor/registro y privacidad. También pasan 63 casos del informe, 11 de HTML horario, 44 del calendario y 95 de preferencias. Sin red de prueba, base, credenciales reales ni envíos. **DESCONOCIDO:** Supabase/PostgREST y Resend reales, concurrencia PostgreSQL multisession, duración de Vercel y carreras posteriores a la última lectura; no probados.
+
+**INFERENCIA — para Nico:** máximo inicial propuesto de 20 nuevos reclamos por llamada en una constante, pendiente IA5; no es cuota ni garantía de duración. #22 reintentos/conciliación y #10 retención siguen pendientes. No se inventó columna de motivo: `fallido` es la categoría genérica persistida que admite 004. Sin SQL, cron, pantalla, cambios de `vercel.json`, dependencias, AGENTS.md o NIVELES.md. Este PR de código queda abierto para Claude, sin merge autónomo; al completar esta pieza se detiene el trabajo.
+
 ## Código por administrador — pieza 1, PR #123 (espera Claude)
 
 **HECHO — actualización de Nico, 26 oct. 2026:** #16 y #21 respondidas: mismo día local de Santiago, 21:00 por defecto modificable por administrador. Sustituida la política provisional por `POLITICA_INFORME` (`src/lib/agente/calendario-informe.ts:3-6`). Texto del correo con fecha/hora de Santiago y advertencia de información modificable; los informes históricos manuales conservan fecha explícita. PR #123 actualizado, sin merge. No se inició pieza 4, no se enviaron correos ni se ejecutó SQL en esta actualización.
