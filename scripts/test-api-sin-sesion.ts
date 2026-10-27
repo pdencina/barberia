@@ -67,10 +67,15 @@ const t = (name: string, ok: boolean, extra = "") => {
     }
   }
   // Rutas con parametro en la URL ([id]): sin sesion tampoco deben leer, editar ni borrar nada.
-  const escritura: Array<{ ruta: string; metodo: "GET" | "PATCH" | "DELETE"; params: Record<string, string> }> = [
+  const escritura: Array<{ ruta: string; metodo: "GET" | "POST" | "PATCH" | "DELETE"; params: Record<string, string> }> = [
     { ruta: "cupones/[id]", metodo: "PATCH", params: { id: ID } },
     { ruta: "cupones/[id]", metodo: "DELETE", params: { id: ID } },
     { ruta: "retention/campaigns/[id]", metodo: "GET", params: { id: ID } },
+    // servicios y sus fotos: antes cualquiera con el id podia editarlos, desactivarlos o cambiarles la foto
+    { ruta: "services/[id]", metodo: "PATCH", params: { id: ID } },
+    { ruta: "services/[id]", metodo: "DELETE", params: { id: ID } },
+    { ruta: "services/[id]/photo", metodo: "POST", params: { id: ID } },
+    { ruta: "services/[id]/photo", metodo: "DELETE", params: { id: ID } },
   ];
   for (const e of escritura) {
     const mod = await import(`../src/app/api/${e.ruta}/route`);

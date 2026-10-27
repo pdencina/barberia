@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { authorizeServiceAccess } from "@/lib/service-access";
 
 const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
 
@@ -7,6 +8,8 @@ const MAX_PHOTO_BYTES = 5 * 1024 * 1024; // 5MB
 // barba"), shown to clients while they're choosing services in the public booking
 // flow — similar to the Setmore-style visual reference.
 export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await authorizeServiceAccess(params.id);
+  if (!auth.ok) return auth.response;
   const supabase = createAdminSupabase();
 
   let formData: FormData;
@@ -77,6 +80,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 
 // DELETE: Remove the service's reference photo.
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+  const auth = await authorizeServiceAccess(params.id);
+  if (!auth.ok) return auth.response;
   const supabase = createAdminSupabase();
 
   const { data: service } = await supabase
