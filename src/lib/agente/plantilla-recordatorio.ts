@@ -6,5 +6,6 @@ export function variablesPlantillaRecordatorio(c:CitaRecordatorio):readonly stri
  const d=parseWallClock(c.start_time);
  if(!Number.isFinite(d.getTime()))throw new Error("Fecha de cita inválida");
  const hora=`${String(d.getUTCHours()).padStart(2,"0")}:${String(d.getUTCMinutes()).padStart(2,"0")}`;
- return [`${fecha.format(d)}, ${hora}`,hora,c.barber?.name||"Tu profesional",c.services.map(s=>s.service?.name).filter(Boolean).join(", ")||"Servicio"];
+ const parts=fecha.formatToParts(d),part=(type:string)=>parts.find(p=>p.type===type)!.value;
+ return [`${part("weekday")} ${part("day")} de ${part("month")}, ${hora}`,hora,c.barber?.name||"Tu profesional",c.services.map(s=>s.service?.name).filter(Boolean).join(", ")||"Servicio"];
 }
