@@ -22,6 +22,10 @@ interface SendReceiptParams {
   businessLogoUrl?: string | null;
   // Nombre del negocio: se muestra si el negocio no tiene logo cargado.
   businessName?: string | null;
+  // Boleta electronica del SII asociada a esta venta (si el negocio la tiene activada).
+  boletaFolio?: number | null;
+  boletaPdfUrl?: string | null;
+  boletaPdfBase64?: string | null;
 }
 
 export async function sendReceipt(params: SendReceiptParams) {
@@ -38,6 +42,9 @@ export async function sendReceipt(params: SendReceiptParams) {
     barberName,
     businessLogoUrl,
     businessName,
+    boletaFolio,
+    boletaPdfUrl,
+    boletaPdfBase64,
   } = params;
 
   const paymentLabel: Record<string, string> = {
@@ -105,8 +112,8 @@ export async function sendReceipt(params: SendReceiptParams) {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
           <td valign="middle">${headerBrand}</td>
           <td valign="middle" align="right">
-            <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${ACCENT};font-weight:700;">Boleta</div>
-            <div style="font-size:16px;color:#111827;font-weight:800;margin-top:2px;">N° ${receiptNumber}</div>
+            <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${ACCENT};font-weight:700;">${boletaFolio ? "Boleta electrónica" : "Boleta"}</div>
+            <div style="font-size:16px;color:#111827;font-weight:800;margin-top:2px;">N° ${boletaFolio ? esc(String(boletaFolio)) : receiptNumber}</div>${boletaFolio && boletaPdfUrl && /^https?:\/\//.test(boletaPdfUrl) ? `<div style="margin-top:4px;"><a href="${esc(boletaPdfUrl)}" style="font-size:12px;color:${ACCENT};">Ver boleta (SII)</a></div>` : ""}
           </td>
         </tr></table>
       </td></tr>
@@ -169,6 +176,9 @@ export async function sendReceipt(params: SendReceiptParams) {
     to,
     subject: `Tu boleta${businessName ? ` de ${businessName}` : ""} - ${new Date(date).toLocaleDateString("es-CL", { timeZone: "America/Santiago" })}`,
     html,
+    ...(boletaFolio && boletaPdfBase64
+      ? { attachments: [{ filename: `boleta-${boletaFolio}.pdf`, content: boletaPdfBase64 }] }
+      : {}),
   });
 
   if (error) {

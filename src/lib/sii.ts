@@ -36,6 +36,7 @@ export interface BoletaResult {
   success: boolean;
   folio?: number;
   pdfUrl?: string | null;
+  pdfBase64?: string | null;
   error?: string;
 }
 
@@ -101,9 +102,13 @@ export async function emitBoleta(config: SiiConfig, params: EmitBoletaParams): P
     });
     const data = await res.json().catch(() => ({}));
     if (data.FOLIO) {
-      // El proveedor puede devolver el PDF en base64 y no como enlace: solo se guarda si es una URL.
-      const pdf = typeof data.PDF === "string" && data.PDF.startsWith("http") ? data.PDF : null;
-      return { success: true, folio: Number(data.FOLIO), pdfUrl: pdf };
+      // El PDF puede venir como enlace (se guarda) o en base64 (se adjunta al correo del cliente).
+      const raw = typeof data.PDF === "string" ? data.PDF : "";
+      return {
+        success: true, folio: Number(data.FOLIO),
+        pdfUrl: raw.startsWith("http") ? raw : null,
+        pdfBase64: raw && !raw.startsWith("http") ? raw : null,
+      };
     }
     return { success: false, error: data.MENSAJE || data.error?.message || `Error del proveedor (${res.status})` };
   } catch (e: any) {
