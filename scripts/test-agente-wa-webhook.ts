@@ -46,6 +46,7 @@ function fixture() {
 // E3 recorre firma → controles → adaptador real → FAQ → envío simulado.
 function conectarFaq(f: ReturnType<typeof fixture>) {
   const tables: Record<string,any[]> = {
+    branches: [],
     tenants: ["A","B"].map(t=>({id:`tenant${t}`,name:`Local ${t}`,slug:`local-${t}`,address:`Ubicación comercial ${t}`,phone:`Comercial ${t}`,active:true})),
     business_hours: ["A","B"].flatMap(t=>Array.from({length:7},(_,dia)=>({id:`${t}${dia}`,tenant_id:`tenant${t}`,branch_id:null,day_of_week:dia,is_closed:dia===0,open_time:t==="A"?"10:00":"09:00",close_time:"20:00"}))),
     services: ["A","B"].map(t=>({id:t,tenant_id:`tenant${t}`,name:`Corte ${t}`,price:t==="A"?10000:20000,duration:30,active:true})),
