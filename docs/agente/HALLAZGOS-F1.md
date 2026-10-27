@@ -32,7 +32,7 @@ Base: `claude/e3-e4-combinado`, commit `a898cc4`. Solo pruebas y documentación;
 - Caso mínimo: mismo fixture y contacto, tres eventos con IDs distintos y texto `"x".repeat(LIMITE_TEXTO_EN_MEMORIA + 1)` (16.385 caracteres).
 - Esperado: dos respuestas; la tercera queda limitada por ser idéntica a las dos anteriores.
 - Obtenido: tres respuestas de traspaso. El límite general de 10 por hora sigue funcionando; esta prueba no demuestra un bypass de ese límite.
-- Evidencia: `src/lib/agente/whatsapp-meta.ts:25` y `:173` descartan el texto que excede 16.384; `src/lib/agente/whatsapp-webhook.ts:68` usa el ID del evento cuando el texto es `null`, por lo que cambian los hashes. No se guardó ni registró el texto.
+- Evidencia: `src/lib/agente/whatsapp-meta.ts:25` y `:173` descartan el texto que excede 16.384; `src/lib/agente/whatsapp-webhook.ts:69` usa el ID del evento cuando el texto es `null`, por lo que cambian los hashes. No se guardó ni registró el texto.
 - Caso retirado: `W-tercer-identico-fuera-memoria`. ABIERTO para Claude. Tres textos idénticos de 5.000 caracteres sí se cortan; esa regresión permanece activa.
 
 ## Validación y límites
