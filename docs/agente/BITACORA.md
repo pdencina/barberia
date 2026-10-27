@@ -42,6 +42,17 @@
 
 **HECHO — límites del lote:** ningún cambio en AGENTS.md, NIVELES.md, vercel.json, package.json, supabase/, .github/ o .env; ningún cron/ruta nueva ni envío real. T8–T10 son funciones sin conexión, en ramas independientes desde la base actualizada; no se mergean autónomamente. Se termina la lista y se detiene el trabajo. **DESCONOCIDO:** integración real, entrega y datos desplegados; no probados. El hallazgo D1 debe revisarse antes de conectar el detector a acciones.
 
+## Código por administrador — piezas 1 a 3, revisión obligatoria de Claude
+
+| Pieza | PR | HECHO — validación y límites |
+|---|---|---|
+| 1: calendario | #123 | Abierto SIN MERGE. TypeScript, 56 casos reutilizados, 44 de decisión real y 11 del texto horario pasan. Fuente en PR #123: `src/lib/agente/calendario-informe.ts:1`. #16/#21 decididas por Nico: mismo día, 21:00 de Santiago por defecto modificable por admin; política centralizada. Sin red/base/envíos; reserva persistente y recuperación no probadas. |
+| 2: registro SQL | #124 | Abierto SIN MERGE. TypeScript y 63 comprobaciones existentes pasan; PGlite efímero, 20 comprobaciones del SQL local pasan. Fuente: `docs/agente/sql/004_registro_envios_informe_borrador.sql:1` en ese PR. No Supabase ni concurrencia multisession; retención DESCONOCIDO (#10). |
+
+**HECHO — pieza 3, PR #125 abierto SIN MERGE:** ruta en `src/app/api/agente/informe-preferencias/route.ts:1`, manejador inyectable en `src/lib/agente/informe-preferencias.ts:1`, contrato en `docs/agente/API_INFORME_PREFERENCIAS.md:1`. TypeScript y 95 casos con guard/base simulados pasan: 401/403, propio perfil/tenant, super_admin con negocio concreto, whitelist, fechas/horas/días, activación completa, defecto apagado, migración ausente 503, origen cruzado y conflictos de revisión/creación. **DESCONOCIDO:** autenticación Next real, Supabase, RLS de la instalación y pantalla; no probados. Sin envío ni SQL externo; espera Claude.
+
+**INFERENCIA — límites del lote:** IA2, IA3, #10 y #22 siguen pendientes; #16/#21 respondidas por Nico el 26 oct. 2026 y registradas en la pieza 1 (#123). La pieza 4 NO se empieza y no hay merge autónomo en este lote. No se tocó vercel.json, dashboard, package.json, supabase/, .github/, AGENTS.md, NIVELES.md ni .env. **DESCONOCIDO:** `src/lib/cron-auth.ts` sigue no encontrado en base d746b49; falta resolver antes de pieza 4.
+
 ## Registro Nivel 3 — lote T1 a T10
 
 - PR #108 — T1: mergeado por Codex a `agente/whatsapp` con ambos checks verdes; hoja de decisiones y regla #20 actualizada.
