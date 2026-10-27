@@ -183,4 +183,4 @@ TANDA E — E1 hecho PR #165 (261 casos); E2 hecho PR #166 (72 casos, tsc y +6 c
 
 - 2026-10-27 — E3: FAQ y datos comerciales integrados al webhook para desconocidos sin recordatorio; precio base con $, traspaso ante dato faltante.
 - Validación: tsc --noEmit OK; 90 webhook, 261 FAQ, 72 datos, 14 vínculo y 3070 comprobaciones identidad/rendimiento; todo simulado. Código pendiente de revisión de Claude; sin merge.
-- Publicación E3 bloqueada por revisión automática: exige autorización explícita para push al repo público pdencina/barberia; commit local en codex/agente-e3-faq-webhook, PR pendiente.
+- PR #173 hacia agente/whatsapp publicado con autorización explícita de Nico; sin merge, pendiente de Claude. EFAQ1/E4/E5: instrucciones no encontradas en la rama actualizada.
