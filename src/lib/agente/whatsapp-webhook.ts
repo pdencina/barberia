@@ -78,7 +78,10 @@ export function crearManejadoresWebhook(config: {
             if (!current?.enabled || current.tenantId !== n.tenantId) { await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue; }
             const tipo = clasificarRespuestaCliente(text);
             const responder = async (body: string, acuseBaja = false) => {
-              if (acuseBaja || !await deps.repo.baja(n.tenantId,p.remitenteHash)) await deps.responder(n,para,body);
+              if (!acuseBaja && await deps.repo.baja(n.tenantId,p.remitenteHash)) return;
+              const vigente = await deps.repo.negocio(n.phoneNumberId);
+              if (!vigente?.enabled || vigente.tenantId !== n.tenantId || vigente.phoneNumberId !== n.phoneNumberId) return;
+              await deps.responder(n,para,body);
             };
             if (tipo === "no_quiero_mensajes") {
               await deps.repo.guardarBaja(n.tenantId,p.remitenteHash);
