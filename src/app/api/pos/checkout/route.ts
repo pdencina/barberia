@@ -236,9 +236,9 @@ export async function POST(req: NextRequest) {
   if (tenantId) {
     try {
       const { emitForTransaction } = await import("@/lib/sii-emit");
-      const r = await emitForTransaction(supabase, tenantId, tx.id, { onlyAuto: true });
+      const r = await emitForTransaction(supabase, tenantId, tx.id, { onlyAuto: true, barberId });
       if (r.ok && r.folio) boleta = { folio: r.folio, pdfUrl: r.pdfUrl || null, pdfBase64: r.pdfBase64 || null };
-      else if (!r.ok && (!r.skipped || !["apagada", "manual"].includes(r.skipped))) console.error("Boleta SII automatica no emitida:", r.error || r.skipped);
+      else if (!r.ok && (!r.skipped || !(["apagada", "manual"].includes(r.skipped) || r.skipped.startsWith("Falta aplicar")))) console.error("Boleta SII automatica no emitida:", r.error || r.skipped);
     } catch (e) {
       console.error("Error emitiendo boleta SII:", e);
     }

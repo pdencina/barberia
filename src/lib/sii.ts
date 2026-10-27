@@ -99,6 +99,7 @@ export async function emitBoleta(config: SiiConfig, params: EmitBoletaParams): P
       method: "POST",
       headers: { apikey: apiKey, "Content-Type": "application/json" },
       body: JSON.stringify(body),
+      signal: AbortSignal.timeout(10_000), // el cobro no puede quedar esperando a un proveedor caido
     });
     const data = await res.json().catch(() => ({}));
     if (data.FOLIO) {

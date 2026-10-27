@@ -26,8 +26,13 @@ ALTER TABLE tenant_billing_sii ENABLE ROW LEVEL SECURITY;
 -- Sin policies de usuario final: solo se lee y escribe con el cliente admin desde el servidor.
 
 -- Ambiente y tipo de documento de cada boleta emitida (para separar pruebas de reales).
-ALTER TABLE boletas_emitidas ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id);
-ALTER TABLE boletas_emitidas ADD COLUMN IF NOT EXISTS environment TEXT;
+DO $$
+BEGIN
+  IF to_regclass('public.boletas_emitidas') IS NOT NULL THEN
+    ALTER TABLE boletas_emitidas ADD COLUMN IF NOT EXISTS tenant_id UUID REFERENCES tenants(id);
+    ALTER TABLE boletas_emitidas ADD COLUMN IF NOT EXISTS environment TEXT;
+  END IF;
+END $$;
 
 -- Verificacion (debe devolver la tabla con 0 filas y las 2 columnas nuevas):
 --   SELECT count(*) FROM tenant_billing_sii;

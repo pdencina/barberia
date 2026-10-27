@@ -31,7 +31,12 @@ ALTER TABLE professional_billing_sii ENABLE ROW LEVEL SECURITY;
 -- Sin policies de usuario final: solo el servidor (clave de servicio) la lee y escribe.
 
 -- Que boleta salio con que cuenta (para revisar despues).
-ALTER TABLE boletas_emitidas ADD COLUMN IF NOT EXISTS issuer_profile_id UUID;
+DO $$
+BEGIN
+  IF to_regclass('public.boletas_emitidas') IS NOT NULL THEN
+    ALTER TABLE boletas_emitidas ADD COLUMN IF NOT EXISTS issuer_profile_id UUID;
+  END IF;
+END $$;
 
 -- El profesional no puede cambiarse a si mismo quien paga el impuesto.
 CREATE OR REPLACE FUNCTION protect_profile_sensitive_columns()
