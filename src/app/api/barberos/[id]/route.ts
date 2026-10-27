@@ -114,6 +114,12 @@ export async function PATCH(
     update.tax_rate = Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 100) / 100 : 0;
   }
   if (update.sii_enabled === false) update.tax_rate = 0;
+  if (update.sii_enabled === true && Number(update.tax_rate) > 0 && Number(update.tax_rate) !== 19) {
+    const { data: cur } = await supabase.from("profiles").select("tax_bearer").eq("id", params.id).maybeSingle();
+    if ((cur as any)?.tax_bearer === "professional") {
+      return NextResponse.json({ error: "Este profesional usa su propia cuenta SII (IVA). Primero pasa a “El negocio asume” para usar retención de honorarios." }, { status: 400 });
+    }
+  }
 
   // Fecha de nacimiento: solo se acepta YYYY-MM-DD; vacio la borra.
   if ("birth_date" in update) {

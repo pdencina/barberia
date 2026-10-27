@@ -23,9 +23,10 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const supabase = createAdminSupabase();
   const { data, error } = await supabase.from("professional_billing_sii").select(COLS).eq("profile_id", params.id).maybeSingle();
   if (error) return NextResponse.json({ error: "Falta aplicar la migración 118" }, { status: 503 });
-  const { data: prof } = await supabase.from("profiles").select("tax_bearer").eq("id", params.id).maybeSingle();
+  const { data: prof } = await supabase.from("profiles").select("tax_bearer, tax_rate").eq("id", params.id).maybeSingle();
   const { api_key_enc, ...rest } = (data || {}) as any;
   return NextResponse.json({
+    tax_rate: Number((prof as any)?.tax_rate) || 0,
     tax_bearer: (prof as any)?.tax_bearer || "business",
     config: data ? { ...rest, has_api_key: !!api_key_enc } : null,
     encryption_ready: secretBoxReady(),
@@ -38,6 +39,15 @@ export async function PUT(req: NextRequest, { params }: { params: { id: string }
   const b = await req.json().catch(() => ({}));
   const supabase = createAdminSupabase();
 
+  // Con retencion de honorarios el negocio es quien le vende al cliente (el profesional solo le cobra su comision):
+  // la boleta del cliente no puede salir con la cuenta del profesional.
+  if (b.tax_bearer === "professional") {
+    const { data: p } = await supabase.from("profiles").select("sii_enabled, tax_rate").eq("id", params.id).maybeSingle();
+    const rate = Number((p as any)?.tax_rate) || 0;
+    if ((p as any)?.sii_enabled && rate > 0 && rate !== 19) {
+      return NextResponse.json({ error: "Con retención de honorarios la boleta al cliente sale con la cuenta del negocio. Cambia la tasa a IVA 19 % o deja que el negocio asuma." }, { status: 400 });
+    }
+  }
   if (b.tax_bearer === "business" || b.tax_bearer === "professional") {
     const { error } = await supabase.from("profiles").update({ tax_bearer: b.tax_bearer }).eq("id", params.id);
     if (error) return NextResponse.json({ error: "Falta aplicar la migración 118" }, { status: 503 });

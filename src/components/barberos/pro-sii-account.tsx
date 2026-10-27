@@ -15,6 +15,7 @@ const EMPTY: Acc = { enabled: false, auto_emit: false, environment: "sandbox", e
 
 export function ProSiiAccount({ barberId }: { barberId: string }) {
   const { showToast } = useToast();
+  const [taxRate, setTaxRate] = useState(0);
   const [bearer, setBearer] = useState<"business" | "professional">("business");
   const [acc, setAcc] = useState<Acc>(EMPTY);
   const [apiKey, setApiKey] = useState("");
@@ -25,6 +26,7 @@ export function ProSiiAccount({ barberId }: { barberId: string }) {
     fetch(`/api/barberos/${barberId}/sii`).then(async (r) => {
       const j = await r.json().catch(() => ({}));
       if (!r.ok) { setProblem(j.error || "No se pudo cargar"); return; }
+      setTaxRate(Number(j.tax_rate) || 0);
       setBearer(j.tax_bearer === "professional" ? "professional" : "business");
       if (j.config) setAcc({ ...EMPTY, ...Object.fromEntries(Object.entries(j.config).map(([k, v]) => [k, v ?? ""])) } as Acc);
       if (!j.encryption_ready) setProblem("Falta SECRET_BOX_KEY en el servidor: aún no se puede guardar la llave (la configura Pablo en Vercel).");
@@ -64,8 +66,8 @@ export function ProSiiAccount({ barberId }: { barberId: string }) {
           ["professional", "El profesional paga su propio impuesto", "Sus boletas salen con la cuenta SII del profesional (RUT y llave propios)."],
         ] as const).map(([v, t, d]) => (
           <label key={v} className={`flex items-start gap-3 rounded-xl border-2 p-3 text-sm cursor-pointer ${bearer === v ? "border-green-500 bg-green-50" : "border-gray-200"}`}>
-            <input type="radio" name="tax_bearer" className="mt-1" checked={bearer === v} onChange={() => setBearer(v)} />
-            <span><b className="block">{t}</b><span className="text-xs text-gray-500">{d}</span></span>
+            <input type="radio" name="tax_bearer" className="mt-1" disabled={v === "professional" && taxRate > 0 && taxRate !== 19} checked={bearer === v} onChange={() => setBearer(v)} />
+            <span><b className="block">{t}</b><span className="text-xs text-gray-500">{d}{v === "professional" && taxRate > 0 && taxRate !== 19 ? " No disponible con retención de honorarios." : ""}</span></span>
           </label>
         ))}
       </div>
