@@ -1,6 +1,6 @@
 # Piloto de WhatsApp — guía para Nico y Pablo
 Corte: `agente/whatsapp` 4b0dc72, 27 oct. 2026. HECHO significa comprobado en código; una propuesta no habilita producción.
-1. **Confirmar responsables y entorno.** Propuesta operativa: Pablo prepara cuentas/configuración y Nico autoriza cada paso. Primero usar el Supabase de pruebas «rebooking Base», según `docs/agente/tareas/TANDA-D.md:7`; DESCONOCIDO: identidad/acceso real a ese proyecto desde aquí.
+1. **Confirmar responsables y entorno.** Propuesta operativa: Pablo prepara cuentas/configuración y Nico autoriza cada paso. Primero usar el Supabase de pruebas «rebooking Base», según `docs/agente/tareas/TANDA-D.md:6`; DESCONOCIDO: identidad/acceso real a ese proyecto desde aquí.
 2. **Revisar los borradores antes de aplicar nada.** Orden: **003 → 004 → 005 → 006 → 007**. Son borradores; Codex no los ejecutó en Supabase. Solo Pablo/Nico los aplican primero en pruebas; producción requiere respaldo comprobado y OK de Nico. No retirar controles para «hacerlo funcionar».
    - 003 `sql/003_preferencias_informe_borrador.sql`: preferencias por administrador, apagadas por defecto y RLS (`:12-58`).
    - 004 `sql/004_registro_envios_informe_borrador.sql`: registro/deduplicación del informe; borrado en cascada de perfil/negocio (`:8-41`).
