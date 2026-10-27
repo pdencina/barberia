@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatCurrency, todayInChile } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 import { Panel, inputClass, primaryButton, ghostButton } from "@/components/ui/premium";
 
 interface Row {
@@ -23,6 +24,7 @@ const LABEL: Record<Row["status"], string> = { pendiente: "Pendiente", recibida:
 
 export default function HonorariosPage() {
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const [y0, m0] = todayInChile().split("-").map(Number);
   const [year, setYear] = useState(y0);
   const [month, setMonth] = useState(m0);
@@ -33,6 +35,7 @@ export default function HonorariosPage() {
   const [openId, setOpenId] = useState<string | null>(null);
   const [form, setForm] = useState({ folio: "", issuedOn: "", amount: "", notes: "" });
   const [saving, setSaving] = useState(false);
+  const [sending, setSending] = useState(false);
   const [notice, setNotice] = useState<{ id: string; text: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -68,9 +71,55 @@ export default function HonorariosPage() {
     setOpenId(null); load();
   };
 
+  const noticeText = (r: Row) =>
+    `Hola ${r.name.split(" ")[0]}, para cerrar ${MONTHS[month - 1]} ${year} debes emitir tu boleta de honorarios por ${formatCurrency(r.gross)}. ` +
+    `Se te retiene el ${String(r.rate).replace(".", ",")}% (${formatCurrency(r.retention)}) y recibes ${formatCurrency(r.net)}. Cuando la emitas, envíame el número de folio.`;
+
+  const pendingRows = rows.filter((r) => r.status === "pendiente");
+
+  // Un solo correo por profesional pendiente. Los montos los calcula el servidor.
+  const sendAll = async () => {
+    if (pendingRows.length === 0) return;
+    const ok = await confirm({
+      title: "Avisar por correo",
+      message: `Se enviará un correo a ${pendingRows.length} profesional${pendingRows.length === 1 ? "" : "es"} con el monto de su boleta de ${MONTHS[month - 1]} ${year}: ${pendingRows.map((r) => r.name).join(", ")}.`,
+      confirmText: "Enviar",
+      variant: "warning",
+    });
+    if (!ok) return;
+    setSending(true);
+    const res = await fetch("/api/honorarios/avisar", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ year, month }),
+    });
+    const j = await res.json().catch(() => ({}));
+    setSending(false);
+    if (!res.ok) { showToast(j.error || "No se pudo enviar", "error"); return; }
+    const extra = [
+      j.noEmail?.length ? `sin correo: ${j.noEmail.join(", ")}` : "",
+      j.failed?.length ? `con error: ${j.failed.join(", ")}` : "",
+    ].filter(Boolean).join(" · ");
+    showToast(`Enviados: ${j.sent}${extra ? ` · ${extra}` : ""}`, j.failed?.length || j.noEmail?.length ? "error" : "success");
+  };
+
+  // Todos los avisos en un solo texto, para pegarlos en WhatsApp.
+  const copyAll = async () => {
+    const text = pendingRows.map(noticeText).join("\n\n");
+    try { await navigator.clipboard.writeText(text); showToast("Avisos copiados", "success"); setNotice(null); return; } catch { /* sigue */ }
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) { showToast("Avisos copiados", "success"); setNotice(null); return; }
+    } catch { /* sigue */ }
+    setNotice({ id: "all", text });
+    showToast("Copia los avisos desde el cuadro de abajo", "error");
+  };
+
   const copyNotice = async (r: Row) => {
-    const text = `Hola ${r.name.split(" ")[0]}, para cerrar ${MONTHS[month - 1]} ${year} debes emitir tu boleta de honorarios por ${formatCurrency(r.gross)}. ` +
-      `Se te retiene el ${String(r.rate).replace(".", ",")}% (${formatCurrency(r.retention)}) y recibes ${formatCurrency(r.net)}. Cuando la emitas, envíame el número de folio.`;
+    const text = noticeText(r);
     // 1) API moderna; 2) copiado clasico (navegadores integrados que bloquean el portapapeles); 3) mostrar el texto para copiarlo a mano.
     try { await navigator.clipboard.writeText(text); showToast("Aviso copiado, pégalo en WhatsApp", "success"); setNotice(null); return; } catch { /* sigue */ }
     try {
@@ -106,6 +155,13 @@ export default function HonorariosPage() {
           <div><p className="text-[11px] text-brand-gray">Boletas pendientes</p><p className="font-extrabold tabular-nums">{summary.pending}</p></div>
         </div>
       </Panel>
+      {!loading && pendingRows.length > 0 && (
+        <div className="flex flex-wrap gap-2">
+          <button className={primaryButton} disabled={sending} onClick={sendAll}>{sending ? "Enviando…" : `Avisar a todos por correo (${pendingRows.length})`}</button>
+          <button className={ghostButton} onClick={copyAll}>Copiar todos los avisos</button>
+        </div>
+      )}
+      {notice?.id === "all" && <textarea readOnly rows={6} className={inputClass} value={notice.text} onFocus={(e) => e.currentTarget.select()} />}
       {loading ? <p className="text-sm text-brand-gray">Cargando…</p> : rows.length === 0 ? (
         <Panel><p className="text-sm text-brand-gray">Ningún profesional por comisión tiene retención de honorarios activa. Se enciende en su ficha → Trabajo → Integración SII.</p></Panel>
       ) : rows.map((r) => (
