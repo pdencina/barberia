@@ -127,6 +127,34 @@ export async function buildReceiptPdf(o: {
     y -= 14;
   }
 
+  // Impuesto SII del profesional (migracion 117): solo informativo, no cambia el total de arriba.
+  const tax = pro.tax;
+  if (tax && tax.kind !== "none") {
+    const rate = String(tax.rate).replace(".", ",");
+    ensure(96);
+    y -= 6;
+    text("IMPUESTO SII (informativo, no incluido en el total)", M, y, 8, bold, GRAY);
+    y -= 8;
+    rule(y);
+    y -= 18;
+    const taxRow = (label: string, amountText: string, strong = false) => {
+      ensure(20);
+      text(label, M, y, 10, strong ? bold : font, DARK);
+      textRight(amountText, W - M, y, 10, strong ? bold : font, DARK);
+      y -= 16;
+    };
+    if (tax.kind === "retencion") {
+      taxRow("Boleta de honorarios a emitir por el profesional", clp(tax.documentTotal));
+      taxRow(`Retencion ${rate}% (la declara el negocio)`, `-${clp(tax.amount)}`);
+      taxRow("Neto de la boleta", clp(tax.finalAmount), true);
+    } else {
+      taxRow(`Base: ${rental ? "arriendo" : "comision"}`, clp(tax.base));
+      taxRow(`IVA ${rate}%`, `+${clp(tax.amount)}`);
+      taxRow(rental ? "Total del arriendo con IVA" : "Total de la factura con IVA", clp(tax.documentTotal), true);
+    }
+    y -= 4;
+  }
+
   // Firmas y nota.
   ensure(110);
   y -= 50;
