@@ -16,7 +16,7 @@
 | T7 | #115 | Mergeado por Codex tras ambos checks verdes; bocetos del panel, PN1 pendiente. |
 | T8 | #116 | Abierto SIN MERGE, espera Claude; HMAC genérico, TypeScript y 111 casos pasan. Meta DESCONOCIDO por 429. |
 | T9 | #117 | Abierto SIN MERGE, espera Claude; ventanas/bucles parametrizados, TypeScript y 80 casos pasan. |
-| T10 | Este PR | Abierto SIN MERGE, espera Claude; claves puras, TypeScript y 3.452 comprobaciones pasan. |
+| T10 | #118 | Abierto SIN MERGE, espera Claude; claves puras, TypeScript y 3.452 comprobaciones pasan. |
 
 **INFERENCIA — tres decisiones primero para habilitar Fase 1 manual:** correos destinatarios aprobados (#15), tratamiento del cupo interno (#18) y dominio remitente confirmado por Pablo/Nico (#19). Automático requiere además hora/días/modalidad, día informado, recuperación e infraestructura (#16–17, #21–24). No se ejecutó SQL ni se envió correo para probarlas.
 
