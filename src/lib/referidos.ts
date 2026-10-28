@@ -9,7 +9,7 @@ export function nuevoCodigo(): string {
   const b = randomBytes(6);
   return Array.from(b, (x) => ALFABETO[x % ALFABETO.length]).join("");
 }
-export const codigoValido = (c: unknown): c is string => typeof c === "string" && /^[A-Z2-9]{6}$/.test(c.trim().toUpperCase());
+export const codigoValido = (c: unknown): c is string => typeof c === "string" && /^[A-HJ-NP-Z2-9]{6}$/.test(c.trim().toUpperCase());
 export const normalizarCodigo = (c: string) => c.trim().toUpperCase();
 
 export const urlInvitacion = (origen: string, codigo: string) => `${origen.replace(/\/$/, "")}/suscribirse?ref=${codigo}`;
