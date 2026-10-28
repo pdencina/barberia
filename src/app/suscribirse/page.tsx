@@ -167,7 +167,7 @@ export default function SuscribirsePage() {
           <p className="text-xs text-brand-gray mt-1">Contrata re-booking para tu negocio</p>
         </div>
 
-        {refValido && <p className="mb-3 rounded-xl border border-brand-blue/30 bg-brand-blue/5 px-3 py-2 text-sm text-brand-dark">Llegaste por la invitación de otro negocio de re-booking.</p>}
+        {refValido && <p className="mb-3 rounded-xl border border-brand-blue/30 bg-brand-blue/5 px-3 py-2 text-sm text-brand-dark">Llegaste por la invitación de otro negocio de re-booking: tienes 50% de descuento en tus primeros 2 meses (plan mensual).</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs font-medium text-brand-dark mb-1.5 block">Plan</label>

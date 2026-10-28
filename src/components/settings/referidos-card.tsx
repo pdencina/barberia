@@ -5,7 +5,7 @@ import { Gift, Copy } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { REFERIDOS_ACTIVOS } from "@/lib/referidos";
 
-interface Resumen { codigo: string; enlace: string; invitados: number; pagaron: number; premio: { referidoDescuentoPct: number; referidoMeses: number; invitadorMesesGratis: number } }
+interface Resumen { codigo: string; enlace: string; invitados: number; pagaron: number; mesesGratisDisponibles?: number; mesesGratisAplicados?: number; premio: { referidoDescuentoPct: number; referidoMeses: number; invitadorMesesGratis: number } }
 
 // Invitar a otro negocio. Etapa 1: se registra quien invita a quien; el descuento y el mes gratis se aplican en etapas siguientes.
 // Solo se muestra con NEXT_PUBLIC_REFERIDOS=1 y a administradores (el servidor responde 403 a los demas).
@@ -35,6 +35,8 @@ export function ReferidosCard() {
         <button type="button" onClick={copiar} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-blue px-3 py-2 text-xs font-semibold text-white"><Copy className="h-3.5 w-3.5" /> Copiar</button>
       </div>
       <p className="text-xs text-brand-gray">Tu código: <b>{r.codigo}</b> · Invitados: <b>{r.invitados}</b> · Ya pagaron: <b>{r.pagaron}</b></p>
+      {(r.mesesGratisDisponibles || 0) > 0 && <p className="text-xs text-brand-gray">Meses gratis ganados: <b>{r.mesesGratisDisponibles}</b>. Se descuentan en tu próximo cobro mensual (te devolvemos ese cobro).</p>}
+      {(r.mesesGratisAplicados || 0) > 0 && <p className="text-xs text-brand-gray">Meses gratis ya aplicados: <b>{r.mesesGratisAplicados}</b>.</p>}
     </div>
   );
 }
