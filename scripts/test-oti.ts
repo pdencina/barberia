@@ -2,6 +2,7 @@
 import { buscarAyuda } from "../src/lib/oti/buscar";
 import { CATALOGO } from "../src/lib/oti/catalogo";
 import fs from "node:fs";
+import { entenderConsulta } from "../src/lib/oti/consulta";
 import { entenderBloqueo, etiquetaFecha, MAX_DIAS_BLOQUEO, type MiembroEquipo } from "../src/lib/oti/bloqueo";
 
 let fails = 0;
@@ -90,5 +91,20 @@ t("«no atiendo el domingo» se entiende como pedido", ok(entenderBloqueo("no at
 t("«quiero dejar libre mi agenda mañana» se entiende", ok(entenderBloqueo("quiero dejar libre mi agenda mañana", HOY, [{ id: "n1", name: "Nicolás" }], "n1")).startsWith("n1 "));
 t("«cómo cierro la caja» sigue sin ser bloqueo", pide("¿cómo cierro la caja?") === null);
 t("buscarAyuda con minimo bajo sugiere algo para «precio»", buscarAyuda("precio", undefined, 3, 2).length > 0);
+// Consultas de cifras (martes 27 oct 2026; semana = lunes 26 a hoy)
+const EQC = [{ id: "p1", name: "Pablo Yáñez" }, { id: "j1", name: "Javier Soto" }, { id: "j2", name: "Javier Rojas" }];
+const cq = (s: string) => entenderConsulta(s, HOY, EQC) as any;
+t("«cuánto dinero hizo esta semana Pablo» -> dinero de Pablo lunes a hoy", cq("¿Cuánto dinero hizo esta semana Pablo?")?.consulta?.metrica === "dinero" && cq("¿Cuánto dinero hizo esta semana Pablo?").consulta.barberId === "p1" && cq("cuanto dinero hizo esta semana pablo").consulta.desde === "2026-10-26" && cq("cuanto dinero hizo esta semana pablo").consulta.hasta === HOY);
+t("«cuánto recibimos en crédito esta semana» -> medio crédito, sin profesional", cq("¿Cuánto dinero recibimos en crédito esta semana?")?.consulta?.medio === "credit_card" && cq("¿Cuánto dinero recibimos en crédito esta semana?").consulta.barberId === undefined);
+t("«quién es el barbero que más corta» sin período pide período", cq("¿Quién es el barbero de mi negocio que más corta?")?.falta === "periodo");
+t("ranking este mes", cq("quien es el barbero que mas corta este mes")?.consulta?.metrica === "ranking");
+t("mes pasado = octubre->septiembre completo", cq("cuanto dinero entro el mes pasado")?.consulta?.desde === "2026-09-01" && cq("cuanto dinero entro el mes pasado").consulta.hasta === "2026-09-30");
+t("semana pasada = lunes 19 a domingo 25", cq("cuanta plata hicimos la semana pasada")?.consulta?.desde === "2026-10-19" && cq("cuanta plata hicimos la semana pasada").consulta.hasta === "2026-10-25");
+t("dos Javier -> ambiguo", cq("cuanto hizo javier hoy")?.falta === "ambiguo");
+t("sin período -> pregunta cuál", cq("cuanto dinero hicimos")?.falta === "periodo");
+t("«cuántos cortes hizo Pablo hoy» -> servicios", cq("cuantos cortes hizo pablo hoy")?.consulta?.metrica === "servicios");
+t("«cómo cierro la caja» no es consulta de cifras", cq("¿cómo cierro la caja?") === null);
+t("«cómo cambio el precio de un servicio» no es consulta", cq("¿cómo cambio el precio de un servicio?") === null);
+t("ayuda sobre cupos no es consulta", cq("cuanto cuesta el plan") === null || cq("cuanto cuesta el plan")?.falta === "periodo");
 t("etiqueta de fecha legible", etiquetaFecha("2026-10-28") === "miércoles 28 de octubre");
 process.exit(fails ? 1 : 0);
