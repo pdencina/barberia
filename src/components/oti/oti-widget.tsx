@@ -11,6 +11,7 @@ import { buscarAyuda } from "@/lib/oti/buscar";
 import { entenderBloqueo, etiquetaFecha, type MiembroEquipo, type PedidoBloqueo } from "@/lib/oti/bloqueo";
 import { CATALOGO, type EntradaOti } from "@/lib/oti/catalogo";
 import { norm } from "@/lib/oti/texto";
+import { entenderConsulta, NOMBRE_MEDIO, type ConsultaOti } from "@/lib/oti/consulta";
 
 type Mensaje =
   | { de: "oti"; tipo: "texto"; texto: string }
@@ -76,8 +77,28 @@ export function OtiWidget() {
     setMsgs((m) => [...m, { de: "yo", tipo: "texto", texto: pregunta }]);
     setOcupado(true);
     try {
+      // 0) ¿Es una pregunta de cifras del negocio? Solo administrador; el servidor lo vuelve a validar (negocio y rol salen de la sesión).
+      const eq = await cargarEquipo();
+      const cons = entenderConsulta(pregunta, todayInChile(), eq);
+      if (cons) {
+        const dice = (texto: string) => setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto }]);
+        if (r !== "admin" && r !== "super_admin") { dice("Las cifras del negocio solo las puede ver el administrador. Pídeselas a él."); return; }
+        if (!cons.ok) { dice(cons.falta === "periodo" ? "¿De qué período? Por ejemplo: «hoy», «ayer», «esta semana», «la semana pasada», «este mes» o «el mes pasado»." : `Hay más de un profesional con ese nombre (${(cons.candidatos || []).map((c) => c.name).join(", ")}). Escribe el nombre completo.`); return; }
+        const c: ConsultaOti = cons.consulta;
+        try {
+          const res = await fetch("/api/oti/consulta", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ metrica: c.metrica, desde: c.desde, hasta: c.hasta, barberId: c.barberId, medio: c.medio }) });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok) { dice(res.status === 403 ? "Las cifras del negocio solo las puede ver el administrador." : `No pude calcularlo: ${d?.error || "intenta de nuevo"}.`); return; }
+          const quien = c.barberNombre ? ` de ${c.barberNombre}` : "";
+          const via = c.medio ? ` pagadas con ${NOMBRE_MEDIO[c.medio]}` : "";
+          if (c.metrica === "dinero") dice(`Ventas${quien}${via} ${c.etiqueta}: ${d.total} en ${d.ventas} ${d.ventas === 1 ? "venta" : "ventas"}.\nSolo cuento ventas cobradas, sin las anuladas.`);
+          else if (c.metrica === "servicios") dice(`Servicios realizados${quien}${via} ${c.etiqueta}: ${d.servicios} (en ${d.ventas} ${d.ventas === 1 ? "venta" : "ventas"}).`);
+          else dice(!d.ranking?.length ? `No encontré ventas ${c.etiqueta}.` : `Quién atendió más ${c.etiqueta}:\n` + d.ranking.map((x: any, k: number) => `${k + 1}. ${x.nombre}: ${x.servicios} servicios (${x.dinero})`).join("\n"));
+        } catch { dice("No pude conectar. Revisa tu conexión e intenta de nuevo."); }
+        return;
+      }
       // 1) ¿Es un pedido de cerrar dias?
-      const pedido = entenderBloqueo(pregunta, todayInChile(), await cargarEquipo(), user.id);
+      const pedido = entenderBloqueo(pregunta, todayInChile(), eq, user.id);
       if (pedido) {
         // Un profesional solo puede cerrar su propia agenda; recepcion, administrador y super admin pueden cerrar la de cualquiera de su negocio.
         if (pedido.ok && r === "barber" && pedido.profesional.id !== user.id) setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "Con tu cuenta solo puedes cerrar tu propia agenda. Pídele a recepción o al administrador que cierre la de otro profesional." }]);
