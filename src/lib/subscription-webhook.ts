@@ -2,6 +2,7 @@
 import { provisionTenant } from "@/lib/tenant-provisioning";
 import { calculateSubscriptionAmount, type BillingPeriod } from "@/lib/subscription-pricing";
 import { mpGet, MP_API } from "@/lib/mercadopago";
+import { aplicarBeneficiosReferidos, repoSupabase, mpReal } from "@/lib/referidos-beneficios";
 
 // ---------------------------------------------------------------------------
 // Alta de negocio (compartida por el primer pago mensual y el pago anual)
@@ -36,7 +37,11 @@ export async function provisionFromSignup(signupRequest: any, supabase: any, mpP
 
     await supabase.from("signup_requests").update({ status: "paid", tenant_id: tenant.id }).eq("id", signupRequest.id);
     // Referido: queda "pagado" (el beneficio se aplica en una etapa posterior). Nunca afecta el alta.
-    try { await supabase.from("referrals").update({ status: "pagado", referred_tenant_id: tenant.id, paid_at: new Date().toISOString() }).eq("referred_signup_id", signupRequest.id).eq("status", "pendiente"); } catch {}
+    try {
+      const { data: ref } = await supabase.from("referrals").update({ status: "pagado", referred_tenant_id: tenant.id, paid_at: new Date().toISOString() }).eq("referred_signup_id", signupRequest.id).eq("status", "pendiente").select("id, referrer_tenant_id").maybeSingle();
+      // Mes gratis para quien invito (un credito por referido; el unique evita duplicados).
+      if (ref) await supabase.from("referral_credits").insert({ tenant_id: ref.referrer_tenant_id, referral_id: ref.id });
+    } catch {}
     return tenant;
   } catch (e: any) {
     // Pago/autorizacion confirmados pero fallo el alta (p. ej. slug tomado entretanto):
@@ -150,6 +155,16 @@ export async function handleAuthorizedPayment(authorizedPaymentId: string, acces
       })
       .eq("id", subscription.id);
     await reactivateTenant(supabase, subscription.tenant_id);
+    // Referidos (etapas 2 y 3): vuelve al precio normal tras el descuento / reembolsa el cobro del mes gratis. Nunca rompe el registro del pago.
+    try {
+      const { data: sub } = await supabase.from("subscriptions").select("amount").eq("id", subscription.id).maybeSingle();
+      const r = await aplicarBeneficiosReferidos({
+        tenantId: subscription.tenant_id, preapprovalId, montoSuscripcion: Number(sub?.amount) || 0,
+        pago: { authorizedPaymentId: mpPaymentId, paymentId: authorizedPayment.payment?.id ? String(authorizedPayment.payment.id) : null, monto: Number(authorizedPayment.transaction_amount) || 0 },
+        activo: process.env.NEXT_PUBLIC_REFERIDOS === "1",
+      }, repoSupabase(supabase), mpReal(accessToken));
+      if (r.avisos.length) console.error("[referidos] avisos:", r.avisos.join(" | "));
+    } catch (e: any) { console.error("[referidos] error ignorado:", e?.message || e); }
   } else if (rejected) {
     // Renovacion fallida: 2 dias de gracia antes de que el cron suspenda el negocio.
     const graceUntil = new Date();

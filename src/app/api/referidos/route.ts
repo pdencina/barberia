@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase, requireRole, resolveTenantForRequest } from "@/lib/supabase/server";
-import { nuevoCodigo, urlInvitacion, PREMIO } from "@/lib/referidos";
+import { urlInvitacion, PREMIO } from "@/lib/referidos";
+import { nuevoCodigo } from "@/lib/referidos-servidor";
 
 export const dynamic = "force-dynamic";
 
@@ -29,9 +30,14 @@ export async function GET(req: Request) {
 
   const { data: filas } = await supabase.from("referrals").select("status, created_at").eq("referrer_tenant_id", tenantId).order("created_at", { ascending: false }).limit(200);
   const lista = (filas as any[]) || [];
+  // Meses gratis ganados (etapa 3). Si falta la migracion 121, simplemente no hay datos.
+  const { data: cr } = await supabase.from("referral_credits").select("status").eq("tenant_id", tenantId).limit(200);
+  const creditos = (cr as any[]) || [];
   const origen = process.env.NEXT_PUBLIC_APP_URL || new URL(req.url).origin;
   return NextResponse.json({
     codigo, enlace: urlInvitacion(origen, codigo), premio: PREMIO,
     invitados: lista.length, pagaron: lista.filter((f) => f.status === "pagado").length,
+    mesesGratisDisponibles: creditos.filter((c) => c.status === "disponible").length,
+    mesesGratisAplicados: creditos.filter((c) => c.status === "aplicado").length,
   });
 }

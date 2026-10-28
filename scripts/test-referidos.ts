@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
-import { nuevoCodigo, codigoValido, normalizarCodigo, esAutoReferido, urlInvitacion } from "../src/lib/referidos";
+import { nuevoCodigo } from "../src/lib/referidos-servidor";
+import { codigoValido, normalizarCodigo, esAutoReferido, urlInvitacion } from "../src/lib/referidos";
 
 let fails = 0;
 const t = (n: string, f: () => void) => { try { f(); console.log("OK  " + n); } catch (e: any) { fails++; console.log("FALLO " + n + ": " + e.message); } };

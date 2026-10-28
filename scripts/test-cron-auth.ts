@@ -31,7 +31,7 @@ const req = (auth?: string) => new Request("http://localhost/api/cron/x", { head
   // Las rutas reales: sin clave en produccion no deben tocar la base ni la red.
   let red = 0; (globalThis as any).fetch = async () => { red++; throw new Error("no debe llegar a la red"); };
   const prevEnv = { ...process.env }; (process.env as any).NODE_ENV = "production"; delete process.env.CRON_SECRET;
-  for (const ruta of ["reminders", "post-service"]) {
+  for (const ruta of ["reminders", "post-service", "referral-benefits"]) {
     const mod = await import(`../src/app/api/cron/${ruta}/route`);
     const res: Response = await mod.GET(new NextRequest(`http://localhost:3000/api/cron/${ruta}`));
     t(`/api/cron/${ruta} sin clave en produccion: 503 y sin red`, res.status === 503 && red === 0, `status ${res.status}, red ${red}`);
