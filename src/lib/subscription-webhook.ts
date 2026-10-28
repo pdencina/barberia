@@ -35,6 +35,8 @@ export async function provisionFromSignup(signupRequest: any, supabase: any, mpP
     });
 
     await supabase.from("signup_requests").update({ status: "paid", tenant_id: tenant.id }).eq("id", signupRequest.id);
+    // Referido: queda "pagado" (el beneficio se aplica en una etapa posterior). Nunca afecta el alta.
+    try { await supabase.from("referrals").update({ status: "pagado", referred_tenant_id: tenant.id, paid_at: new Date().toISOString() }).eq("referred_signup_id", signupRequest.id).eq("status", "pendiente"); } catch {}
     return tenant;
   } catch (e: any) {
     // Pago/autorizacion confirmados pero fallo el alta (p. ej. slug tomado entretanto):
