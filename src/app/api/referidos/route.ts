@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase, requireRole, resolveTenantForRequest } from "@/lib/supabase/server";
-import { nuevoCodigo, urlInvitacion, PREMIO } from "@/lib/referidos";
+import { urlInvitacion, PREMIO } from "@/lib/referidos";
+import { nuevoCodigo } from "@/lib/referidos-servidor";
 
 export const dynamic = "force-dynamic";
 
