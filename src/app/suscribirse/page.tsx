@@ -38,6 +38,16 @@ export default function SuscribirsePage() {
   });
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  // Invitacion de otro negocio (?ref=CODIGO). Solo se muestra con NEXT_PUBLIC_REFERIDOS=1; el servidor valida el codigo de nuevo.
+  const [ref, setRef] = useState("");
+  const [refValido, setRefValido] = useState(false);
+  useEffect(() => {
+    if (process.env.NEXT_PUBLIC_REFERIDOS !== "1") return;
+    const c = (new URLSearchParams(window.location.search).get("ref") || "").trim().toUpperCase();
+    if (!/^[A-Z2-9]{6}$/.test(c)) return;
+    setRef(c);
+    fetch(`/api/public/referido?code=${c}`).then((r) => r.json()).then((d) => setRefValido(!!d?.valido)).catch(() => {});
+  }, []);
 
   useEffect(() => {
     fetch("/api/plans")
@@ -129,6 +139,7 @@ export default function SuscribirsePage() {
           plan: selectedPlan,
           professionals,
           billing_period: billingPeriod,
+          ...(ref ? { ref } : {}),
         }),
       });
       const data = await res.json();
@@ -156,6 +167,7 @@ export default function SuscribirsePage() {
           <p className="text-xs text-brand-gray mt-1">Contrata re-booking para tu negocio</p>
         </div>
 
+        {refValido && <p className="mb-3 rounded-xl border border-brand-blue/30 bg-brand-blue/5 px-3 py-2 text-sm text-brand-dark">Llegaste por la invitación de otro negocio de re-booking.</p>}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="text-xs font-medium text-brand-dark mb-1.5 block">Plan</label>

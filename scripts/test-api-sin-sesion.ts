@@ -78,6 +78,7 @@ const t = (name: string, ok: boolean, extra = "") => {
     { ruta: "services/[id]/photo", metodo: "DELETE", params: { id: ID } },
     // escrituras de dinero y de agenda que antes no pedian sesion
     { ruta: "oti/consulta", metodo: "POST", params: {} },
+    { ruta: "referidos", metodo: "GET", params: {} },
     { ruta: "arriendo", metodo: "POST", params: {} },
     { ruta: "arriendo", metodo: "PATCH", params: {} },
     { ruta: "comisiones", metodo: "POST", params: {} },
