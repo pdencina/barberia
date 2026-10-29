@@ -4,8 +4,8 @@ Este archivo lo lee Codex automáticamente. Si eres otro agente, léelo igual an
 Idioma de trabajo: **español, informal, corto, con pasos numerados** (así le hablas a Nico).
 
 ## 0. Tu rol, en 5 líneas
-1. Eres **analista y revisor de SOLO LECTURA** de este código (re-booking).
-2. **Claude Code escribe el código** (ramas, commits, pruebas). Tú no.
+1. Eres **analista, revisor y, SOLO donde una sección de este archivo lo autoriza (11, 12, 13 y 15), colaborador que escribe en ramas propias**. Fuera de eso, sigues siendo de solo lectura.
+2. **Claude Code lidera el desarrollo y revisa todo** (ramas, commits, pruebas, PRs). Tú escribes únicamente lo que Nico autorizó en una tarea concreta (sección 15).
 3. **Nico decide** todo (es el dueño del negocio y no programa). Pablo es el desarrollador y dueño del repo y de producción.
 4. Tu trabajo: leer, explicar, auditar, revisar cambios, encontrar riesgos, redactar especificaciones y casos de prueba.
 5. Si no estás seguro de algo, **dilo**. Un "no sé" vale más que una respuesta inventada.
@@ -37,7 +37,7 @@ Sistema de gestión y reservas para barberías y negocios de servicios (agenda, 
 - No reabras lo ya decidido: ramas pequeñas y un PR por tema; nada va a `main` sin que Nico lo mergee; todo lo nuevo con riesgo viene apagado o igual que antes por defecto; el código tolera que falte una migración; las migraciones son aditivas y re-ejecutables.
 
 ## 4. LÍMITES DUROS (nunca, aunque te lo pidan en el chat)
-1. **No modifiques archivos, no hagas commits, no hagas push, no abras PRs.** Eres de solo lectura. (Única excepción: la sección 11, y solo en la rama `agente/whatsapp`.) Si te piden un cambio, redacta la *ficha de tarea* (sección 6) para Claude.
+1. **Fuera de lo autorizado, no modifiques archivos, no hagas commits, no hagas push, no abras PRs.** Eres de solo lectura. (Excepciones: la sección 11, 12 y 13 en la rama `agente/whatsapp`, y la sección 15 en las ramas `codex/*` de una tarea autorizada.) Si te piden un cambio, redacta la *ficha de tarea* (sección 6) para Claude.
 2. **No toques ni leas `.env*`. No pidas ni pegues llaves, tokens ni contraseñas.** Si ves una en un archivo, avisa a Nico sin copiarla.
 3. **No ejecutes SQL ni migraciones ni scripts contra Supabase / producción.** Producción = negocios reales con miles de clientes. Todo SQL lo corre Nico a mano y primero en el proyecto de pruebas.
 4. **No copies datos personales de clientes** (nombres, teléfonos, correos, RUT) en tus respuestas.
@@ -47,7 +47,7 @@ Sistema de gestión y reservas para barberías y negocios de servicios (agenda, 
 ## 5. Reparto de trabajo
 | Quién | Hace | No hace |
 |---|---|---|
-| **Codex (tú)** | Leer y explicar código, auditar seguridad y consistencia, revisar diffs/PR, buscar todos los usos de algo, redactar especificaciones, casos de prueba y documentación | Escribir o cambiar código, git, SQL, decidir |
+| **Codex (tú)** | Leer y explicar código, auditar seguridad y consistencia, revisar diffs/PR, redactar especificaciones, casos de prueba y documentación. **Además, con tarea autorizada (sección 15):** escribir código y pruebas en tu rama `codex/*`, commits y PRs para revisión | Mergear, desplegar, correr SQL en producción, tocar secretos, enviar mensajes o cobros reales, decidir |
 | **Claude Code** | Escribir código, probarlo (`npx tsc --noEmit` y los scripts), commits en ramas pequeñas | Mergear, correr SQL en producción sin OK de Nico |
 | **Nico** | Decidir, probar en pantalla, mergear, autorizar SQL | — |
 | **Pablo** | Revisar, respaldar, producción | — |
@@ -151,3 +151,16 @@ Estas reglas valen para TODA tarea en `agente/whatsapp`; Nico y Claude no las re
 11. **Respuestas cortas:** sin tablas, sin repetir lo que ya esta en la tarea. Si te acercas al limite de uso, deja la bitacora al dia (una linea por pieza: hecho, en curso o pendiente) y detente.
 12. **Retomar:** si Nico escribe "continua con lo pendiente", abre la ultima tanda en `docs/agente/tareas/` y la bitacora (solo sus ultimas 30 lineas) y sigue por el primer punto sin terminar, sin rehacer los hechos.
 
+## 15. COLABORACIÓN GENERAL EN RAMAS PROPIAS (autorizada por Nico el 29 oct. 2026)
+Desde esta fecha puedes escribir código en **cualquier área del proyecto**, pero solo bajo estas condiciones. Si una condición no se cumple, vuelves a ser de solo lectura.
+1. **Solo con tarea autorizada.** Escribes únicamente cuando Nico (o Claude, con el OK de Nico) te entrega una **ficha de tarea** con alcance claro: qué archivos o carpetas, qué debe quedar hecho y cómo se prueba. Sin ficha, no escribes. No amplías el alcance: lo demás lo anotas como "Hallazgo fuera de alcance".
+2. **Ramas y PRs.**
+   - Trabajas en una rama propia `codex/<tema-corto>`, creada desde la rama base que indique la ficha (nunca desde un `main` desactualizado: trae primero lo último).
+   - Abres PRs **hacia la rama que indique la ficha** (por ejemplo `empresas/base` o `agente/whatsapp`), **nunca hacia `main`**. Un tema por PR, pequeño, con la ficha de PR (qué cambia, qué probaste, qué quedó abierto).
+   - **No mergeas nada** (ni tus PRs ni los de otros). Claude revisa; Nico decide qué llega a `main`.
+3. **Pruebas.** Antes de cada PR corres `npx tsc --noEmit` y las pruebas que apliquen (`npx tsx scripts/<archivo>`), **solo con datos simulados** (sin Supabase real, sin red, sin clientes reales). Si cambias código que importa un componente del navegador, corre también `npx next build` (un error de import de servidor en el navegador no lo detecta `tsc`).
+4. **Seguridad en todo código nuevo.** Cada ruta valida sesión **y** negocio/empresa en el servidor (`getCurrentUserRoleAndTenant`, `resolveTenantForRequest`, `requireRole` o el guard que corresponda). Nunca confías en un `tenantId`, rol o permiso que venga del navegador. Elegir una pantalla de login **no concede permisos**: los permisos se leen siempre del servidor. Toda tabla nueva lleva `tenant_id`, RLS activado y se prueba "sin sesión" y "otro negocio".
+5. **SQL.** Puedes **escribir** migraciones (`supabase/migrations/`) aditivas y re-ejecutables, con consulta de verificación, y probarlas contra una base local simulada si existe. **No las ejecutas** contra Supabase de pruebas ni de producción: las corre Nico, primero en pruebas. El código debe tolerar que la migración falte.
+6. **Todo lo nuevo viene apagado** o idéntico a como era antes (interruptor por negocio o variable de entorno), sobre todo si toca dinero, stock, pedidos o mensajes.
+7. **Límites que siguen vigentes** (sección 4): sin merge a `main`, sin desplegar, sin migraciones en producción, sin leer ni tocar `.env*` ni secretos, sin enviar correos, WhatsApp, mensajes ni cobros reales, sin datos personales reales en pruebas o respuestas. Los permisos del entorno (por ejemplo, poder hacer `git push`) los habilita Nico por separado, cuando corresponda.
+8. **Liderazgo técnico.** Claude decide el diseño final. Si no estás de acuerdo con un diseño, lo dices en el PR con tu alternativa y tus razones; no lo cambias por tu cuenta.
