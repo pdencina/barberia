@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, isManagerLevel } from "@/lib/supabase/server";
 import { todayInChile } from "@/lib/utils";
 import { notify } from "@/lib/notify";
+import { planillaMonthStart } from "@/lib/planilla-month";
 
 // Aprobar un descuento por planilla con su CODIGO (recepcion o administrador). Recien aqui se
 // descuenta el stock y se anota en el libro del profesional (tipo "Descuento por planilla").
@@ -52,7 +53,8 @@ export async function POST(req: NextRequest) {
     movErr = (await supabase.from("inventory_movements").insert(basic)).error;
     if (movErr) console.error("planilla: reintento del movimiento tambien fallo:", movErr.message);
   }
-  const month = `${todayInChile().slice(0, 7)}-01`;
+  // El descuento cuenta en el mes en que se PIDIO (no en el que se aprueba).
+  const month = planillaMonthStart(d.created_at, todayInChile());
   const { error: ledgerErr } = await supabase.from("professional_ledger").insert({
     tenant_id: tenantId, barber_id: d.barber_id, month, kind: "payroll_discount", amount: Number(d.total), effect: -1,
     reason: `Planilla: ${d.product_name} x${d.quantity} (código ${code})`,
