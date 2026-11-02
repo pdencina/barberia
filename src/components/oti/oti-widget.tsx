@@ -11,7 +11,9 @@ import { buscarAyuda } from "@/lib/oti/buscar";
 import { entenderBloqueo, etiquetaFecha, type MiembroEquipo, type PedidoBloqueo } from "@/lib/oti/bloqueo";
 import { CATALOGO, type EntradaOti } from "@/lib/oti/catalogo";
 import { norm } from "@/lib/oti/texto";
-import { entenderConsulta, NOMBRE_MEDIO, type ConsultaOti } from "@/lib/oti/consulta";
+import { entenderConsulta, NOMBRE_MEDIO, periodo, type ConsultaOti } from "@/lib/oti/consulta";
+import { useOtiVisible, ocultarOti, mostrarOti, leerPosicion, guardarPosicion, type PosicionOti } from "@/lib/oti/visibilidad";
+import { entenderMovimientoPersonal, entenderResumenPersonal, extraerMonto, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, type MovimientoPersonal } from "@/lib/oti/personal";
 
 type Mensaje =
   | { de: "oti"; tipo: "texto"; texto: string }
@@ -19,13 +21,15 @@ type Mensaje =
   | { de: "oti"; tipo: "ayuda"; entrada: EntradaOti }
   | { de: "oti"; tipo: "confirmar"; pedido: Extract<PedidoBloqueo, { ok: true }>; estado: "pendiente" | "hecho" | "cancelado" }
   | { de: "oti"; tipo: "soporte"; pregunta: string }
+  | { de: "oti"; tipo: "personal"; mov: MovimientoPersonal; estado: "pendiente" | "hecho" | "cancelado" }
   | { de: "oti"; tipo: "opciones"; opciones: { texto: string; ayuda?: EntradaOti; relleno?: string; soporte?: string }[] };
 
-const SUGERENCIAS = ["Cierra mañana mi agenda", "¿Cómo agrego MercadoPago?", "¿Cómo cambio el precio de un servicio?"];
+const formatCLP = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
+const SUGERENCIAS = ["Cierra mañana mi agenda", "Compré pan, me salió $1.200", "¿Cuánto gasté este mes?"];
 // Ejemplos de pedidos de cierre: se muestran mientras la persona escribe algo parecido.
 const EJEMPLOS_CIERRE = ["Cierra mañana mi agenda", "Cierra el domingo mi agenda", "Cierra del 28 al 30 de octubre mi agenda"];
 const PARECE_CIERRE = /\b(cier|cerr|bloq|ausent|libre|no (?:voy|atiend|trabaj))/;
-const SALUDO: Mensaje = { de: "oti", tipo: "texto", texto: "¡Hola! Soy Oti y aún estoy en desarrollo, así que puedo cometer errores. Te ayudo con tareas pequeñas del panel: te explico dónde está algo y te abro la pantalla, o cierro días de un profesional si me lo pides. Solo sé lo que hay en re-booking; si no lo sé, te ayudo a avisar a soporte." };
+const SALUDO: Mensaje = { de: "oti", tipo: "texto", texto: "¡Hola! Soy Oti y aún estoy en desarrollo, así que puedo cometer errores. Te ayudo con tareas pequeñas del panel: te explico dónde está algo, cierro días de un profesional si me lo pides y anoto tus gastos personales en Mi Billetera (por ejemplo: «compré pan $1.200»). Solo sé lo que hay en re-booking; si no lo sé, te ayudo a avisar a soporte." };
 
 const falta = (r: Extract<PedidoBloqueo, { ok: false }>): string => {
   switch (r.falta) {
@@ -52,10 +56,48 @@ export function OtiWidget() {
   const [equipo, setEquipo] = useState<MiembroEquipo[] | null>(null);
   const [ocupado, setOcupado] = useState(false);
   const [soporte, setSoporte] = useState<{ pregunta: string } | null>(null);
+  const [faltaMonto, setFaltaMonto] = useState<string | null>(null); // frase de gasto a la que le falta el monto
   const fin = useRef<HTMLDivElement>(null);
   const r = effectiveRole || role;
 
   useEffect(() => { fin.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, abierto, soporte]);
+
+  // ---- Burbuja flotante (como la de Messenger): se arrastra, se pega al borde y se oculta soltándola sobre la «X» de abajo. ----
+  const visible = useOtiVisible();
+  const TAM = 56;
+  const [pos, setPos] = useState<PosicionOti>({ lado: "right", y: 0.78 });
+  const [arrastre, setArrastre] = useState<null | { x: number; y: number; sobreX: boolean }>(null);
+  const movio = useRef(false);
+  const inicio = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
+  useEffect(() => { const g = leerPosicion(); if (g) setPos(g); }, []);
+  useEffect(() => { const f = () => { mostrarOti(); setAbierto(true); }; window.addEventListener("oti-abrir", f); return () => window.removeEventListener("oti-abrir", f); }, []);
+  const zonaX = () => ({ cx: window.innerWidth / 2, cy: window.innerHeight - 70 });
+  const sobreLaX = (x: number, y: number) => { const z = zonaX(); return Math.hypot(x + TAM / 2 - z.cx, y + TAM / 2 - z.cy) < 70; };
+  const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    inicio.current = { px: e.clientX, py: e.clientY, ox: r.left, oy: r.top }; movio.current = false;
+    try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+  };
+  const onMove = (e: React.PointerEvent<HTMLButtonElement>) => {
+    const i = inicio.current; if (!i) return;
+    const dx = e.clientX - i.px, dy = e.clientY - i.py;
+    if (!movio.current && Math.hypot(dx, dy) < 6) return;
+    movio.current = true;
+    const x = Math.min(window.innerWidth - TAM, Math.max(0, i.ox + dx)), y = Math.min(window.innerHeight - TAM, Math.max(0, i.oy + dy));
+    setArrastre({ x, y, sobreX: sobreLaX(x, y) });
+  };
+  const onUp = () => {
+    const i = inicio.current; inicio.current = null;
+    if (!i) return;
+    if (!movio.current) { setAbierto(true); return; } // un toque (sin arrastrar) abre el chat
+    const a = arrastre; setArrastre(null);
+    if (!a) return;
+    if (a.sobreX) { ocultarOti(); return; }
+    const lado: "left" | "right" = a.x + TAM / 2 < window.innerWidth / 2 ? "left" : "right";
+    const y = Math.min(0.92, Math.max(0.08, (a.y + TAM / 2) / window.innerHeight));
+    const nueva = { lado, y }; setPos(nueva); guardarPosicion(nueva);
+  };
+
 
   if (!user || !r || r === "client") return null;
 
@@ -77,6 +119,43 @@ export function OtiWidget() {
     setMsgs((m) => [...m, { de: "yo", tipo: "texto", texto: pregunta }]);
     setOcupado(true);
     try {
+      // -1) Gastos e ingresos PERSONALES (Mi Billetera). Privados: se guardan a nombre de quien escribe; Oti siempre pide confirmar.
+      let textoPersonal = pregunta;
+      if (faltaMonto && extraerMonto(pregunta) && pregunta.split(/\s+/).length <= 4) textoPersonal = `${faltaMonto} ${pregunta}`;
+      const resumen = entenderResumenPersonal(pregunta, todayInChile(), periodo);
+      if (resumen) {
+        setFaltaMonto(null);
+        const dice = (texto: string) => setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto }]);
+        try {
+          const res = await fetch(`/api/personal/movimientos?desde=${resumen.desde}&hasta=${resumen.hasta}`, { cache: "no-store" });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok || d?.migracionPendiente) { dice(d?.migracionPendiente ? "Todavía no está lista la sección de gastos personales (falta una actualización)." : "No pude leer tus gastos. Intenta de nuevo."); return; }
+          const items: any[] = d.items || [];
+          const g = items.filter((i) => i.kind === "expense"), ing = items.filter((i) => i.kind === "income");
+          const sum = (a: any[]) => a.reduce((t, i) => t + (Number(i.amount) || 0), 0);
+          if (items.length === 0) { dice(`No tienes movimientos anotados ${resumen.etiqueta}.`); return; }
+          const porCat = new Map<string, number>(); for (const i of g) porCat.set(i.category, (porCat.get(i.category) || 0) + Number(i.amount));
+          const top = Array.from(porCat.entries()).sort((a, b) => b[1] - a[1]).slice(0, 3).map(([c, v]) => `${c} ${formatCLP(v)}`).join(" · ");
+          const bal = sum(ing) - sum(g);
+          dice(resumen.tipo === "ingreso" ? `Ingresos personales ${resumen.etiqueta}: ${formatCLP(sum(ing))} (${ing.length}).`
+            : resumen.tipo === "balance" ? `Balance ${resumen.etiqueta}: ${bal < 0 ? "-" : ""}${formatCLP(Math.abs(bal))} (ingresos ${formatCLP(sum(ing))} − gastos ${formatCLP(sum(g))}).`
+            : `Gastos personales ${resumen.etiqueta}: ${formatCLP(sum(g))} en ${g.length} ${g.length === 1 ? "gasto" : "gastos"}.${top ? `\nLo más grande: ${top}.` : ""}${ing.length ? `\nIngresos anotados: ${formatCLP(sum(ing))}.` : ""}`);
+        } catch { dice("No pude conectar. Revisa tu conexión e intenta de nuevo."); }
+        return;
+      }
+      const personal = entenderMovimientoPersonal(textoPersonal, todayInChile());
+      if (personal) {
+        if (!personal.ok) {
+          setFaltaMonto(textoPersonal);
+          setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "¿Cuánto fue? Dime el monto, por ejemplo «$4.500» o «20 lucas»." }]);
+          return;
+        }
+        setFaltaMonto(null);
+        setMsgs((m) => [...m, { de: "oti", tipo: "personal", mov: personal.movimiento, estado: "pendiente" }]);
+        return;
+      }
+      setFaltaMonto(null);
+
       // 0) ¿Es una pregunta de cifras del negocio? Solo administrador; el servidor lo vuelve a validar (negocio y rol salen de la sesión).
       const eq = await cargarEquipo();
       const cons = entenderConsulta(pregunta, todayInChile(), eq);
@@ -129,6 +208,19 @@ export function OtiWidget() {
   const ideasAyuda = t.length >= 2 ? buscarAyuda(texto, CATALOGO, 3, 2).map((x) => x.entrada) : [];
   const ideasCierre = t.length >= 2 && PARECE_CIERRE.test(t) ? EJEMPLOS_CIERRE : [];
 
+  const guardarPersonal = async (i: number, mov: MovimientoPersonal) => {
+    setOcupado(true);
+    try {
+      const res = await fetch("/api/personal/movimientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kind: mov.tipo === "gasto" ? "expense" : "income", amount: mov.monto, description: mov.descripcion, category: mov.categoria, entry_date: mov.fecha, source: "oti" }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: `No pude guardarlo: ${d?.error || "intenta de nuevo"}.` }]); return; }
+      setMsgs((m) => m.map((x, k) => (k === i && x.tipo === "personal" ? { ...x, estado: "hecho" as const } : x)).concat([{ de: "oti", tipo: "texto", texto: `Listo, anoté ${mov.tipo === "gasto" ? "un gasto" : "un ingreso"} de ${formatCLP(mov.monto)} en Mi Billetera › Gastos personales. Solo tú lo ves.` }]));
+      try { window.dispatchEvent(new Event("personal-entries-changed")); } catch {}
+      showToast("Anotado en Mi Billetera", "success");
+    } catch { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "No pude conectar. Revisa tu conexión e intenta de nuevo." }]); }
+    finally { setOcupado(false); }
+  };
+
   const confirmar = async (i: number, pedido: Extract<PedidoBloqueo, { ok: true }>) => {
     setOcupado(true);
     try {
@@ -158,11 +250,23 @@ export function OtiWidget() {
 
   return (
     <>
-      {!abierto && (
-        <button type="button" onClick={() => setAbierto(true)} aria-label="Abrir Oti, tu asistente"
-          className="fixed z-40 right-4 max-lg:bottom-[calc(9.5rem+env(safe-area-inset-bottom,0px))] lg:right-5 lg:bottom-24 h-14 w-14 overflow-hidden rounded-full border-2 border-brand-blue bg-white shadow-lg shadow-black/20 transition-transform hover:scale-105">
-          <img src="/oti.webp" alt="Oti" className="h-full w-full object-cover" />
-        </button>
+      {!abierto && visible && (
+        <>
+          {arrastre && (
+            <div aria-hidden className="pointer-events-none fixed inset-x-0 bottom-0 z-[60] flex h-40 items-end justify-center bg-gradient-to-t from-black/30 to-transparent pb-8">
+              <div className={`flex h-14 w-14 items-center justify-center rounded-full border-2 border-white/80 bg-black/60 text-white shadow-lg transition-transform ${arrastre.sobreX ? "scale-125 bg-red-600" : ""}`}><X className="h-6 w-6" /></div>
+            </div>
+          )}
+          <button type="button" aria-label="Oti, tu asistente (arrástralo para moverlo)" title="Oti · arrástralo para moverlo, suéltalo en la X para ocultarlo"
+            onPointerDown={onDown} onPointerMove={onMove} onPointerUp={onUp} onPointerCancel={() => { inicio.current = null; setArrastre(null); }}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAbierto(true); } }}
+            style={arrastre
+              ? { left: arrastre.x, top: arrastre.y, touchAction: "none", cursor: "grabbing" }
+              : { [pos.lado]: 12, top: `calc(${Math.round(pos.y * 1000) / 10}% - ${TAM / 2}px)`, touchAction: "none" } as React.CSSProperties}
+            className={`fixed z-[65] h-14 w-14 select-none overflow-hidden rounded-full border-2 border-brand-blue bg-white shadow-lg shadow-black/25 ${arrastre ? "scale-110" : "transition-[top,left,right] duration-200"}`}>
+            <img src="/oti.webp" alt="Oti" draggable={false} className="pointer-events-none h-full w-full object-cover" />
+          </button>
+        </>
       )}
       {abierto && (
         <div className="fixed inset-0 z-[70] flex items-end justify-end bg-black/30 p-0 sm:items-end sm:p-5" onClick={() => setAbierto(false)}>
@@ -173,6 +277,7 @@ export function OtiWidget() {
                 <p className="text-sm font-bold text-brand-dark dark:text-gray-100">Oti</p>
                 <p className="text-[11px] text-brand-gray">Asistente de tareas pequeñas</p>
               </div>
+              <button type="button" onClick={() => { setAbierto(false); ocultarOti(); }} className="rounded-lg px-2 py-1 text-[11px] text-brand-gray hover:bg-gray-100 dark:hover:bg-gray-800" title="Oculta la burbuja; puedes volver a abrirlo desde el menú">Ocultar</button>
               <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar" className="rounded-full p-2 text-brand-gray hover:bg-gray-100 dark:hover:bg-gray-800"><X className="h-4 w-4" /></button>
             </div>
 
@@ -194,6 +299,34 @@ export function OtiWidget() {
                         className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white">
                         Abrir pantalla <ArrowRight className="h-3.5 w-3.5" />
                       </button>
+                    )}
+                  </div>
+                );
+                if (m.tipo === "personal") return (
+                  <div key={i} className="max-w-[92%] space-y-2 rounded-2xl border border-brand-blue/30 bg-white px-3 py-3 text-sm dark:bg-gray-900">
+                    <p className="font-bold text-brand-dark dark:text-gray-100">¿Lo anoto en Mi Billetera?</p>
+                    <p className="text-brand-dark dark:text-gray-200">
+                      <b className={m.mov.tipo === "gasto" ? "text-red-600" : "text-emerald-600"}>{m.mov.tipo === "gasto" ? "Gasto" : "Ingreso"} de {formatCLP(m.mov.monto)}</b><br />
+                      «{m.mov.descripcion}» · {m.mov.fecha.split("-").reverse().join("/")}
+                    </p>
+                    {m.estado === "pendiente" ? (
+                      <>
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <select value={m.mov.categoria} onChange={(e) => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, mov: { ...y.mov, categoria: e.target.value } } : y)))} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">
+                            {[...(m.mov.tipo === "gasto" ? CATEGORIAS_GASTO : CATEGORIAS_INGRESO)].map((c) => <option key={c} value={c}>{c}</option>)}
+                          </select>
+                          <button type="button" onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, mov: { ...y.mov, tipo: y.mov.tipo === "gasto" ? "ingreso" : "gasto", categoria: y.mov.tipo === "gasto" ? "Otros ingresos" : "Otros" } } : y)))} className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-brand-gray dark:border-gray-700">{m.mov.tipo === "gasto" ? "Es un ingreso" : "Es un gasto"}</button>
+                        </div>
+                        <div className="flex gap-2">
+                          <button type="button" disabled={ocupado} onClick={() => guardarPersonal(i, m.mov)} className="rounded-xl bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Sí, anotar</button>
+                          <button type="button" disabled={ocupado} onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, estado: "cancelado" as const } : y)).concat([{ de: "oti", tipo: "texto", texto: "Listo, no anoté nada." }]))} className="rounded-xl border border-gray-200 px-3 py-1.5 text-xs text-brand-gray dark:border-gray-700">No</button>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex items-center gap-2 text-xs text-brand-gray">
+                        <span>{m.estado === "hecho" ? "Anotado." : "Sin cambios."}</span>
+                        {m.estado === "hecho" && <button type="button" onClick={() => { router.push("/dashboard/mi-billetera"); setAbierto(false); }} className="inline-flex items-center gap-1 rounded-lg border border-brand-blue/40 px-2 py-1 font-semibold text-brand-blue">Ver mis gastos <ArrowRight className="h-3 w-3" /></button>}
+                      </div>
                     )}
                   </div>
                 );

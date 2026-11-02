@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
+import { GastosPersonales } from "@/components/finance/gastos-personales";
 
 interface WalletMovement {
   id: string;
@@ -47,10 +48,22 @@ export default function MiBilleteraPage() {
     setDateTo(to);
   };
 
-  if (loading || !data) {
+  if (loading) {
     return (
       <div className="p-6 flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-brand-blue/20 border-t-brand-blue rounded-full animate-spin" />
+      </div>
+    );
+  }
+  // Sin datos de comisiones/arriendo (por ejemplo un administrador sin agenda propia): igual se muestran los gastos personales.
+  if (!data) {
+    return (
+      <div className="p-3 md:p-6 max-w-2xl mx-auto space-y-3 md:space-y-5">
+        <div>
+          <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Mi Billetera</h1>
+          <p className="text-sm text-brand-gray">Tus gastos e ingresos personales</p>
+        </div>
+        <GastosPersonales />
       </div>
     );
   }
@@ -220,6 +233,9 @@ export default function MiBilleteraPage() {
           </div>
         )}
       </div>
+
+      {/* Gastos e ingresos personales (privados). Se llenan aqui o hablando con Oti. */}
+      <GastosPersonales />
 
       {/* Info */}
       <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-2xl p-4 text-xs text-brand-blue">

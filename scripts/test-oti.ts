@@ -2,11 +2,15 @@
 import { buscarAyuda } from "../src/lib/oti/buscar";
 import { CATALOGO } from "../src/lib/oti/catalogo";
 import fs from "node:fs";
-import { entenderConsulta } from "../src/lib/oti/consulta";
+import assert from "node:assert/strict";
+import { entenderConsulta, periodo as periodoConsulta } from "../src/lib/oti/consulta";
+import { entenderMovimientoPersonal, entenderResumenPersonal, extraerMonto } from "../src/lib/oti/personal";
+import { validarEntradaPersonal } from "../src/lib/personal-entries";
 import { entenderBloqueo, etiquetaFecha, MAX_DIAS_BLOQUEO, type MiembroEquipo } from "../src/lib/oti/bloqueo";
 
 let fails = 0;
 const t = (n: string, ok: boolean, x = "") => { if (!ok) fails++; console.log(`${ok ? "OK " : "MAL"} ${n}${x ? " -> " + x : ""}`); };
+const tf = (n: string, f: () => void) => { try { f(); t(n, true); } catch (e: any) { t(n, false, e.message); } };
 const HOY = "2026-10-27"; // martes
 const equipo: MiembroEquipo[] = [
   { id: "n1", name: "Nicolás Levels" }, { id: "j1", name: "Javier García" }, { id: "j2", name: "Javiera Soto" }, { id: "b1", name: "Bastian ahumada" },
@@ -106,5 +110,32 @@ t("«cuántos cortes hizo Pablo hoy» -> servicios", cq("cuantos cortes hizo pab
 t("«cómo cierro la caja» no es consulta de cifras", cq("¿cómo cierro la caja?") === null);
 t("«cómo cambio el precio de un servicio» no es consulta", cq("¿cómo cambio el precio de un servicio?") === null);
 t("ayuda sobre cupos no es consulta", cq("cuanto cuesta el plan") === null || cq("cuanto cuesta el plan")?.falta === "periodo");
+// Gastos e ingresos personales (Mi Billetera). HOY = martes 27 oct 2026
+const mp = (s: string) => entenderMovimientoPersonal(s, HOY) as any;
+tf("«hoy gasté $123.000 en una máquina de cortar el pelo»", () => { const r = mp("hoy gaste $123.000 en una máquina de cortar el pelo"); assert.ok(r?.ok && r.movimiento.tipo === "gasto" && r.movimiento.monto === 123000 && r.movimiento.descripcion === "Máquina de cortar el pelo" && r.movimiento.categoria === "Herramientas y trabajo" && r.movimiento.fecha === HOY); });
+tf("«compré pan me salió $1.200»", () => { const r = mp("compré pan me salió $1.200"); assert.ok(r?.ok && r.movimiento.monto === 1200 && r.movimiento.descripcion === "Pan" && r.movimiento.categoria === "Comida"); });
+tf("«pagué el metro $1.200»", () => { const r = mp("pagué el metro $1.200"); assert.ok(r?.ok && r.movimiento.monto === 1200 && r.movimiento.categoria === "Transporte" && r.movimiento.descripcion === "Metro"); });
+tf("«gasté 20 lucas en bencina» = $20.000", () => { const r = mp("Gasté 20 lucas en bencina"); assert.ok(r?.ok && r.movimiento.monto === 20000 && r.movimiento.descripcion === "Bencina"); });
+tf("«gasté $2 mil en el micro» = $2.000", () => { const r = mp("gasté $2 mil en el micro"); assert.ok(r?.ok && r.movimiento.monto === 2000 && r.movimiento.descripcion === "Micro"); });
+tf("«compré 2 kilos de pan $3.200» conserva el 2 y usa $3.200", () => { const r = mp("compré 2 kilos de pan $3.200"); assert.ok(r?.ok && r.movimiento.monto === 3200 && r.movimiento.descripcion === "2 kilos de pan"); });
+tf("monto sin signo: «gasté 15000 en una polera»", () => { const r = mp("gasté 15000 en una polera"); assert.ok(r?.ok && r.movimiento.monto === 15000 && r.movimiento.categoria === "Ropa"); });
+tf("fecha: «ayer» y «el 20 de octubre»", () => { assert.equal(mp("ayer compré pan $1.000").movimiento.fecha, "2026-10-26"); assert.equal(mp("gasté $5.000 en un libro el 20 de octubre").movimiento.fecha, "2026-10-20"); assert.equal(mp("gasté $5.000 en un libro el 20 de octubre").movimiento.descripcion, "Libro"); });
+tf("ingreso: «me pagaron $50.000 por un corte a domicilio»", () => { const r = mp("me pagaron $50.000 por un corte a domicilio"); assert.ok(r?.ok && r.movimiento.tipo === "ingreso" && r.movimiento.monto === 50000 && r.movimiento.categoria === "Trabajo extra"); });
+tf("ingreso: «vendí mi secador en $25.000» = Venta", () => { const r = mp("vendí mi secador en $25.000"); assert.ok(r?.ok && r.movimiento.tipo === "ingreso" && r.movimiento.categoria === "Venta"); });
+tf("sin monto pide el monto: «compré tijeras nuevas»", () => { assert.deepEqual(mp("compré tijeras nuevas"), { ok: false, falta: "monto" }); });
+tf("el monto sin signo «123.000» y «1.200» se entienden", () => { assert.equal(extraerMonto("123.000")?.monto, 123000); assert.equal(extraerMonto("me salio 1.200")?.monto, 1200); assert.equal(extraerMonto("$ 4.500")?.monto, 4500); });
+tf("preguntas y otros temas NO son gastos", () => { for (const f of ["¿cuánto gasté este mes?", "cierra mañana mi agenda", "hola", "¿cómo pago mi suscripción?", "cuanto dinero hizo pablo esta semana", "bloquea el domingo a Javier"]) assert.equal(mp(f), null, f); });
+tf("monto absurdo (> $100.000.000) no se acepta", () => { assert.deepEqual(mp("gasté 999999999 en algo"), { ok: false, falta: "monto" }); });
+const rp = (s: string) => entenderResumenPersonal(s, HOY, periodoConsulta) as any;
+tf("«¿cuánto gasté este mes?» -> resumen de gastos personales", () => { const r = rp("¿cuánto gasté este mes?"); assert.ok(r && r.tipo === "gasto" && r.desde === "2026-10-01" && r.hasta === HOY); });
+tf("«mis gastos del mes pasado» -> septiembre completo", () => { const r = rp("mis gastos del mes pasado"); assert.ok(r && r.desde === "2026-09-01" && r.hasta === "2026-09-30"); });
+tf("preguntas del negocio NO son resumen personal", () => { assert.equal(rp("cuánto vendió el equipo esta semana"), null); assert.equal(rp("cuánto dinero hicimos en caja"), null); });
+const val = (b: any, parcial = false) => validarEntradaPersonal(b, HOY, parcial) as any;
+tf("validación: movimiento correcto", () => assert.ok(val({ kind: "expense", amount: 1200, description: "Pan", category: "Comida", entry_date: HOY }).ok));
+tf("validación: rechaza monto 0, decimal, negativo y enorme", () => { for (const a of [0, 12.5, -1, 100000001, "abc"]) assert.equal(val({ kind: "expense", amount: a, description: "x", category: "Otros", entry_date: HOY }).ok, false, String(a)); });
+tf("validación: rechaza fecha futura, inventada y antigua", () => { for (const f of ["2026-12-30", "2026-02-31", "ayer", "2010-01-01"]) assert.equal(val({ kind: "expense", amount: 100, description: "x", category: "Otros", entry_date: f }).ok, false, f); });
+tf("validación: descripción vacía o muy larga, tipo inválido", () => { assert.equal(val({ kind: "expense", amount: 100, description: "  ", category: "Otros", entry_date: HOY }).ok, false); assert.equal(val({ kind: "expense", amount: 100, description: "x".repeat(201), category: "Otros", entry_date: HOY }).ok, false); assert.equal(val({ kind: "robo", amount: 100, description: "x", category: "Otros", entry_date: HOY }).ok, false); });
+tf("validación: categoría desconocida pasa a «Otros»", () => assert.equal(val({ kind: "expense", amount: 100, description: "x", category: "Hackeo", entry_date: HOY }).value.category, "Otros"));
+tf("validación parcial (editar): solo valida lo que viene", () => { assert.ok(val({ amount: 500 }, true).ok); assert.equal(val({ amount: -5 }, true).ok, false); });
 t("etiqueta de fecha legible", etiquetaFecha("2026-10-28") === "miércoles 28 de octubre");
 process.exit(fails ? 1 : 0);

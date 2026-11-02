@@ -79,6 +79,10 @@ const t = (name: string, ok: boolean, extra = "") => {
     // escrituras de dinero y de agenda que antes no pedian sesion
     { ruta: "oti/consulta", metodo: "POST", params: {} },
     { ruta: "referidos", metodo: "GET", params: {} },
+    { ruta: "personal/movimientos", metodo: "GET", params: {} },
+    { ruta: "personal/movimientos", metodo: "POST", params: {} },
+    { ruta: "personal/movimientos", metodo: "PATCH", params: {}, qs: `?id=${ID}` },
+    { ruta: "personal/movimientos", metodo: "DELETE", params: {}, qs: `?id=${ID}` },
     { ruta: "profesionales/libro/detalle", metodo: "GET", params: {} },
     { ruta: "settings/comision-cosmeticos", metodo: "GET", params: {} },
     { ruta: "settings/comision-cosmeticos", metodo: "POST", params: {} },

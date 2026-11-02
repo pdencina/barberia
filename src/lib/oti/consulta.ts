@@ -20,7 +20,7 @@ const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "
 const fechaCorta = (s: string) => `${Number(s.slice(8, 10))} de ${MESES[Number(s.slice(5, 7)) - 1]}`;
 
 // Semana = lunes a domingo. «Esta semana» llega hasta hoy.
-function periodo(t: string, hoy: string): { desde: string; hasta: string; etiqueta: string } | null {
+export function periodo(t: string, hoy: string): { desde: string; hasta: string; etiqueta: string } | null {
   const wd = (new Date(ms(hoy)).getUTCDay() + 6) % 7; // 0 = lunes
   const lunes = iso(ms(hoy) - wd * DAY);
   if (/\bsemana pasada\b|\bultima semana\b/.test(t)) { const d = iso(ms(lunes) - 7 * DAY); return { desde: d, hasta: iso(ms(d) + 6 * DAY), etiqueta: `la semana pasada (${fechaCorta(d)} al ${fechaCorta(iso(ms(d) + 6 * DAY))})` }; }
