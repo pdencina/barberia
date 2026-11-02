@@ -4,6 +4,7 @@ import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 import { fetchAllRows, monthEnd } from "@/lib/accounting";
 import type { ProMode } from "@/lib/ledger";
 import { productCommission, isCosmeticCategory, type ProductRule } from "@/lib/product-commission";
+import { getCosmeticAmount } from "@/lib/cosmetic-amount";
 
 export const dynamic = "force-dynamic";
 
@@ -67,6 +68,7 @@ export async function GET(req: NextRequest) {
     for (const p of data || []) clientName.set(p.id, p.name);
   }
 
+  const cosmeticAmount = await getCosmeticAmount(supabase, tenantId);
   const itemsByTx = new Map<string, any[]>();
   for (const it of itemRows) itemsByTx.set(it.transaction_id, [...(itemsByTx.get(it.transaction_id) || []), it]);
 
@@ -78,7 +80,7 @@ export async function GET(req: NextRequest) {
         const total = Number(it.total) || 0;
         const esProducto = !!it.product_id;
         const r = esProducto ? rule.get(it.product_id) : undefined;
-        const com = esProducto ? productCommission(r, Number(it.quantity) || 1, total) : 0;
+        const com = esProducto ? productCommission(r, Number(it.quantity) || 1, total, cosmeticAmount) : 0;
         return { nombre: String(it.description || (esProducto ? "Producto" : "Servicio")), tipo: esProducto ? "producto" : "servicio", cantidad: Number(it.quantity) || 1, total, comisionProducto: Math.round(com), cosmetico: esProducto && isCosmeticCategory(r?.category) };
       });
       const prod = its.filter((i) => i.tipo === "producto").reduce((s, i) => s + i.total, 0);

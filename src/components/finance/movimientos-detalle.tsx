@@ -79,7 +79,7 @@ export function MovimientosDetalle({ mode, month, year, tenantQuery, onClose }: 
                 <Cifra t="Servicios" v={p.resumen.servicios} nota={mode === "commission" ? `base de su ${p.rate}%` : undefined} />
                 <Cifra t="Productos" v={p.resumen.productos} nota="no van al profesional" ambar={p.resumen.productos > 0} />
                 <Cifra t="Propinas" v={p.resumen.propinas} nota="100% para el profesional" />
-                <Cifra t="Comisión por productos" v={p.resumen.comisionProductos} nota="solo cosméticos: $2.000 c/u" ambar={p.resumen.comisionProductos > 0} />
+                <Cifra t="Comisión por productos" v={p.resumen.comisionProductos} nota="solo cosméticos" ambar={p.resumen.comisionProductos > 0} />
               </div>
               {mode === "commission" && p.resumen.comisionServicios !== null && (
                 <p className="text-xs text-brand-gray">Comisión sobre servicios: <b>{formatCurrency(p.resumen.comisionServicios)}</b> ({p.rate}% de {formatCurrency(p.resumen.servicios)}).</p>
