@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
     const total = rows.reduce((s, t) => s + Number(t.total), 0);
     if (!ledgerOn) return Math.round(total * (rate / 100));
     const ids = rows.map((t) => t.id).filter(Boolean) as string[];
-    const split = await splitProductSales(supabase, ids).catch(() => new Map());
+    const split = await splitProductSales(supabase, ids, (barber as any).tenant_id).catch(() => new Map());
     let servicios = 0, cosmeticos = 0;
     for (const t of rows) { const sp = t.id ? split.get(t.id) : undefined; servicios += Math.max(0, Number(t.total) - (sp?.productTotal || 0)); cosmeticos += sp?.commission || 0; }
     return Math.round(servicios * (rate / 100)) + cosmeticos;
