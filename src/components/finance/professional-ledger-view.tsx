@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { PageHeader, StatCard, Panel, inputClass, primaryButton, ghostButton } from "@/components/ui/premium";
 import { computeProTax } from "@/lib/pro-tax";
 import { LEDGER_KINDS, type LedgerKind, type ProMode, type ProMonth } from "@/lib/ledger";
+import { MovimientosDetalle, BotonDetalleMovimientos } from "@/components/finance/movimientos-detalle";
 
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -50,6 +51,7 @@ export function ProfessionalLedgerView({ mode }: { mode: ProMode }) {
   const tq = tenant?.id ? `&tenantId=${tenant.id}` : "";
 
   // Modales
+  const [verDetalle, setVerDetalle] = useState(false);
   const [addFor, setAddFor] = useState<ProMonth | null>(null);
   const [form, setForm] = useState({ kind: "money_in_favor" as LedgerKind, effect: "1", amount: "", reason: "" });
   const [payFor, setPayFor] = useState<ProMonth | null>(null);
@@ -265,6 +267,8 @@ export function ProfessionalLedgerView({ mode }: { mode: ProMode }) {
         <StatCard label={copy.paid} value={formatCurrency(totals.paid)} Icon={Wallet} tone="green" />
         <StatCard label={copy.pending} value={formatCurrency(totals.pending)} Icon={Hourglass} tone="amber" />
       </div>
+      <div><BotonDetalleMovimientos onClick={() => setVerDetalle(true)} /></div>
+      {verDetalle && <MovimientosDetalle mode={mode} month={month} year={year} tenantQuery={tq} onClose={() => setVerDetalle(false)} />}
 
       {loading ? (
         <Spinner />
