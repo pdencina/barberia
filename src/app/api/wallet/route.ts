@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, authorizeBarberManagement } from "@/lib/supabase/server";
 import { todayInChile, dateStrOffset, chileDayBoundsUtc } from "@/lib/utils";
+import { isLedgerEnabled } from "@/lib/ledger";
+import { splitProductSales } from "@/lib/product-split";
 
 const paymentMethodLabels: Record<string, string> = {
   cash: "Efectivo",
@@ -26,11 +28,23 @@ export async function GET(req: NextRequest) {
   // Get barber info
   const { data: barber } = await supabase
     .from("profiles")
-    .select("id, name, work_mode, commission_rate, rental_daily_rate")
+    .select("id, name, work_mode, commission_rate, rental_daily_rate, tenant_id")
     .eq("id", barberId)
     .single();
 
   if (!barber) return NextResponse.json({ error: "Profesional no encontrado" }, { status: 404 });
+
+  // Con el libro encendido, lo que ve el profesional es lo que se le paga: los productos no suman a su comision (solo los cosmeticos, $2.000 c/u).
+  const ledgerOn = await isLedgerEnabled(supabase, (barber as any).tenant_id || null).catch(() => false);
+  const comisionDe = async (rows: Array<{ id?: string; total: any }>, rate: number): Promise<number> => {
+    const total = rows.reduce((s, t) => s + Number(t.total), 0);
+    if (!ledgerOn) return Math.round(total * (rate / 100));
+    const ids = rows.map((t) => t.id).filter(Boolean) as string[];
+    const split = await splitProductSales(supabase, ids).catch(() => new Map());
+    let servicios = 0, cosmeticos = 0;
+    for (const t of rows) { const sp = t.id ? split.get(t.id) : undefined; servicios += Math.max(0, Number(t.total) - (sp?.productTotal || 0)); cosmeticos += sp?.commission || 0; }
+    return Math.round(servicios * (rate / 100)) + cosmeticos;
+  };
 
   // Punto 1 (fix de arrastre, detectado al hacer el punto 16): esta ruta seguia usando
   // `new Date().toISOString().split("T")[0]` y limites naive "T00:00:00"/"T23:59:59"
@@ -49,7 +63,7 @@ export async function GET(req: NextRequest) {
   // Earnings this month (completed transactions)
   const { data: monthTx } = await supabase
     .from("transactions")
-    .select("total, created_at")
+    .select("id, total, created_at")
     .eq("barber_id", barberId)
     .eq("type", "income")
     .eq("status", "completed")
@@ -64,7 +78,7 @@ export async function GET(req: NextRequest) {
 
   if (mode === "commission") {
     const rate = barber.commission_rate || 40;
-    earned = Math.round(totalSales * (rate / 100));
+    earned = await comisionDe(monthTx || [], rate);
   } else {
     // Rental: earnings = sales (they keep all), minus rental fee (deducted separately
     // at monthly close).
@@ -74,7 +88,7 @@ export async function GET(req: NextRequest) {
   // Today's earnings
   const { data: todayTx } = await supabase
     .from("transactions")
-    .select("total")
+    .select("id, total")
     .eq("barber_id", barberId)
     .eq("type", "income")
     .eq("status", "completed")
@@ -82,7 +96,7 @@ export async function GET(req: NextRequest) {
     .lt("created_at", todayBounds.endUtc);
 
   const todayEarnings = (todayTx || []).reduce((s, t) => s + Number(t.total), 0);
-  const todayCommission = mode === "commission" ? Math.round(todayEarnings * ((barber.commission_rate || 40) / 100)) : todayEarnings;
+  const todayCommission = mode === "commission" ? await comisionDe(todayTx || [], barber.commission_rate || 40) : todayEarnings;
 
   // Projected: based on upcoming scheduled appointments
   const { data: upcomingAppts } = await supabase
@@ -114,7 +128,7 @@ export async function GET(req: NextRequest) {
 
     const { data: dayTx } = await supabase
       .from("transactions")
-      .select("total")
+      .select("id, total")
       .eq("barber_id", barberId)
       .eq("type", "income")
       .eq("status", "completed")
@@ -122,7 +136,7 @@ export async function GET(req: NextRequest) {
       .lt("created_at", dayBounds.endUtc);
 
     const dayTotal = (dayTx || []).reduce((s, t) => s + Number(t.total), 0);
-    const dayCommission = mode === "commission" ? Math.round(dayTotal * ((barber.commission_rate || 40) / 100)) : dayTotal;
+    const dayCommission = mode === "commission" ? await comisionDe(dayTx || [], barber.commission_rate || 40) : dayTotal;
 
     // Weekday from the noon-UTC instant of that calendar date, so it never shifts off
     // by a day regardless of the server's own timezone.

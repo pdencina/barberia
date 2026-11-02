@@ -15,6 +15,7 @@
 import { chileDayBoundsUtc } from "@/lib/utils";
 import { fetchAllRows, monthEnd } from "@/lib/accounting";
 import { computeProTax, ProTax } from "@/lib/pro-tax";
+import { productCommission, type ProductRule } from "@/lib/product-commission";
 
 export type ProMode = "commission" | "rental";
 
@@ -135,12 +136,16 @@ export async function computeProMonths(
   );
   const items: any[] = itemResults.flatMap((r) => r.data || []);
   const productIds = Array.from(new Set(items.map((i) => i.product_id).filter(Boolean)));
-  const productRule = new Map<string, { type: string | null; value: number }>();
+  // Solo los cosmeticos dan comision de venta (lib/product-commission.ts); consumibles y demas productos, nunca.
+  const productRule = new Map<string, ProductRule>();
   const productResults: any[] = await Promise.all(
-    chunk(productIds as string[], 200).map((c) => run(supabase.from("products").select("id, sales_commission_type, sales_commission_value").in("id", c)))
+    chunk(productIds as string[], 200).map(async (c) => {
+      const r = await run(supabase.from("products").select("id, category, sales_commission_type, sales_commission_value").in("id", c));
+      return r.error ? run(supabase.from("products").select("id").in("id", c)) : r;
+    })
   );
   for (const r of productResults) {
-    if (!r.error) for (const p of r.data || []) productRule.set(p.id, { type: p.sales_commission_type, value: Number(p.sales_commission_value) || 0 });
+    if (!r.error) for (const p of r.data || []) productRule.set(p.id, { category: p.category, type: p.sales_commission_type, value: Number(p.sales_commission_value) || 0 });
   }
 
   const productSalesByTx = new Map<string, number>();
@@ -153,10 +158,7 @@ export async function computeProMonths(
     const total = Number(it.total) || 0;
     productSalesByTx.set(it.transaction_id, (productSalesByTx.get(it.transaction_id) || 0) + total);
     productSalesByBarber.set(barberId, (productSalesByBarber.get(barberId) || 0) + total);
-    const rule = productRule.get(it.product_id);
-    let com = 0;
-    if (rule?.type === "percent") com = (total * rule.value) / 100;
-    else if (rule?.type === "fixed") com = (Number(it.quantity) || 1) * rule.value;
+    const com = productCommission(productRule.get(it.product_id), Number(it.quantity) || 1, total);
     if (com > 0) productCommissionByBarber.set(barberId, (productCommissionByBarber.get(barberId) || 0) + com);
   }
 
