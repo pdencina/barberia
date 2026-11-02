@@ -87,7 +87,7 @@ export async function PATCH(
     "personal_pin", "avatar_url", "bio", "specialties",
     "intro_video_url", "years_experience", "slot_duration",
     "also_attends_clients", "instagram", "rental_cash_to_barber", "birth_date",
-    "manager_name", "sii_enabled", "tax_rate",
+    "manager_name", "sii_enabled", "tax_rate", "rental_cash_settle_from",
   ];
 
   const update: Record<string, any> = {};
@@ -95,6 +95,12 @@ export async function PATCH(
     if (body[key] !== undefined) update[key] = body[key];
   }
   // Impuesto/SII por profesional: solo el administrador (no el propio profesional ni recepcion).
+  // Mes desde el que se descuenta el efectivo de caja del arriendo: solo administrador; null o el primer dia de un mes.
+  if ("rental_cash_settle_from" in update) {
+    const v = update.rental_cash_settle_from;
+    if (auth.role !== "admin" && auth.role !== "super_admin") delete update.rental_cash_settle_from;
+    else if (v !== null && !(typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])-01$/.test(v))) return NextResponse.json({ error: "Mes no valido" }, { status: 400 });
+  }
   if (auth.role !== "admin" && auth.role !== "super_admin") {
     delete update.sii_enabled;
     delete update.tax_rate;

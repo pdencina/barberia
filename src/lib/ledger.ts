@@ -110,7 +110,7 @@ export async function computeProMonths(
   const run = (b: PromiseLike<any>): Promise<any> => Promise.resolve(b);
   // Ventas del mes de estos profesionales (sin los "[AJUSTE MANUAL]" antiguos: ahora viven en el libro).
   const txsP = fetchAllRows<any>(() =>
-    supabase.from("transactions").select("id, barber_id, total, tip_amount, notes")
+    supabase.from("transactions").select("id, barber_id, total, tip_amount, notes, payment_method")
       .eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed")
       .in("barber_id", ids).gte("created_at", startUtc).lt("created_at", endUtc)
   ).catch(() => [] as any[]);
@@ -130,6 +130,29 @@ export async function computeProMonths(
   const txs = await txsP;
   const sales = txs.filter((t) => !String(t.notes || "").startsWith("[AJUSTE MANUAL]"));
   const txBarber = new Map<string, string>(sales.map((t) => [t.id, t.barber_id]));
+
+  // Arriendo: efectivo de sus ventas que quedo en la caja del negocio (rental_cash_to_barber = false) y se descuenta del arriendo,
+  // desde el mes elegido (profiles.rental_cash_settle_from, migracion 123). Si falta la migracion o no hay mes elegido, no se descuenta nada.
+  const cashHeldByBarber = new Map<string, number>();
+  if (mode === "rental") {
+    try {
+      const { data: cfg, error: cfgErr } = await supabase.from("profiles").select("id, rental_cash_to_barber, rental_cash_settle_from").in("id", ids);
+      if (!cfgErr) {
+        const eligible = new Set<string>((cfg || []).filter((c: any) => !c.rental_cash_to_barber && c.rental_cash_settle_from && String(c.rental_cash_settle_from).slice(0, 10) <= first).map((c: any) => c.id));
+        const cashTx = sales.filter((t) => eligible.has(t.barber_id));
+        const splitCash = new Map<string, number>();
+        const mixedIds = cashTx.filter((t) => t.payment_method === "mixed").map((t) => t.id);
+        for (const c of chunk(mixedIds, 200)) {
+          const { data: parts } = await supabase.from("transaction_payments").select("transaction_id, amount").in("transaction_id", c).eq("payment_method", "cash");
+          for (const r of parts || []) splitCash.set(r.transaction_id, (splitCash.get(r.transaction_id) || 0) + (Number(r.amount) || 0));
+        }
+        for (const t of cashTx) {
+          const cash = t.payment_method === "cash" ? Number(t.total) || 0 : t.payment_method === "mixed" ? splitCash.get(t.id) || 0 : 0;
+          if (cash > 0) cashHeldByBarber.set(t.barber_id, (cashHeldByBarber.get(t.barber_id) || 0) + cash);
+        }
+      }
+    } catch { /* sin migracion 123: no se descuenta nada */ }
+  }
 
   // Productos vendidos (por venta) y su comision.
   const itemResults: any[] = await Promise.all(
@@ -216,6 +239,8 @@ export async function computeProMonths(
     const tips = Math.round(tipsByBarber.get(p.id) || 0);
     if (tips > 0) lines.push({ key: "auto-tips", label: "Propinas", amount: tips, effect: 1, source: "auto" });
     const prodCom = Math.round(productCommissionByBarber.get(p.id) || 0);
+    const cashHeld = Math.round(cashHeldByBarber.get(p.id) || 0);
+    if (cashHeld > 0) lines.push({ key: "auto-cash-held", label: "Efectivo de sus ventas que quedó en la caja del negocio", amount: cashHeld, effect: 1, source: "auto", reason: "Ya está en la caja: se descuenta del arriendo para no cobrarlo dos veces" });
     if (prodCom > 0) lines.push({ key: "auto-product-commission", label: "Comisión por venta de productos", amount: prodCom, effect: 1, source: "auto" });
     for (const r of (ledgerRows || []).filter((x: any) => x.barber_id === p.id)) {
       const kind = (LEDGER_KINDS as any)[r.kind];
