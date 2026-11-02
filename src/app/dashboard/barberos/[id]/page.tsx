@@ -31,6 +31,19 @@ interface Professional {
   role: string;
 }
 
+
+// Meses para elegir: este mes, el mes anterior y los 12 anteriores a ese (primer dia de cada mes).
+function mesesParaDescontar() {
+  const hoy = new Date();
+  const out: Array<{ value: string; label: string }> = [];
+  const nombres = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(Date.UTC(hoy.getFullYear(), hoy.getMonth() - i, 1));
+    out.push({ value: `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-01`, label: `${nombres[d.getUTCMonth()]} ${d.getUTCFullYear()}` });
+  }
+  return out;
+}
+
 export default function EditProfessionalPage() {
   const params = useParams();
   const router = useRouter();
@@ -39,6 +52,8 @@ export default function EditProfessionalPage() {
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<"datos" | "trabajo" | "horario" | "servicios" | "presentacion" | "cuenta">("datos");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  // Arriendo: desde que mes se descuenta del arriendo el efectivo que queda en la caja del negocio.
+  const [cashModal, setCashModal] = useState<null | { choice: string; other: string }>(null);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { effectiveRole } = useAuth();
@@ -82,6 +97,7 @@ export default function EditProfessionalPage() {
         also_attends_clients: (data as any).also_attends_clients,
         instagram: (data as any).instagram,
         rental_cash_to_barber: (data as any).rental_cash_to_barber,
+        ...((data as any).rental_cash_settle_from !== undefined ? { rental_cash_settle_from: (data as any).rental_cash_settle_from || null } : {}),
         sii_enabled: !!(data as any).sii_enabled,
         tax_rate: (data as any).sii_enabled ? Number((data as any).tax_rate) || 0 : 0,
         // Solo se manda para recepcion (columna nueva, migracion 089): asi guardar a cualquier
@@ -555,7 +571,10 @@ export default function EditProfessionalPage() {
               sales count toward the salon's daily till and revenue. */}
           <label className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl cursor-pointer">
             <input type="checkbox" checked={!!(data as any).rental_cash_to_barber}
-              onChange={(e) => setData({ ...data, rental_cash_to_barber: e.target.checked } as any)}
+              onChange={(e) => {
+                setData({ ...data, rental_cash_to_barber: e.target.checked } as any);
+                if (!e.target.checked && !(data as any).rental_cash_settle_from) { const m = mesesParaDescontar(); setCashModal({ choice: m[1].value, other: m[2].value }); }
+              }}
               className="w-4 h-4 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
             <span className="text-sm text-gray-700">
               <span className="font-medium">El profesional se lleva su efectivo directamente</span>
@@ -566,6 +585,23 @@ export default function EditProfessionalPage() {
               </span>
             </span>
           </label>
+
+          {!(data as any).rental_cash_to_barber && (() => {
+            const desde = (data as any).rental_cash_settle_from as string | null | undefined;
+            const meses = mesesParaDescontar();
+            const etiqueta = desde ? meses.find((m) => m.value === String(desde).slice(0, 10))?.label || String(desde).slice(0, 7) : null;
+            return (
+              <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm">
+                {etiqueta
+                  ? <p className="text-gray-700">El efectivo de sus ventas que queda en la caja se <b>descuenta del arriendo desde {etiqueta}</b>.</p>
+                  : <p className="text-gray-700">Hoy el efectivo de sus ventas que queda en la caja <b>todavía no se descuenta del arriendo</b>. Elige desde qué mes hacerlo para no cobrárselo dos veces.</p>}
+                <button type="button" onClick={() => setCashModal({ choice: desde ? String(desde).slice(0, 10) : meses[1].value, other: meses[2].value })}
+                  className="mt-2 rounded-lg border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold text-amber-800">
+                  {etiqueta ? "Cambiar el mes" : "Elegir desde qué mes"}
+                </button>
+              </div>
+            );
+          })()}
 
           <div>
             <label className="block text-xs text-gray-500 mb-1">Notas / Observaciones</label>
@@ -716,6 +752,38 @@ export default function EditProfessionalPage() {
           </button>
         </div>
       )}
+
+      {cashModal && (() => {
+        const meses = mesesParaDescontar();
+        const set = (v: string | null) => { setData({ ...data!, rental_cash_settle_from: v } as any); setCashModal(null); showToast(v ? "Listo: recuerda presionar Guardar Cambios" : "Sin descuento: recuerda presionar Guardar Cambios", "success"); };
+        const elegido = cashModal.choice === "otro" ? cashModal.other : cashModal.choice;
+        return (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 p-4" onClick={() => setCashModal(null)}>
+            <div onClick={(e) => e.stopPropagation()} className="w-full max-w-md space-y-4 rounded-2xl bg-white p-5 shadow-2xl">
+              <div>
+                <p className="text-lg font-bold text-gray-900">¿Desde qué mes descontamos el efectivo?</p>
+                <p className="mt-1 text-xs text-gray-500">El efectivo de las ventas de este profesional que quedó en la caja del negocio se resta de su arriendo, para que no lo pague dos veces. Elige desde qué mes aplicarlo; los meses anteriores no cambian.</p>
+              </div>
+              <div className="space-y-2 text-sm">
+                {[{ v: meses[0].value, t: `Desde este mes (${meses[0].label})` }, { v: meses[1].value, t: `Desde el mes anterior (${meses[1].label})` }].map((o) => (
+                  <label key={o.v} className="flex cursor-pointer items-center gap-2"><input type="radio" name="cash-desde" checked={cashModal.choice === o.v} onChange={() => setCashModal({ ...cashModal, choice: o.v })} /> {o.t}</label>
+                ))}
+                <label className="flex cursor-pointer items-center gap-2"><input type="radio" name="cash-desde" checked={cashModal.choice === "otro"} onChange={() => setCashModal({ ...cashModal, choice: "otro" })} /> Otro mes anterior:
+                  <select value={cashModal.other} onChange={(e) => setCashModal({ choice: "otro", other: e.target.value })} className="rounded-lg border px-2 py-1 text-sm">
+                    {meses.slice(2).map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+                  </select>
+                </label>
+              </div>
+              <p className="rounded-lg bg-amber-50 p-2 text-[11px] text-amber-800">Si ya hay meses pagados o cobrados desde esa fecha, su total pendiente cambiará. Revisa el mes en Arriendo después de guardar.</p>
+              <div className="flex flex-wrap justify-end gap-2">
+                <button type="button" onClick={() => set(null)} className="rounded-xl border px-3 py-2 text-xs text-gray-600">No descontar</button>
+                <button type="button" onClick={() => setCashModal(null)} className="rounded-xl border px-3 py-2 text-xs text-gray-600">Cancelar</button>
+                <button type="button" onClick={() => set(elegido)} className="rounded-xl bg-teal-700 px-4 py-2 text-xs font-semibold text-white">Aplicar desde ese mes</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
