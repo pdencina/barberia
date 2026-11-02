@@ -3,6 +3,7 @@ import { createAdminSupabase, isManagerLevel, resolveTenantForRequest } from "@/
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 import { fetchAllRows, monthEnd } from "@/lib/accounting";
 import type { ProMode } from "@/lib/ledger";
+import { productCommission, isCosmeticCategory, type ProductRule } from "@/lib/product-commission";
 
 export const dynamic = "force-dynamic";
 
@@ -53,10 +54,11 @@ export async function GET(req: NextRequest) {
   const txIds = txs.map((t) => t.id);
   const itemRows: any[] = (await Promise.all(chunk(txIds, 200).map(async (c) => (await supabase.from("transaction_items").select("transaction_id, product_id, service_id, description, quantity, total").in("transaction_id", c)).data || []))).flat();
   const prodIds = Array.from(new Set(itemRows.map((i) => i.product_id).filter(Boolean))) as string[];
-  const rule = new Map<string, { type: string | null; value: number }>();
+  const rule = new Map<string, ProductRule>();
   for (const c of chunk(prodIds, 200)) {
-    const { data } = await supabase.from("products").select("id, sales_commission_type, sales_commission_value").in("id", c);
-    for (const p of data || []) rule.set(p.id, { type: p.sales_commission_type, value: Number(p.sales_commission_value) || 0 });
+    let { data, error }: { data: any[] | null; error: any } = await supabase.from("products").select("id, category, sales_commission_type, sales_commission_value").in("id", c);
+    if (error) ({ data } = await supabase.from("products").select("id").in("id", c));
+    for (const p of data || []) rule.set(p.id, { category: p.category, type: p.sales_commission_type, value: Number(p.sales_commission_value) || 0 });
   }
   const clientIds = Array.from(new Set(txs.map((t) => t.client_id).filter(Boolean))) as string[];
   const clientName = new Map<string, string>();
@@ -76,10 +78,8 @@ export async function GET(req: NextRequest) {
         const total = Number(it.total) || 0;
         const esProducto = !!it.product_id;
         const r = esProducto ? rule.get(it.product_id) : undefined;
-        let com = 0;
-        if (r?.type === "percent") com = (total * r.value) / 100;
-        else if (r?.type === "fixed") com = (Number(it.quantity) || 1) * r.value;
-        return { nombre: String(it.description || (esProducto ? "Producto" : "Servicio")), tipo: esProducto ? "producto" : "servicio", cantidad: Number(it.quantity) || 1, total, comisionProducto: Math.round(com) };
+        const com = esProducto ? productCommission(r, Number(it.quantity) || 1, total) : 0;
+        return { nombre: String(it.description || (esProducto ? "Producto" : "Servicio")), tipo: esProducto ? "producto" : "servicio", cantidad: Number(it.quantity) || 1, total, comisionProducto: Math.round(com), cosmetico: esProducto && isCosmeticCategory(r?.category) };
       });
       const prod = its.filter((i) => i.tipo === "producto").reduce((s, i) => s + i.total, 0);
       const svc = Math.max(0, Number(t.total) - prod);

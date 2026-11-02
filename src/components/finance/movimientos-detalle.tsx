@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
 import type { ProMode } from "@/lib/ledger";
 
-interface Item { nombre: string; tipo: "servicio" | "producto"; cantidad: number; total: number; comisionProducto: number }
+interface Item { nombre: string; tipo: "servicio" | "producto"; cantidad: number; total: number; comisionProducto: number; cosmetico?: boolean }
 interface Venta { id: string; fecha: string; cliente: string; medio: string; total: number; servicios: number; productos: number; propina: number; comisionProductos: number; items: Item[] }
 interface Pro { barberId: string; name: string; rate: number; resumen: { ventas: number; servicios: number; productos: number; propinas: number; comisionServicios: number | null; comisionProductos: number }; ventas: Venta[] }
 
@@ -77,9 +77,9 @@ export function MovimientosDetalle({ mode, month, year, tenantQuery, onClose }: 
               </div>
               <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <Cifra t="Servicios" v={p.resumen.servicios} nota={mode === "commission" ? `base de su ${p.rate}%` : undefined} />
-                <Cifra t="Productos" v={p.resumen.productos} nota="no suman a su comisión" ambar={p.resumen.productos > 0} />
+                <Cifra t="Productos" v={p.resumen.productos} nota="no van al profesional" ambar={p.resumen.productos > 0} />
                 <Cifra t="Propinas" v={p.resumen.propinas} nota="100% para el profesional" />
-                <Cifra t="Comisión por productos" v={p.resumen.comisionProductos} nota="según cada producto" ambar={p.resumen.comisionProductos > 0} />
+                <Cifra t="Comisión por productos" v={p.resumen.comisionProductos} nota="solo cosméticos: $2.000 c/u" ambar={p.resumen.comisionProductos > 0} />
               </div>
               {mode === "commission" && p.resumen.comisionServicios !== null && (
                 <p className="text-xs text-brand-gray">Comisión sobre servicios: <b>{formatCurrency(p.resumen.comisionServicios)}</b> ({p.rate}% de {formatCurrency(p.resumen.servicios)}).</p>
@@ -99,7 +99,7 @@ export function MovimientosDetalle({ mode, month, year, tenantQuery, onClose }: 
                           {v.items.length === 0 ? <span className="text-brand-gray">(sin detalle)</span> : v.items.map((i, k) => (
                             <div key={k}>
                               {i.cantidad > 1 ? `${i.cantidad}× ` : ""}{i.nombre}
-                              {i.tipo === "producto" && <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">PRODUCTO{i.comisionProducto > 0 ? ` · comisión ${formatCurrency(i.comisionProducto)}` : ""}</span>}
+                              {i.tipo === "producto" && <span className="ml-1 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-800">PRODUCTO{i.comisionProducto > 0 ? ` · comisión ${formatCurrency(i.comisionProducto)}` : " · no va al profesional"}</span>}
                               <span className="ml-1 text-brand-gray">{formatCurrency(i.total)}</span>
                             </div>
                           ))}
