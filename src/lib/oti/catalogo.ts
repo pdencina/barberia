@@ -182,6 +182,20 @@ export const CATALOGO: EntradaOti[] = [
     ruta: "/dashboard/reportes",
   },
   {
+    id: "gastos-personales",
+    titulo: "Gastos personales",
+    para: "Profesional, recepción y administrador",
+    claves: ["gastos personales", "anotar un gasto", "anotar gastos", "mis gastos", "registrar un gasto", "gaste", "compre", "pague", "mis ingresos personales", "cuanto gaste"],
+    resumen: "En «Mi Billetera» hay una sección de «Gastos personales» donde anotas tus propios gastos e ingresos (no son los del negocio). Es privada: solo tú la ves. También puedes decírselo a Oti en el chat y Oti lo anota después de que confirmes.",
+    pasos: [
+      "Escríbele a Oti, por ejemplo: «hoy gasté $123.000 en una máquina de cortar el pelo», «compré pan $1.200» o «pagué el metro $1.200».",
+      "Oti te muestra lo que entendió (monto, en qué fue, categoría y fecha). Si algo está mal, cámbialo o presiona «No».",
+      "Presiona «Sí, anotar». Queda en Mi Billetera › Gastos personales.",
+      "Para ver cuánto llevas, pregúntale: «¿cuánto gasté este mes?».",
+    ],
+    ruta: "/dashboard/mi-billetera",
+  },
+  {
     id: "mi-billetera",
     titulo: "Mi billetera",
     para: "Profesionales",
