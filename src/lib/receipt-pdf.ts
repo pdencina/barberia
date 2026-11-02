@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import type { ProMonth } from "@/lib/ledger";
+import type { ProSalesDetail } from "@/lib/pro-sales-detail";
 
 // Recibo en PDF por profesional y mes (Arriendo o Comision). Verde = lo que suma al profesional, rojo = lo que
 // le descuenta. Es un documento de apoyo del negocio: no reemplaza una liquidacion de sueldo ni una boleta.
@@ -22,6 +23,7 @@ export async function buildReceiptPdf(o: {
   pro: ProMonth;
   monthLabel: string; // "Septiembre 2026"
   issuedAt?: Date;
+  sales?: ProSalesDetail | null; // detalle de todas las ventas del mes (paginas siguientes)
 }): Promise<Uint8Array> {
   const { pro } = o;
   const rental = pro.mode === "rental";
@@ -163,6 +165,56 @@ export async function buildReceiptPdf(o: {
   text("Firma profesional", M, y - 12, 8, font, GRAY);
   textRight("Firma administración", W - M, y - 12, 8, font, GRAY);
   text("Verde: suma al profesional. Rojo: descuenta al profesional. Documento de apoyo generado con re-booking.", M, M - 8, 7, font, GRAY);
+
+  // ---- Detalle de TODAS las ventas del mes (paginas siguientes) ----
+  if (o.sales) {
+    const sd = o.sales;
+    const MEDIOS: Record<string, string> = { cash: "Efectivo", debit_card: "Debito", credit_card: "Credito", transfer: "Transf.", mixed: "Mixto", mercadopago: "M. Pago" };
+    // Privacidad: solo nombre de pila e inicial del apellido.
+    const corto = (n: string) => { const p = String(n || "").trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1][0]}.` : p[0] || "-"; };
+    const wrap = (t: string, width: number, size: number, f: PDFFont = font): string[] => {
+      const words = safe(t).split(/\s+/).filter(Boolean); const lines: string[] = []; let cur = "";
+      for (const w of words) { const next = cur ? `${cur} ${w}` : w; if (f.widthOfTextAtSize(next, size) <= width) cur = next; else { if (cur) lines.push(cur); cur = w; } }
+      if (cur) lines.push(cur);
+      return lines.length ? lines : ["-"];
+    };
+    page = pdf.addPage([W, H]); y = H - M;
+    text(o.businessName, M, y - 6, 12, bold);
+    textRight("DETALLE DE VENTAS", W - M, y - 6, 11, bold, DARK);
+    text(`${pro.name} - ${o.monthLabel}`, M, y - 22, 10, font, GRAY);
+    textRight(`${sd.resumen.ventas} ventas`, W - M, y - 22, 10, font, GRAY);
+    y -= 44; rule(y); y -= 20;
+    const sum = (label: string, val: string, note?: string) => { text(label, M, y, 9, font, GRAY); if (note) text(note, M + 150, y, 8, font, GRAY); textRight(val, W - M, y, 10, bold, DARK); y -= 15; };
+    sum("Servicios", clp(sd.resumen.servicios), rental ? undefined : `base de su ${sd.rate}%`);
+    sum("Productos vendidos", clp(sd.resumen.productos), "no suman al profesional (solo cosmeticos dan comision)");
+    sum("Propinas", clp(sd.resumen.propinas), "100% para el profesional");
+    sum("Comision por cosmeticos", clp(sd.resumen.comisionProductos));
+    if (!rental && sd.resumen.comisionServicios !== null) sum(`Comision sobre servicios (${sd.rate}%)`, clp(sd.resumen.comisionServicios));
+    y -= 6;
+    const cF = M, cC = M + 58, cD = M + 150, cP = M + 330, cT = W - M - 52, cTot = W - M;
+    const header = () => {
+      text("FECHA", cF, y, 7, bold, GRAY); text("CLIENTE", cC, y, 7, bold, GRAY); text("QUE SE VENDIO", cD, y, 7, bold, GRAY); text("PAGO", cP, y, 7, bold, GRAY);
+      textRight("PROPINA", cT, y, 7, bold, GRAY); textRight("TOTAL", cTot, y, 7, bold, GRAY); y -= 6; rule(y); y -= 12;
+    };
+    header();
+    if (sd.ventas.length === 0) { text("Sin ventas este mes.", M, y, 9, font, GRAY); y -= 16; }
+    for (const v of sd.ventas) {
+      const itemLines: Array<{ t: string; prod: boolean }> = [];
+      if (v.items.length === 0) itemLines.push({ t: "(sin detalle)", prod: false });
+      for (const it of v.items) {
+        const label = `${it.cantidad > 1 ? `${it.cantidad}x ` : ""}${it.nombre} ${clp(it.total)}${it.tipo === "producto" ? (it.comisionProducto > 0 ? ` [PRODUCTO, comision ${clp(it.comisionProducto)}]` : " [PRODUCTO, no va al profesional]") : ""}`;
+        for (const l of wrap(label, 168, 7.5)) itemLines.push({ t: l, prod: it.tipo === "producto" });
+      }
+      const need = Math.max(14, itemLines.length * 10 + 6);
+      if (y - need < M + 30) { page = pdf.addPage([W, H]); y = H - M; header(); }
+      text(v.fecha, cF, y, 7.5, font, DARK); text(corto(v.cliente), cC, y, 7.5, font, DARK);
+      itemLines.forEach((l, k) => text(l.t, cD, y - k * 10, 7.5, font, l.prod ? RED : DARK));
+      text(MEDIOS[v.medio] || v.medio || "-", cP, y, 7.5, font, DARK);
+      textRight(v.propina > 0 ? clp(v.propina) : "-", cT, y, 7.5, font, DARK); textRight(clp(v.total), cTot, y, 7.5, bold, DARK);
+      y -= need; page.drawLine({ start: { x: M, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.4, color: LINE });
+    }
+    text("Rojo: producto (no va al profesional salvo cosmeticos). Documento de apoyo generado con re-booking.", M, M - 8, 7, font, GRAY);
+  }
 
   return pdf.save();
 }
