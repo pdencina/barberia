@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Send, ArrowRight, LifeBuoy } from "lucide-react";
+import { X, Send, ArrowRight, LifeBuoy, Mic } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useToast } from "@/components/ui/toast";
 import { todayInChile } from "@/lib/utils";
@@ -99,6 +99,34 @@ export function OtiWidget() {
   const inicio = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null);
   useEffect(() => { const g = leerPosicion(); if (g) setPos(g); }, []);
   useEffect(() => { const f = () => { mostrarOti(); setAbierto(true); }; window.addEventListener("oti-abrir", f); return () => window.removeEventListener("oti-abrir", f); }, []);
+
+  // ---- Voz: el micrófono transcribe a la caja de texto (no envía solo). Usa el reconocimiento de voz del navegador (Safari en iPhone). ----
+  const recRef = useRef<any>(null);
+  const [vozLista, setVozLista] = useState(false);
+  const [escuchando, setEscuchando] = useState(false);
+  const [pedirVoz, setPedirVoz] = useState(false);
+  useEffect(() => { const w = window as any; setVozLista(!!(w.SpeechRecognition || w.webkitSpeechRecognition)); }, []);
+  const hablar = (auto = false) => {
+    if (escuchando) { try { recRef.current?.stop(); } catch {} return; }
+    const w = window as any; const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
+    if (!SR) { showToast("Tu navegador no permite dictar. Escríbele a Oti.", "error"); return; }
+    try {
+      const rec = new SR();
+      rec.lang = "es-CL"; rec.interimResults = true; rec.continuous = false;
+      rec.onresult = (e: any) => { const t = Array.from(e.results).map((r: any) => r[0]?.transcript || "").join(" ").trim(); setTexto(t.slice(0, 300)); };
+      rec.onend = () => setEscuchando(false);
+      rec.onerror = (e: any) => { setEscuchando(false); if (!auto && (e?.error === "not-allowed" || e?.error === "service-not-allowed")) showToast("Permite el micrófono en el navegador para hablar con Oti", "error"); };
+      recRef.current = rec; rec.start(); setEscuchando(true); setPedirVoz(false);
+    } catch { setEscuchando(false); }
+  };
+  // Enlace del botón del iPhone: /dashboard?oti=hablar abre a Oti con el micrófono a un toque.
+  useEffect(() => {
+    try {
+      const p = new URLSearchParams(window.location.search);
+      if (p.get("oti") === "hablar") { mostrarOti(); setAbierto(true); setPedirVoz(true); window.history.replaceState(null, "", window.location.pathname); }
+    } catch {}
+  }, []);
+  useEffect(() => { if (abierto && pedirVoz && vozLista) { try { hablar(true); } catch {} } }, [abierto, pedirVoz, vozLista]); // eslint-disable-line react-hooks/exhaustive-deps
   const zonaX = () => ({ cx: window.innerWidth / 2, cy: window.innerHeight - 70 });
   const sobreLaX = (x: number, y: number) => { const z = zonaX(); return Math.hypot(x + TAM / 2 - z.cx, y + TAM / 2 - z.cy) < 70; };
   const onDown = (e: React.PointerEvent<HTMLButtonElement>) => {
@@ -435,8 +463,9 @@ export function OtiWidget() {
               </div>
             )}
             <form onSubmit={(e) => { e.preventDefault(); enviar(texto); }} className="flex items-center gap-2 border-t border-gray-100 p-3 dark:border-gray-800">
-              <input ref={campo} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escríbele a Oti…" maxLength={300}
+              <input ref={campo} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder={escuchando ? "Te escucho…" : pedirVoz ? "Toca el micrófono y habla" : "Escríbele a Oti…"} maxLength={300}
                 className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-brand-dark focus:border-brand-blue focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
+              {vozLista && <button type="button" onClick={() => hablar()} aria-label={escuchando ? "Dejar de escuchar" : "Hablar con Oti"} title={escuchando ? "Escuchando… toca para terminar" : "Toca y habla"} className={`rounded-xl border p-2.5 ${escuchando ? "animate-pulse border-red-400 bg-red-50 text-red-600" : pedirVoz ? "animate-pulse border-brand-blue bg-brand-blue/10 text-brand-blue" : "border-gray-200 text-brand-gray dark:border-gray-700"}`}><Mic className="h-4 w-4" /></button>}
               <button type="submit" disabled={ocupado || !texto.trim()} aria-label="Enviar" className="rounded-xl bg-brand-blue p-2.5 text-white disabled:opacity-40"><Send className="h-4 w-4" /></button>
             </form>
           </div>
