@@ -150,6 +150,14 @@ export const CATALOGO: EntradaOti[] = [
     ruta: "/dashboard/cupones",
   },
   {
+    id: "demanda",
+    titulo: "Mapa de demanda",
+    para: "Administrador",
+    claves: ["mapa de demanda", "demanda", "horarios flojos", "horarios bajos", "dias flojos", "horas flojas", "que dias hay menos reservas", "que horarios se llenan menos", "cuando hay menos clientes", "cuando promocionar"],
+    resumen: "«Mapa de demanda» muestra en que dias y horas se agenda mas y menos (promedio de reservas por semana), con graficos y los horarios mas flojos, para cubrirlos con promociones.",
+    ruta: "/dashboard/demanda",
+  },
+  {
     id: "finanzas",
     titulo: "Ingresos y egresos",
     para: "Administrador",
