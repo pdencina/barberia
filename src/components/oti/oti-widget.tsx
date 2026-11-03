@@ -13,6 +13,7 @@ import { CATALOGO, type EntradaOti } from "@/lib/oti/catalogo";
 import { norm } from "@/lib/oti/texto";
 import { entenderConsulta, NOMBRE_MEDIO, periodo, type ConsultaOti } from "@/lib/oti/consulta";
 import { useOtiVisible, ocultarOti, mostrarOti, leerPosicion, guardarPosicion, type PosicionOti } from "@/lib/oti/visibilidad";
+import { MEDIOS_PAGO_NEGOCIO, pareceDelNegocio } from "@/lib/oti/negocio";
 import { entenderMovimientoPersonal, entenderResumenPersonal, extraerMonto, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, type MovimientoPersonal } from "@/lib/oti/personal";
 
 type Mensaje =
@@ -21,7 +22,7 @@ type Mensaje =
   | { de: "oti"; tipo: "ayuda"; entrada: EntradaOti }
   | { de: "oti"; tipo: "confirmar"; pedido: Extract<PedidoBloqueo, { ok: true }>; estado: "pendiente" | "hecho" | "cancelado" }
   | { de: "oti"; tipo: "soporte"; pregunta: string }
-  | { de: "oti"; tipo: "personal"; mov: MovimientoPersonal; estado: "pendiente" | "hecho" | "cancelado" }
+  | { de: "oti"; tipo: "personal"; mov: MovimientoPersonal; estado: "pendiente" | "hecho" | "cancelado"; destino?: "personal" | "negocio"; medio?: string }
   | { de: "oti"; tipo: "opciones"; opciones: { texto: string; ayuda?: EntradaOti; relleno?: string; soporte?: string }[] };
 
 const formatCLP = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
@@ -66,6 +67,7 @@ export function OtiWidget() {
   const fin = useRef<HTMLDivElement>(null);
   const campo = useRef<HTMLInputElement>(null);
   const r = effectiveRole || role;
+  const esAdmin = r === "admin" || r === "super_admin";
 
   useEffect(() => { fin.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, abierto, soporte]);
 
@@ -177,7 +179,7 @@ export function OtiWidget() {
           return;
         }
         setFaltaMonto(null);
-        setMsgs((m) => [...m, { de: "oti", tipo: "personal", mov: personal.movimiento, estado: "pendiente" }]);
+        setMsgs((m) => [...m, { de: "oti", tipo: "personal", mov: personal.movimiento, estado: "pendiente", destino: esAdmin && pareceDelNegocio(pregunta) ? "negocio" : "personal" }]);
         return;
       }
       setFaltaMonto(null);
@@ -233,6 +235,20 @@ export function OtiWidget() {
   const t = norm(texto);
   const ideasAyuda = t.length >= 2 ? buscarAyuda(texto, CATALOGO, 3, 2).map((x) => x.entrada) : [];
   const ideasCierre = t.length >= 2 && PARECE_CIERRE.test(t) ? EJEMPLOS_CIERRE : [];
+
+  // Administrador: el movimiento va a Ingresos/Egresos del negocio (lo ve el negocio y entra en sus cifras y en la caja si es en efectivo).
+  const guardarNegocio = async (i: number, mov: MovimientoPersonal, medio: string) => {
+    setOcupado(true);
+    try {
+      const res = await fetch("/api/oti/movimiento-negocio", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tipo: mov.tipo, monto: mov.monto, descripcion: mov.descripcion, fecha: mov.fecha, medio }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: `No pude guardarlo: ${d?.error || "intenta de nuevo"}.` }]); return; }
+      const medioTxt = MEDIOS_PAGO_NEGOCIO.find((x) => x.value === medio)?.label || medio;
+      setMsgs((m) => m.map((x, k) => (k === i && x.tipo === "personal" ? { ...x, estado: "hecho" as const } : x)).concat([{ de: "oti", tipo: "texto", texto: `Listo, anoté ${mov.tipo === "gasto" ? "un egreso" : "un ingreso"} de ${formatCLP(mov.monto)} (${medioTxt}) en Ingresos/Egresos del negocio.` }]));
+      showToast("Anotado en Ingresos/Egresos", "success");
+    } catch { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "No pude conectar. Revisa tu conexión e intenta de nuevo." }]); }
+    finally { setOcupado(false); }
+  };
 
   const guardarPersonal = async (i: number, mov: MovimientoPersonal) => {
     setOcupado(true);
@@ -331,28 +347,42 @@ export function OtiWidget() {
                 );
                 if (m.tipo === "personal") return (
                   <div key={i} className="max-w-[92%] space-y-2 rounded-2xl border border-brand-blue/30 bg-white px-3 py-3 text-sm dark:bg-gray-900">
-                    <p className="font-bold text-brand-dark dark:text-gray-100">¿Lo anoto en Mi Billetera?</p>
+                    <p className="font-bold text-brand-dark dark:text-gray-100">{m.destino === "negocio" ? "¿Lo anoto en Ingresos/Egresos del negocio?" : "¿Lo anoto en Mi Billetera?"}</p>
                     <p className="text-brand-dark dark:text-gray-200">
                       <b className={m.mov.tipo === "gasto" ? "text-red-600" : "text-emerald-600"}>{m.mov.tipo === "gasto" ? "Gasto" : "Ingreso"} de {formatCLP(m.mov.monto)}</b><br />
                       «{m.mov.descripcion}» · {m.mov.fecha.split("-").reverse().join("/")}
                     </p>
                     {m.estado === "pendiente" ? (
                       <>
+                        {esAdmin && (
+                          <div className="inline-flex rounded-lg border border-gray-200 p-0.5 text-xs dark:border-gray-700">
+                            {(["personal", "negocio"] as const).map((d) => (
+                              <button key={d} type="button" onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, destino: d } : y)))} className={`rounded-md px-2.5 py-1 font-semibold ${(m.destino || "personal") === d ? "bg-brand-blue text-white" : "text-brand-gray"}`}>{d === "personal" ? "Personal" : "Del negocio"}</button>
+                            ))}
+                          </div>
+                        )}
                         <div className="flex flex-wrap items-center gap-2 text-xs">
+                          {m.destino === "negocio" ? (
+                            <select value={m.medio || ""} onChange={(e) => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, medio: e.target.value } : y)))} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">
+                              <option value="">¿Cómo se pagó?</option>
+                              {MEDIOS_PAGO_NEGOCIO.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+                            </select>
+                          ) : (
                           <select value={m.mov.categoria} onChange={(e) => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, mov: { ...y.mov, categoria: e.target.value } } : y)))} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs dark:border-gray-700 dark:bg-gray-950">
                             {[...(m.mov.tipo === "gasto" ? CATEGORIAS_GASTO : CATEGORIAS_INGRESO)].map((c) => <option key={c} value={c}>{c}</option>)}
                           </select>
+                          )}
                           <button type="button" onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, mov: { ...y.mov, tipo: y.mov.tipo === "gasto" ? "ingreso" : "gasto", categoria: y.mov.tipo === "gasto" ? "Otros ingresos" : "Otros" } } : y)))} className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-brand-gray dark:border-gray-700">{m.mov.tipo === "gasto" ? "Es un ingreso" : "Es un gasto"}</button>
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" disabled={ocupado} onClick={() => guardarPersonal(i, m.mov)} className="rounded-xl bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Sí, anotar</button>
+                          <button type="button" disabled={ocupado || (m.destino === "negocio" && !m.medio)} onClick={() => (m.destino === "negocio" ? guardarNegocio(i, m.mov, m.medio || "") : guardarPersonal(i, m.mov))} className="rounded-xl bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Sí, anotar</button>
                           <button type="button" disabled={ocupado} onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, estado: "cancelado" as const } : y)).concat([{ de: "oti", tipo: "texto", texto: "Listo, no anoté nada." }]))} className="rounded-xl border border-gray-200 px-3 py-1.5 text-xs text-brand-gray dark:border-gray-700">No</button>
                         </div>
                       </>
                     ) : (
                       <div className="flex items-center gap-2 text-xs text-brand-gray">
                         <span>{m.estado === "hecho" ? "Anotado." : "Sin cambios."}</span>
-                        {m.estado === "hecho" && <button type="button" onClick={() => { router.push("/dashboard/mi-billetera"); setAbierto(false); }} className="inline-flex items-center gap-1 rounded-lg border border-brand-blue/40 px-2 py-1 font-semibold text-brand-blue">Ver mis gastos <ArrowRight className="h-3 w-3" /></button>}
+                        {m.estado === "hecho" && <button type="button" onClick={() => { router.push(m.destino === "negocio" ? "/dashboard/finanzas" : "/dashboard/mi-billetera"); setAbierto(false); }} className="inline-flex items-center gap-1 rounded-lg border border-brand-blue/40 px-2 py-1 font-semibold text-brand-blue">{m.destino === "negocio" ? "Ver en Ingresos/Egresos" : "Ver mis gastos"} <ArrowRight className="h-3 w-3" /></button>}
                       </div>
                     )}
                   </div>
