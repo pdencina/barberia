@@ -150,3 +150,9 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   assert.ok(y!.texto.startsWith("Con *Matías Soto* hoy tengo: 16:00 · 17:00."));
   console.log("OK nombre solo");
 })();
+(async () => {
+  const a = armar({ etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
+  assert.equal(await manejarReservaChat("tienen hora hoy a las 5:30?", TEL, datos(), a.deps), null);
+  assert.equal(a.e.estado?.etapa, "datos");
+  console.log("OK pregunta durante datos");
+})();
