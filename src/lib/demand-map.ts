@@ -38,7 +38,7 @@ export function construirMapa(rows: DemandRow[], weeks: number, desde: string, h
   // Horas a mostrar: de la primera a la ultima que tenga al menos 3 reservas en el periodo (descarta horas sueltas fuera de horario).
   const porHora = new Map<number, number>();
   for (const c of cells) porHora.set(c.hour, (porHora.get(c.hour) || 0) + c.total);
-  const activas = Array.from(porHora.entries()).filter(([, n]) => n >= 3).map(([h]) => h);
+  const activas = Array.from(porHora.entries()).filter(([, n]) => n >= 3 && n / weeks >= 2).map(([h]) => h); // al menos 2 reservas por semana en total
   const horas: number[] = [];
   if (activas.length) for (let h = Math.min(...activas); h <= Math.max(...activas); h++) horas.push(h);
   const porDia = [1, 2, 3, 4, 5, 6, 7].map((dow) => ({ dow, total: dia.get(dow) || 0, avg: (dia.get(dow) || 0) / weeks }));
@@ -62,3 +62,20 @@ export function horariosFlojos(mapa: DemandMap, descanso: number[] = [], max = 8
   }
   return out.sort((a, b) => a.avg - b.avg || a.dow - b.dow || a.hour - b.hour).slice(0, max);
 }
+
+export type Nivel = "fuerte" | "normal" | "flojo";
+// Dias: frente al promedio de los dias en que se atiende (los casi cerrados no cuentan).
+export function nivelesPorDia(mapa: DemandMap): Map<number, { avg: number; nivel: Nivel | "cerrado" }> {
+  const abiertos = mapa.porDia.filter((d) => d.avg >= 5);
+  const media = abiertos.length ? abiertos.reduce((t, d) => t + d.avg, 0) / abiertos.length : 0;
+  return new Map(mapa.porDia.map((d) => [d.dow, { avg: d.avg, nivel: d.avg < 5 ? "cerrado" : d.avg < media * 0.75 ? "flojo" : d.avg > media * 1.2 ? "fuerte" : "normal" }]));
+}
+// Horas: promedio de reservas por semana en esa hora, sumando los dias en que se atiende.
+export function nivelesPorHora(mapa: DemandMap): { hour: number; avg: number; nivel: Nivel }[] {
+  const abiertos = new Set(mapa.porDia.filter((d) => d.avg >= 5).map((d) => d.dow));
+  const base = mapa.horas.map((hour) => ({ hour, avg: mapa.cells.filter((c) => c.hour === hour && abiertos.has(c.dow)).reduce((t, c) => t + c.avg, 0) / Math.max(1, abiertos.size) }));
+  const media = base.length ? base.reduce((t, b) => t + b.avg, 0) / base.length : 0;
+  return base.map((b) => ({ ...b, nivel: b.avg < media * 0.6 ? "flojo" : b.avg > media * 1.3 ? "fuerte" : "normal" }));
+}
+// Una celda (dia + hora) frente a la mas fuerte del mapa.
+export function nivelCelda(avg: number, maxAvg: number): Nivel { const r = maxAvg > 0 ? avg / maxAvg : 0; return r >= 0.6 ? "fuerte" : r <= 0.3 ? "flojo" : "normal"; }
