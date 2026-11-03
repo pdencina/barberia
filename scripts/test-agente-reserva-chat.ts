@@ -137,3 +137,16 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   });
   console.log(`OK ${casos} casos de reserva por chat; memoria y reserva simuladas; sin red, base ni llaves.`);
 })();
+(async () => {
+  const mk = (e: EstadoChat) => { const a = armar(e); return a; };
+  const EX: EstadoChat = { etapa: "oferta", datos: { horaExacta: "16:00", opciones: [
+    { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", horas: ["16:00", "16:45"] },
+    { id: "m", nombre: "Matías Soto", duracionMin: 45, fecha: "2026-11-03", horas: ["16:00", "17:00"] } ] } };
+  const a = mk(EX);
+  const x = await manejarReservaChat("con matias soto", TEL, datos(), a.deps);
+  assert.ok(x!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto* hoy a las *16:00*."));
+  const b = mk({ etapa: "oferta", datos: { horaExacta: null, opciones: EX.datos.opciones } });
+  const y = await manejarReservaChat("con Matías", TEL, datos(), b.deps);
+  assert.ok(y!.texto.startsWith("Con *Matías Soto* hoy tengo: 16:00 · 17:00."));
+  console.log("OK nombre solo");
+})();

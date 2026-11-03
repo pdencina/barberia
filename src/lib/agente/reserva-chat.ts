@@ -82,6 +82,15 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       // Dijo una hora que tienen varios profesionales y se le preguntó con quién: ahora basta el nombre.
       for (const o of op) if (o.horas.includes(estado.datos.horaPendiente) && nombreMencionado(t, o.nombre)) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: estado.datos.horaPendiente });
       if (elegidas.length === 0) return null;
+    } else if (op.some((o) => nombreMencionado(t, o.nombre))) {
+      // Solo dijo con quién ("con Matías"): si la consulta era por una hora exacta, es esa; si no, se le piden las horas de esa persona.
+      const quien = op.filter((o) => nombreMencionado(t, o.nombre));
+      const exacta = estado.datos.horaExacta;
+      for (const o of quien) if (exacta && o.horas.includes(exacta)) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: exacta });
+      if (elegidas.length === 0) {
+        const o = quien[0];
+        return { texto: `Con *${o.nombre}* ${textoDeFecha(o.fecha, hoy)} tengo: ${o.horas.slice(0, 6).join(" · ")}.\n\nEscríbeme la hora que prefieras, por ejemplo: «la de las ${o.horas[0]}».` };
+      }
     } else if (AFIRMATIVO.test(t) && estado.datos.horaExacta && op.length === 1 && op[0].horas.includes(estado.datos.horaExacta)) {
       elegidas = [{ id: op[0].id, nombre: op[0].nombre, duracionMin: op[0].duracionMin, fecha: op[0].fecha, hora: estado.datos.horaExacta }];
     } else return null;
