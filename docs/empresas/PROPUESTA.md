@@ -131,7 +131,7 @@ Sección 15 de `AGENTS.md`: Codex escribe en ramas `codex/*` con ficha de tarea,
 
 **INFERENCIA — por qué no cuadra hoy:** no se sabe todavía. Felipe describe el síntoma, no la causa. Un sistema nuevo no lo arregla por sí solo: si alguien saca un producto sin registrarlo, el saldo vuelve a descuadrarse. Por eso importa más el proceso de bodega que la pantalla.
 
-### Nuevo orden (recomendación, decide Nico)
+### Nuevo orden (aprobado por Nico el 3 nov. 2026)
 
 1. **Etapa 1 — Stock confiable:** panel, roles, catálogo, importación desde Excel, toma de inventario (contar, comparar y ajustar con motivo), pedidos que reservan stock al confirmarse y salida que lo descuenta al despachar. Se muestra físico, reservado y disponible.
 2. **Etapa 2 — Vendedores:** cartera por vendedor, registro de gestiones con resultado, cola obligatoria y reporte semanal a Felipe (reutiliza informes por correo y cron).
@@ -151,3 +151,9 @@ Sección 15 de `AGENTS.md`: Codex escribe en ramas `codex/*` con ficha de tarea,
 3. Cuando un cliente no contesta, ¿cuántos intentos y cada cuántos días antes de pasarlo a otro estado?
 4. ¿El distribuidor ve la cantidad exacta o solo "disponible / agotado"? ¿Ve precios propios?
 5. ¿Los clientes aceptaron recibir publicidad por WhatsApp? ¿Tienen un número de WhatsApp Business para la empresa?
+
+### Avance de la Etapa 1 (3 nov. 2026)
+
+**HECHO, solo en `rebooking-pruebas` y sin pantallas:** migración 126 (clientes comerciales, pedidos y stock reservado) y 127 (toma de inventario), con `scripts/test-empresas-pedidos.ts`.
+**Reglas:** confirmar reserva; despachar descuenta físico y reserva; cancelar libera. Salidas y traspasos solo usan lo disponible. El conteo físico manda aunque quede bajo lo reservado: ese pedido no se despacha hasta resolver el faltante. Al cerrar un conteo se aplica solo la diferencia, para no pisar lo vendido mientras se contaba.
+**Falta en la Etapa 1:** capacidades por rol, rutas API, login y panel `/empresa`, importación desde Excel. Devoluciones de lo ya despachado: sin definir.
