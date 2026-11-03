@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { parsePlaceId, googleReviewUrl } from "@/lib/google-review";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 
 // Preferencias de la página pública de reservas: banner, descripción, Google Maps,
@@ -14,6 +15,8 @@ function pick(t: any) {
     website: t.website ?? "",
     phone: t.phone ?? "",
     google_maps_url: t.google_maps_url ?? "",
+    google_place_id: t.google_place_id ?? "",
+    google_review_url: googleReviewUrl(t.google_place_id),
     google_rating: t.google_rating ?? null,
     google_reviews_count: t.google_reviews_count ?? null,
     booking_view_mode: t.booking_view_mode ?? "professional",
@@ -48,6 +51,12 @@ export async function POST(req: NextRequest) {
     if (url && !/^https?:\/\//i.test(url)) return NextResponse.json({ error: "El link de Google Maps debe empezar con https://" }, { status: 400 });
     update.google_maps_url = url || null;
   }
+  if (body.google_place_id !== undefined) {
+    const raw = String(body.google_place_id || "").trim();
+    const id = parsePlaceId(raw);
+    if (raw && !id) return NextResponse.json({ error: "No reconozco ese ID de Google. Pega el ID que empieza con ChIJ… o el link de reseñas completo." }, { status: 400 });
+    update.google_place_id = id;
+  }
   if (body.google_rating !== undefined) {
     if (body.google_rating === null || body.google_rating === "") update.google_rating = null;
     else {
@@ -76,7 +85,7 @@ export async function POST(req: NextRequest) {
   const { error } = await supabase.from("tenants").update(update).eq("id", tenantId);
   if (error) {
     const missing = /column .* does not exist|schema cache/i.test(error.message);
-    return NextResponse.json({ error: missing ? `Falta aplicar la migración ${"booking_show_profile_direct" in update ? "103" : "082"} en la base de datos.` : error.message }, { status: 500 });
+    return NextResponse.json({ error: missing ? `Falta aplicar la migración ${"google_place_id" in update ? "129" : "booking_show_profile_direct" in update ? "103" : "082"} en la base de datos.` : error.message }, { status: 500 });
   }
   return NextResponse.json({ success: true });
 }

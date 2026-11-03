@@ -26,6 +26,7 @@ export default function PreferenciasReservasPage() {
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [mapsUrl, setMapsUrl] = useState("");
+  const [placeId, setPlaceId] = useState("");
   const [rating, setRating] = useState("");
   const [reviews, setReviews] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("professional");
@@ -45,6 +46,7 @@ export default function PreferenciasReservasPage() {
         setBannerUrl(d.banner_url || null);
         setDescription(d.description || "");
         setMapsUrl(d.google_maps_url || "");
+        setPlaceId(d.google_place_id || "");
         setRating(d.google_rating != null ? String(d.google_rating) : "");
         setReviews(d.google_reviews_count != null ? String(d.google_reviews_count) : "");
         setViewMode((d.booking_view_mode as ViewMode) || "professional");
@@ -99,6 +101,7 @@ export default function PreferenciasReservasPage() {
           tenantId: tenant?.id,
           description,
           google_maps_url: mapsUrl,
+          google_place_id: placeId,
           google_rating: rating,
           google_reviews_count: reviews,
           booking_view_mode: viewMode,
@@ -167,6 +170,12 @@ export default function PreferenciasReservasPage() {
           <div>
             <label className="mb-1 block text-xs font-semibold text-brand-gray">Link de Google Maps</label>
             <input value={mapsUrl} onChange={(e) => setMapsUrl(e.target.value)} placeholder="https://maps.app.goo.gl/..." className={inputClass} />
+          </div>
+          <div className="rounded-xl border border-gray-100 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-900/40">
+            <label className="mb-1 block text-xs font-semibold text-brand-dark">ID de tu negocio en Google (para el botón «Califícanos»)</label>
+            <input value={placeId} onChange={(e) => setPlaceId(e.target.value)} placeholder="ChIJ…  (o pega el link de reseñas completo)" className={inputClass} />
+            <p className="mt-1.5 text-[11px] leading-relaxed text-brand-gray">Con esto, el correo que reciben tus clientes abre <b>directo el formulario para dejar la reseña</b>, sin que tengan que buscar el botón. Cómo sacarlo: entra a <a href="https://developers.google.com/maps/documentation/places/web-service/place-id" target="_blank" rel="noopener noreferrer" className="text-brand-blue underline">el buscador de Place ID de Google</a>, escribe el nombre de tu negocio, y copia el ID que empieza con <b>ChIJ</b>. Si lo dejas vacío, se usa el link de Google Maps de arriba.</p>
+            {placeId.trim() && <a href={/^https?:\/\//i.test(placeId.trim()) ? placeId.trim() : `https://search.google.com/local/writereview?placeid=${encodeURIComponent(placeId.trim())}`} target="_blank" rel="noopener noreferrer" className="mt-1.5 inline-flex items-center gap-1 text-xs text-brand-blue underline">Probar el link de reseñas <ExternalLink className="h-3 w-3" /></a>}
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
