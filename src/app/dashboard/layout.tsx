@@ -15,6 +15,7 @@ import { AppLock } from "@/components/app-lock";
 import { NativePushSync } from "@/components/native-push-sync";
 import { SupportWidget } from "@/components/support/support-widget";
 import { OtiWidget } from "@/components/oti/oti-widget";
+import { isEmpresasEnabled } from "@/lib/empresas/flag";
 
 export default async function DashboardLayout({
   children,
@@ -34,6 +35,13 @@ export default async function DashboardLayout({
     .select("name, role, tenant_id, tenant:tenants(name, status, admin_email, must_change_password, temp_password, created_at)")
     .eq("id", user.id)
     .single();
+
+  // Un usuario de empresa no usa el panel de salón. Con Empresas apagado no se hace esta consulta; si falta la migración, no redirige.
+  if (isEmpresasEnabled()) {
+    const { data: companyMember } = await createAdminSupabase()
+      .from("company_members").select("id").eq("user_id", user.id).eq("active", true).limit(1).maybeSingle();
+    if (companyMember) redirect("/empresa");
+  }
 
   // Primer ingreso de un negocio nuevo: obliga a crear una clave propia (dos veces) antes de
   // entrar. Solo aplica al administrador del negocio, mientras la clave temporal siga vigente,
