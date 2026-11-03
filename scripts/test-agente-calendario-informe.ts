@@ -28,6 +28,11 @@ check("retroceso Chile: primer tramo informa una vez", () => { const d=decision(
 check("retroceso Chile: última fecha impide duplicar en hora repetida", () => assert.equal(decision(Date.UTC(2026,3,5,3), { send_local_time: "23:00" }, "2026-04-04").toca, false));
 check("cada 3 días: distancia civil cruza horario de verano", () => assert.equal(decision(Date.UTC(2026,8,8,0), { frequency: "every_3_days", anchor_date: "2026-09-04" }).toca, true));
 check("cada 3 días: no adelanta fecha intermedia", () => assert.equal(decision(Date.UTC(2026,8,7,0), { frequency: "every_3_days", anchor_date: "2026-09-04" }).toca, false));
+check("cada 2 semanas: toca a los 14 días de la ancla", () => assert.equal(decision(Date.UTC(2026,8,19,0), { frequency: "every_14_days", anchor_date: "2026-09-04" }).toca, true));
+check("cada 2 semanas: no toca a los 7 días", () => assert.equal(decision(Date.UTC(2026,8,12,0), { frequency: "every_14_days", anchor_date: "2026-09-04" }).toca, false));
+check("cada 2 semanas: toca el mismo día de la ancla", () => assert.equal(decision(Date.UTC(2026,8,5,2), { frequency: "every_14_days", anchor_date: "2026-09-04" }).toca, true));
+check("cada 4 semanas: toca a los 28 días y no a los 14", () => { assert.equal(decision(Date.UTC(2026,9,3,0), { frequency: "every_28_days", anchor_date: "2026-09-04" }).toca, true); assert.equal(decision(Date.UTC(2026,8,19,0), { frequency: "every_28_days", anchor_date: "2026-09-04" }).toca, false); });
+check("cada 2 y 4 semanas: exigen fecha ancla al activar", () => { for (const frequency of ["every_14_days", "every_28_days"] as const) assert.throws(() => decision(Date.UTC(2026,8,19,0), { frequency, anchor_date: null })); });
 check("semanal lunes", () => assert.equal(decision(Date.UTC(2026,9,27,0), { frequency: "weekly", weekly_weekday: 1 }).toca,true));
 check("personalizado martes no lunes", () => assert.equal(decision(Date.UTC(2026,9,27,0), { frequency: "custom", custom_weekdays:[2] }).toca,false));
 check("cambio de frecuencia con nueva ancla sin retroactividad", () => assert.equal(decision(Date.UTC(2026,9,27,0), { frequency:"every_3_days", anchor_date:"2026-10-27", effective_from:"2026-10-27" }).toca,false));

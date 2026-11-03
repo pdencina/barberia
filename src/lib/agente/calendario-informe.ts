@@ -7,7 +7,7 @@ export const POLITICA_INFORME = Object.freeze({
 
 export interface PreferenciaCalendarioInforme {
   enabled: boolean;
-  frequency: "daily" | "every_3_days" | "weekly" | "custom";
+  frequency: "daily" | "every_3_days" | "weekly" | "custom" | "every_14_days" | "every_28_days";
   custom_weekdays: readonly number[];
   weekly_weekday: number | null;
   anchor_date: string | null;
@@ -41,11 +41,11 @@ function segundos(value: string): number {
   return h * 3600 + m * 60 + s;
 }
 function validar(p: PreferenciaCalendarioInforme): void {
-  if (!p || typeof p.enabled !== "boolean" || !["daily", "every_3_days", "weekly", "custom"].includes(p.frequency)) throw new Error("Preferencia inválida");
+  if (!p || typeof p.enabled !== "boolean" || !["daily", "every_3_days", "weekly", "custom", "every_14_days", "every_28_days"].includes(p.frequency)) throw new Error("Preferencia inválida");
   if (p.effective_from !== null) ordinal(p.effective_from);
   else if (p.enabled) throw new Error("Falta fecha de vigencia");
   if (p.anchor_date !== null) ordinal(p.anchor_date);
-  if (p.enabled && p.frequency === "every_3_days" && p.anchor_date === null) throw new Error("Falta fecha ancla");
+  if (p.enabled && ["every_3_days", "every_14_days", "every_28_days"].includes(p.frequency) && p.anchor_date === null) throw new Error("Falta fecha ancla");
   if (p.frequency === "weekly" && (p.weekly_weekday !== null || p.enabled) && (!Number.isInteger(p.weekly_weekday) || p.weekly_weekday! < 0 || p.weekly_weekday! > 6)) throw new Error("Día semanal inválido");
   if (!Array.isArray(p.custom_weekdays) || p.custom_weekdays.some(d => !Number.isInteger(d) || d < 0 || d > 6) || new Set(p.custom_weekdays).size !== p.custom_weekdays.length) throw new Error("Días personalizados inválidos");
   if (p.enabled && p.frequency === "custom" && p.custom_weekdays.length === 0) throw new Error("Elige días personalizados");
@@ -61,6 +61,15 @@ function corresponde(p: PreferenciaCalendarioInforme, day: number): boolean {
     case "every_3_days": {
       const distance = day - ordinal(p.anchor_date!);
       return distance >= 0 && distance % 3 === 0;
+    }
+    // Cada 2 y cada 4 semanas: desde la fecha ancla, múltiplos de 14 y de 28 días corridos.
+    case "every_14_days": {
+      const distance = day - ordinal(p.anchor_date!);
+      return distance >= 0 && distance % 14 === 0;
+    }
+    case "every_28_days": {
+      const distance = day - ordinal(p.anchor_date!);
+      return distance >= 0 && distance % 28 === 0;
     }
   }
 }

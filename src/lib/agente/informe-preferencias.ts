@@ -14,7 +14,7 @@ type Settings = {
   weekly_weekday: number | null; anchor_date: string | null;
   send_local_time: string | null; effective_from: string | null;
 };
-const defaults = (): Settings => ({ enabled: false, frequency: "daily", custom_weekdays: [], weekly_weekday: null, anchor_date: null, send_local_time: null, effective_from: null });
+const defaults = (): Settings => ({ enabled: false, frequency: "every_14_days", custom_weekdays: [], weekly_weekday: null, anchor_date: null, send_local_time: null, effective_from: null });
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const error = (message: string, status: number) => json({ error: message }, status);
 const migration = () => json({ error: "Falta aplicar la migración", enabled: false }, 503);
@@ -24,7 +24,7 @@ const uuid = (v: unknown): v is string => typeof v === "string" && /^[a-f\d]{8}-
 // No correo ni campos de identidad/revisión/timestamps en el whitelist de escritura.
 function validate(s: Settings): string | null {
   if (typeof s.enabled !== "boolean") return "enabled debe ser booleano";
-  if (!["daily", "every_3_days", "weekly", "custom"].includes(s.frequency)) return "Frecuencia inválida";
+  if (!["daily", "every_3_days", "weekly", "custom", "every_14_days", "every_28_days"].includes(s.frequency)) return "Frecuencia inválida";
   if (!Array.isArray(s.custom_weekdays) || s.custom_weekdays.some(d => !Number.isInteger(d) || d < 0 || d > 6) || new Set(s.custom_weekdays).size !== s.custom_weekdays.length) return "Días inválidos: usa 0 a 6 sin repetidos";
   if (s.weekly_weekday !== null && (!Number.isInteger(s.weekly_weekday) || s.weekly_weekday < 0 || s.weekly_weekday > 6)) return "Día semanal inválido";
   if (s.frequency !== "weekly" && s.weekly_weekday !== null) return "El día semanal solo se usa en frecuencia semanal";
@@ -35,9 +35,9 @@ function validate(s: Settings): string | null {
   if (s.send_local_time !== null && (typeof s.send_local_time !== "string" || !/^([01]\d|2[0-3]):[0-5]\d(?::[0-5]\d)?$/.test(s.send_local_time))) return "Hora inválida; usa HH:mm o HH:mm:ss";
   if (s.enabled) {
     if (!s.effective_from || !s.send_local_time) return "Para activar indica effective_from y send_local_time";
-    if (s.frequency === "every_3_days" && !s.anchor_date) return "Para activar cada 3 días indica anchor_date";
-    if (s.frequency === "weekly" && s.weekly_weekday === null) return "Para activar semanal indica weekly_weekday";
-    if (s.frequency === "custom" && s.custom_weekdays.length === 0) return "Para activar personalizada elige al menos un día";
+    // Política de ahorro de correos: solo se puede activar cada 2 o cada 4 semanas.
+    if (s.frequency !== "every_14_days" && s.frequency !== "every_28_days") return "El informe solo puede enviarse cada 2 semanas o cada 4 semanas";
+    if (!s.anchor_date) return "Para activar indica anchor_date (fecha del primer informe)";
   }
   return null;
 }

@@ -13,10 +13,8 @@ import {
 const box = "rounded-2xl border border-gray-100 bg-white p-4 md:p-5 space-y-4";
 const input = "w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-brand-dark focus:border-brand-blue focus:outline-none";
 const FRECUENCIAS: Array<{ v: FrecuenciaInforme; l: string }> = [
-  { v: "daily", l: "Todos los días" },
-  { v: "every_3_days", l: "Cada 3 días" },
-  { v: "weekly", l: "Una vez por semana" },
-  { v: "custom", l: "Días que elijo" },
+  { v: "every_14_days", l: "Cada 2 semanas" },
+  { v: "every_28_days", l: "Cada 4 semanas" },
 ];
 
 // Mi Perfil > Informes: cada administrador decide si recibe por correo el resumen de las citas del dia, y cada cuanto.

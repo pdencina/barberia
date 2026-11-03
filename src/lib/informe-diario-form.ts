@@ -1,6 +1,6 @@
 // Formulario "Informe de citas por correo" (Mi Perfil): convierte lo que el administrador elige en el cuerpo que acepta
 // PUT /api/agente/informe-preferencias, y valida lo minimo antes de enviar. Sin red ni reloj: la fecha de hoy es un parametro.
-export type FrecuenciaInforme = "daily" | "every_3_days" | "weekly" | "custom";
+export type FrecuenciaInforme = "daily" | "every_3_days" | "weekly" | "custom" | "every_14_days" | "every_28_days";
 export const HORA_INFORME_PREDETERMINADA = "21:00"; // decision de Nico (26 oct. 2026); igual a POLITICA_INFORME.horaPredeterminada
 export const DIAS_SEMANA = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"] as const; // 0 = domingo, como el calendario
 
@@ -14,7 +14,7 @@ export interface FormularioInforme {
   effective_from: string | null;
 }
 export const formularioInicial = (): FormularioInforme => ({
-  enabled: false, frequency: "daily", weekly_weekday: null, custom_weekdays: [],
+  enabled: false, frequency: "every_14_days", weekly_weekday: null, custom_weekdays: [],
   send_local_time: HORA_INFORME_PREDETERMINADA, anchor_date: null, effective_from: null,
 });
 
@@ -25,7 +25,7 @@ export function desdeRespuesta(p: any): FormularioInforme {
   const hora = typeof p.send_local_time === "string" ? p.send_local_time.slice(0, 5) : null;
   return {
     enabled: p.enabled === true,
-    frequency: ["daily", "every_3_days", "weekly", "custom"].includes(p.frequency) ? p.frequency : "daily",
+    frequency: p.frequency === "every_28_days" ? "every_28_days" : "every_14_days", // solo se ofrecen cada 2 y cada 4 semanas; una preferencia antigua pasa a cada 2 semanas
     weekly_weekday: Number.isInteger(p.weekly_weekday) ? p.weekly_weekday : null,
     custom_weekdays: Array.isArray(p.custom_weekdays) ? p.custom_weekdays.filter((d: unknown) => Number.isInteger(d)) : [],
     send_local_time: hora && /^([01]\d|2[0-3]):[0-5]\d$/.test(hora) ? hora : base.send_local_time,
@@ -44,14 +44,14 @@ export function problemaFormulario(f: FormularioInforme): string | null {
 }
 
 // Cuerpo para el PUT: solo campos permitidos, con lo que no aplica a la frecuencia elegida limpio.
-// Al encender se fija la vigencia en hoy y, para "cada 3 días", la fecha de partida en hoy (si no tenian una).
+// Al encender se fija la vigencia en hoy y, para "cada 2 / 4 semanas", la fecha del primer informe en hoy (si no tenian una).
 export function aCuerpoPut(f: FormularioInforme, hoy: string) {
   return {
     enabled: f.enabled,
     frequency: f.frequency,
     custom_weekdays: f.frequency === "custom" ? Array.from(new Set(f.custom_weekdays)).sort((a, b) => a - b) : [],
     weekly_weekday: f.frequency === "weekly" ? f.weekly_weekday : null,
-    anchor_date: f.frequency === "every_3_days" ? f.anchor_date ?? hoy : null,
+    anchor_date: f.frequency === "every_3_days" || f.frequency === "every_14_days" || f.frequency === "every_28_days" ? f.anchor_date ?? hoy : null,
     send_local_time: f.send_local_time,
     effective_from: f.effective_from ?? (f.enabled ? hoy : null),
   };

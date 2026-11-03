@@ -8,11 +8,16 @@ const HOY = "2026-10-27";
 const CAMPOS = ["enabled", "frequency", "custom_weekdays", "weekly_weekday", "anchor_date", "send_local_time", "effective_from"];
 
 const ini = formularioInicial();
-t("inicial: apagado, diario y 21:00", !ini.enabled && ini.frequency === "daily" && ini.send_local_time === "21:00");
+t("inicial: apagado, cada 2 semanas y 21:00", !ini.enabled && ini.frequency === "every_14_days" && ini.send_local_time === "21:00");
 t("la hora por defecto coincide con la politica del servidor", HORA_INFORME_PREDETERMINADA === POLITICA_INFORME.horaPredeterminada);
 
 let b = aCuerpoPut({ ...ini, enabled: true }, HOY);
-t("diario: sin dias ni ancla, vigencia hoy", b.custom_weekdays.length === 0 && b.weekly_weekday === null && b.anchor_date === null && b.effective_from === HOY);
+t("cada 2 semanas: sin dias, ancla y vigencia = hoy", b.custom_weekdays.length === 0 && b.weekly_weekday === null && b.anchor_date === HOY && b.effective_from === HOY);
+b = aCuerpoPut({ ...ini, enabled: true, frequency: "every_28_days" }, HOY);
+t("cada 4 semanas: ancla = hoy si no tenia", b.frequency === "every_28_days" && b.anchor_date === HOY);
+b = aCuerpoPut({ ...ini, enabled: true, frequency: "every_28_days", anchor_date: "2026-10-20", effective_from: "2026-10-20" }, HOY);
+t("cada 4 semanas: conserva su ancla y vigencia anteriores", b.anchor_date === "2026-10-20" && b.effective_from === "2026-10-20");
+b = aCuerpoPut({ ...ini, enabled: true }, HOY);
 t("el cuerpo solo trae campos permitidos (nunca correo, ids ni revision)", JSON.stringify(Object.keys(b).sort()) === JSON.stringify([...CAMPOS].sort()));
 b = aCuerpoPut({ ...ini, enabled: true, frequency: "every_3_days" }, HOY);
 t("cada 3 dias: ancla = hoy si no tenia", b.anchor_date === HOY);
@@ -29,11 +34,13 @@ t("sin problemas si esta apagado", problemaFormulario({ ...ini, frequency: "week
 t("semanal sin dia: avisa", problemaFormulario({ ...ini, enabled: true, frequency: "weekly" }) !== null);
 t("personalizado sin dias: avisa", problemaFormulario({ ...ini, enabled: true, frequency: "custom" }) !== null);
 t("hora invalida: avisa", problemaFormulario({ ...ini, enabled: true, send_local_time: "25:00" }) !== null && problemaFormulario({ ...ini, enabled: true, send_local_time: null }) !== null);
-t("diario con hora valida: sin problema", problemaFormulario({ ...ini, enabled: true }) === null);
+t("cada 2 semanas con hora valida: sin problema", problemaFormulario({ ...ini, enabled: true }) === null);
 
 const r = desdeRespuesta({ enabled: true, frequency: "weekly", weekly_weekday: 5, custom_weekdays: [], send_local_time: "21:30:00", anchor_date: null, effective_from: "2026-10-27", revision: 3, profile_id: "x" });
 t("respuesta: recorta la hora a HH:mm y copia solo lo conocido", r.send_local_time === "21:30" && r.weekly_weekday === 5 && r.effective_from === "2026-10-27" && !("revision" in r));
 t("respuesta basura -> formulario inicial", JSON.stringify(desdeRespuesta(null)) === JSON.stringify(ini) && JSON.stringify(desdeRespuesta("x")) === JSON.stringify(ini));
-t("respuesta con frecuencia desconocida -> diaria", desdeRespuesta({ frequency: "cada_hora" }).frequency === "daily");
+t("respuesta con frecuencia desconocida -> cada 2 semanas", desdeRespuesta({ frequency: "cada_hora" }).frequency === "every_14_days");
+t("respuesta antigua diaria o semanal -> cada 2 semanas", desdeRespuesta({ frequency: "daily" }).frequency === "every_14_days" && desdeRespuesta({ frequency: "weekly" }).frequency === "every_14_days");
+t("respuesta cada 4 semanas se conserva", desdeRespuesta({ frequency: "every_28_days" }).frequency === "every_28_days");
 t("respuesta sin hora -> 21:00", desdeRespuesta({ send_local_time: null }).send_local_time === "21:00");
 process.exit(fails ? 1 : 0);
