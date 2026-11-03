@@ -21,6 +21,14 @@ const OTRO_TEMA = /\b(cierra|cerrar|bloque\w*|agenda|cita|citas|reserva|cliente|
 // Monto en pesos. «$123.000», «123.000», «123000», «1.200», «20 lucas», «2 mil», «1,5 mil»? (no: solo enteros y miles con punto).
 export function extraerMonto(texto: string): { monto: number; token: string } | null {
   const t = base(texto);
+  // «1 millón 300.000», «1 millón 300 mil», «1,5 millones», «un millón».
+  const mm = t.match(/\b(\d+(?:[.,]\d+)?|un)\s*millon(?:es)?(?:\s+(?:y\s+)?(\d{1,3}(?:[.,]\d{3})+|\d+)(?:\s*(mil|lucas?))?)?(?:\s+de)?(?:\s+pesos)?\b/);
+  if (mm) {
+    const base1 = mm[1] === "un" ? 1 : Number(mm[1].replace(",", "."));
+    let total = Math.round(base1 * 1_000_000);
+    if (mm[2]) { const n = Number(mm[2].replace(/[.,]/g, "")); total += mm[3] || n < 1000 ? n * 1000 : n; }
+    if (total > 0) return { monto: total, token: mm[0] };
+  }
   let m = t.match(/(\d{1,3}(?:[.,]\d{3})*|\d+)\s*(lucas?|luca|k|mil)(?:\s+pesos)?\b/);
   if (m) { const n = Number(m[1].replace(/[.,]/g, "")); if (n > 0) return { monto: n * 1000, token: m[0] }; }
   m = t.match(/\$\s*(\d{1,3}(?:[.,]\d{3})+|\d+)/);
@@ -81,7 +89,8 @@ function descripcion(original: string, tokenMonto: string | null, tokenFecha: st
   let s = original.replace(/\s+/g, " ").trim();
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   // Solo se quita el monto que se uso (asi «2 kilos de pan» conserva el 2).
-  if (tokenMonto) s = s.replace(new RegExp(`\\$?\\s*${esc(tokenMonto).replace(/^\\\$\\s*/, "")}`, "i"), " ");
+  if (tokenMonto) s = s.replace(new RegExp(`\\$?\\s*${esc(tokenMonto).replace(/^\\\$\\s*/, "").replace(/millon/g, "mill[oó]n")}`, "i"), " ");
+  s = s.replace(/\bpor concepto de\b/gi, " por ");
   // La fecha dicha («ayer», «el 28 de octubre»): se quita la secuencia de palabras completa.
   if (tokenFecha) {
     const clavesFecha = tokenFecha.split(" ").map(clave);
@@ -98,11 +107,12 @@ function descripcion(original: string, tokenMonto: string | null, tokenFecha: st
     if (PALABRAS_VERBO.has(c)) continue;
     if (c === "me" && k + 1 < ws.length && DESPUES_DE_ME.has(clave(ws[k + 1]))) { k++; continue; }
     if (DESPUES_DE_ME.has(c) && (c === "salio" || c === "costo")) continue;
+    if (RELLENO.has(c) && out.length && RELLENO.has(clave(out[out.length - 1]))) continue; // dos conectores seguidos: queda el primero
     out.push(ws[k]);
   }
   while (out.length && RELLENO.has(clave(out[0]))) out.shift();
   while (out.length && RELLENO.has(clave(out[out.length - 1]))) out.pop();
-  const r = out.join(" ").replace(/^[\s,.:;\-–—¡!¿?]+|[\s,.:;\-–—¡!¿?]+$/g, "").trim();
+  const r = out.join(" ").replace(/\b(de|en|por|para)\s+\1\b/gi, "$1").replace(/^[\s,.:;\-–—¡!¿?]+|[\s,.:;\-–—¡!¿?]+$/g, "").trim();
   return r ? r.charAt(0).toUpperCase() + r.slice(1) : "";
 }
 

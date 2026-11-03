@@ -112,6 +112,14 @@ t("«cómo cambio el precio de un servicio» no es consulta", cq("¿cómo cambio
 t("ayuda sobre cupos no es consulta", cq("cuanto cuesta el plan") === null || cq("cuanto cuesta el plan")?.falta === "periodo");
 // Gastos e ingresos personales (Mi Billetera). HOY = martes 27 oct 2026
 const mp = (s: string) => entenderMovimientoPersonal(s, HOY) as any;
+tf("monto con millones: «1 millón 300.000 pesos» = 1.300.000 y la descripción queda limpia", () => {
+  const r = entenderMovimientoPersonal("Gasté 1 millón 300.000 pesos para re Booking por concepto de gasto de pantallas", "2026-11-03");
+  assert.ok(r && r.ok && r.movimiento.monto === 1300000 && r.movimiento.descripcion === "Re Booking por pantallas", JSON.stringify(r));
+  for (const [f, n] of [["gasté 1 millón 300 mil en pantallas", 1300000], ["gasté 1,5 millones en una máquina", 1500000], ["compré un millón de pesos en insumos", 1000000], ["gasté 2 millones en un local", 2000000], ["gasté 300.000 en pan", 300000]] as const) {
+    const x = entenderMovimientoPersonal(f, "2026-11-03");
+    assert.ok(x && x.ok && x.movimiento.monto === n, `${f} -> ${JSON.stringify(x)}`);
+  }
+});
 tf("«hoy gasté $123.000 en una máquina de cortar el pelo»", () => { const r = mp("hoy gaste $123.000 en una máquina de cortar el pelo"); assert.ok(r?.ok && r.movimiento.tipo === "gasto" && r.movimiento.monto === 123000 && r.movimiento.descripcion === "Máquina de cortar el pelo" && r.movimiento.categoria === "Herramientas y trabajo" && r.movimiento.fecha === HOY); });
 tf("«compré pan me salió $1.200»", () => { const r = mp("compré pan me salió $1.200"); assert.ok(r?.ok && r.movimiento.monto === 1200 && r.movimiento.descripcion === "Pan" && r.movimiento.categoria === "Comida"); });
 tf("«pagué el metro $1.200»", () => { const r = mp("pagué el metro $1.200"); assert.ok(r?.ok && r.movimiento.monto === 1200 && r.movimiento.categoria === "Transporte" && r.movimiento.descripcion === "Metro"); });

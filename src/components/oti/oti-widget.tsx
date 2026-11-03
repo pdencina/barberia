@@ -376,10 +376,21 @@ export function OtiWidget() {
                 if (m.tipo === "personal") return (
                   <div key={i} className="max-w-[92%] space-y-2 rounded-2xl border border-brand-blue/30 bg-white px-3 py-3 text-sm dark:bg-gray-900">
                     <p className="font-bold text-brand-dark dark:text-gray-100">{m.destino === "negocio" ? "¿Lo anoto en Ingresos/Egresos del negocio?" : "¿Lo anoto en Mi Billetera?"}</p>
+                    {m.estado === "pendiente" ? (
+                      <div className="space-y-1.5">
+                        <p className={`text-xs font-bold ${m.mov.tipo === "gasto" ? "text-red-600" : "text-emerald-600"}`}>{m.mov.tipo === "gasto" ? "Gasto" : "Ingreso"} · {m.mov.fecha.split("-").reverse().join("/")} <span className="font-normal text-brand-gray">(puedes corregir lo que quieras)</span></p>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm font-bold text-brand-dark dark:text-gray-100">$</span>
+                          <input inputMode="numeric" aria-label="Monto" value={m.mov.monto ? m.mov.monto.toLocaleString("es-CL") : ""} onChange={(e) => { const n = Number(e.target.value.replace(/\D/g, "")); setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, mov: { ...y.mov, monto: Math.min(100_000_000, n) } } : y))); }} className="w-36 rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm font-bold tabular-nums dark:border-gray-700 dark:bg-gray-950" />
+                        </div>
+                        <input aria-label="En qué fue" maxLength={200} value={m.mov.descripcion} onChange={(e) => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, mov: { ...y.mov, descripcion: e.target.value } } : y)))} placeholder="¿En qué fue?" className="w-full rounded-lg border border-gray-200 bg-white px-2 py-1 text-sm dark:border-gray-700 dark:bg-gray-950" />
+                      </div>
+                    ) : (
                     <p className="text-brand-dark dark:text-gray-200">
                       <b className={m.mov.tipo === "gasto" ? "text-red-600" : "text-emerald-600"}>{m.mov.tipo === "gasto" ? "Gasto" : "Ingreso"} de {formatCLP(m.mov.monto)}</b><br />
                       «{m.mov.descripcion}» · {m.mov.fecha.split("-").reverse().join("/")}
                     </p>
+                    )}
                     {m.estado === "pendiente" ? (
                       <>
                         {esAdmin && (
@@ -403,7 +414,7 @@ export function OtiWidget() {
                           <button type="button" onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, mov: { ...y.mov, tipo: y.mov.tipo === "gasto" ? "ingreso" : "gasto", categoria: y.mov.tipo === "gasto" ? "Otros ingresos" : "Otros" } } : y)))} className="rounded-lg border border-gray-200 px-2 py-1 text-xs text-brand-gray dark:border-gray-700">{m.mov.tipo === "gasto" ? "Es un ingreso" : "Es un gasto"}</button>
                         </div>
                         <div className="flex gap-2">
-                          <button type="button" disabled={ocupado || (m.destino === "negocio" && !m.medio)} onClick={() => (m.destino === "negocio" ? guardarNegocio(i, m.mov, m.medio || "") : guardarPersonal(i, m.mov))} className="rounded-xl bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Sí, anotar</button>
+                          <button type="button" disabled={ocupado || !(m.mov.monto > 0) || !m.mov.descripcion.trim() || (m.destino === "negocio" && !m.medio)} onClick={() => (m.destino === "negocio" ? guardarNegocio(i, m.mov, m.medio || "") : guardarPersonal(i, m.mov))} className="rounded-xl bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Sí, anotar</button>
                           <button type="button" disabled={ocupado} onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "personal" ? { ...y, estado: "cancelado" as const } : y)).concat([{ de: "oti", tipo: "texto", texto: "Listo, no anoté nada." }]))} className="rounded-xl border border-gray-200 px-3 py-1.5 text-xs text-brand-gray dark:border-gray-700">No</button>
                         </div>
                       </>
