@@ -73,7 +73,10 @@ export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
    if(datos.sucursales?.length){
     const visibles=datos.sucursales.filter(s=>s&&datoTexto(s.nombre));
     if(!visibles.length)return traspaso("datos_incompletos");
-    if(!sucursalPedida)return {tipo:"respuesta",intencion,texto:`¿De qué sucursal necesitas ${intencion==="direccion"?"la dirección":"el horario"}? Sucursales: ${visibles.map(s=>s.nombre!.trim()).join("; ")}. Indica la sucursal en tu consulta.`};
+    // No ofrecer elegir entre sucursales si ninguna tiene el dato pedido: derivar a una persona.
+    const conDato=visibles.filter(s=>intencion==="direccion"?datoTexto(s.direccion):horarioLegible(s.horario)!==null);
+    if(!sucursalPedida&&!conDato.length)return traspaso("datos_incompletos");
+    if(!sucursalPedida)return {tipo:"respuesta",intencion,texto:`¿De qué sucursal necesitas ${intencion==="direccion"?"la dirección":"el horario"}? Sucursales: ${conDato.map(s=>s.nombre!.trim()).join("; ")}. Indica la sucursal en tu consulta.`};
     const matches=visibles.filter(s=>normalizar(s.nombre!)===sucursalPedida);
     if(matches.length!==1)return traspaso("coincidencia_ambigua");
     direccion=matches[0].direccion;horario=matches[0].horario;
@@ -104,7 +107,11 @@ export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
     // Un nombre inválido impide demostrar un precio único; el listado sí puede omitirlo.
     if(datos.servicios.some(s=>!s||!datoTexto(s.nombre)))return traspaso("datos_incompletos");
     const candidates=datos.servicios.filter(s=>(" "+normalizar(s.nombre)+" ").includes(" "+servicioPedido+" "));
-    if(candidates.length>1)return traspaso("coincidencia_ambigua");
+    if(candidates.length>1){
+     // Varias coincidencias: se listan con su precio base solo si todas tienen precio y son pocas; si no, una persona.
+     if(candidates.length>5||candidates.some(c=>typeof c.precio!=="number"||!Number.isFinite(c.precio)||c.precio<0))return traspaso("coincidencia_ambigua");
+     return {tipo:"respuesta",intencion,texto:`Precios base: ${candidates.map(c=>`${c.nombre.trim()}: $${precio.format(c.precio!)}`).join("; ")}. Los profesionales pueden tener precios distintos.`};
+    }
     if(candidates.length!==1||typeof candidates[0].precio!=="number"||!Number.isFinite(candidates[0].precio)||candidates[0].precio<0)return traspaso("datos_incompletos");
     // Precio base autorizado por Nico; los profesionales pueden tener precios distintos.
     respuesta=`Precio base de ${candidates[0].nombre.trim()}: $${precio.format(candidates[0].precio!)}. Los profesionales pueden tener precios distintos.`;

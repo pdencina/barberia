@@ -76,6 +76,7 @@ function fixture(){
    referencia:async()=>null,referenciaAlternativa:async()=>null,
   },
   datosDelNegocio:async tenant=>{flags.datosLeidos++;const r=await comercial.datosDelNegocio(tenant);if(flags.bajaAlLeer)flags.baja=true;if(flags.apagarAlLeer)flags.enabled=false;return r;},
+  negocioInactivo:async t=>{const r=tablas.tenants.find(x=>x.id===t);if(!r)throw new Error("Estado del negocio no disponible");return r.active!==true||r.status==="suspended";},
   accion:async(...args)=>{acciones.push(args);return {motivo:"ok"};},responder:async(n,_para,texto)=>{enviados.push({tenant:n.tenantId,texto});},avisarAdministrador:async t=>{avisos.push(t);},
  };
  const handler=crearManejadoresWebhook({secretoFirma:firma,salHashes:sal,crearDependencias:()=>deps});
@@ -133,13 +134,15 @@ async function main(){
  await caso("W-tercer-identico",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<3;i++)await f.post("¿Tienen estacionamiento?");assert.equal(f.enviados.length,2);}));
  await caso("W-limite-hora",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<11;i++)await f.post(i%2?"¿Cuál es la dirección?":"¿Cuál es su teléfono?");assert.equal(f.enviados.length,10);}));
  await caso("W-baja-entre-consultas",()=>sinLogs(async()=>{const f=fixture();await f.post("¿Cuál es la dirección?");await f.post("baja");await f.post("¿Cuál es su teléfono?");assert.equal(f.enviados.length,2);assert.equal(f.enviados[1].texto,"Tu solicitud de baja quedó registrada.");}));
- // Casos fallidos retirados del ejecutable por instrucción de Nico. No cuentan como aprobados.
- // EXCLUIDO F1-01: negocio active=false con agente enabled=true envía traspaso; ver HALLAZGOS-F1.md.
- // EXCLUIDO F1-02: tenant suspended con agente enabled=true envía traspaso; ver HALLAZGOS-F1.md.
- // EXCLUIDO F1-03: horario sin sucursal y todas sin semana pide cuál, no traspasa; ver HALLAZGOS-F1.md.
+ // F1-01..F1-04 corregidos en claude/faq-correcciones: los casos retirados vuelven a ejecutarse.
+ await caso("W-inactivo-no-envia",()=>sinLogs(async()=>{const f=fixture();f.tablas.tenants[0].active=false;await f.post("¿Cuál es la dirección?");assert.equal(f.enviados.length,0);assert.equal(f.avisos.length,0);}));
+ await caso("W-suspendido-no-envia",()=>sinLogs(async()=>{const f=fixture();f.tablas.tenants[0].status="suspended";await f.post("¿Cuál es la dirección?");assert.equal(f.enviados.length,0);assert.equal(f.avisos.length,0);}));
+ await caso("W-inactivo-guarda-baja-sin-responder",()=>sinLogs(async()=>{const f=fixture();f.tablas.tenants[0].active=false;await f.post("baja");assert.equal(f.enviados.length,0);assert.equal(f.flags.baja,true);}));
+ await caso("W-estado-ilegible-no-responde",()=>sinLogs(async()=>{const f=fixture();f.tablas.tenants.length=0;await f.post("¿Cuál es la dirección?");assert.equal(f.enviados.length,0);}));
+ await caso("P-sucursales-todas-sin-horario",()=>{const d=datos();d.sucursales=[{id:"centro",nombre:"Centro",direccion:null,horario:[]}];const r=responderFaq("¿Qué horario tienen?",d);assert.equal(r.tipo,"traspaso");});
+ await caso("W-sucursales-todas-sin-horario",()=>sinLogs(async()=>{const f=fixture();f.tablas.branches.push({id:"centro",tenant_id:"A",active:true,name:"Centro",address:"Calle 1"});await f.post("¿Qué horario tienen?");assert.equal(f.enviados.length,1);assert.equal(f.enviados[0].texto,"Te contactará una persona.");assert.equal(f.avisos.length,1);}));
+ await caso("W-tercer-identico-fuera-memoria",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<3;i++)await f.post("x".repeat(LIMITE_TEXTO_EN_MEMORIA+1));assert.equal(f.enviados.length,2);}));
  await caso("W-tercer-identico-largo",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<3;i++)await f.post("x".repeat(5000));assert.equal(f.enviados.length,2);}));
- // EXCLUIDO F1-03 (webhook): tampoco traspasa la consulta general sin semanas de sucursales; ver HALLAZGOS-F1.md.
- // EXCLUIDO F1-04: tres textos idénticos de LIMITE_TEXTO_EN_MEMORIA+1 generan tres respuestas; ver HALLAZGOS-F1.md.
  for(const [entrada,esperado] of [
   ["¿Qué horario tienen?","Horario semanal: Lunes a viernes de 10:00 a 20:00; sábado de 10:00 a 15:00; domingo cerrado."],
   ["¿Cuál es la dirección?","Dirección: Av. Sintética 123."],
@@ -151,6 +154,6 @@ async function main(){
   await caso("P-control-positivo",()=>sinLogs(()=>{const r=responderFaq(entrada,datos());assert.equal(r.tipo,"respuesta");if(r.tipo==="respuesta")assert.equal(r.texto,esperado);privado(entrada,r);}));
   await caso("W-control-positivo",()=>sinLogs(async()=>{const f=fixture(),r=await f.post(entrada);assert.deepEqual(f.enviados,[{tenant:"A",texto:esperado}]);assert.equal(f.avisos.length,0);privado(entrada,[r,f.enviados,f.persistido]);}));
  }
- console.log(`OK ${numeroCaso} casos F1 (${hostiles.length} entradas hostiles en FAQ y webhook); 4 hallazgos / 5 casos retirados. Sin red/base/envíos reales. Texto del cliente ausente de salidas persistibles y logs.`);
+ console.log(`OK ${numeroCaso} casos F1 (${hostiles.length} entradas hostiles en FAQ y webhook); hallazgos F1-01 a F1-04 corregidos y reactivados. Sin red/base/envíos reales. Texto del cliente ausente de salidas persistibles y logs.`);
 }
 main().catch(e=>{console.error(`FALLO F1: ${e instanceof Error?e.message:"ID no disponible"}; detalles del mensaje omitidos.`);process.exitCode=1;});

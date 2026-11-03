@@ -18,6 +18,12 @@ const handlers = () => crearManejadoresWebhook({
       repo: crearRepositorioWebhook(db, process.env.AGENTE_CONTACT_HASH_SALT!), ahora: Date.now,
       accion: accionesDesdeBase(db),
       datosDelNegocio: crearRepositorioDatosNegocio(db).datosDelNegocio,
+      // Falla cerrado: si no se puede leer el estado, lanza y el evento queda "fallido" sin responder.
+      negocioInactivo: async tenantId => {
+        const r = await db.from("tenants").select("active,status").eq("id", tenantId).maybeSingle();
+        if (r.error || !r.data) throw new Error("Estado del negocio no disponible");
+        return r.data.active !== true || r.data.status === "suspended";
+      },
       responder: (negocio, para, texto) => enviarTexto({ para, texto }, {
         token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "",
         phone_number_id: negocio.phoneNumberId,

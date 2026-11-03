@@ -189,3 +189,9 @@ TANDA E — E1 hecho PR #165 (261 casos); E2 hecho PR #166 (72 casos, tsc y +6 c
 - 2026-10-27 — E4: Anexo A revisado; compatibilidad sin SELECT *, revalida negocio antes del envío. tsc + 25 auditoría + 81 datos OK; composición E3/EFAQ1/E4: 118 webhook, 126 datos, 261 FAQ y 25 auditoría OK. ABIERTO: Claude debe conservar consultar al combinar declaración con EFAQ1; sin servicios reales ni merge.
 - 2026-10-27 — F1 (base claude/e3-e4-combinado): 227 casos pasan, 85 entradas hostiles; 4 hallazgos abiertos / 5 casos retirados y comentados en HALLAZGOS-F1.md. tsc OK; solo pruebas/docs, sin merge ni envíos reales.
 - 2026-10-27 — F2: guía manual de 15 minutos para Estudio Levels (pruebas), ocho mensajes con datos ficticios existentes; tsc + 48 comprobaciones documentales OK. ABIERTO canal de pruebas; guía no ejecutada, interruptores sin cambios, sin merge.
+
+### FAQ: correcciones F1 y precio ambiguo — rama claude/faq-correcciones
+
+**HECHO:** F1-01/02 (negocio inactivo o suspendido no responde ni avisa; la ruta falla cerrado si no puede leer el estado), F1-03 (sucursales sin dato deriva a una persona) y F1-04 (textos largos repetidos se limitan). Precio ambiguo: si 2 a 5 servicios coinciden y todos tienen precio, se listan con "Precios base: ..."; con precio inválido o más de 5, deriva.
+**HECHO:** 5 casos retirados reactivados más 11 nuevos; tsc y las 28 pruebas del agente pasan.
+**NO probado:** contra Meta, Supabase ni correo reales; el estado del negocio se lee con una consulta simple a `tenants` que solo se probó con base simulada.
