@@ -150,6 +150,14 @@ export const CATALOGO: EntradaOti[] = [
     ruta: "/dashboard/cupones",
   },
   {
+    id: "resenas",
+    titulo: "Reseñas",
+    para: "Administrador y recepcion",
+    claves: ["resenas", "resena", "calificaciones", "calificacion", "opiniones", "estrellas", "como me califican", "que dicen mis clientes", "ver mis resenas", "promedio de estrellas"],
+    resumen: "«Reseñas» muestra lo que opinan tus clientes en la pagina «Califica tu experiencia» de re-booking: promedio, cuantas llegan cada mes, notas por profesional y los ultimos comentarios, y a donde mandas a calificar (Google Maps o re-booking).",
+    ruta: "/dashboard/resenas",
+  },
+  {
     id: "demanda",
     titulo: "Mapa de demanda",
     para: "Administrador",
