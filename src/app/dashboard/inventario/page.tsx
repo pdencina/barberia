@@ -67,6 +67,31 @@ export default function InventarioPage() {
     setCategories((c) => (c.some((x) => x.toLowerCase() === name.toLowerCase()) ? c : [...c, name]));
     setProductForm((f) => ({ ...f, category: name }));
   };
+  // Cambiar la categoría directo desde la lista (sin abrir el lápiz). Se ve al instante y se revierte si falla.
+  const cambiarCategoria = async (p: Product, valor: string) => {
+    if (valor === "__new") { await addCategoryFor(p); return; }
+    const nueva = valor || null;
+    const anterior = p.category ?? null;
+    if ((nueva || null) === (anterior || null)) return;
+    setProducts((xs) => xs.map((x) => (x.id === p.id ? { ...x, category: nueva } : x)));
+    const res = await fetch(`/api/products/${p.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ category: nueva }) });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      setProducts((xs) => xs.map((x) => (x.id === p.id ? { ...x, category: anterior } : x)));
+      showToast(err.error || "No se pudo cambiar la categoría", "error");
+      return;
+    }
+    showToast(`${p.name}: ${nueva || "sin categoría"}`, "success");
+  };
+  const addCategoryFor = async (p: Product) => {
+    const name = (prompt("Nombre de la nueva categoría:") || "").trim();
+    if (!name) return;
+    const res = await fetch("/api/product-categories", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, tenantId: getActiveTenantId() || undefined }) });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { showToast(data.error || "No se pudo agregar la categoría", "error"); return; }
+    setCategories((c) => (c.some((x) => x.toLowerCase() === name.toLowerCase()) ? c : [...c, name]));
+    await cambiarCategoria(p, name);
+  };
   const [movementForm, setMovementForm] = useState({
     product_id: "", type: "in", quantity: "", notes: "",
   });
@@ -341,7 +366,12 @@ export default function InventarioPage() {
                       <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${supply ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"}`}>
                         {PRODUCT_TYPE_LABELS[(supply ? "supply" : "sale") as "sale" | "supply"]}
                       </span>
-                      {p.category && <span className="ml-1.5 text-[11px] text-brand-gray">{p.category}</span>}
+                      <select value={p.category || ""} onChange={(e) => cambiarCategoria(p, e.target.value)} aria-label={`Categoría de ${p.name}`}
+                        className={`ml-1.5 max-w-[130px] cursor-pointer rounded-lg border bg-white px-1.5 py-0.5 text-[11px] focus:border-brand-blue focus:outline-none dark:bg-gray-950 ${p.category ? "border-gray-200 text-brand-dark dark:border-gray-700 dark:text-gray-200" : "border-dashed border-amber-400 text-amber-700"}`}>
+                        <option value="">Sin categoría</option>
+                        {[...categories, ...(p.category && !categories.some((c) => c === p.category) ? [p.category] : [])].map((c) => <option key={c} value={c}>{c}</option>)}
+                        <option value="__new">+ Nueva categoría…</option>
+                      </select>
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{formatCurrency(Number(p.cost))}</td>
                     <td className={`${td} text-right tabular-nums`}>{supply ? <span className="text-gray-300">—</span> : formatCurrency(Number(p.price))}</td>
