@@ -29,6 +29,7 @@ interface Product {
   price: number;
   stock: number;
   barcode?: string;
+  category?: string | null;
 }
 
 // Monograma con las iniciales del item: le da caracter a cada tarjeta en vez de un icono generico.

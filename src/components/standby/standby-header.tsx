@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { formatCurrency } from "@/lib/utils";
 
-interface Product { id: string; name: string; price: number; stock: number }
+interface Product { id: string; name: string; price: number; stock: number; category?: string | null }
 interface OpenProblem { open: number; latest: { reported_by_name: string | null; note: string; created_at: string } | null }
 
 // Encabezado del Standby nuevo (sobre el Punto de Venta). Su objetivo es CONTROLAR EL EFECTIVO paso a paso:
@@ -33,6 +33,7 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
   const [qty, setQty] = useState(1);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<null | { code: string; scanCode: string | null; total: number; overLimit: boolean }>(null);
+  const [catFiltro, setCatFiltro] = useState("");
   const [cart, setCart] = useState<Array<{ productId: string; qty: number }>>([]);
 
   const load = useCallback(() => {
@@ -105,7 +106,7 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
             <span className={`rounded-xl px-3 py-1.5 font-semibold ${hasProblem || cash < 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"}`}>Dinero en caja {formatCurrency(cash)}</span>
           )}
           <button onClick={openReport} className={`rounded-xl border px-3 py-1.5 font-medium ${hasProblem ? "border-red-300 bg-red-50 text-red-600" : "border-gray-200 bg-white text-brand-dark hover:bg-gray-50"}`}>Reportar problema</button>
-          <button onClick={() => { setPlanillaOpen(true); setResult(null); setCart([]); setProductId(""); setQty(1); }} className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 font-medium text-brand-dark hover:bg-gray-50">Descuento por planilla</button>
+          <button onClick={() => { setPlanillaOpen(true); setResult(null); setCatFiltro(""); setCart([]); setProductId(""); setQty(1); }} className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 font-medium text-brand-dark hover:bg-gray-50">Descuento por planilla</button>
           <button onClick={onExit} className="rounded-xl px-3 py-1.5 font-medium text-brand-gray hover:text-brand-dark">Cerrar sesión</button>
         </div>
       </div>
@@ -167,10 +168,26 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
             ) : (
               <>
                 <p className="mt-1 text-xs text-gray-500">Elige uno o varios productos. El stock baja cuando recepción o el administrador apruebe el código.</p>
-                <select value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm">
-                  <option value="">Elige un producto…</option>
-                  {products.filter((p) => Number(p.stock) > 0).map((p) => <option key={p.id} value={p.id}>{p.name} · {formatCurrency(Number(p.price))}</option>)}
-                </select>
+                {(() => {
+                  const disponibles = products.filter((p) => Number(p.stock) > 0);
+                  const cats = Array.from(new Set(disponibles.map((p) => (p.category || "").trim() || "Sin categoría")));
+                  const lista = catFiltro ? disponibles.filter((p) => ((p.category || "").trim() || "Sin categoría") === catFiltro) : disponibles;
+                  return (
+                    <>
+                      {cats.length > 1 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {["", ...cats].map((c) => (
+                            <button key={c || "todas"} type="button" onClick={() => { setCatFiltro(c); setProductId(""); }} className={`rounded-full border px-3 py-1 text-xs font-semibold ${catFiltro === c ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 text-gray-600"}`}>{c || "Todas"}</button>
+                          ))}
+                        </div>
+                      )}
+                      <select value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm">
+                        <option value="">Elige un producto…</option>
+                        {lista.map((p) => <option key={p.id} value={p.id}>{p.name} · {formatCurrency(Number(p.price))}</option>)}
+                      </select>
+                    </>
+                  );
+                })()}
                 <div className="mt-3 flex items-center gap-3">
                   <span className="text-sm text-gray-600">Cantidad</span>
                   <button onClick={() => setQty((n) => Math.max(1, n - 1))} className="h-8 w-8 rounded-lg border border-gray-200">−</button>
