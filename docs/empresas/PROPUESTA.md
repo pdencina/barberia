@@ -88,7 +88,7 @@ Marcas: **HECHO** = verificado en el código · **INFERENCIA** = deducción mía
 | # | Decisión | Recomendación |
 |---|---|---|
 | 1 | **Cómo paga Nishman**: suscripción mensual fija, por usuarios o por pedidos | Fija por empresa + usuarios extra; revisar tras ver su tamaño |
-| 2 | **¿La Etapa 1 incluye despacho y rutas?** | No: stock, clientes y pedidos primero |
+| 2 | **¿La Etapa 1 incluye despacho y rutas?** | Actualizado (sección 10): el registro de salida en despacho sí entra, porque sin él el stock no cuadra. Las rutas no |
 | 3 | **Precios**: una lista única, o precios distintos por cliente y por tipo (mayorista/revendedor) | Lista única + descuento por cliente en Etapa 1; listas por socio en Etapa 3 |
 | 4 | **Revendedores**: compra para reventa, venta por comisión, abastecimiento o mezcla | Empezar solo con "compra para reventa" (es un cliente comercial con precio mayorista); la comisión añade liquidaciones y se deja para después |
 | 5 | **Alianza**: ¿los salones compran el catálogo Nishman desde re-booking? ¿re-booking cobra comisión o referido por pedido? ¿exclusividad? | Reunión para fijar condiciones por escrito antes de la Etapa 2 |
@@ -116,3 +116,38 @@ Sección 15 de `AGENTS.md`: Codex escribe en ramas `codex/*` con ficha de tarea,
 **HECHO, solo en `rebooking-pruebas`:** migración 125 (`tenants.kind`, `company_members`, bodegas, catálogo, stock por bodega, movimientos y `company_stock_move`) y `scripts/test-empresas-stock.ts` (solo datos simulados). Empresas simuladas: `empresa-sim-a` y `empresa-sim-b`.
 **Diseño:** catálogo en `company_products`, no en `products` (ahí el SKU es único en toda la base y la política es abierta). La API solo lee stock y movimientos: escribir pasa siempre por `company_stock_move`. No se agregó ningún valor a `profiles.role`.
 **Falta en la Etapa 1:** login y panel `/empresa`, capacidades en el servidor, rutas API, importación, clientes comerciales y pedidos. `delete_tenant_cascade` no conoce las tablas `company_*`: borrar una empresa con datos falla (a propósito por ahora; a un salón no le afecta).
+
+## 10. Lo que pidió Felipe en sus audios (28 oct. 2026)
+
+**Fuente:** 6 audios de Felipe, transcritos en el Mac con reconocimiento de voz automático y revisados por encima. Esta sección manda sobre las etapas de la sección 4 donde se contradigan.
+
+| # | Lo que pide | Qué había en la propuesta | Qué cambia |
+|---|---|---|---|
+| 1 | **Stock que cuadre.** Es lo que más le urge. Pasa en los dos sentidos: el sistema muestra productos que no están y dice que no hay productos que sí están. Lo nota a mitad de mes y al despachar | Stock por bodega con movimientos | Se agregan toma de inventario, stock reservado y salida registrada en despacho |
+| 2 | **Reporte semanal por vendedor:** de su cartera (ej.: 200 clientes), cuántos gestionó, a cuántos les vendió y cuántos quedaron sin atender | Carteras en Etapa 2, sin reporte | Se adelanta y se agrega el registro de gestiones |
+| 3 | **Llamado mensual obligatorio:** el sistema le pone al vendedor el cliente que toca y no lo deja pasar a otro hasta resolverlo | No estaba | Nuevo: cola de gestión obligatoria |
+| 4 | **Portal de distribuidores:** entran con clave, ven stock en línea y hacen su pedido; al vendedor le llega el comprobante | `/socios` en Etapa 3 | Se adelanta, pero solo cuando el stock ya cuadre |
+| 5 | **Mensajes programados por WhatsApp:** flyers, eventos, invitaciones y recordatorios de reponer | No estaba | Nuevo: campañas sobre el código de `src/lib/agente` |
+
+**INFERENCIA — por qué no cuadra hoy:** no se sabe todavía. Felipe describe el síntoma, no la causa. Un sistema nuevo no lo arregla por sí solo: si alguien saca un producto sin registrarlo, el saldo vuelve a descuadrarse. Por eso importa más el proceso de bodega que la pantalla.
+
+### Nuevo orden (recomendación, decide Nico)
+
+1. **Etapa 1 — Stock confiable:** panel, roles, catálogo, importación desde Excel, toma de inventario (contar, comparar y ajustar con motivo), pedidos que reservan stock al confirmarse y salida que lo descuenta al despachar. Se muestra físico, reservado y disponible.
+2. **Etapa 2 — Vendedores:** cartera por vendedor, registro de gestiones con resultado, cola obligatoria y reporte semanal a Felipe (reutiliza informes por correo y cron).
+3. **Etapa 3 — Distribuidores:** portal con clave, stock disponible, pedido propio y comprobante al vendedor.
+4. **Etapa 4 — WhatsApp:** campañas programadas a clientes con permiso. Requiere el número de la empresa, plantillas aprobadas por Meta y darse de baja (`agent_contact_optouts` ya existe). El envío real sigue bloqueado hasta que Nico lo apruebe.
+5. **Después:** rutas, facturación y puente con salones (lo que antes era Etapa 2 y 4).
+
+**Cola obligatoria (recomendación):** cada gestión exige un resultado: vendió, no contestó, volver a llamar en una fecha, o sin interés. "No contestó" vuelve a la cola sin bloquear el resto del día. Saltarse un cliente exige motivo y aparece en el reporte. El dueño puede destrabar a un vendedor. Un cliente que llama para pedir nunca queda bloqueado.
+**Límite honesto:** sin telefonía integrada, el sistema no puede comprobar que el llamado ocurrió; solo registra lo que anota el vendedor. El reporte, cruzado con las ventas, ayuda a detectar lo anotado sin hacer.
+
+**Base técnica:** la migración 125 sirve tal cual. Lo nuevo se suma en migraciones aparte (reservas, tomas de inventario, cartera, gestiones). Mostrar stock a distribuidores antes de que cuadre empeoraría el problema, por eso va después.
+
+### Preguntas para Felipe
+
+1. ¿Qué sistema usan hoy para el stock? ¿re-booking lo reemplaza o conviven? (Con dos sistemas el descuadre empeora.)
+2. ¿Quién puede sacar productos de bodega hoy y cómo queda registrado? ¿Cuántas bodegas y productos son?
+3. Cuando un cliente no contesta, ¿cuántos intentos y cada cuántos días antes de pasarlo a otro estado?
+4. ¿El distribuidor ve la cantidad exacta o solo "disponible / agotado"? ¿Ve precios propios?
+5. ¿Los clientes aceptaron recibir publicidad por WhatsApp? ¿Tienen un número de WhatsApp Business para la empresa?
