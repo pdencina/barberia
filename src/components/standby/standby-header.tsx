@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import JsBarcode from "jsbarcode";
+
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { formatCurrency } from "@/lib/utils";
 
-interface Product { id: string; name: string; price: number; stock: number }
+interface Product { id: string; name: string; price: number; stock: number; category?: string | null }
 interface OpenProblem { open: number; latest: { reported_by_name: string | null; note: string; created_at: string } | null }
 
 // Encabezado del Standby nuevo (sobre el Punto de Venta). Su objetivo es CONTROLAR EL EFECTIVO paso a paso:
@@ -30,7 +32,9 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
   const [productId, setProductId] = useState("");
   const [qty, setQty] = useState(1);
   const [busy, setBusy] = useState(false);
-  const [result, setResult] = useState<null | { code: string; total: number; overLimit: boolean }>(null);
+  const [result, setResult] = useState<null | { code: string; scanCode: string | null; total: number; overLimit: boolean }>(null);
+  const [catFiltro, setCatFiltro] = useState("");
+  const [cart, setCart] = useState<Array<{ productId: string; qty: number }>>([]);
 
   const load = useCallback(() => {
     fetch(`/api/caja${tenant?.id ? `?tenantId=${tenant.id}` : ""}`).then((r) => r.json()).then((d) => setCash(Number(d?.summary?.expectedCash) || 0)).catch(() => {});
@@ -58,14 +62,22 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
     } catch (e: any) { showToast(e?.message || "No se pudo enviar", "error"); } finally { setSending(false); }
   };
 
+  // Varios productos en un mismo código: se agregan a la lista y se genera un solo código.
+  const addToPlanilla = () => {
+    if (!productId) return;
+    setCart((c) => (c.some((x) => x.productId === productId) ? c.map((x) => (x.productId === productId ? { ...x, qty: Math.min(50, x.qty + qty) } : x)) : [...c, { productId, qty }]));
+    setProductId(""); setQty(1);
+  };
   const createPlanilla = async () => {
-    if (!productId || busy) return;
+    const items = cart.length ? cart : productId ? [{ productId, qty }] : [];
+    if (items.length === 0 || busy) return;
     setBusy(true);
     try {
-      const res = await fetch("/api/planilla", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ barberId: barber.id, productId, quantity: qty }) });
+      const res = await fetch("/api/planilla", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ barberId: barber.id, items: items.map((i) => ({ productId: i.productId, quantity: i.qty })) }) });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(d?.error || "No se pudo generar el código");
-      setResult({ code: d.code, total: d.total, overLimit: !!d.overLimit });
+      setResult({ code: d.code, scanCode: d.scanCode || null, total: d.total, overLimit: !!d.overLimit });
+      setCart([]);
     } catch (e: any) { showToast(e?.message || "No se pudo generar el código", "error"); } finally { setBusy(false); }
   };
 
@@ -94,7 +106,7 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
             <span className={`rounded-xl px-3 py-1.5 font-semibold ${hasProblem || cash < 0 ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-700"}`}>Dinero en caja {formatCurrency(cash)}</span>
           )}
           <button onClick={openReport} className={`rounded-xl border px-3 py-1.5 font-medium ${hasProblem ? "border-red-300 bg-red-50 text-red-600" : "border-gray-200 bg-white text-brand-dark hover:bg-gray-50"}`}>Reportar problema</button>
-          <button onClick={() => { setPlanillaOpen(true); setResult(null); setProductId(""); setQty(1); }} className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 font-medium text-brand-dark hover:bg-gray-50">Descuento por planilla</button>
+          <button onClick={() => { setPlanillaOpen(true); setResult(null); setCatFiltro(""); setCart([]); setProductId(""); setQty(1); }} className="rounded-xl border border-gray-200 bg-white px-3 py-1.5 font-medium text-brand-dark hover:bg-gray-50">Descuento por planilla</button>
           <button onClick={onExit} className="rounded-xl px-3 py-1.5 font-medium text-brand-gray hover:text-brand-dark">Cerrar sesión</button>
         </div>
       </div>
@@ -142,26 +154,61 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
               <div className="mt-4 text-center">
                 <p className="text-sm text-gray-600">Entrega este código a recepción o al administrador para aprobarlo:</p>
                 <p className="mt-3 font-mono text-4xl font-bold tracking-widest text-brand-blue">{result.code}</p>
+                {result.scanCode && (
+                  <div className="mt-3">
+                    <p className="text-[11px] text-gray-500">o que lo escaneen con la pistola en el Punto de Venta:</p>
+                    <BarcodeSvg value={result.scanCode} />
+                    <p className="font-mono text-[11px] tracking-wider text-gray-400">{result.scanCode}</p>
+                  </div>
+                )}
                 <p className="mt-2 text-sm text-gray-500">Total a descontar: {formatCurrency(result.total)}</p>
                 {result.overLimit && <p className="mt-2 text-xs text-amber-600">Ojo: este descuento supera el 15% de tu ingreso del mes; quien lo apruebe tendrá que confirmarlo.</p>}
                 <button onClick={() => setPlanillaOpen(false)} className="mt-5 w-full rounded-xl bg-brand-blue py-3 font-bold text-white">Listo</button>
               </div>
             ) : (
               <>
-                <p className="mt-1 text-xs text-gray-500">Elige el producto. El stock baja cuando recepción o el administrador apruebe el código.</p>
-                <select value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm">
-                  <option value="">Elige un producto…</option>
-                  {products.filter((p) => Number(p.stock) > 0).map((p) => <option key={p.id} value={p.id}>{p.name} · {formatCurrency(Number(p.price))}</option>)}
-                </select>
+                <p className="mt-1 text-xs text-gray-500">Elige uno o varios productos. El stock baja cuando recepción o el administrador apruebe el código.</p>
+                {(() => {
+                  const disponibles = products.filter((p) => Number(p.stock) > 0);
+                  const cats = Array.from(new Set(disponibles.map((p) => (p.category || "").trim() || "Sin categoría")));
+                  const lista = catFiltro ? disponibles.filter((p) => ((p.category || "").trim() || "Sin categoría") === catFiltro) : disponibles;
+                  return (
+                    <>
+                      {cats.length > 1 && (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {["", ...cats].map((c) => (
+                            <button key={c || "todas"} type="button" onClick={() => { setCatFiltro(c); setProductId(""); }} className={`rounded-full border px-3 py-1 text-xs font-semibold ${catFiltro === c ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 text-gray-600"}`}>{c || "Todas"}</button>
+                          ))}
+                        </div>
+                      )}
+                      <select value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm">
+                        <option value="">Elige un producto…</option>
+                        {lista.map((p) => <option key={p.id} value={p.id}>{p.name} · {formatCurrency(Number(p.price))}</option>)}
+                      </select>
+                    </>
+                  );
+                })()}
                 <div className="mt-3 flex items-center gap-3">
                   <span className="text-sm text-gray-600">Cantidad</span>
                   <button onClick={() => setQty((n) => Math.max(1, n - 1))} className="h-8 w-8 rounded-lg border border-gray-200">−</button>
                   <span className="w-6 text-center font-semibold">{qty}</span>
                   <button onClick={() => setQty((n) => Math.min(50, n + 1))} className="h-8 w-8 rounded-lg border border-gray-200">+</button>
+                  <button onClick={addToPlanilla} disabled={!productId} className="ml-auto rounded-lg border border-brand-blue px-3 py-1.5 text-xs font-semibold text-brand-blue disabled:opacity-40">+ Agregar otro</button>
                 </div>
+                {cart.length > 0 && (
+                  <ul className="mt-3 divide-y rounded-xl border border-gray-100 text-sm">
+                    {cart.map((c) => { const p = products.find((x) => x.id === c.productId); return (
+                      <li key={c.productId} className="flex items-center justify-between gap-2 px-3 py-2">
+                        <span className="text-gray-700">{p?.name || "Producto"} <span className="text-gray-400">x{c.qty}</span></span>
+                        <span className="flex items-center gap-2"><span className="tabular-nums text-gray-500">{formatCurrency(Number(p?.price || 0) * c.qty)}</span><button onClick={() => setCart((x) => x.filter((y) => y.productId !== c.productId))} aria-label="Quitar" className="text-gray-400 hover:text-red-500">✕</button></span>
+                      </li>
+                    ); })}
+                    <li className="flex justify-between px-3 py-2 font-semibold"><span>Total</span><span className="tabular-nums">{formatCurrency(cart.reduce((t, c) => t + Number(products.find((x) => x.id === c.productId)?.price || 0) * c.qty, 0))}</span></li>
+                  </ul>
+                )}
                 <div className="mt-5 flex gap-2">
                   <button onClick={() => setPlanillaOpen(false)} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-gray-700">Cancelar</button>
-                  <button onClick={createPlanilla} disabled={!productId || busy} className="flex-1 rounded-xl bg-brand-blue py-2.5 font-bold text-white disabled:opacity-50">{busy ? "Generando…" : "Generar código"}</button>
+                  <button onClick={createPlanilla} disabled={(!productId && cart.length === 0) || busy} className="flex-1 rounded-xl bg-brand-blue py-2.5 font-bold text-white disabled:opacity-50">{busy ? "Generando…" : "Generar código"}</button>
                 </div>
               </>
             )}
@@ -170,4 +217,11 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
       )}
     </div>
   );
+}
+
+// Codigo de barras (Code128) del codigo largo, para la pistola.
+function BarcodeSvg({ value }: { value: string }) {
+  const ref = useRef<SVGSVGElement>(null);
+  useEffect(() => { if (ref.current) { try { JsBarcode(ref.current, value, { format: "CODE128", width: 2, height: 70, displayValue: false, margin: 8 }); } catch {} } }, [value]);
+  return <svg ref={ref} className="mx-auto mt-1 max-w-full rounded bg-white" />;
 }

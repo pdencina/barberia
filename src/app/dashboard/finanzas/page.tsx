@@ -56,11 +56,14 @@ const assignedToLabels: Record<string, string> = {
 const QUICK_RANGES = [
   { key: "today", label: "Hoy", days: 0 },
   { key: "week", label: "Semana", days: 7 },
-  { key: "month", label: "Mes", days: 30 },
+  { key: "month", label: "Mes", days: -1 }, // -1 = desde el dia 1 del mes de hoy (mes calendario, no los ultimos 30 dias)
   { key: "3m", label: "3 meses", days: 90 },
   { key: "6m", label: "6 meses", days: 180 },
   { key: "1y", label: "1 año", days: 365 },
 ] as const;
+
+// Dias hacia atras que cubre un rango rapido. "Mes" es el mes calendario en curso (desde el dia 1), no los ultimos 30 dias.
+const diasDeRango = (days: number) => (days === -1 ? Number(todayInChile().slice(8, 10)) - 1 : days);
 
 const emptyFormData = {
   type: "income" as "income" | "expense",
@@ -102,7 +105,7 @@ export default function FinanzasPage() {
   // filas, pero ahora es explicito y se puede cambiar con un clic en vez de tener que
   // adivinar/escribir fechas a mano.
   const [quickRange, setQuickRange] = useState<string>("month");
-  const [dateFrom, setDateFrom] = useState(() => chileDateOffset(-30));
+  const [dateFrom, setDateFrom] = useState(() => chileDateOffset(-diasDeRango(-1)));
   const [dateTo, setDateTo] = useState(() => todayInChile());
   // "" = filtrar por fechas; "YYYY-MM" = solo lo que CORRESPONDE a ese mes (fecha contable).
   const [monthFilter, setMonthFilter] = useState("");
@@ -210,7 +213,7 @@ export default function FinanzasPage() {
 
   const applyQuickRange = (key: string, days: number) => {
     setQuickRange(key);
-    setDateFrom(chileDateOffset(-days));
+    setDateFrom(chileDateOffset(-diasDeRango(days)));
     setDateTo(todayInChile());
   };
 

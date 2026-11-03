@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, canAccessBarber } from "@/lib/supabase/server";
+import { createAdminSupabase, canAccessBarber, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { expandRepeat, isValidDate } from "@/lib/recurrence";
 import { vacationDates } from "@/lib/vacations";
 
@@ -103,6 +103,12 @@ export async function PATCH(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
   if (!id) return NextResponse.json({ error: "ID requerido" }, { status: 400 });
+
+  // SEGURIDAD: antes no pedia sesion: cualquiera podia mover o borrar horas bloqueadas de un profesional. El profesional sale del bloqueo, nunca del navegador.
+  if (!(await getCurrentUserRoleAndTenant()).userId) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+  const { data: existing } = await supabase.from("barber_blocks").select("barber_id").eq("id", id).maybeSingle();
+  if (!existing) return NextResponse.json({ error: "Bloqueo no encontrado" }, { status: 404 });
+  if (!(await canAccessBarber((existing as any).barber_id))) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   const body = await req.json().catch(() => ({} as any));
   const { reason, allDay, startTime, endTime } = body;

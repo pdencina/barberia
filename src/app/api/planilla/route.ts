@@ -3,6 +3,7 @@ import { createAdminSupabase, getCurrentUserRoleAndTenant, isManagerLevel } from
 import { computeProMonths } from "@/lib/ledger";
 import { todayInChile } from "@/lib/utils";
 import { notify } from "@/lib/notify";
+import { makeShortCode, makeScanCode, resumenLineas, type LineaPlanilla } from "@/lib/planilla-codigo";
 
 // Descuento por planilla: el profesional elige un producto y se genera un CODIGO. Recien cuando
 // recepcion o el administrador lo ingresa (ver ./aprobar) se descuenta el stock y se anota en el
@@ -10,29 +11,38 @@ import { notify } from "@/lib/notify";
 // de Standby) y ver / rechazar los pendientes (administracion y recepcion).
 
 const LIMIT_PCT = 15;
-const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // sin letras/numeros que se confunden (0/O, 1/I)
-const makeCode = () => Array.from({ length: 6 }, () => ALPHABET[Math.floor(Math.random() * ALPHABET.length)]).join("");
 
 export async function POST(req: NextRequest) {
   const { userId, tenantId } = await getCurrentUserRoleAndTenant();
   if (!userId || !tenantId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const body = await req.json().catch(() => ({} as any));
-  const quantity = Math.floor(Number(body?.quantity) || 1);
-  if (!body?.barberId || !body?.productId || quantity < 1 || quantity > 50) {
-    return NextResponse.json({ error: "Revisa el producto y la cantidad." }, { status: 400 });
+  // Varios productos en un solo codigo: items = [{ productId, quantity }]. (Sigue aceptando productId + quantity de un solo producto.)
+  const raw: any[] = Array.isArray(body?.items) && body.items.length ? body.items : [{ productId: body?.productId, quantity: body?.quantity }];
+  if (!body?.barberId || raw.length > 20) return NextResponse.json({ error: "Revisa el producto y la cantidad." }, { status: 400 });
+  const wanted = new Map<string, number>();
+  for (const it of raw) {
+    const q = Math.floor(Number(it?.quantity) || 1);
+    if (typeof it?.productId !== "string" || !it.productId || q < 1 || q > 50) return NextResponse.json({ error: "Revisa el producto y la cantidad." }, { status: 400 });
+    wanted.set(it.productId, Math.min(50, (wanted.get(it.productId) || 0) + q));
   }
 
   const supabase = createAdminSupabase();
   const { data: pro } = await supabase.from("profiles")
     .select("id, name, work_mode, has_labor_contract").eq("id", body.barberId).eq("tenant_id", tenantId).eq("active", true).maybeSingle();
   if (!pro) return NextResponse.json({ error: "Profesional no encontrado" }, { status: 404 });
-  const { data: prod } = await supabase.from("products")
-    .select("id, name, price, stock, product_type").eq("id", body.productId).eq("tenant_id", tenantId).eq("active", true).maybeSingle();
-  if (!prod || ((prod as any).product_type || "sale") === "supply") return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
-  if (Number(prod.stock) < quantity) return NextResponse.json({ error: `Solo quedan ${prod.stock} en stock.` }, { status: 409 });
 
-  const unit = Math.round(Number(prod.price));
-  const total = unit * quantity;
+  const lines: LineaPlanilla[] = [];
+  for (const [productId, quantity] of Array.from(wanted.entries())) {
+    const { data: prod } = await supabase.from("products")
+      .select("id, name, price, stock, product_type").eq("id", productId).eq("tenant_id", tenantId).eq("active", true).maybeSingle();
+    if (!prod || ((prod as any).product_type || "sale") === "supply") return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
+    if (Number(prod.stock) < quantity) return NextResponse.json({ error: `De ${prod.name} solo quedan ${prod.stock} en stock.` }, { status: 409 });
+    const unit = Math.round(Number(prod.price));
+    lines.push({ product_id: prod.id, product_name: prod.name, quantity, unit_price: unit, total: unit * quantity });
+  }
+  const total = lines.reduce((t, l) => t + l.total, 0);
+  const totalQty = lines.reduce((t, l) => t + l.quantity, 0);
+  const headerName = lines.length > 1 ? `${lines[0].product_name} +${lines.length - 1} más` : lines[0].product_name;
 
   // Aviso del tope de 15%: solo trabajadores con contrato. Se compara contra lo que lleva ganado el
   // profesional este mes (comision sobre servicios) mas los descuentos ya aprobados del mes.
@@ -54,19 +64,26 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  for (let i = 0; i < 6; i++) {
-    const code = makeCode();
-    const { data, error } = await supabase.from("payroll_discounts").insert({
-      tenant_id: tenantId, barber_id: pro.id, barber_name: pro.name, product_id: prod.id, product_name: prod.name,
-      quantity, unit_price: unit, total, code, over_limit: overLimit,
-    }).select("id, code").single();
+  const base = {
+    tenant_id: tenantId, barber_id: pro.id, barber_name: pro.name, product_id: lines[0].product_id, product_name: headerName,
+    quantity: totalQty, unit_price: lines[0].unit_price, total, over_limit: overLimit,
+  };
+  for (let i = 0; i < 8; i++) {
+    const code = makeShortCode();
+    const scanCode = makeScanCode();
+    let { data, error } = await supabase.from("payroll_discounts").insert({ ...base, code, scan_code: scanCode, items: lines }).select("id, code, scan_code").single();
+    // Sin la migracion 128: solo se puede un producto y sin codigo de pistola (codigo corto de 6 como antes).
+    if (error && /items|scan_code/.test(error.message)) {
+      if (lines.length > 1) return NextResponse.json({ error: "Falta aplicar la migración 128 para usar varios productos en un código." }, { status: 409 });
+      ({ data, error } = await supabase.from("payroll_discounts").insert({ ...base, code: code + scanCode.slice(3, 5) }).select("id, code").single());
+    }
     if (!error && data) {
       // Aviso a recepcion y administracion: hay un descuento por planilla por aprobar (sin montos en la pantalla bloqueada).
       await notify({
         tenantId, kind: "planilla_created", roles: ["admin", "receptionist"],
-        title: "Descuento por planilla por aprobar", body: `${pro.name}: ${prod.name} x${quantity}`, url: "/dashboard/caja", createdBy: userId,
+        title: "Descuento por planilla por aprobar", body: `${pro.name}: ${resumenLineas(lines)}`, url: "/dashboard/caja", createdBy: userId,
       });
-      return NextResponse.json({ success: true, code: data.code, total, overLimit });
+      return NextResponse.json({ success: true, code: data.code, scanCode: (data as any).scan_code || null, total, overLimit, items: lines });
     }
     if (error && !/duplicate|unique/i.test(error.message)) {
       return NextResponse.json({ error: "Falta aplicar la migración 094 en la base de datos." }, { status: 409 });
@@ -80,7 +97,7 @@ export async function GET() {
   if (!ok || !tenantId) return NextResponse.json({ pending: [] });
   const supabase = createAdminSupabase();
   const { data, error } = await supabase.from("payroll_discounts")
-    .select("id, barber_name, product_name, quantity, total, over_limit, created_at")
+    .select("id, barber_name, product_name, quantity, total, over_limit, created_at, code")
     .eq("tenant_id", tenantId).eq("status", "pending").order("created_at", { ascending: false }).limit(50);
   return NextResponse.json({ pending: error ? [] : data || [] });
 }

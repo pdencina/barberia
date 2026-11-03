@@ -6,6 +6,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { abrirPanelOti } from "@/lib/oti/visibilidad";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { useNotificationCenter } from "@/lib/use-notification-center";
@@ -87,6 +88,8 @@ const sections: NavSection[] = [
       },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle, minRole: "admin" },
       { name: "Cupones", href: "/dashboard/cupones", icon: Ticket, minRole: "admin", feature: "coupons" },
+      { name: "Reseñas", href: "/dashboard/resenas", icon: Star, minRole: "receptionist" },
+      { name: "Mapa de demanda", href: "/dashboard/demanda", icon: BarChart3, minRole: "admin", basicLocked: true },
     ],
   },
   {
@@ -217,7 +220,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
       "/dashboard/pos", "/dashboard/clientes", "/dashboard/calendario",
       "/dashboard/agenda", "/dashboard/recepcion", "/dashboard/standby",
       "/dashboard/fidelidad", "/dashboard/retencion", "/dashboard/whatsapp",
-      "/dashboard/boletas", "/dashboard/cupones", "/dashboard/configuracion",
+      "/dashboard/boletas", "/dashboard/cupones", "/dashboard/resenas", "/dashboard/configuracion",
       // Nico's request: receptionist also gets Caja, Profesionales (schedules only) and
       // Inventario (read-only, changes gated behind the admin PIN).
       "/dashboard/caja", "/dashboard/barberos", "/dashboard/inventario", "/dashboard/solicitud",
@@ -481,6 +484,17 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
           </div>
         );
       })}
+
+      {/* Oti, el asistente: vuelve a abrirlo (y a mostrar la burbuja) si lo ocultaste. */}
+      {effectiveRole && effectiveRole !== "client" && (
+        <div className={cn(showLabels ? "mb-5" : "mb-3")}>
+          <button type="button" onClick={() => { abrirPanelOti(); setMobileOpen(false); }} title="Abrir a Oti, tu asistente"
+            className={cn("relative flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-brand-dark/65 transition-colors hover:bg-brand-dark/[0.04] hover:text-brand-dark", !showLabels && "justify-center px-2")}>
+            <img src="/oti.webp" alt="" className="h-5 w-5 flex-shrink-0 rounded-full object-cover" />
+            {showLabels && <span className="truncate">Oti, tu asistente</span>}
+          </button>
+        </div>
+      )}
 
       {/* Funciones que el plan actual no incluye (visibles, pero fuera del camino) */}
       {showLabels && proItems.length > 0 && (

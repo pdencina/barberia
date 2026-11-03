@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { calculateSubscriptionAmount, validateProfessionals, type BillingPeriod } from "@/lib/subscription-pricing";
 import { MP_API, getMpPublicUrl, createCheckoutPreference } from "@/lib/mercadopago";
+import { codigoValido, normalizarCodigo, esAutoReferido, PREMIO } from "@/lib/referidos";
+import { montoConDescuento } from "@/lib/referidos-beneficios";
 
 // POST: A business fills /suscribirse and hits "Continuar al pago". This:
 //   1. Validates the plan + business data + professionals + billing period
@@ -28,6 +30,7 @@ async function handlePost(req: NextRequest) {
     plan,
     professionals: professionalsRaw,
     billing_period,
+    ref,
   } = body;
 
   if (plan === "enterprise") {
@@ -96,11 +99,24 @@ async function handlePost(req: NextRequest) {
   // venga del cliente. Incluye el IVA (19%) y, si aplica, el descuento anual (20%).
   const { monto, frequency } = calculateSubscriptionAmount(planConfig, professionals, billingPeriod);
 
+  // Referido (etapa 1: solo se registra, no cambia el cobro). Un codigo invalido o un auto-referido se ignoran en silencio: nunca bloquean el alta.
+  let referrerTenantId: string | null = null;
+  let refCode: string | null = null;
+  if (codigoValido(ref)) {
+    try {
+      const code = normalizarCodigo(ref);
+      const { data: inv } = await supabase.from("tenants").select("id, rut_empresa").eq("referral_code", code).maybeSingle();
+      if (inv) {
+        const { data: admins } = await supabase.from("profiles").select("email").eq("tenant_id", inv.id).in("role", ["admin", "super_admin"]);
+        const propio = esAutoReferido({ adminEmails: ((admins as any[]) || []).map((a) => a.email || ""), rut: (inv as any).rut_empresa ?? null }, { email: adminEmailNorm, rut: rut_empresa || null });
+        if (!propio) { referrerTenantId = inv.id; refCode = code; }
+      }
+    } catch (e) { console.error("[subscribe] referido ignorado:", e); }
+  }
+
   // Create the pending signup request first — its id becomes the MP external_reference,
   // so the webhook can find it once the subscription is authorized.
-  const { data: signupRequest, error: signupError } = await supabase
-    .from("signup_requests")
-    .insert({
+  const baseSignup = {
       name,
       slug,
       rut_empresa: rut_empresa || null,
@@ -112,12 +128,35 @@ async function handlePost(req: NextRequest) {
       billing_period: billingPeriod,
       amount: monto,
       status: "pending",
-    })
-    .select()
-    .single();
+  };
+  let { data: signupRequest, error: signupError } = await supabase
+    .from("signup_requests").insert((refCode ? { ...baseSignup, referral_code: refCode } : baseSignup) as Record<string, any>).select().single();
+  // Si falta la migracion 120, se reintenta sin la columna nueva (el alta nunca se pierde por esto).
+  if (signupError && refCode) {
+    refCode = null; referrerTenantId = null;
+    ({ data: signupRequest, error: signupError } = await supabase.from("signup_requests").insert(baseSignup).select().single());
+  }
 
   if (signupError || !signupRequest) {
     return NextResponse.json({ error: signupError?.message || "No se pudo iniciar el registro" }, { status: 500 });
+  }
+
+  // Descuento del referido (solo plan MENSUAL y con NEXT_PUBLIC_REFERIDOS=1): primero se guarda el referido CON sus datos de descuento; si eso falla
+  // (p. ej. falta la migracion 121) NO se descuenta, para no dejar a nadie con un precio rebajado que nunca vuelve al normal.
+  let montoPreapproval = monto;
+  if (refCode && referrerTenantId) {
+    const quiereDescuento = process.env.NEXT_PUBLIC_REFERIDOS === "1" && billingPeriod === "monthly";
+    const base = { referrer_tenant_id: referrerTenantId, referred_signup_id: signupRequest.id, code: refCode };
+    let guardado = false;
+    if (quiereDescuento) {
+      const { error: e1 } = await supabase.from("referrals").insert({ ...base, discount_pct: PREMIO.referidoDescuentoPct, discount_months: PREMIO.referidoMeses, full_amount: monto });
+      if (!e1) { guardado = true; montoPreapproval = montoConDescuento(monto, PREMIO.referidoDescuentoPct); }
+      else console.error("[subscribe] referido sin descuento (falta migracion 121?):", e1.message);
+    }
+    if (!guardado) {
+      const { error: e2 } = await supabase.from("referrals").insert(base);
+      if (e2) console.error("[subscribe] no se pudo registrar el referido:", e2.message);
+    }
   }
 
   const appUrl = getMpPublicUrl();
@@ -157,7 +196,7 @@ async function handlePost(req: NextRequest) {
       auto_recurring: {
         frequency,
         frequency_type: "months",
-        transaction_amount: monto,
+        transaction_amount: montoPreapproval,
         currency_id: "CLP",
       },
     }),

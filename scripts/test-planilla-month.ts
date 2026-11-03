@@ -1,0 +1,10 @@
+import assert from "node:assert/strict";
+import { planillaMonthStart } from "../src/lib/planilla-month";
+let fails = 0;
+const t = (n: string, f: () => void) => { try { f(); console.log("OK  " + n); } catch (e: any) { fails++; console.log("FALLO " + n + ": " + e.message); } };
+t("pedido el 2 nov. cuenta en noviembre", () => assert.equal(planillaMonthStart("2026-11-02T15:00:00Z", "2026-11-05"), "2026-11-01"));
+t("pedido el 31 oct. 22:00 (Chile) y aprobado en noviembre cuenta en octubre", () => assert.equal(planillaMonthStart("2026-11-01T01:00:00Z", "2026-11-02"), "2026-10-01"));
+t("pedido el 1 nov. 00:30 hora de Chile cuenta en noviembre", () => assert.equal(planillaMonthStart("2026-11-01T03:30:00Z", "2026-11-02"), "2026-11-01"));
+t("cambio de ano: pedido el 31 dic. cuenta en diciembre", () => assert.equal(planillaMonthStart("2026-12-31T20:00:00Z", "2027-01-03"), "2026-12-01"));
+t("sin fecha de pedido usa el mes de hoy", () => { assert.equal(planillaMonthStart(null, "2026-11-02"), "2026-11-01"); assert.equal(planillaMonthStart("basura", "2026-11-02"), "2026-11-01"); });
+process.exit(fails ? 1 : 0);

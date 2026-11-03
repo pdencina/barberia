@@ -46,7 +46,7 @@ async function main(){
   const fuente=readFileSync(path,"utf8");check(!/console\.(?:log|warn|error|debug)\s*\(/.test(fuente),"sin logs en archivo auditado");
  }
  const recordatorios=readFileSync("src/app/api/agente/recordatorios-whatsapp/route.ts","utf8"),limpieza=readFileSync("src/app/api/agente/limpieza-retencion/route.ts","utf8");
- check(/permitirEnvio:\s*false/.test(recordatorios),"permitirEnvio sigue false");check(/permitirBorrado:\s*false/.test(limpieza),"permitirBorrado sigue false");
+ check(/permitirEnvio:\s*process\.env\.AGENTE_RECORDATORIOS_ENVIO === "1"/.test(recordatorios),"permitirEnvio solo con AGENTE_RECORDATORIOS_ENVIO=1");check(!readFileSync("vercel.json","utf8").includes("recordatorios-whatsapp"),"cron de recordatorios WhatsApp aún no está en vercel.json");check(/permitirBorrado:\s*false/.test(limpieza),"permitirBorrado sigue false");
  console.log(`OK ${casos} comprobaciones E4; sin red/base ni datos reales.`);
 }
 main().catch(()=>{console.error("FALLO E4: detalles privados omitidos");process.exitCode=1;});

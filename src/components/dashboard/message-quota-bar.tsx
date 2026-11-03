@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { MessageCircle, Mail, Gauge } from "lucide-react";
+import { MessageCircle, Mail, Megaphone, Gauge } from "lucide-react";
 
 // Contador de cupo de mensajeria ("tokens") del negocio: cuantos WhatsApp y correos quedan
 // en el ciclo. Misma fuente que Configuracion (GET /api/message-quota). Se usa en Retencion
@@ -11,7 +11,7 @@ import { MessageCircle, Mail, Gauge } from "lucide-react";
 interface Status { limit: number | null; used: number; remaining: number | null; cycleStart: string }
 
 export function MessageQuotaBar({ channels = ["whatsapp", "email"], refreshKey = 0 }: { channels?: Array<"whatsapp" | "email">; refreshKey?: number }) {
-  const [quota, setQuota] = useState<{ whatsapp: Status | null; email: Status | null } | null>(null);
+  const [quota, setQuota] = useState<{ whatsapp: Status | null; email: Status | null; broadcast?: Status | null } | null>(null);
 
   useEffect(() => {
     fetch("/api/message-quota")
@@ -24,7 +24,9 @@ export function MessageQuotaBar({ channels = ["whatsapp", "email"], refreshKey =
   const rows = ([
     { key: "whatsapp" as const, label: "WhatsApp", Icon: MessageCircle, status: quota.whatsapp, bar: "bg-emerald-500" },
     { key: "email" as const, label: "Correos", Icon: Mail, status: quota.email, bar: "bg-brand-blue" },
-  ]).filter((r) => channels.includes(r.key) && r.status);
+    // Tope mensual de correos de difusion (campañas): se muestra junto a los correos y no aparece si el negocio no tiene tope.
+    { key: "broadcast" as const, label: "Difusión (correos)", Icon: Megaphone, status: quota.broadcast && quota.broadcast.limit !== null ? quota.broadcast : null, bar: "bg-violet-500" },
+  ]).filter((r) => (r.key === "broadcast" ? channels.includes("email") : channels.includes(r.key)) && r.status);
   if (rows.length === 0) return null;
 
   return (
@@ -62,7 +64,7 @@ export function MessageQuotaBar({ channels = ["whatsapp", "email"], refreshKey =
                   />
                 </div>
               )}
-              {exhausted && <p className="text-[11px] font-medium text-red-500">Cupo agotado: los envíos quedan pausados hasta el próximo ciclo.</p>}
+              {exhausted && <p className="text-[11px] font-medium text-red-500">{key === "broadcast" ? "Alcanzaste el tope de difusión de este mes: las campañas quedan pausadas hasta el próximo ciclo." : "Cupo agotado: los envíos quedan pausados hasta el próximo ciclo."}</p>}
               {low && <p className="text-[11px] font-medium text-amber-500">Quedan pocos mensajes este ciclo.</p>}
             </div>
           );

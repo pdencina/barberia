@@ -230,7 +230,22 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  // Boleta electronica automatica (SII): solo si el negocio la activo y dejo "Emitir automaticamente" encendido.
+  // Nunca debe hacer fallar el cobro: si el proveedor falla, la venta queda sin boleta y se reintenta desde Boletas.
+  let boleta: { folio: number; pdfUrl: string | null; pdfBase64: string | null } | null = null;
+  if (tenantId) {
+    try {
+      const { emitForTransaction } = await import("@/lib/sii-emit");
+      const r = await emitForTransaction(supabase, tenantId, tx.id, { onlyAuto: true, barberId });
+      if (r.ok && r.folio) boleta = { folio: r.folio, pdfUrl: r.pdfUrl || null, pdfBase64: r.pdfBase64 || null };
+      else if (!r.ok && (!r.skipped || !(["apagada", "manual"].includes(r.skipped) || r.skipped.startsWith("Falta aplicar")))) console.error("Boleta SII automatica no emitida:", r.error || r.skipped);
+    } catch (e) {
+      console.error("Error emitiendo boleta SII:", e);
+    }
+  }
+
   // Auto-send receipt if client has email
+  let receiptEmailSent = false; // la boleta ya trae el agradecimiento y la calificacion: no se manda otro correo aparte
   if (clientId) {
     try {
       const { data: client } = await supabase
@@ -247,17 +262,10 @@ export async function POST(req: NextRequest) {
           .eq("id", barberId)
           .single();
 
-        let businessLogoUrl: string | null = null;
-        let businessName: string | null = null;
-        if (barber?.tenant_id) {
-          const { data: tenantRow } = await supabase
-            .from("tenants")
-            .select("logo_url, name")
-            .eq("id", barber.tenant_id)
-            .single();
-          businessLogoUrl = tenantRow?.logo_url || null;
-          businessName = tenantRow?.name || null;
-        }
+        const { cargarEnlacesBoleta } = await import("@/lib/receipt-thanks");
+        const enl = await cargarEnlacesBoleta(supabase, barber?.tenant_id, tx.id);
+        const businessLogoUrl = enl.logoUrl;
+        const businessName = enl.name;
 
         await sendReceipt({
           to: client.email,
@@ -277,7 +285,12 @@ export async function POST(req: NextRequest) {
           barberName: barber?.name || "Tu profesional",
           businessLogoUrl,
           businessName,
+          boletaFolio: boleta?.folio ?? null,
+          boletaPdfUrl: boleta?.pdfUrl ?? null,
+          boletaPdfBase64: boleta?.pdfBase64 ?? null,
+          links: enl.links,
         });
+        receiptEmailSent = true;
 
         await supabase
           .from("transactions")
@@ -316,7 +329,7 @@ export async function POST(req: NextRequest) {
       if (list && list.length === 1) apptToComplete = list[0].id;
     }
     if (apptToComplete) {
-      await supabase.from("appointments").update({ status: "completed" }).eq("id", apptToComplete);
+      await supabase.from("appointments").update({ status: "completed", ...(receiptEmailSent ? { post_service_sent: true } : {}) }).eq("id", apptToComplete);
     }
   } catch (e) {
     console.error("Error completando la cita al cobrar:", e);
