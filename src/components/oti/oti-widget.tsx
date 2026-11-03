@@ -29,7 +29,7 @@ const formatCLP = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 const SUGERENCIAS = [
   { titulo: "Cerrar mi agenda", frase: "Cierra mi agenda el " },
   { titulo: "Anotar un gasto personal", frase: "Gasté $ en " },
-  { titulo: "Anotar un ingreso personal", frase: "Me ingresaron $ por " },
+  { titulo: "Anotar un ingreso personal", frase: "Recibí $ por " },
   { titulo: "Ver mis gastos del mes", frase: "¿Cuánto gasté este mes?" },
 ];
 // Ejemplos de pedidos de cierre: se muestran mientras la persona escribe algo parecido.
