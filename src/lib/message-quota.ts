@@ -1,5 +1,5 @@
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { chileDayBoundsUtc, tenantCycleStart } from "@/lib/utils";
+import { chileDayBoundsUtc, tenantCycleStart, toChileDateStr } from "@/lib/utils";
 
 // Pedido de Nico (27-sep): "sistema de tokens" de mensajeria por negocio, similar a los
 // limites de uso de Claude — cada plan trae una cantidad de WhatsApp/correos por mes;
@@ -25,6 +25,29 @@ export type MessageCategory = "confirmation" | "reminder" | "retention" | "follo
 // (por ejemplo Estudio Levels). Los correos de la difusion siguen contando tambien en el cupo general.
 export const TOPE_DIFUSION_CORREOS = 350;
 
+// Periodo de prueba de las reglas nuevas (tope de difusion y correo "califica"): hasta esta fecha solo se cuenta y se avisa,
+// sin bloquear. Un negocio nuevo tiene ademas su primer ciclo completo gratis. El cupo general del plan siempre se aplico.
+export const FECHA_INICIO_TOPE = "2026-12-01";
+
+const pad2 = (n: number) => String(n).padStart(2, "0");
+// Siguiente inicio de ciclo mensual: mismo dia del mes de creacion (ajustado en meses cortos).
+function siguienteCiclo(cycleStart: string, diaCreacion: number): string {
+  let [y, m] = cycleStart.split("-").map(Number);
+  m += 1; if (m === 13) { m = 1; y += 1; }
+  const dias = new Date(Date.UTC(y, m, 0)).getUTCDate();
+  return `${y}-${pad2(m)}-${pad2(Math.min(diaCreacion, dias))}`;
+}
+/** Si el ciclo actual esta en prueba (no bloquea las reglas nuevas) y desde cuando se empieza a bloquear. */
+export function modoPrueba(createdAtIso: string, cycleStart: string): { prueba: boolean; bloqueaDesde: string | null } {
+  const creado = toChileDateStr(createdAtIso);
+  const dia = Number(creado.split("-")[2]);
+  const primerCiclo = cycleStart === creado;
+  if (cycleStart >= FECHA_INICIO_TOPE && !primerCiclo) return { prueba: false, bloqueaDesde: null };
+  let desde = siguienteCiclo(cycleStart, dia);
+  for (let i = 0; i < 36 && desde < FECHA_INICIO_TOPE; i++) desde = siguienteCiclo(desde, dia);
+  return { prueba: true, bloqueaDesde: desde };
+}
+
 export interface QuotaStatus {
   channel: MessageChannel;
   limit: number | null; // null = ilimitado (Enterprise, o override en 0 tratado como sin limite? no: 0 es un limite valido)
@@ -37,8 +60,9 @@ type Db = ReturnType<typeof createAdminSupabase>;
 
 async function resolvePlanQuota(
   supabase: Db,
-  tenantId: string
-): Promise<{ whatsapp: number | null; email: number | null; broadcastEmail: number | null; cycleStart: string } | null> {
+  tenantId: string,
+  hoy?: string
+): Promise<{ whatsapp: number | null; email: number | null; broadcastEmail: number | null; cycleStart: string; prueba: boolean; bloqueaDesde: string | null } | null> {
   const columnas = "plan, created_at, whatsapp_quota_override, email_quota_override";
   let { data: tenant, error } = await supabase
     .from("tenants")
@@ -64,23 +88,27 @@ async function resolvePlanQuota(
   const email = t.email_quota_override ?? planRow?.email_quota ?? null;
   const override = t.broadcast_email_quota_override;
   const broadcastEmail = typeof override === "number" ? (override < 0 ? null : override) : TOPE_DIFUSION_CORREOS;
-  const cycleStart = tenantCycleStart(t.created_at);
-  return { whatsapp, email, broadcastEmail, cycleStart };
+  const cycleStart = tenantCycleStart(t.created_at, hoy);
+  return { whatsapp, email, broadcastEmail, cycleStart, ...modoPrueba(t.created_at, cycleStart) };
 }
 
 async function countUsage(
   supabase: Db,
   tenantId: string,
   channel: MessageChannel,
-  cycleStart: string
+  cycleStart: string,
+  excluirSeguimiento = false
 ): Promise<number> {
   const { startUtc } = chileDayBoundsUtc(cycleStart);
-  const { count } = await supabase
+  let q = supabase
     .from("message_usage")
     .select("id", { count: "exact", head: true })
     .eq("tenant_id", tenantId)
     .eq("channel", channel)
     .gte("created_at", startUtc);
+  // En el periodo de prueba el correo "califica" se registra pero no descuenta del cupo general.
+  if (excluirSeguimiento) q = q.neq("category", "followup");
+  const { count } = await q;
   return count || 0;
 }
 
@@ -96,11 +124,17 @@ async function countUsageCategory(supabase: Db, tenantId: string, channel: Messa
   return count || 0;
 }
 
+/** Modo de las reglas nuevas para el negocio: en prueba (solo cuenta y avisa) o ya aplicando el tope. */
+export async function getModoTope(tenantId: string, db: Db = createAdminSupabase(), hoy?: string): Promise<{ prueba: boolean; bloqueaDesde: string | null } | null> {
+  const quota = await resolvePlanQuota(db, tenantId, hoy);
+  return quota ? { prueba: quota.prueba, bloqueaDesde: quota.bloqueaDesde } : null;
+}
+
 /**
  * Estado del tope de DIFUSION por correo del ciclo actual (no consume nada). `limit` null = sin tope.
  */
-export async function getBroadcastStatus(tenantId: string, db: Db = createAdminSupabase()): Promise<QuotaStatus | null> {
-  const quota = await resolvePlanQuota(db, tenantId);
+export async function getBroadcastStatus(tenantId: string, db: Db = createAdminSupabase(), hoy?: string): Promise<QuotaStatus | null> {
+  const quota = await resolvePlanQuota(db, tenantId, hoy);
   if (!quota) return null;
   const limit = quota.broadcastEmail;
   const used = await countUsageCategory(db, tenantId, "email", "retention", quota.cycleStart);
@@ -115,7 +149,7 @@ export async function getQuotaStatus(tenantId: string, channel: MessageChannel):
   const quota = await resolvePlanQuota(supabase, tenantId);
   if (!quota) return null;
   const limit = channel === "whatsapp" ? quota.whatsapp : quota.email;
-  const used = await countUsage(supabase, tenantId, channel, quota.cycleStart);
+  const used = await countUsage(supabase, tenantId, channel, quota.cycleStart, quota.prueba);
   return {
     channel,
     limit,
@@ -153,10 +187,11 @@ export async function tryConsumeQuota(
   channel: MessageChannel,
   category: MessageCategory,
   referenceId?: string,
-  db: Db = createAdminSupabase()
+  db: Db = createAdminSupabase(),
+  hoy?: string
 ): Promise<boolean> {
   const supabase = db;
-  const quota = await resolvePlanQuota(supabase, tenantId);
+  const quota = await resolvePlanQuota(supabase, tenantId, hoy);
   if (!quota) return false; // sin tenant valido, no se envia nada
 
   if (referenceId) {
@@ -174,14 +209,20 @@ export async function tryConsumeQuota(
     if (existing) return true; // ya se conto en este ciclo, no descontar de nuevo
   }
 
+  // Periodo de prueba: el correo "califica" nunca bloquea; se registra para mostrar el consumo.
+  if (quota.prueba && category === "followup") {
+    await supabase.from("message_usage").insert({ tenant_id: tenantId, channel, category, reference_id: referenceId || null });
+    return true;
+  }
+
   const limit = channel === "whatsapp" ? quota.whatsapp : quota.email;
   if (limit !== null) {
-    const used = await countUsage(supabase, tenantId, channel, quota.cycleStart);
+    const used = await countUsage(supabase, tenantId, channel, quota.cycleStart, quota.prueba);
     if (used >= limit) return false;
   }
 
-  // Tope de difusion: los correos de campañas ademas tienen su propio maximo mensual.
-  if (channel === "email" && category === "retention" && quota.broadcastEmail !== null) {
+  // Tope de difusion: los correos de campañas ademas tienen su propio maximo mensual (no se aplica en el periodo de prueba).
+  if (channel === "email" && category === "retention" && quota.broadcastEmail !== null && !quota.prueba) {
     const difusion = await countUsageCategory(supabase, tenantId, "email", "retention", quota.cycleStart);
     if (difusion >= quota.broadcastEmail) return false;
   }
