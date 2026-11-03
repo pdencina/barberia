@@ -1,4 +1,5 @@
 import { responderFaq, type DatosFaq } from "./faq-fija";
+import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
 import { fetchAllRows } from "../accounting";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
@@ -24,6 +25,8 @@ export interface DependenciasWebhook {
   repo: RepositorioWebhook;
   ahora: () => number;
   datosDelNegocio?: (tenantId: string) => Promise<DatosFaq | null>;
+  // Horas libres de un profesional (misma regla que la reserva web). Sin esto no se atiende la consulta de disponibilidad.
+  horasLibres?: DependenciasDisponibilidad["horasLibres"];
   negocioInactivo?: (tenantId: string) => Promise<boolean>;
   accion: (tipo: "confirmar" | "cancelar", c: { tenantId: string; clienteId: string; referenciaRecordatorio: string }) => Promise<ResultadoAccionCita>;
   responder: (negocio: NegocioWebhook, para: string, texto: string) => Promise<unknown>;
@@ -32,6 +35,10 @@ export interface DependenciasWebhook {
 export class MigracionWebhookPendiente extends Error { constructor() { super("Falta aplicar la migración del webhook"); } }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const hour = 60 * 60 * 1000;
+const conTiempoMaximo = <T,>(promesa: Promise<T>, ms: number) => new Promise<T>((resolve, reject) => {
+  const t = setTimeout(() => reject(new Error("tiempo agotado")), ms);
+  promesa.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+});
 
 export function crearManejadoresWebhook(config: {
   secretoFirma?: string; tokenVerificacion?: string; salHashes?: string;
@@ -113,8 +120,18 @@ export function crearManejadoresWebhook(config: {
                     : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                   if (!ref) {
                     // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
-                    const faq = responderFaq(text,await deps.datosDelNegocio(n.tenantId));
-                    if (faq.tipo === "respuesta") respuestaFaq = faq.texto;
+                    const datosNegocio = await deps.datosDelNegocio(n.tenantId);
+                    // Primero la consulta de disponibilidad ("¿Matías tiene hora a las 3?"); si no aplica o falla, la FAQ.
+                    if (deps.horasLibres) {
+                      try {
+                        const d = await conTiempoMaximo(responderDisponibilidad(text,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres}),6000);
+                        if (d.tipo === "respuesta") respuestaFaq = d.texto;
+                      } catch { /* agenda no disponible o demora: se sigue con la FAQ */ }
+                    }
+                    if (respuestaFaq === null) {
+                      const faq = responderFaq(text,datosNegocio);
+                      if (faq.tipo === "respuesta") respuestaFaq = faq.texto;
+                    }
                   }
                 }
                 if (respuestaFaq !== null) await responder(respuestaFaq);

@@ -1,4 +1,6 @@
 import { crearRepositorioDatosNegocio } from "@/lib/agente/datos-negocio";
+// Se reutiliza la MISMA función que calcula las horas de la reserva web (en el servidor, solo lectura): una sola regla.
+import { GET as disponibilidadPublica } from "@/app/api/public/availability/route";
 import { crearManejadoresWebhook, crearRepositorioWebhook, accionesDesdeBase } from "@/lib/agente/whatsapp-webhook";
 import { enviarTexto } from "@/lib/agente/whatsapp-meta";
 import { createAdminSupabase } from "@/lib/supabase/server";
@@ -18,6 +20,12 @@ const handlers = () => crearManejadoresWebhook({
       repo: crearRepositorioWebhook(db, process.env.AGENTE_CONTACT_HASH_SALT!), ahora: Date.now,
       accion: accionesDesdeBase(db),
       datosDelNegocio: crearRepositorioDatosNegocio(db).datosDelNegocio,
+      horasLibres: async (profesionalId, fecha, duracionMin) => {
+        const res = await disponibilidadPublica(new Request(`https://interno.invalid/api/public/availability?barberId=${encodeURIComponent(profesionalId)}&date=${fecha}&duration=${duracionMin}`) as any);
+        if (!res.ok) throw new Error("Disponibilidad no disponible");
+        const j: any = await res.json();
+        return { slots: Array.isArray(j.slots) ? j.slots : [], cerrado: !!(j.closed || j.vacation || j.blocked), fueraDeVentana: !!j.outOfWindow };
+      },
       // Falla cerrado: si no se puede leer el estado, lanza y el evento queda "fallido" sin responder.
       negocioInactivo: async tenantId => {
         const r = await db.from("tenants").select("active,status").eq("id", tenantId).maybeSingle();

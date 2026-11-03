@@ -90,7 +90,7 @@ async function main(){
  let serialPro=0;const pro=(over:Record<string,unknown>)=>({id:`p${String(++serialPro).padStart(3,"0")}`,tenant_id:"A",name:"Bleiner Santos",booking_slug:"bleiner",active:true,role:"barber",also_attends_clients:false,privado:"NO_PUBLICAR",...over});
  f=fixture();f.tables.profiles=[pro({}),pro({name:"Admin Sin Agenda",booking_slug:"admin-sin",role:"admin"}),pro({name:"Admin Atiende",booking_slug:"admin-atiende",role:"admin",also_attends_clients:true}),pro({name:"Inactivo",booking_slug:"inactivo",active:false}),pro({name:"Ajeno",booking_slug:"ajeno",tenant_id:"B"}),pro({name:"Slug Malo",booking_slug:"MALO/../x"}),pro({name:"Sin Slug",booking_slug:null})];
  r=await f.repo.datosDelNegocio("A");
- check("profesionales: solo reservables activos del negocio, con link personal",JSON.stringify(r?.profesionales)===JSON.stringify([{nombre:"Bleiner Santos",link:"https://synthetic.invalid/negocio-a/bleiner"},{nombre:"Admin Atiende",link:"https://synthetic.invalid/negocio-a/admin-atiende"}]));
+ check("profesionales: solo reservables activos del negocio, con link personal",JSON.stringify(r?.profesionales)===JSON.stringify([{id:"p001",nombre:"Bleiner Santos",link:"https://synthetic.invalid/negocio-a/bleiner",duracionMin:null},{id:"p003",nombre:"Admin Atiende",link:"https://synthetic.invalid/negocio-a/admin-atiende",duracionMin:null}]));
  check("profesionales: nunca expone columnas privadas",!JSON.stringify(r).includes("NO_PUBLICAR"));
  check("profesionales: consulta filtrada por negocio y activos",f.queries.filter(q=>q.table==="profiles").every(q=>q.filters.some(([k,v])=>k==="tenant_id"&&v==="A")&&q.filters.some(([k,v])=>k==="active"&&v===true)));
  f=fixture();f.tables.profiles=[pro({})];f.flags.failTable="profiles";r=await f.repo.datosDelNegocio("A");
@@ -101,6 +101,8 @@ async function main(){
  check("sin slug del negocio no se arman links por profesional",r!==null&&r.profesionales===null);
  f=fixture();f.tables.profiles=[pro({})];r=await f.repo.datosDelNegocio("A");
  check("de punta a punta: 'quiero agendar con Bleiner' responde su link",responderFaq("quiero agendar con Bleiner",r).tipo==="respuesta"&&JSON.stringify(responderFaq("quiero agendar con Bleiner",r)).includes("https://synthetic.invalid/negocio-a/bleiner"));
+ f=fixture();f.tables.profiles=[pro({slot_duration:30}),pro({name:"Otro",booking_slug:"otro",slot_duration:1}),pro({name:"Tercero",booking_slug:"tercero",slot_duration:"45"})];r=await f.repo.datosDelNegocio("A");
+ check("tiempo base del profesional: solo enteros entre 5 y 240 minutos",JSON.stringify(r?.profesionales?.map(x=>x.duracionMin))===JSON.stringify([30,null,null]));
  f=fixture();f.flags.failSlug=true;assert.equal(await crearRepositorioDatosNegocio(f.db).datosDelNegocio("A"),null);casos++;
  // EFAQ1: adaptador real + función pura; sin elegir sucursal ni usar horario del padre.
  const sucursales=()=>{
