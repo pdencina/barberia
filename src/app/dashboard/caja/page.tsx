@@ -1,5 +1,6 @@
 "use client";
 
+import { leerCodigoPlanilla } from "@/lib/planilla-codigo";
 import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -144,7 +145,7 @@ export default function CajaPage() {
   const loadPlanilla = () => { fetch("/api/planilla").then((r) => r.json()).then((d) => setPlanillaPending(d?.pending || [])).catch(() => {}); };
   const approvePlanilla = async (confirmOver = false) => {
     const code = planillaCode.trim().toUpperCase();
-    if (code.length !== 6 || planillaBusy) return;
+    if (!leerCodigoPlanilla(code) || planillaBusy) return;
     setPlanillaBusy(true);
     try {
       const res = await fetch("/api/planilla/aprobar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code, confirmOver }) });
@@ -570,12 +571,12 @@ export default function CajaPage() {
       {isToday && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5">
           <h3 className="font-bold text-gray-800">Descuento por planilla</h3>
-          <p className="text-xs text-gray-500 mb-3">Ingresa el código que te da el profesional. Recién ahí se descuenta el stock y se anota en su libro.</p>
+          <p className="text-xs text-gray-500 mb-3">Ingresa el código de 4 caracteres que te da el profesional (o escanea el código largo con la pistola). Recién ahí se descuenta el stock y se anota en su libro.</p>
           <div className="flex gap-2">
-            <input value={planillaCode} onChange={(e) => setPlanillaCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 6))}
+            <input value={planillaCode} onChange={(e) => setPlanillaCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 13))}
               onKeyDown={(e) => { if (e.key === "Enter") approvePlanilla(); }}
-              placeholder="CÓDIGO" className="w-40 border border-gray-200 rounded-xl px-3 py-2 text-center font-mono tracking-widest" />
-            <button onClick={() => approvePlanilla()} disabled={planillaCode.length !== 6 || planillaBusy}
+              placeholder="CÓDIGO" className="w-48 border border-gray-200 rounded-xl px-3 py-2 text-center font-mono tracking-widest" />
+            <button onClick={() => approvePlanilla()} disabled={!leerCodigoPlanilla(planillaCode) || planillaBusy}
               className="px-4 py-2 bg-brand-blue text-white rounded-xl text-sm font-medium disabled:opacity-40">
               {planillaBusy ? "Aprobando…" : "Aprobar"}
             </button>
