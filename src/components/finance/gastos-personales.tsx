@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, Plus, Trash2, Lock } from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2, Lock, Pencil } from "lucide-react";
 import { formatCurrency, todayInChile } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { CATEGORIAS_GASTO, CATEGORIAS_INGRESO } from "@/lib/oti/personal";
@@ -22,6 +22,7 @@ export function GastosPersonales() {
   const [abierto, setAbierto] = useState(false);
   const [form, setForm] = useState({ kind: "expense" as "expense" | "income", amount: "", description: "", category: "Otros", entry_date: hoy });
   const [guardando, setGuardando] = useState(false);
+  const [editId, setEditId] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     try {
@@ -50,12 +51,20 @@ export function GastosPersonales() {
     if (!form.description.trim()) { showToast("Escribe en qué fue", "error"); return; }
     setGuardando(true);
     try {
-      const res = await fetch("/api/personal/movimientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, amount: monto, source: "manual" }) });
+      const res = editId
+        ? await fetch(`/api/personal/movimientos?id=${editId}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, amount: monto }) })
+        : await fetch("/api/personal/movimientos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, amount: monto, source: "manual" }) });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { showToast(d?.error || "No se pudo guardar", "error"); return; }
-      setForm({ kind: form.kind, amount: "", description: "", category: "Otros", entry_date: hoy }); setAbierto(false); showToast("Anotado", "success"); cargar();
+      setForm({ kind: form.kind, amount: "", description: "", category: "Otros", entry_date: hoy }); setAbierto(false); setEditId(null); showToast(editId ? "Cambios guardados" : "Anotado", "success"); cargar();
     } finally { setGuardando(false); }
   };
+  const editar = (i: Item) => {
+    setForm({ kind: i.kind, amount: String(i.amount), description: i.description, category: i.category, entry_date: i.entry_date });
+    setEditId(i.id); setAbierto(true);
+    setTimeout(() => document.getElementById("form-gasto-personal")?.scrollIntoView({ behavior: "smooth", block: "center" }), 50);
+  };
+  const cancelarEdicion = () => { setEditId(null); setAbierto(false); setForm({ kind: "expense", amount: "", description: "", category: "Otros", entry_date: hoy }); };
   const borrar = async (id: string) => {
     if (!window.confirm("¿Borrar este movimiento?")) return;
     const res = await fetch(`/api/personal/movimientos?id=${id}`, { method: "DELETE" });
@@ -97,9 +106,10 @@ export function GastosPersonales() {
         </div>
       )}
 
-      <button onClick={() => setAbierto((a) => !a)} className="inline-flex items-center gap-1.5 rounded-xl border border-brand-blue/40 px-3 py-2 text-xs font-semibold text-brand-blue"><Plus className="h-3.5 w-3.5" /> Anotar un movimiento</button>
+      <button onClick={() => { if (abierto) cancelarEdicion(); else setAbierto(true); }} className="inline-flex items-center gap-1.5 rounded-xl border border-brand-blue/40 px-3 py-2 text-xs font-semibold text-brand-blue"><Plus className="h-3.5 w-3.5" /> Anotar un movimiento</button>
       {abierto && (
-        <div className="space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-3">
+        <div id="form-gasto-personal" className="space-y-2 rounded-xl border border-gray-100 bg-gray-50 p-3">
+          {editId && <p className="text-xs font-bold text-brand-dark">Editando un movimiento</p>}
           <div className="flex gap-2">
             {(["expense", "income"] as const).map((k) => (
               <button key={k} type="button" onClick={() => setForm({ ...form, kind: k, category: "Otros" })} className={`flex-1 rounded-lg px-3 py-2 text-xs font-semibold ${form.kind === k ? (k === "expense" ? "bg-red-600 text-white" : "bg-emerald-600 text-white") : "bg-white text-brand-gray border border-gray-200"}`}>{k === "expense" ? "Gasto" : "Ingreso"}</button>
@@ -111,7 +121,8 @@ export function GastosPersonales() {
           </div>
           <input placeholder="¿En qué fue? (ej: pan, metro, máquina de cortar)" maxLength={200} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm" />
           <select value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className="w-full rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm">{[...cats, "Otros"].filter((c, i, a) => a.indexOf(c) === i).map((c) => <option key={c} value={c}>{c}</option>)}</select>
-          <button onClick={guardar} disabled={guardando} className="w-full rounded-lg bg-brand-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{guardando ? "Guardando…" : "Guardar"}</button>
+          <button onClick={guardar} disabled={guardando} className="w-full rounded-lg bg-brand-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50">{guardando ? "Guardando…" : editId ? "Guardar cambios" : "Guardar"}</button>
+          {editId && <button onClick={cancelarEdicion} className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm text-brand-gray">Cancelar</button>}
         </div>
       )}
 
@@ -120,12 +131,13 @@ export function GastosPersonales() {
         {items !== null && items.length === 0 && <p className="py-4 text-center text-xs text-brand-gray">Aún no anotas nada este mes. Prueba decirle a Oti: «compré pan $1.200».</p>}
         {(items || []).map((i) => (
           <div key={i.id} className="flex items-center justify-between gap-3 py-2.5">
-            <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-brand-dark">{i.description}</p>
-              <p className="truncate text-xs text-brand-gray">{fechaCorta(i.entry_date)} · {i.category}{i.source === "oti" ? " · con Oti" : i.source === "voz" ? " · por voz" : ""}</p>
-            </div>
+            <button type="button" onClick={() => editar(i)} className="min-w-0 flex-1 text-left" title="Toca para editar">
+              <p className="break-words text-sm font-medium text-brand-dark">{i.description}</p>
+              <p className="mt-0.5 text-xs text-brand-gray"><span className="rounded bg-gray-100 px-1.5 py-0.5 font-semibold text-brand-dark">{i.category}</span> {fechaCorta(i.entry_date)}{i.source === "oti" ? " · con Oti" : i.source === "voz" ? " · por voz" : ""}</p>
+            </button>
             <div className="flex flex-shrink-0 items-center gap-2">
               <span className={`text-sm font-bold tabular-nums ${i.kind === "expense" ? "text-red-600" : "text-emerald-600"}`}>{i.kind === "expense" ? "-" : "+"}{formatCurrency(i.amount)}</span>
+              <button onClick={() => editar(i)} aria-label="Editar" className="rounded-lg p-1.5 text-brand-gray hover:bg-gray-100 hover:text-brand-dark"><Pencil className="h-3.5 w-3.5" /></button>
               <button onClick={() => borrar(i.id)} aria-label="Borrar" className="rounded-lg p-1.5 text-brand-gray hover:bg-red-50 hover:text-red-600"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
           </div>
