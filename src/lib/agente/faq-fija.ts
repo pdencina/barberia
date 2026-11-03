@@ -26,6 +26,9 @@ const frases:Record<Exclude<IntencionFaq,"precio_servicio">,ReadonlySet<string>>
 const PREFIJOS_CON_PROFESIONAL=["quiero agendar una hora","quiero reservar una hora","quiero agendar una cita","quiero reservar una cita","necesito reservar una hora","necesito agendar una hora","quiero agendar","quiero reservar","quiero pedir hora","quiero sacar hora","quiero una hora","quiero una cita","quisiera agendar","quisiera reservar","necesito agendar","necesito reservar","necesito una hora","necesito una cita","me gustaria agendar","me gustaria reservar","puedo agendar","puedo reservar","como agendo","como reservo","agendar una hora","reservar una hora","agendar una cita","reservar una cita","agendar","reservar","pedir hora","sacar hora","una hora","una cita","hora","cita"].sort((a,b)=>b.length-a.length);
 const conProfesional=new RegExp(`^(?:${PREFIJOS_CON_PROFESIONAL.join("|")}) con (.+)$`);
 const enlaceProfesional=/^(?:el )?(?:link|enlace) (?:de|del) (.+)$/;
+// Mensajes sobre agendar que no son una frase exacta: se ofrece el link. Los de precio, cambios o cancelaciones los ve una persona.
+const PALABRA_AGENDAR=/\b(agendar|agendarme|agendo|reservar|reservarme|reservo)\b/;
+const NO_ES_AGENDAR=/\b(cuanto|cuesta|cuestan|precio|precios|valor|vale|valen|descuento|promocion|promo|gratis|cancela|cancelen|anula|cambia|horario|horarios|direccion|ubicacion|telefono|servicios|catalogo|donde|cancelar|cancelo|anular|anulo|cambiar|cambio|reprogramar|reagendar|mover|modificar|reclamo|reclamar|queja|quejar)\b/;
 const diasVisibles=["domingo","lunes","martes","miércoles","jueves","viernes","sábado"] as const;
 function datoTexto(value:unknown):value is string{
  return typeof value==="string"&&!!value.trim()&&!formatosOcultos.test(value)&&!instrucciones.test(normalizar(value))&&!/[<>]/.test(value);
@@ -52,7 +55,7 @@ const precio=new Intl.NumberFormat("es-CL",{maximumFractionDigits:20});
 const limpiar=(s:string)=>s.replace(/^hola(?:,|\s)+/,"").replace(/,? por favor[.!?]*$/,"").trim().replace(/^[¿¡]+/,"").replace(/[?!.]+$/,"").trim();
 // Una sola pregunta ya normalizada y limpia.
 function resolverUna(pedido:string,datos:DatosFaq|null):ResultadoFaq{
- let intencion:IntencionFaq|null=null,servicioPedido:string|null=null,sucursalPedida:string|null=null,profesionalPedido:string|null=null;
+ let intencion:IntencionFaq|null=null,servicioPedido:string|null=null,sucursalPedida:string|null=null,profesionalPedido:string|null=null,agendarLibre=false;
  for(const key of Object.keys(frases) as Exclude<IntencionFaq,"precio_servicio">[])if(frases[key].has(pedido))intencion=key;
  if(!intencion){
   const sucursal=/^(.*?) (?:de|en)(?: la)?(?: sucursal)? (.+)$/.exec(pedido)??/^(.*?) (?:la )?sucursal (.+)$/.exec(pedido);
@@ -64,8 +67,9 @@ function resolverUna(pedido:string,datos:DatosFaq|null):ResultadoFaq{
   const quien=conProfesional.exec(pedido)??enlaceProfesional.exec(pedido);
   if(quien){
    const nombre=quien[1].replace(/^(?:el |la )?(?:barbero |profesional |estilista )?/,"").trim();
-   if(!nombre||nombre.length>40||nombre.split(" ").length>4)return traspaso("mensaje_no_admitido");
-   intencion="agendar";profesionalPedido=nombre;
+   intencion="agendar";
+   // Sin nombre se ofrece el link general; un nombre demasiado largo no se intenta emparejar (se ofrecen las opciones).
+   if(nombre)profesionalPedido=nombre;
   }
  }
  if(!intencion){
@@ -77,6 +81,7 @@ function resolverUna(pedido:string,datos:DatosFaq|null):ResultadoFaq{
    intencion="precio_servicio";
   }
  }
+ if(!intencion&&PALABRA_AGENDAR.test(pedido)&&!NO_ES_AGENDAR.test(pedido)&&!/https?:|www\.|\w\.(?:com|cl|net|org|invalid)\b/.test(pedido)){intencion="agendar";agendarLibre=true;}
  if(!intencion)return traspaso("sin_intencion");
  try{
   if(!datos||!datos.negocio)return traspaso("datos_incompletos");
@@ -106,22 +111,30 @@ function resolverUna(pedido:string,datos:DatosFaq|null):ResultadoFaq{
    const valor=horarioLegible(horario);if(!valor)return traspaso("datos_incompletos");
    respuesta=`Horario semanal: ${valor[0].toUpperCase()+valor.slice(1)}.`;
   }else if(intencion==="agendar"&&profesionalPedido!==null){
-   const lista=datos.profesionales;
-   if(!Array.isArray(lista)||!lista.length)return traspaso("datos_incompletos");
-   const validos=lista.filter(p=>p&&datoTexto(p.nombre)&&datoTexto(p.link));
-   const palabras=profesionalPedido.split(" ");
-   const candidatos=validos.filter(p=>{const t=normalizar(p.nombre).split(" ");return palabras.every(x=>t.includes(x));});
-   if(candidatos.length===0)return traspaso("datos_incompletos");
-   if(candidatos.length>1){
-    if(candidatos.length>5)return traspaso("coincidencia_ambigua");
-    return {tipo:"respuesta",intencion,texto:`Hay más de un profesional con ese nombre: ${candidatos.map(c=>c.nombre.trim()).join("; ")}. Escribe el nombre completo.`};
+   const link=datos.negocio.linkReserva;
+   const linkOk=datoTexto(link)&&(()=>{try{const u=new URL(link);return ["https:","http:"].includes(u.protocol)&&!u.username&&!u.password;}catch{return false;}})();
+   const lista=(Array.isArray(datos.profesionales)?datos.profesionales:[]).filter(p=>p&&datoTexto(p.nombre)&&datoTexto(p.link));
+   const palabras=profesionalPedido.length>40||profesionalPedido.split(" ").length>4?[]:profesionalPedido.split(" ");
+   // Cada palabra pedida debe ser un nombre completo o el comienzo (3 letras o más) de una palabra del nombre del profesional.
+   const coincide=(p:{nombre:string})=>{const t=normalizar(p.nombre).split(" ");return palabras.every(x=>t.some(y=>y===x||(x.length>=3&&y.startsWith(x))));};
+   const candidatos=palabras.length?lista.filter(coincide):[];
+   if(candidatos.length===1){
+    const url=new URL(candidatos[0].link);if(!["https:","http:"].includes(url.protocol)||url.username||url.password)return traspaso("datos_incompletos");
+    respuesta=`Puedes solicitar tu hora con ${candidatos[0].nombre.trim()} aquí: ${candidatos[0].link.trim()}`;
+   }else if(candidatos.length>1&&candidatos.length<=5){
+    respuesta=`Hay más de un profesional con ese nombre: ${candidatos.map(c=>c.nombre.trim()).join("; ")}. Escribe el nombre completo${linkOk?` o elígelo aquí: ${link!.trim()}`:""}.`;
+   }else{
+    // Ninguno coincide: se ofrecen los profesionales y el link general para elegir, en vez de derivar.
+    if(!linkOk)return traspaso("datos_incompletos");
+    const nombres=lista.map(p=>p.nombre.trim());
+    respuesta=nombres.length>0&&nombres.length<=10
+     ?`No encontré a un profesional con ese nombre. Profesionales disponibles: ${nombres.join("; ")}. Para elegir y agendar: ${link!.trim()}`
+     :`No encontré a un profesional con ese nombre. Puedes elegirlo y agendar aquí: ${link!.trim()}`;
    }
-   const url=new URL(candidatos[0].link);if(!["https:","http:"].includes(url.protocol)||url.username||url.password)return traspaso("datos_incompletos");
-   respuesta=`Puedes solicitar tu hora con ${candidatos[0].nombre.trim()} aquí: ${candidatos[0].link.trim()}`;
   }else if(intencion==="agendar"){
    const link=datos.negocio.linkReserva;if(!datoTexto(link))return traspaso("datos_incompletos");
    const url=new URL(link);if(!["https:","http:"].includes(url.protocol)||url.username||url.password)return traspaso("datos_incompletos");
-   respuesta=`Puedes solicitar tu hora aquí: ${link.trim()}`;
+   respuesta=agendarLibre?`¿Deseas agendar? Elige al profesional y la hora aquí: ${link.trim()}`:`Puedes solicitar tu hora aquí: ${link.trim()}`;
   }else{
    if(!Array.isArray(datos.servicios)||!datos.servicios.length)return traspaso("datos_incompletos");
    if(intencion==="servicios"){
