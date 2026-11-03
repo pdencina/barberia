@@ -25,7 +25,13 @@ type Mensaje =
   | { de: "oti"; tipo: "opciones"; opciones: { texto: string; ayuda?: EntradaOti; relleno?: string; soporte?: string }[] };
 
 const formatCLP = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
-const SUGERENCIAS = ["Cierra mañana mi agenda", "Compré pan, me salió $1.200", "¿Cuánto gasté este mes?"];
+// Atajos genéricos: al tocarlos se escribe la frase en la caja de texto (no se envía) para que la persona la complete.
+const SUGERENCIAS = [
+  { titulo: "Cerrar mi agenda", frase: "Cierra mi agenda el " },
+  { titulo: "Anotar un gasto personal", frase: "Gasté $ en " },
+  { titulo: "Anotar un ingreso personal", frase: "Me ingresaron $ por " },
+  { titulo: "Ver mis gastos del mes", frase: "¿Cuánto gasté este mes?" },
+];
 // Ejemplos de pedidos de cierre: se muestran mientras la persona escribe algo parecido.
 const EJEMPLOS_CIERRE = ["Cierra mañana mi agenda", "Cierra el domingo mi agenda", "Cierra del 28 al 30 de octubre mi agenda"];
 const PARECE_CIERRE = /\b(cier|cerr|bloq|ausent|libre|no (?:voy|atiend|trabaj))/;
@@ -58,6 +64,7 @@ export function OtiWidget() {
   const [soporte, setSoporte] = useState<{ pregunta: string } | null>(null);
   const [faltaMonto, setFaltaMonto] = useState<string | null>(null); // frase de gasto a la que le falta el monto
   const fin = useRef<HTMLDivElement>(null);
+  const campo = useRef<HTMLInputElement>(null);
   const r = effectiveRole || role;
 
   useEffect(() => { fin.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, abierto, soporte]);
@@ -388,7 +395,7 @@ export function OtiWidget() {
 
             {msgs.length === 1 && (
               <div className="flex flex-wrap gap-2 px-4 pb-2">
-                {SUGERENCIAS.map((s) => <button key={s} type="button" onClick={() => enviar(s)} className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-brand-gray hover:border-brand-blue/40 dark:border-gray-700">{s}</button>)}
+                {SUGERENCIAS.map((s) => <button key={s.titulo} type="button" onClick={() => { setTexto(s.frase); setTimeout(() => { const el = campo.current; if (el) { el.focus(); const n = s.frase.length; el.setSelectionRange(n, n); } }, 0); }} className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-brand-gray hover:border-brand-blue/40 dark:border-gray-700">{s.titulo}</button>)}
               </div>
             )}
             {texto.trim().length >= 2 && (ideasCierre.length > 0 || ideasAyuda.length > 0) && (
@@ -398,7 +405,7 @@ export function OtiWidget() {
               </div>
             )}
             <form onSubmit={(e) => { e.preventDefault(); enviar(texto); }} className="flex items-center gap-2 border-t border-gray-100 p-3 dark:border-gray-800">
-              <input value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escríbele a Oti…" maxLength={300}
+              <input ref={campo} value={texto} onChange={(e) => setTexto(e.target.value)} placeholder="Escríbele a Oti…" maxLength={300}
                 className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-brand-dark focus:border-brand-blue focus:outline-none dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100" />
               <button type="submit" disabled={ocupado || !texto.trim()} aria-label="Enviar" className="rounded-xl bg-brand-blue p-2.5 text-white disabled:opacity-40"><Send className="h-4 w-4" /></button>
             </form>
