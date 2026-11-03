@@ -110,7 +110,7 @@ export async function computeProMonths(
   const run = (b: PromiseLike<any>): Promise<any> => Promise.resolve(b);
   // Ventas del mes de estos profesionales (sin los "[AJUSTE MANUAL]" antiguos: ahora viven en el libro).
   const txsP = fetchAllRows<any>(() =>
-    supabase.from("transactions").select("id, barber_id, total, tip_amount, notes, payment_method")
+    supabase.from("transactions").select("id, barber_id, total, tip_amount, notes, payment_method, created_at")
       .eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed")
       .in("barber_id", ids).gte("created_at", startUtc).lt("created_at", endUtc)
   ).catch(() => [] as any[]);
