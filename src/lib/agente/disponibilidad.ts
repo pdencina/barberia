@@ -125,18 +125,23 @@ function interpretar(t: string, hoy: string, perfiles: Perfil[]): Consulta | nul
   return { fecha: f.fecha, fechaExplicita: f.explicita, hora, franja, profesionales: mencionados };
 }
 
-// ---------- redacción
-const unir = (a: string[]) => (a.length <= 1 ? a.join("") : `${a.slice(0, -1).join(", ")} y ${a[a.length - 1]}`);
-const lista = (a: string[], max = 6) => (a.length <= max ? unir(a) : `${unir(a.slice(0, max))} y ${a.length - max} más`);
+// ---------- redacción (pensada para leerse bien en WhatsApp: nombres en negrita, una idea por línea, link en su propia línea)
+const MAX_HORAS = 3, MAX_HORAS_DIA = 8, MAX_OTROS = 3;
+const nombreNegrita = (n: string) => `*${n}*`;
+const horasTxt = (a: string[]) => a.join(" · ");
+const mayus = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
+const minutosDe = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
+// Las horas más cercanas a la pedida (o las primeras si no pidió hora), en orden cronológico.
 function cercanos(horas: string[], hora: number | null, max: number): string[] {
-  if (hora === null || horas.length <= max) return horas.slice(0, max);
-  const mins = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
-  return horas.slice().sort((a, b) => Math.abs(mins(a) - hora) - Math.abs(mins(b) - hora)).slice(0, max).sort();
+  if (horas.length <= max) return horas.slice(0, max);
+  if (hora === null) return horas.slice(0, max);
+  return horas.slice().sort((a, b) => Math.abs(minutosDe(a) - hora) - Math.abs(minutosDe(b) - hora)).slice(0, max).sort();
 }
 const horasDe = (r: HorasLibres, franja: Franja | null) => r.slots.map((s) => s.slice(11, 16)).filter((h) => {
   if (!franja) return true;
-  const m = Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5)); return m >= RANGOS[franja][0] && m < RANGOS[franja][1];
+  const m = minutosDe(h); return m >= RANGOS[franja][0] && m < RANGOS[franja][1];
 });
+const bloque = (...partes: Array<string | null | false>) => partes.filter((x): x is string => !!x).join("\n\n");
 
 export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | null, deps: DependenciasDisponibilidad): Promise<ResultadoDisponibilidad> {
   const t = mensajeAdmitido(texto);
@@ -151,60 +156,63 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
   const consultar = async (p: Perfil, f: string): Promise<HorasLibres> => deps.horasLibres(p.id, f, p.duracionMin);
   const consultarTodos = (ps: Perfil[], f: string) => Promise.all(ps.map(async (p) => ({ p, r: await consultar(p, f) })));
   const hh = q.hora === null ? null : hhmm(q.hora);
+  const fueraDeVentana = (enlace: string, de: string) => `Esa fecha todavía no está abierta para reservar.\n\nPuedes ver las fechas disponibles${de} aquí:\n${enlace}`;
 
   // ---- con un profesional concreto
   if (q.profesionales.length === 1) {
-    const P = q.profesionales[0];
+    const P = q.profesionales[0], N = nombreNegrita(P.nombre);
     const r = await consultar(P, q.fecha);
-    if (r.fueraDeVentana) return { tipo: "respuesta", texto: `Esa fecha todavía no está abierta para reservar. Puedes ver las fechas disponibles de ${P.nombre} aquí: ${P.link}` };
+    if (r.fueraDeVentana) return { tipo: "respuesta", texto: fueraDeVentana(P.link, ` de ${P.nombre}`) };
     const propias = horasDe(r, q.franja);
-    const cierre = `¿Deseas agendar? Elige aquí: ${P.link}`;
+    const cierre = `¿Deseas agendar? Elige aquí:\n${P.link}`;
     if (hh !== null && propias.includes(hh)) {
-      const otras = propias.filter((h) => h !== hh);
-      return { tipo: "respuesta", texto: `Sí, ${P.nombre} tiene disponible ${dia(q.fecha)} a las ${hh}.${otras.length ? ` También tiene: ${lista(cercanos(otras, q.hora, 4), 4)}.` : ""} ${cierre}` };
+      const otras = cercanos(propias.filter((h) => h !== hh), q.hora, MAX_HORAS);
+      return { tipo: "respuesta", texto: bloque(`Sí, ${N} tiene disponible ${dia(q.fecha)} a las *${hh}*.`, otras.length > 0 && `También tiene: ${horasTxt(otras)}`, cierre) };
     }
-    if (hh === null && propias.length) return { tipo: "respuesta", texto: `${P.nombre} tiene disponible ${dia(q.fecha)}: ${lista(propias, 8)}. ${cierre}` };
-    const partes: string[] = [];
-    if (propias.length) partes.push(`A las ${hh} ${P.nombre} no tiene hora ${dia(q.fecha)}. Ese día le quedan: ${lista(cercanos(propias, q.hora, 6), 6)}.`);
-    else partes.push(r.cerrado ? `${P.nombre} no atiende ${dia(q.fecha)}.` : `${P.nombre} no tiene horas disponibles ${dia(q.fecha)}.`);
-    if (!propias.length) {
-      let siguiente: { f: string; horas: string[] } | null = null;
-      for (let i = 1; i <= MAX_DIAS_ADELANTE && !siguiente; i++) {
+    if (hh === null && propias.length) {
+      return { tipo: "respuesta", texto: bloque(`${N} tiene disponible ${dia(q.fecha)}:\n${horasTxt(propias.slice(0, MAX_HORAS_DIA))}${propias.length > MAX_HORAS_DIA ? ` · y ${propias.length - MAX_HORAS_DIA} más` : ""}`, cierre) };
+    }
+    let cabecera: string, siguiente: string | null = null;
+    if (propias.length) cabecera = `A las ${hh} ${N} no tiene hora ${dia(q.fecha)}.\nHoras más cercanas: ${horasTxt(cercanos(propias, q.hora, MAX_HORAS))}`;
+    else {
+      cabecera = r.cerrado ? `${N} no atiende ${dia(q.fecha)}.` : `${N} no tiene horas disponibles ${dia(q.fecha)}.`;
+      let prox: { f: string; horas: string[] } | null = null;
+      for (let i = 1; i <= MAX_DIAS_ADELANTE && !prox; i++) {
         const f = sumar(q.fecha, i), rr = await consultar(P, f);
         if (rr.fueraDeVentana) break;
         const horas = horasDe(rr, q.franja);
-        if (horas.length) siguiente = { f, horas };
+        if (horas.length) prox = { f, horas };
       }
-      partes.push(siguiente ? `Su próxima disponibilidad es ${dia(siguiente.f)}: ${lista(cercanos(siguiente.horas, q.hora, 6), 6)}.` : "No tiene horas disponibles en los próximos días.");
+      if (prox) siguiente = `Su próxima disponibilidad es ${dia(prox.f)}:\n${horasTxt(cercanos(prox.horas, q.hora, MAX_HORAS))}`;
+      else if (r.cerrado) siguiente = "No tiene horas disponibles en los próximos días.";
+      else cabecera = `${N} no tiene horas disponibles ${dia(q.fecha)} ni en los próximos días.`;
     }
     const otros = (await consultarTodos(perfiles.filter((p) => p.id !== P.id), q.fecha))
-      .map(({ p, r: rr }) => ({ p, horas: horasDe(rr, q.franja) })).filter((x) => x.horas.length > 0);
-    const ordenados = otros.sort((a, b) => Number(b.horas.includes(hh ?? "")) - Number(a.horas.includes(hh ?? "")));
-    if (ordenados.length) partes.push(`Otros profesionales con disponibilidad ${dia(q.fecha)}: ${ordenados.slice(0, 3).map((x) => `${x.p.nombre} (${lista(cercanos(x.horas, q.hora, 3), 3)})`).join("; ")}.`);
-    partes.push(ordenados.length && general ? `${cierre} O elige a otro profesional aquí: ${general}` : cierre);
-    return { tipo: "respuesta", texto: partes.join(" ") };
+      .map(({ p, r: rr }) => ({ p, horas: horasDe(rr, q.franja) })).filter((x) => x.horas.length > 0)
+      .sort((a, b) => Number(b.horas.includes(hh ?? "")) - Number(a.horas.includes(hh ?? "")))
+      .slice(0, MAX_OTROS);
+    const bloqueOtros = otros.length ? `Otros profesionales disponibles ${dia(q.fecha)}:\n${otros.map((x) => `• ${nombreNegrita(x.p.nombre)}: ${horasTxt(cercanos(x.horas, q.hora, MAX_HORAS))}`).join("\n")}` : null;
+    return { tipo: "respuesta", texto: bloque(cabecera, siguiente, bloqueOtros, cierre, otros.length > 0 && general && `O elige a otro profesional aquí:\n${general}`) };
   }
 
   // ---- sin profesional (o varios con el mismo nombre): se revisan todos
   if (!general) return SIN;
   const revisados = q.profesionales.length > 1 ? q.profesionales : perfiles;
   const dia1 = await consultarTodos(revisados, q.fecha);
-  if (dia1.some(({ r }) => r.fueraDeVentana)) return { tipo: "respuesta", texto: `Esa fecha todavía no está abierta para reservar. Puedes ver las fechas disponibles aquí: ${general}` };
+  if (dia1.some(({ r }) => r.fueraDeVentana)) return { tipo: "respuesta", texto: fueraDeVentana(general, "") };
   const con = dia1.map(({ p, r }) => ({ p, horas: horasDe(r, q.franja) })).filter((x) => x.horas.length > 0);
-  const cierre = `¿Deseas agendar? Elige al profesional y la hora aquí: ${general}`;
+  const cierre = `¿Deseas agendar? Elige al profesional y la hora aquí:\n${general}`;
+  const filas = (xs: typeof con) => xs.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}: ${horasTxt(cercanos(x.horas, q.hora, MAX_HORAS))}`).join("\n");
   if (hh !== null) {
     const exactos = con.filter((x) => x.horas.includes(hh));
-    if (exactos.length) return { tipo: "respuesta", texto: `A las ${hh} ${dia(q.fecha)} tienen disponible: ${unir(exactos.slice(0, 5).map((x) => x.p.nombre))}. ${cierre}` };
+    if (exactos.length) return { tipo: "respuesta", texto: bloque(`A las *${hh}* ${dia(q.fecha)} tienen disponible:\n${exactos.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}`).join("\n")}`, cierre) };
   }
-  if (con.length) {
-    const detalle = con.slice(0, 4).map((x) => `${x.p.nombre} (${lista(cercanos(x.horas, q.hora, 3), 3)})`).join("; ");
-    return { tipo: "respuesta", texto: `${hh !== null ? `A las ${hh} no hay hora ${dia(q.fecha)}. Horas cercanas` : `Hay disponibilidad ${dia(q.fecha)}`}: ${detalle}. ${cierre}` };
-  }
+  if (con.length) return { tipo: "respuesta", texto: bloque(hh !== null ? `A las ${hh} no hay hora ${dia(q.fecha)}.\nHoras más cercanas:\n${filas(con)}` : `Hay disponibilidad ${dia(q.fecha)}:\n${filas(con)}`, cierre) };
   for (let i = 1; i <= MAX_DIAS_ADELANTE; i++) {
     const f = sumar(q.fecha, i), dia2 = await consultarTodos(revisados, f);
     if (dia2.some(({ r }) => r.fueraDeVentana)) break;
     const siguiente = dia2.map(({ p, r }) => ({ p, horas: horasDe(r, q.franja) })).filter((x) => x.horas.length > 0);
-    if (siguiente.length) return { tipo: "respuesta", texto: `${dia(q.fecha)[0].toUpperCase()}${dia(q.fecha).slice(1)} no hay horas disponibles. La próxima disponibilidad es ${dia(f)}: ${siguiente.slice(0, 4).map((x) => `${x.p.nombre} (${lista(cercanos(x.horas, q.hora, 3), 3)})`).join("; ")}. ${cierre}` };
+    if (siguiente.length) return { tipo: "respuesta", texto: bloque(`${mayus(dia(q.fecha))} no hay horas disponibles.`, `La próxima disponibilidad es ${dia(f)}:\n${filas(siguiente)}`, cierre) };
   }
-  return { tipo: "respuesta", texto: `No hay horas disponibles ${dia(q.fecha)} ni en los próximos días. Puedes revisar la agenda aquí: ${general}` };
+  return { tipo: "respuesta", texto: bloque(`No hay horas disponibles ${dia(q.fecha)} ni en los próximos días.`, `Puedes revisar la agenda aquí:\n${general}`) };
 }

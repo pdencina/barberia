@@ -75,7 +75,7 @@ async function pruebasDisponibilidad(){
     const llamadas:Array<[string,string,number]>=[];
     const {f}=armar(async(id,fecha,dur)=>{llamadas.push([id,fecha,dur]);return {slots:[`${fecha}T15:00:00`,`${fecha}T17:00:00`],cerrado:false,fueraDeVentana:false};});
     await enviar(f,"matias tiene hora a las 3?");
-    check("disponibilidad: responde con la agenda",f.sent.length===1&&f.sent[0].startsWith("Sí, Matías Soto tiene disponible hoy a las 15:00.")&&f.sent[0].includes("https://synthetic.invalid/local-A/matias-soto")&&f.notices.length===0&&f.actions.length===0);
+    check("disponibilidad: responde con la agenda",f.sent.length===1&&f.sent[0].startsWith("Sí, *Matías Soto* tiene disponible hoy a las *15:00*.")&&f.sent[0].includes("https://synthetic.invalid/local-A/matias-soto")&&f.notices.length===0&&f.actions.length===0);
     check("disponibilidad: usa el tiempo base del profesional",llamadas.length>0&&llamadas.every(([id,,dur])=>id==="pm"&&dur===45));
     check("disponibilidad: no repite el texto del cliente",!f.sent[0].toLowerCase().includes("matias tiene hora"));
   }
