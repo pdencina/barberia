@@ -8,14 +8,15 @@ import { Spinner } from "@/components/ui/spinner";
 import { DIAS, horariosFlojos, nivelesPorDia, nivelesPorHora, nivelCelda, type DemandMap, type Nivel } from "@/lib/demand-map";
 
 const NOMBRE_DIA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
+const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
 const num = (n: number) => (n === 0 ? "0" : n < 10 ? n.toFixed(1).replace(".", ",") : String(Math.round(n)));
 const lista = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
 
 const COLOR: Record<Nivel, { barra: string; celda: string; texto: string; etiqueta: string }> = {
-  fuerte: { barra: "bg-emerald-500", celda: "bg-emerald-500 text-white", texto: "text-emerald-700", etiqueta: "Fuerte" },
-  normal: { barra: "bg-sky-300", celda: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200", texto: "text-sky-700", etiqueta: "Normal" },
-  flojo: { barra: "bg-amber-400", celda: "bg-amber-200 text-amber-900", texto: "text-amber-700", etiqueta: "Flojo" },
+  fuerte: { barra: "bg-emerald-500", celda: "bg-emerald-500 text-white", texto: "text-emerald-700", etiqueta: "Alta" },
+  normal: { barra: "bg-sky-300", celda: "bg-sky-100 text-sky-800 dark:bg-sky-900/40 dark:text-sky-200", texto: "text-sky-700", etiqueta: "Media" },
+  flojo: { barra: "bg-amber-400", celda: "bg-amber-200 text-amber-900", texto: "text-amber-700", etiqueta: "Baja" },
 };
 
 // Mapa de demanda: cuándo se agenda más y cuándo menos, para cubrir los horarios bajos con promociones. Solo lectura.
@@ -80,18 +81,18 @@ export default function DemandaPage() {
           {/* 1. Lo importante, en palabras */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <p className="text-xs font-semibold text-amber-700">Días más flojos</p>
-              <p className="mt-1 text-lg font-bold capitalize text-brand-dark">{diasFlojos.length ? lista(diasFlojos) : "Sin días flojos"}</p>
-              <p className="text-xs text-brand-gray">Los que menos reservas tienen</p>
+              <p className="text-xs font-semibold text-amber-700">Días de menor demanda</p>
+              <p className="mt-1 text-lg font-bold text-brand-dark">{diasFlojos.length ? cap(lista(diasFlojos)) : "Sin días de baja demanda"}</p>
+              <p className="text-xs text-brand-gray">Los días con menos reservas</p>
             </div>
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <p className="text-xs font-semibold text-amber-700">Horas más flojas</p>
-              <p className="mt-1 text-lg font-bold text-brand-dark">{horasFlojas.length ? lista(horasFlojas) : "Sin horas flojas"}</p>
+              <p className="text-xs font-semibold text-amber-700">Horas de menor demanda</p>
+              <p className="mt-1 text-lg font-bold text-brand-dark">{horasFlojas.length ? lista(horasFlojas) : "Sin horas de baja demanda"}</p>
               <p className="text-xs text-brand-gray">En promedio, todos los días</p>
             </div>
             <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-              <p className="text-xs font-semibold text-emerald-700">Lo más fuerte</p>
-              <p className="mt-1 text-lg font-bold capitalize text-brand-dark">{diaFuerte ? NOMBRE_DIA[diaFuerte.dow - 1] : "—"}{horaFuerte ? ` · ${hh(horaFuerte.hour)}` : ""}</p>
+              <p className="text-xs font-semibold text-emerald-700">Mayor demanda</p>
+              <p className="mt-1 text-lg font-bold text-brand-dark">{diaFuerte ? cap(NOMBRE_DIA[diaFuerte.dow - 1]) : "—"}{horaFuerte ? ` · ${hh(horaFuerte.hour)}` : ""}</p>
               <p className="text-xs text-brand-gray">El día y la hora con más reservas</p>
             </div>
           </div>
@@ -116,7 +117,7 @@ export default function DemandaPage() {
             <Panel title="Reservas por hora" subtitle="Promedio por semana, sumando todos los días. Toca una hora para marcarla como descanso.">
               <div className="space-y-1.5">
                 {horas.map((h) => (
-                  <button type="button" key={h.hour} onClick={() => alternarDescanso(h.hour)} title={descanso.includes(h.hour) ? "Marcada como descanso (no cuenta como flojo). Toca para quitarla" : "Toca para marcar como descanso del equipo"} className={`flex w-full items-center gap-2 text-left text-xs ${descanso.includes(h.hour) ? "opacity-40" : ""}`}>
+                  <button type="button" key={h.hour} onClick={() => alternarDescanso(h.hour)} title={descanso.includes(h.hour) ? "Marcada como descanso (no cuenta como demanda baja). Toca para quitarla" : "Toca para marcar como descanso del equipo"} className={`flex w-full items-center gap-2 text-left text-xs ${descanso.includes(h.hour) ? "opacity-40" : ""}`}>
                     <span className={`w-11 font-semibold text-brand-dark ${descanso.includes(h.hour) ? "line-through" : ""}`}>{hh(h.hour)}</span>
                     <div className="h-4 flex-1 overflow-hidden rounded-full bg-gray-100 dark:bg-gray-800"><div className={`h-full rounded-full ${COLOR[h.nivel].barra}`} style={{ width: `${Math.max(3, (h.avg / maxHora) * 100)}%` }} /></div>
                     <span className="w-8 text-right font-bold tabular-nums text-brand-dark">{num(h.avg)}</span>
@@ -152,15 +153,15 @@ export default function DemandaPage() {
           </Panel>
 
           {/* 4. Qué hacer */}
-          <Panel title="Dónde conviene hacer una promoción" subtitle="Los horarios con menos reservas, dentro del horario en que cada día sí se atiende.">
+          <Panel title="Dónde conviene promocionar" subtitle="Los horarios con menos reservas, dentro del horario en que cada día sí se atiende.">
             <ol className="divide-y divide-gray-100 dark:divide-gray-800">
               {flojos.map((f, i) => (
                 <li key={`${f.dow}-${f.hour}`} className="flex items-center justify-between gap-3 py-2 text-sm">
-                  <span className="text-brand-dark"><b className="text-brand-gray">{i + 1}.</b> <span className="capitalize">{NOMBRE_DIA[f.dow - 1]}</span> a las {hh(f.hour)}</span>
+                  <span className="text-brand-dark"><b className="text-brand-gray">{i + 1}.</b> {cap(NOMBRE_DIA[f.dow - 1])} a las {hh(f.hour)}</span>
                   <span className="text-xs text-brand-gray">{num(f.avg)} reservas por semana</span>
                 </li>
               ))}
-              {flojos.length === 0 && <li className="py-3 text-sm text-brand-gray">No hay horarios flojos con los datos de este período.</li>}
+              {flojos.length === 0 && <li className="py-3 text-sm text-brand-gray">No hay horarios de baja demanda con los datos de este período.</li>}
             </ol>
             <div className="mt-3 flex flex-wrap items-center gap-3">
               <Link href="/dashboard/cupones" className="inline-flex items-center rounded-xl bg-brand-blue px-4 py-2 text-sm font-semibold text-white">Crear una promoción (Cupones)</Link>
