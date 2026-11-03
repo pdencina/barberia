@@ -39,9 +39,12 @@ export async function GET(req: NextRequest) {
   const tenantLinks = new Map<string, TenantLinks>();
   const tenantIds = Array.from(new Set(appointments.map((a: any) => a.tenant_id).filter(Boolean)));
   if (tenantIds.length > 0) {
-    let { data: ts, error: te }: { data: any[] | null; error: any } = await supabase.from("tenants").select("id, slug, google_maps_url").in("id", tenantIds);
-    if (te) ({ data: ts } = await supabase.from("tenants").select("id, slug").in("id", tenantIds));
-    for (const t of ts || []) tenantLinks.set(t.id, { slug: (t as any).slug, google_maps_url: (t as any).google_maps_url });
+    let ts: any[] | null = null;
+    for (const cols of ["id, slug, google_maps_url, google_place_id", "id, slug, google_maps_url", "id, slug"]) {
+      const r: { data: any[] | null; error: any } = await supabase.from("tenants").select(cols).in("id", tenantIds);
+      if (!r.error) { ts = r.data; break; }
+    }
+    for (const t of ts || []) tenantLinks.set(t.id, { slug: (t as any).slug, google_maps_url: (t as any).google_maps_url, google_place_id: (t as any).google_place_id });
   }
 
   let sent = 0;

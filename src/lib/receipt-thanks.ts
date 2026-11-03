@@ -30,10 +30,12 @@ export async function cargarEnlacesBoleta(supabase: any, tenantId: string | null
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl";
   let t: any = null;
   if (tenantId) {
-    let { data, error }: { data: any; error: any } = await supabase.from("tenants").select("logo_url, name, slug, google_maps_url").eq("id", tenantId).maybeSingle();
-    if (error) ({ data } = await supabase.from("tenants").select("logo_url, name, slug").eq("id", tenantId).maybeSingle());
-    t = data;
+    // Sin las migraciones nuevas (Place ID, Google Maps) se prueba con menos columnas hasta que alguna consulta funcione.
+    for (const cols of ["logo_url, name, slug, google_maps_url, google_place_id", "logo_url, name, slug, google_maps_url", "logo_url, name, slug"]) {
+      const r: { data: any; error: any } = await supabase.from("tenants").select(cols).eq("id", tenantId).maybeSingle();
+      if (!r.error) { t = r.data; break; }
+    }
   }
-  const tenant: TenantLinks | null = t ? { google_maps_url: t.google_maps_url, slug: t.slug } : null;
+  const tenant: TenantLinks | null = t ? { google_maps_url: t.google_maps_url, google_place_id: t.google_place_id, slug: t.slug } : null;
   return { links: armarEnlacesCorreo(appUrl, tenant, refId), logoUrl: t?.logo_url || null, name: t?.name || null };
 }
