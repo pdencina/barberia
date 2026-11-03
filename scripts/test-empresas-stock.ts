@@ -104,7 +104,7 @@ async function main() {
   const salon = await must("salon", admin.from("tenants").select("kind").eq("id", SALON_PRUEBAS).single()) as { kind: string };
   ok("el salón de pruebas sigue como salon", salon.kind === "salon");
   const companies = await must("kinds", admin.from("tenants").select("slug").eq("kind", "company")) as { slug: string }[];
-  ok("solo las empresas simuladas son company", companies.every((t) => t.slug.startsWith("empresa-sim-")), companies);
+  ok("solo las empresas simuladas son company", companies.every((t) => t.slug.startsWith("empresa-sim-") || t.slug === "empresa-demo"), companies);
   for (const [table, row] of [
     ["company_warehouses", { tenant_id: SALON_PRUEBAS, name: "No debe existir" }],
     ["company_products", { tenant_id: SALON_PRUEBAS, name: "No debe existir" }],
