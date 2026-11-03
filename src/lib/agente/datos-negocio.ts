@@ -37,10 +37,10 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
   try{return await leer("id,name,address,phone,slug,active,status");}
   catch(e){if(!(e instanceof EsquemaAusente))throw e;try{return await leer("*");}catch(next){if(next instanceof EsquemaAusente)return null;throw next;}}
  }
- async function filas(table:"business_hours"|"services"|"branches",tenant:string,columns:string):Promise<any[]>{
+ async function filas(table:"business_hours"|"services"|"branches"|"profiles",tenant:string,columns:string):Promise<any[]>{
   const consultar=(selection:string)=>fetchAllRows(()=>{
    let q=db.from(table).select(selection).eq("tenant_id",tenant);
-   if(table==="services"||table==="branches")q=q.eq("active",true);
+   if(table==="services"||table==="branches"||table==="profiles")q=q.eq("active",true);
    return {order:(col:string,opt:unknown)=>({range:async(from:number,to:number)=>revisar(await q.order(col,opt).range(from,to))})};
   });
   const leer=(selection:string)=>selection==="*"?lecturaCompatible(consultar,columns,table==="business_hours"?["id","tenant_id"]:["id","tenant_id","active"]):consultar(selection);
@@ -88,7 +88,27 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
      if(!["https:","http:"].includes(url.protocol)||url.username||url.password||url.search||url.hash||!decodeURIComponent(url.pathname).endsWith(`/b/${slug}`))return null;
      linkReserva=candidate;
     }
-    return {negocio:{nombre:texto(t.name),direccion:texto(t.address),telefono:texto(t.phone),linkReserva},horario,servicios:catalogo,sucursales};
+    // Profesionales reservables y su link personal: re-booking.cl/<negocio>/<booking_slug> (src/app/[slug]/[barber]/page.tsx).
+    // Fuente de quién es reservable: src/app/api/public/barbers/route.ts (barber, o admin que atiende clientes; activo).
+    // Si algo falla aquí no se pierde el resto de los datos: solo no se ofrecen links por profesional.
+    let profesionales:DatosNegocio["profesionales"]=null;
+    try{
+     if(linkReserva&&slug){
+      const origen=new URL(linkReserva).origin;
+      const perfiles=await filas("profiles",tenantId,"id,tenant_id,name,booking_slug,active,role,also_attends_clients");
+      if(!perfiles.some(r=>r.tenant_id!==tenantId)){
+       const lista:{nombre:string;link:string}[]=[];
+       for(const r of perfiles){
+        const reservable=r.active===true&&(r.role==="barber"||((r.role==="admin"||r.role==="super_admin")&&r.also_attends_clients===true));
+        const nombre=texto(r.name),corto=texto(r.booking_slug);
+        if(!reservable||!nombre||!corto||!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(corto))continue;
+        lista.push({nombre,link:`${origen}/${slug}/${corto}`});
+       }
+       profesionales=lista;
+      }
+     }
+    }catch{profesionales=null;}
+    return {negocio:{nombre:texto(t.name),direccion:texto(t.address),telefono:texto(t.phone),linkReserva},horario,servicios:catalogo,sucursales,profesionales};
    }catch{return null;} // Error operativo no se disfraza de dato conocido ni se serializa en logs.
   },
  };
