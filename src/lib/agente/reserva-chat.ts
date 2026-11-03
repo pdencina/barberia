@@ -117,6 +117,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
 
   // ---- 2) el cliente envía sus datos
   const sel = estado.datos;
+  // Una pregunta nueva ("¿tienen hora a las 5:30?") sin correo no son sus datos: sigue el camino normal.
+  if (!CORREO.test(texto) && PARECE_CONSULTA.test(t)) return null;
   if (!CARACTERES.test(texto)) return faltan(sel, deps, "Para confirmar necesito tus datos en texto simple.");
   const servicios = (datos?.servicios ?? []).filter((s) => s && typeof s.id === "string" && datoSeguro(s.nombre)).slice(0, MAX_SERVICIOS_LISTADOS);
   if (servicios.length === 0) { await deps.borrarEstado(); return { texto: "Para dejar tu hora necesito que una persona te ayude con los detalles.", derivar: true }; }
