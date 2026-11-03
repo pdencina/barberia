@@ -5,6 +5,9 @@ import { NextResponse } from "next/server";
 
 export function createServerSupabase() {
   const cookieStore = cookies();
+  // En un Server Component cookieStore.set falla: sin esta marca la cookie invalida seguiria ahi y auth-js entraria en un
+  // ciclo sin fin (ver isSuspendedStaff en src/middleware.ts), dejando el proceso al 100% de CPU.
+  const removed = new Set<string>();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
@@ -12,14 +15,16 @@ export function createServerSupabase() {
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value;
+          return removed.has(name) ? undefined : cookieStore.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
+          removed.delete(name);
           try {
             cookieStore.set({ name, value, ...options });
           } catch (error) {}
         },
         remove(name: string, options: CookieOptions) {
+          removed.add(name);
           try {
             cookieStore.set({ name, value: "", ...options });
           } catch (error) {}
