@@ -91,6 +91,7 @@ const t = (name: string, ok: boolean, extra = "") => {
     { ruta: "oti/movimiento-negocio", metodo: "POST", params: {} },
     { ruta: "finanzas", metodo: "GET", params: {} },
     { ruta: "finanzas", metodo: "POST", params: {} },
+    { ruta: "resenas", metodo: "GET", params: {} },
     { ruta: "profesionales/libro/detalle", metodo: "GET", params: {} },
     { ruta: "settings/comision-cosmeticos", metodo: "GET", params: {} },
     { ruta: "settings/comision-cosmeticos", metodo: "POST", params: {} },

@@ -88,6 +88,7 @@ const sections: NavSection[] = [
       },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle, minRole: "admin" },
       { name: "Cupones", href: "/dashboard/cupones", icon: Ticket, minRole: "admin", feature: "coupons" },
+      { name: "Reseñas", href: "/dashboard/resenas", icon: Star, minRole: "receptionist" },
       { name: "Mapa de demanda", href: "/dashboard/demanda", icon: BarChart3, minRole: "admin", basicLocked: true },
     ],
   },
@@ -219,7 +220,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
       "/dashboard/pos", "/dashboard/clientes", "/dashboard/calendario",
       "/dashboard/agenda", "/dashboard/recepcion", "/dashboard/standby",
       "/dashboard/fidelidad", "/dashboard/retencion", "/dashboard/whatsapp",
-      "/dashboard/boletas", "/dashboard/cupones", "/dashboard/configuracion",
+      "/dashboard/boletas", "/dashboard/cupones", "/dashboard/resenas", "/dashboard/configuracion",
       // Nico's request: receptionist also gets Caja, Profesionales (schedules only) and
       // Inventario (read-only, changes gated behind the admin PIN).
       "/dashboard/caja", "/dashboard/barberos", "/dashboard/inventario", "/dashboard/solicitud",
