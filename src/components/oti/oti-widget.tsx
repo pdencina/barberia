@@ -110,10 +110,30 @@ export function OtiWidget() {
     // Dentro de la app del iPhone/Android, el micrófono solo se pide bien desde la versión que lo declara («RebookingMic» en el user agent); en Safari/Chrome siempre.
     const ua = navigator.userAgent || "";
     const enApp = ua.includes("RebookingApp") && !ua.includes("RebookingMic");
-    setVozLista(!enApp && !!(w.SpeechRecognition || w.webkitSpeechRecognition));
+    const nativo = !!w.Capacitor?.Plugins?.SpeechRecognition; // plugin de voz de la app (Android, y iPhone en versiones nuevas)
+    setVozLista(nativo || (!enApp && !!(w.SpeechRecognition || w.webkitSpeechRecognition)));
   }, []);
+  const vozNativa = () => ((window as any).Capacitor?.Plugins?.SpeechRecognition as any) || null;
   // Suelta el micrófono del todo (así se apaga el punto naranja del iPhone): se usa al terminar de hablar, al cerrar el chat, al salir de la pantalla o al enviar.
-  const apagarMic = () => { const r = recRef.current; recRef.current = null; if (r) { try { r.abort(); } catch { try { r.stop(); } catch {} } } setEscuchando(false); };
+  const apagarMic = () => {
+    const r = recRef.current; recRef.current = null;
+    if (r === "nativo") { const n = vozNativa(); try { n?.stop?.(); } catch {} try { n?.removeAllListeners?.(); } catch {} }
+    else if (r) { try { r.abort(); } catch { try { r.stop(); } catch {} } }
+    setEscuchando(false);
+  };
+  // Voz nativa (app): pide el permiso del teléfono, transcribe en vivo a la caja de texto y se detiene sola al terminar de hablar.
+  const hablarNativo = async (n: any, auto: boolean) => {
+    try {
+      let perm = await n.checkPermissions?.();
+      if (perm?.speechRecognition !== "granted") perm = await n.requestPermissions?.();
+      if (perm?.speechRecognition !== "granted") { setEscuchando(false); if (!auto) showToast("Para hablarle a Oti, permite el micrófono: Ajustes › Aplicaciones › re-booking › Permisos.", "error"); return; }
+      await n.removeAllListeners?.();
+      await n.addListener?.("partialResults", (d: any) => { const t = String(d?.matches?.[0] || "").trim(); if (t) setTexto(t.slice(0, 300)); });
+      await n.addListener?.("listeningState", (d: any) => { if (d?.status === "stopped") apagarMic(); });
+      recRef.current = "nativo"; setEscuchando(true); setPedirVoz(false);
+      await n.start({ language: "es-CL", maxResults: 1, partialResults: true, popup: false });
+    } catch { apagarMic(); if (!auto) showToast("No pude usar el micrófono. Escríbele a Oti.", "error"); }
+  };
   useEffect(() => { if (!abierto) apagarMic(); }, [abierto]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const f = () => { if (document.visibilityState === "hidden") apagarMic(); };
@@ -122,6 +142,8 @@ export function OtiWidget() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const hablar = (auto = false) => {
     if (escuchando) { apagarMic(); return; }
+    const nat = vozNativa();
+    if (nat) { void hablarNativo(nat, auto); return; }
     const w = window as any; const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) { showToast("Tu navegador no permite dictar. Escríbele a Oti.", "error"); return; }
     try {
