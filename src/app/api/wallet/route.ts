@@ -41,8 +41,9 @@ export async function GET(req: NextRequest) {
     if (!ledgerOn) return Math.round(total * (rate / 100));
     const ids = rows.map((t) => t.id).filter(Boolean) as string[];
     const split = await splitProductSales(supabase, ids, (barber as any).tenant_id).catch(() => new Map());
+    const esComision = (barber as any).work_mode !== "rental"; // los de arriendo no ganan comisión por cosméticos
     let servicios = 0, cosmeticos = 0;
-    for (const t of rows) { const sp = t.id ? split.get(t.id) : undefined; servicios += Math.max(0, Number(t.total) - (sp?.productTotal || 0)); cosmeticos += sp?.commission || 0; }
+    for (const t of rows) { const sp = t.id ? split.get(t.id) : undefined; servicios += Math.max(0, Number(t.total) - (sp?.productTotal || 0)); cosmeticos += esComision ? sp?.commission || 0 : 0; }
     return Math.round(servicios * (rate / 100)) + cosmeticos;
   };
 

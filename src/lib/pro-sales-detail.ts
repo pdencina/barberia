@@ -2,7 +2,7 @@ import { chileDayBoundsUtc } from "@/lib/utils";
 import { fetchAllRows, monthEnd } from "@/lib/accounting";
 import type { ProMode } from "@/lib/ledger";
 import { productCommission, isCosmeticCategory, type ProductRule } from "@/lib/product-commission";
-import { getCosmeticAmount } from "@/lib/cosmetic-amount";
+import { getCosmeticRule, cosmeticAmountOn } from "@/lib/cosmetic-amount";
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
 const fechaChile = (iso: string) => {
@@ -61,7 +61,7 @@ export async function computeProSalesDetail(supabase: any, o: { tenantId: string
     for (const p of data || []) clientName.set(p.id, p.name);
   }
 
-  const cosmeticAmount = await getCosmeticAmount(supabase, tenantId);
+  const cosmeticRule = await getCosmeticRule(supabase, tenantId);
   const itemsByTx = new Map<string, any[]>();
   for (const it of itemRows) itemsByTx.set(it.transaction_id, [...(itemsByTx.get(it.transaction_id) || []), it]);
 
@@ -73,7 +73,7 @@ export async function computeProSalesDetail(supabase: any, o: { tenantId: string
         const total = Number(it.total) || 0;
         const esProducto = !!it.product_id;
         const r = esProducto ? rule.get(it.product_id) : undefined;
-        const com = esProducto ? productCommission(r, Number(it.quantity) || 1, total, cosmeticAmount) : 0;
+        const com = esProducto && mode === "commission" ? productCommission(r, Number(it.quantity) || 1, total, cosmeticAmountOn(cosmeticRule, t.created_at)) : 0;
         return { nombre: String(it.description || (esProducto ? "Producto" : "Servicio")), tipo: esProducto ? "producto" : "servicio", cantidad: Number(it.quantity) || 1, total, comisionProducto: Math.round(com), cosmetico: esProducto && isCosmeticCategory(r?.category) };
       });
       const prod = its.filter((i) => i.tipo === "producto").reduce((s, i) => s + i.total, 0);

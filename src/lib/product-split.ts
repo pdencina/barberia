@@ -1,5 +1,5 @@
 import { productCommission, type ProductRule } from "@/lib/product-commission";
-import { getCosmeticAmount } from "@/lib/cosmetic-amount";
+import { getCosmeticRule, cosmeticAmountOn } from "@/lib/cosmetic-amount";
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
 
@@ -8,7 +8,12 @@ export async function splitProductSales(supabase: any, txIds: string[], tenantId
   const out = new Map<string, { productTotal: number; commission: number }>();
   if (txIds.length === 0) return out;
   const items: any[] = (await Promise.all(chunk(txIds, 200).map(async (c) => (await supabase.from("transaction_items").select("transaction_id, product_id, quantity, total").in("transaction_id", c).not("product_id", "is", null)).data || []))).flat();
-  const cosmeticAmount = await getCosmeticAmount(supabase, tenantId);
+  const cosmeticRule = await getCosmeticRule(supabase, tenantId);
+  // Fecha de cada venta: la comision de cosmeticos solo cuenta desde la fecha de inicio del negocio.
+  const txDate = new Map<string, string>();
+  if (cosmeticRule.amount > 0 && cosmeticRule.from) {
+    for (const c of chunk(txIds, 200)) { const { data } = await supabase.from("transactions").select("id, created_at").in("id", c); for (const t of data || []) txDate.set(t.id, t.created_at); }
+  }
   const productIds = Array.from(new Set(items.map((i) => i.product_id))) as string[];
   const rules = new Map<string, ProductRule>();
   for (const c of chunk(productIds, 200)) {
@@ -19,7 +24,7 @@ export async function splitProductSales(supabase: any, txIds: string[], tenantId
   for (const it of items) {
     const cur = out.get(it.transaction_id) || { productTotal: 0, commission: 0 };
     cur.productTotal += Number(it.total) || 0;
-    cur.commission += productCommission(rules.get(it.product_id), Number(it.quantity) || 1, Number(it.total) || 0, cosmeticAmount);
+    cur.commission += productCommission(rules.get(it.product_id), Number(it.quantity) || 1, Number(it.total) || 0, cosmeticAmountOn(cosmeticRule, txDate.get(it.transaction_id)));
     out.set(it.transaction_id, cur);
   }
   return out;

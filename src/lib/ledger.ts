@@ -16,7 +16,7 @@ import { chileDayBoundsUtc } from "@/lib/utils";
 import { fetchAllRows, monthEnd } from "@/lib/accounting";
 import { computeProTax, ProTax } from "@/lib/pro-tax";
 import { productCommission, type ProductRule } from "@/lib/product-commission";
-import { getCosmeticAmount } from "@/lib/cosmetic-amount";
+import { getCosmeticRule, cosmeticAmountOn } from "@/lib/cosmetic-amount";
 
 export type ProMode = "commission" | "rental";
 
@@ -172,7 +172,8 @@ export async function computeProMonths(
     if (!r.error) for (const p of r.data || []) productRule.set(p.id, { category: p.category, type: p.sales_commission_type, value: Number(p.sales_commission_value) || 0 });
   }
 
-  const cosmeticAmount = await getCosmeticAmount(supabase, tenantId);
+  const cosmeticRule = await getCosmeticRule(supabase, tenantId);
+  const txCreated = new Map<string, string>(sales.map((t) => [t.id, t.created_at]));
   const productSalesByTx = new Map<string, number>();
   const productCommissionByBarber = new Map<string, number>();
   const productSalesByBarber = new Map<string, number>();
@@ -183,7 +184,8 @@ export async function computeProMonths(
     const total = Number(it.total) || 0;
     productSalesByTx.set(it.transaction_id, (productSalesByTx.get(it.transaction_id) || 0) + total);
     productSalesByBarber.set(barberId, (productSalesByBarber.get(barberId) || 0) + total);
-    const com = productCommission(productRule.get(it.product_id), Number(it.quantity) || 1, total, cosmeticAmount);
+    // Solo los profesionales con pago por comisión ganan comisión por cosméticos; los de arriendo no.
+    const com = mode === "commission" ? productCommission(productRule.get(it.product_id), Number(it.quantity) || 1, total, cosmeticAmountOn(cosmeticRule, txCreated.get(it.transaction_id))) : 0;
     if (com > 0) productCommissionByBarber.set(barberId, (productCommissionByBarber.get(barberId) || 0) + com);
   }
 
