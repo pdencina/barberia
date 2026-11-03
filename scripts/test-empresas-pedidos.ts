@@ -44,7 +44,7 @@ async function loadCompany(letter: string): Promise<Company> {
   const slug = `empresa-sim-${letter}`;
   const tenant = await must("tenant", admin.from("tenants").select("id, admin_email").eq("slug", slug).maybeSingle()) as { id: string; admin_email: string } | null;
   if (!tenant) throw new Error("Faltan las empresas simuladas: corre primero scripts/test-empresas-stock.ts");
-  const member = await must("miembro", admin.from("company_members").select("user_id").eq("tenant_id", tenant.id).limit(1).single()) as { user_id: string };
+  const member = await must("miembro", admin.from("company_members").select("user_id").eq("tenant_id", tenant.id).eq("role_key", "owner").limit(1).single()) as { user_id: string };
   const whs = await must("bodegas", admin.from("company_warehouses").select("id, name").eq("tenant_id", tenant.id)) as { id: string; name: string }[];
   const customer = await must("cliente", admin.from("company_customers")
     .insert({ tenant_id: tenant.id, name: `Cliente simulado ${randomUUID().slice(0, 8)}` }).select("id").single()) as { id: string };

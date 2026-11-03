@@ -157,3 +157,8 @@ Sección 15 de `AGENTS.md`: Codex escribe en ramas `codex/*` con ficha de tarea,
 **HECHO, solo en `rebooking-pruebas` y sin pantallas:** migración 126 (clientes comerciales, pedidos y stock reservado) y 127 (toma de inventario), con `scripts/test-empresas-pedidos.ts`.
 **Reglas:** confirmar reserva; despachar descuenta físico y reserva; cancelar libera. Salidas y traspasos solo usan lo disponible. El conteo físico manda aunque quede bajo lo reservado: ese pedido no se despacha hasta resolver el faltante. Al cerrar un conteo se aplica solo la diferencia, para no pisar lo vendido mientras se contaba.
 **Falta en la Etapa 1:** capacidades por rol, rutas API, login y panel `/empresa`, importación desde Excel. Devoluciones de lo ya despachado: sin definir.
+
+**HECHO, en pruebas y local (3 nov. 2026):** login `/empresa/login`, panel `/empresa` (stock, pedidos, conteos, productos, clientes), rutas `/api/empresa/*` y capacidades por rol en `src/lib/empresas/`. Apagado en producción: solo se activa con `EMPRESAS_ENABLED=1` (encendido en Preview y local).
+**Decisiones técnicas:** el permiso sale de `company_members`, nunca de `profiles.role` (los usuarios de empresa llevan `client`, sin valores nuevos). Bodega cuenta a ciegas y el dueño cierra; los ajustes directos son del dueño. El vendedor ve todos los clientes y solo sus pedidos hasta que exista la cartera (Etapa 2).
+**Datos de demo:** `npx tsx scripts/empresas-demo.ts` (solo pruebas, pide la clave en la Terminal).
+**Falta en la Etapa 1:** importación desde Excel (espera formato de Felipe) y gestión de usuarios desde el panel.
