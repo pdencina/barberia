@@ -112,15 +112,26 @@ export function OtiWidget() {
     const enApp = ua.includes("RebookingApp") && !ua.includes("RebookingMic");
     setVozLista(!enApp && !!(w.SpeechRecognition || w.webkitSpeechRecognition));
   }, []);
+  // Suelta el micrófono del todo (así se apaga el punto naranja del iPhone): se usa al terminar de hablar, al cerrar el chat, al salir de la pantalla o al enviar.
+  const apagarMic = () => { const r = recRef.current; recRef.current = null; if (r) { try { r.abort(); } catch { try { r.stop(); } catch {} } } setEscuchando(false); };
+  useEffect(() => { if (!abierto) apagarMic(); }, [abierto]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const f = () => { if (document.visibilityState === "hidden") apagarMic(); };
+    document.addEventListener("visibilitychange", f); window.addEventListener("pagehide", apagarMic);
+    return () => { document.removeEventListener("visibilitychange", f); window.removeEventListener("pagehide", apagarMic); apagarMic(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const hablar = (auto = false) => {
-    if (escuchando) { try { recRef.current?.stop(); } catch {} return; }
+    if (escuchando) { apagarMic(); return; }
     const w = window as any; const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
     if (!SR) { showToast("Tu navegador no permite dictar. Escríbele a Oti.", "error"); return; }
     try {
       const rec = new SR();
       rec.lang = "es-CL"; rec.interimResults = true; rec.continuous = false;
-      rec.onresult = (e: any) => { const t = Array.from(e.results).map((r: any) => r[0]?.transcript || "").join(" ").trim(); setTexto(t.slice(0, 300)); };
-      rec.onend = () => setEscuchando(false);
+      rec.onresult = (e: any) => {
+        const t = Array.from(e.results).map((r: any) => r[0]?.transcript || "").join(" ").trim(); setTexto(t.slice(0, 300));
+        if (e.results[e.results.length - 1]?.isFinal) apagarMic(); // terminó de hablar: se apaga el micrófono
+      };
+      rec.onend = () => { if (recRef.current === rec) recRef.current = null; setEscuchando(false); };
       rec.onerror = (e: any) => { setEscuchando(false); if (!auto && (e?.error === "not-allowed" || e?.error === "service-not-allowed")) showToast("El micrófono está bloqueado. En el iPhone: Ajustes › Safari › Micrófono (o Ajustes › re-booking) y activa el permiso; también revisa que el Dictado esté activado.", "error"); };
       recRef.current = rec; rec.start(); setEscuchando(true); setPedirVoz(false);
     } catch { setEscuchando(false); }
@@ -177,6 +188,7 @@ export function OtiWidget() {
   const enviar = async (q: string) => {
     const pregunta = q.trim();
     if (!pregunta || ocupado) return;
+    apagarMic();
     setTexto("");
     setMsgs((m) => [...m, { de: "yo", tipo: "texto", texto: pregunta }]);
     setOcupado(true);
