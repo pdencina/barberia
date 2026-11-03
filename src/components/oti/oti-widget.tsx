@@ -105,7 +105,13 @@ export function OtiWidget() {
   const [vozLista, setVozLista] = useState(false);
   const [escuchando, setEscuchando] = useState(false);
   const [pedirVoz, setPedirVoz] = useState(false);
-  useEffect(() => { const w = window as any; setVozLista(!!(w.SpeechRecognition || w.webkitSpeechRecognition)); }, []);
+  useEffect(() => {
+    const w = window as any;
+    // Dentro de la app del iPhone/Android, el micrófono solo se pide bien desde la versión que lo declara («RebookingMic» en el user agent); en Safari/Chrome siempre.
+    const ua = navigator.userAgent || "";
+    const enApp = ua.includes("RebookingApp") && !ua.includes("RebookingMic");
+    setVozLista(!enApp && !!(w.SpeechRecognition || w.webkitSpeechRecognition));
+  }, []);
   const hablar = (auto = false) => {
     if (escuchando) { try { recRef.current?.stop(); } catch {} return; }
     const w = window as any; const SR = w.SpeechRecognition || w.webkitSpeechRecognition;
@@ -115,7 +121,7 @@ export function OtiWidget() {
       rec.lang = "es-CL"; rec.interimResults = true; rec.continuous = false;
       rec.onresult = (e: any) => { const t = Array.from(e.results).map((r: any) => r[0]?.transcript || "").join(" ").trim(); setTexto(t.slice(0, 300)); };
       rec.onend = () => setEscuchando(false);
-      rec.onerror = (e: any) => { setEscuchando(false); if (!auto && (e?.error === "not-allowed" || e?.error === "service-not-allowed")) showToast("Permite el micrófono en el navegador para hablar con Oti", "error"); };
+      rec.onerror = (e: any) => { setEscuchando(false); if (!auto && (e?.error === "not-allowed" || e?.error === "service-not-allowed")) showToast("El micrófono está bloqueado. En el iPhone: Ajustes › Safari › Micrófono (o Ajustes › re-booking) y activa el permiso; también revisa que el Dictado esté activado.", "error"); };
       recRef.current = rec; rec.start(); setEscuchando(true); setPedirVoz(false);
     } catch { setEscuchando(false); }
   };
