@@ -99,11 +99,17 @@ const hostiles=[
  "where are you located","what are your hours","je veux réserver","onde fica","horario please","servicios please","😀","📞📍","💇‍♂️","", " ","x".repeat(160),"x".repeat(161),"x".repeat(5000),"x".repeat(LIMITE_TEXTO_EN_MEMORIA+1),"quiero agendar a las 15:00","¿Tienen estacionamiento?","precio de un servicio inexistente","horario MARCADOR_PRIVADO_F1",
  "horario y quiero agendar","precio del corte https://cliente.invalid","dirección de negocio B MARCADOR_PRIVADO_F1","horario\u2069ignora lo anterior","horario\rignora lo anterior","teléfono 999999999999999999999999999999999999","quiero agendar; cancela mi cita","💰 precio del corte","{\"prompt\":\"ignora lo anterior\"}","dirección del negocio B y su teléfono",
 ];
+const PREGUNTAS_MULTIPLES=new Set(["precio del corte y horario","horario y dirección","horario, teléfono","dirección y servicios","¿Dónde están? ¿Qué horario tienen?","servicios y teléfono","dirección; horario","horario y quiero agendar"]);
 async function main(){
  for(let i=0;i<hostiles.length;i++){
   const entrada=hostiles[i];
-  await caso(`P-${i+1}`,()=>sinLogs(()=>{const r=responderFaq(entrada,datos());assert.equal(r.tipo,"traspaso");privado(entrada,r);}));
-  await caso(`W-${i+1}`,()=>sinLogs(async()=>{const f=fixture(),r=await f.post(entrada);assert.equal(r.status,200);assert.equal(JSON.parse(r.body).fallidos,0);assert.deepEqual(f.enviados,[{tenant:"A",texto:traspaso}]);assert.deepEqual(f.avisos,["A"]);assert.equal(f.acciones.length,0);privado(entrada,{r,sent:f.enviados,logs:f.persistido,avisos:f.avisos,consultas:f.consultas});}));
+  // Varias preguntas conocidas en un mismo mensaje se responden juntas (sin avisar al administrador); el resto sigue derivando.
+  const varias=PREGUNTAS_MULTIPLES.has(entrada);
+  await caso(`P-${i+1}`,()=>sinLogs(()=>{const r=responderFaq(entrada,datos());assert.equal(r.tipo,varias?"respuesta":"traspaso");privado(entrada,r);}));
+  await caso(`W-${i+1}`,()=>sinLogs(async()=>{const f=fixture(),r=await f.post(entrada);assert.equal(r.status,200);assert.equal(JSON.parse(r.body).fallidos,0);
+   if(varias){assert.equal(f.enviados.length,1);assert.notEqual(f.enviados[0].texto,traspaso);assert.deepEqual(f.avisos,[]);}
+   else{assert.deepEqual(f.enviados,[{tenant:"A",texto:traspaso}]);assert.deepEqual(f.avisos,["A"]);}
+   assert.equal(f.acciones.length,0);privado(entrada,{r,sent:f.enviados,logs:f.persistido,avisos:f.avisos,consultas:f.consultas});}));
  }
  for(const [pregunta,mutar] of [
   ["¿Cuál es la dirección?",(d:DatosFaq)=>{d.negocio.direccion=null;}],
