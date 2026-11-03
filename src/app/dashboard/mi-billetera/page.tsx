@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { GastosPersonales } from "@/components/finance/gastos-personales";
+import { AtajoVoz } from "@/components/finance/atajo-voz";
 
 interface WalletMovement {
   id: string;
@@ -63,7 +64,7 @@ export default function MiBilleteraPage() {
           <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Mi Billetera</h1>
           <p className="text-sm text-brand-gray">Tus gastos e ingresos personales</p>
         </div>
-        <GastosPersonales />
+        <><GastosPersonales /><AtajoVoz /></>
       </div>
     );
   }
@@ -235,7 +236,7 @@ export default function MiBilleteraPage() {
       </div>
 
       {/* Gastos e ingresos personales (privados). Se llenan aqui o hablando con Oti. */}
-      <GastosPersonales />
+      <><GastosPersonales /><AtajoVoz /></>
 
       {/* Info */}
       <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-2xl p-4 text-xs text-brand-blue">
