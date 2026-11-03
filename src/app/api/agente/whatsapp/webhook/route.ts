@@ -52,7 +52,7 @@ const handlers = () => crearManejadoresWebhook({
         },
         crearReserva: async (tenantId, a) => {
           const res = await reservaPublica(new Request("https://interno.invalid/api/public/book", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
-            serviceIds: [a.servicioId], barberId: a.profesionalId, date: a.fecha, startTime: a.hora, clientName: a.nombre, clientEmail: a.correo, clientPhone: formatPhoneCL(a.telefono) }) }) as any);
+            serviceIds: [a.servicioId], barberId: a.profesionalId, date: a.fecha, startTime: `${a.fecha}T${a.hora}:00`, clientName: a.nombre, clientEmail: a.correo, clientPhone: formatPhoneCL(a.telefono) }) }) as any);
           const j: any = await res.json().catch(() => ({}));
           if (res.ok && j.success && j.appointmentId) {
             // Origen para los indicadores de fin de mes (solo esta cita, del mismo negocio).
