@@ -1,3 +1,4 @@
+import { armarEnlacesCorreo, type TenantLinks } from "@/lib/post-service-links";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { verifyCron } from "@/lib/cron-auth";
@@ -34,6 +35,15 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ sent: 0, message: "No completed appointments to follow up" });
   }
 
+  // Link de Google Maps y de reserva de cada negocio (si falta la columna, se usa la pagina interna de reseñas).
+  const tenantLinks = new Map<string, TenantLinks>();
+  const tenantIds = Array.from(new Set(appointments.map((a: any) => a.tenant_id).filter(Boolean)));
+  if (tenantIds.length > 0) {
+    let { data: ts, error: te }: { data: any[] | null; error: any } = await supabase.from("tenants").select("id, slug, google_maps_url").in("id", tenantIds);
+    if (te) ({ data: ts } = await supabase.from("tenants").select("id, slug").in("id", tenantIds));
+    for (const t of ts || []) tenantLinks.set(t.id, { slug: (t as any).slug, google_maps_url: (t as any).google_maps_url });
+  }
+
   let sent = 0;
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl";
 
@@ -43,6 +53,7 @@ export async function GET(req: NextRequest) {
     const services = (appt.services as any[])?.map((s: any) => s.service?.name).join(" + ") || "Servicio";
 
     if (!client?.email) continue;
+    const links = armarEnlacesCorreo(appUrl, tenantLinks.get(appt.tenant_id), appt.id);
 
     // Cuenta contra el cupo de correos del negocio (antes no contaba). Si no hay cupo no se envia, y se marca como
     // atendida para que el cron no la reintente cada hora.
@@ -58,7 +69,7 @@ export async function GET(req: NextRequest) {
       await resend.emails.send({
         from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
         to: client.email,
-        subject: `Gracias por tu visita! — Califica tu experiencia`,
+        subject: links.subject,
         html: `
 <!DOCTYPE html>
 <html>
@@ -72,7 +83,7 @@ export async function GET(req: NextRequest) {
     <p style="color: #1F2937; font-size: 15px;">Hola <strong>${client.name}</strong>,</p>
     <p style="color: #6B7280; font-size: 14px; line-height: 1.6;">
       Esperamos que hayas disfrutado tu experiencia con <strong>${barber?.name || "nosotros"}</strong>.
-      Tu opinion nos ayuda a mejorar!
+      ${links.intro}
     </p>
 
     <div style="background: #F5F7FA; border-radius: 12px; padding: 16px; margin: 20px 0; text-align: center;">
@@ -82,8 +93,8 @@ export async function GET(req: NextRequest) {
     </div>
 
     <div style="text-align: center; margin: 24px 0;">
-      <a href="${appUrl}/review/${appt.id}" style="display: inline-block; background: #0F8B8D; color: white; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: bold; font-size: 15px;">
-        Califica tu experiencia ★
+      <a href="${links.reviewUrl}" style="display: inline-block; background: #0F8B8D; color: white; text-decoration: none; padding: 14px 32px; border-radius: 12px; font-weight: bold; font-size: 15px;">
+        ${links.reviewLabel}
       </a>
     </div>
 
@@ -91,7 +102,7 @@ export async function GET(req: NextRequest) {
       Tambien puedes agendar tu proxima visita:
     </p>
     <div style="text-align: center; margin-top: 12px;">
-      <a href="${appUrl}/booking" style="color: #0F8B8D; font-size: 13px; font-weight: bold; text-decoration: none;">
+      <a href="${links.bookUrl}" style="color: #0F8B8D; font-size: 13px; font-weight: bold; text-decoration: none;">
         Agendar nueva cita →
       </a>
     </div>
