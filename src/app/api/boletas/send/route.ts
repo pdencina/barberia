@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, isManagerLevel } from "@/lib/supabase/server";
 import { sendReceipt } from "@/lib/resend";
+import { cargarEnlacesBoleta } from "@/lib/receipt-thanks";
 
 export const dynamic = "force-dynamic";
 
@@ -31,17 +32,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No se encontro email del cliente" }, { status: 400 });
   }
 
-  let businessLogoUrl: string | null = null;
-  let businessName: string | null = null;
-  if (tx.tenant_id) {
-    const { data: tenantRow } = await supabase
-      .from("tenants")
-      .select("logo_url, name")
-      .eq("id", tx.tenant_id)
-      .single();
-    businessLogoUrl = tenantRow?.logo_url || null;
-    businessName = tenantRow?.name || null;
-  }
+  const enl = await cargarEnlacesBoleta(supabase, (tx as any).tenant_id, tx.id);
+  const businessLogoUrl = enl.logoUrl;
+  const businessName = enl.name;
 
   try {
     await sendReceipt({
@@ -62,6 +55,7 @@ export async function POST(req: NextRequest) {
       barberName: tx.barber?.name || "Tu profesional",
       businessLogoUrl,
       businessName,
+      links: enl.links,
     });
 
     await supabase
