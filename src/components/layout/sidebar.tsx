@@ -88,6 +88,7 @@ const sections: NavSection[] = [
       },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle, minRole: "admin" },
       { name: "Cupones", href: "/dashboard/cupones", icon: Ticket, minRole: "admin", feature: "coupons" },
+      { name: "Mapa de demanda", href: "/dashboard/demanda", icon: BarChart3, minRole: "admin", basicLocked: true },
     ],
   },
   {
