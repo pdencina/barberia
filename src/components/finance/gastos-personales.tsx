@@ -122,7 +122,7 @@ export function GastosPersonales() {
           <div key={i.id} className="flex items-center justify-between gap-3 py-2.5">
             <div className="min-w-0">
               <p className="truncate text-sm font-medium text-brand-dark">{i.description}</p>
-              <p className="truncate text-xs text-brand-gray">{fechaCorta(i.entry_date)} · {i.category}{i.source === "oti" ? " · con Oti" : ""}</p>
+              <p className="truncate text-xs text-brand-gray">{fechaCorta(i.entry_date)} · {i.category}{i.source === "oti" ? " · con Oti" : i.source === "voz" ? " · por voz" : ""}</p>
             </div>
             <div className="flex flex-shrink-0 items-center gap-2">
               <span className={`text-sm font-bold tabular-nums ${i.kind === "expense" ? "text-red-600" : "text-emerald-600"}`}>{i.kind === "expense" ? "-" : "+"}{formatCurrency(i.amount)}</span>

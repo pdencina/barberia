@@ -21,7 +21,7 @@ const OTRO_TEMA = /\b(cierra|cerrar|bloque\w*|agenda|cita|citas|reserva|cliente|
 // Monto en pesos. «$123.000», «123.000», «123000», «1.200», «20 lucas», «2 mil», «1,5 mil»? (no: solo enteros y miles con punto).
 export function extraerMonto(texto: string): { monto: number; token: string } | null {
   const t = base(texto);
-  let m = t.match(/(\d{1,3}(?:[.,]\d{3})*|\d+)\s*(lucas?|luca|k|mil)\b/);
+  let m = t.match(/(\d{1,3}(?:[.,]\d{3})*|\d+)\s*(lucas?|luca|k|mil)(?:\s+pesos)?\b/);
   if (m) { const n = Number(m[1].replace(/[.,]/g, "")); if (n > 0) return { monto: n * 1000, token: m[0] }; }
   m = t.match(/\$\s*(\d{1,3}(?:[.,]\d{3})+|\d+)/);
   if (m) return { monto: Number(m[1].replace(/[.,]/g, "")), token: m[0] };
