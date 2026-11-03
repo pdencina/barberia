@@ -245,6 +245,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Auto-send receipt if client has email
+  let receiptEmailSent = false; // la boleta ya trae el agradecimiento y la calificacion: no se manda otro correo aparte
   if (clientId) {
     try {
       const { data: client } = await supabase
@@ -261,17 +262,10 @@ export async function POST(req: NextRequest) {
           .eq("id", barberId)
           .single();
 
-        let businessLogoUrl: string | null = null;
-        let businessName: string | null = null;
-        if (barber?.tenant_id) {
-          const { data: tenantRow } = await supabase
-            .from("tenants")
-            .select("logo_url, name")
-            .eq("id", barber.tenant_id)
-            .single();
-          businessLogoUrl = tenantRow?.logo_url || null;
-          businessName = tenantRow?.name || null;
-        }
+        const { cargarEnlacesBoleta } = await import("@/lib/receipt-thanks");
+        const enl = await cargarEnlacesBoleta(supabase, barber?.tenant_id, tx.id);
+        const businessLogoUrl = enl.logoUrl;
+        const businessName = enl.name;
 
         await sendReceipt({
           to: client.email,
@@ -294,7 +288,9 @@ export async function POST(req: NextRequest) {
           boletaFolio: boleta?.folio ?? null,
           boletaPdfUrl: boleta?.pdfUrl ?? null,
           boletaPdfBase64: boleta?.pdfBase64 ?? null,
+          links: enl.links,
         });
+        receiptEmailSent = true;
 
         await supabase
           .from("transactions")
@@ -333,7 +329,7 @@ export async function POST(req: NextRequest) {
       if (list && list.length === 1) apptToComplete = list[0].id;
     }
     if (apptToComplete) {
-      await supabase.from("appointments").update({ status: "completed" }).eq("id", apptToComplete);
+      await supabase.from("appointments").update({ status: "completed", ...(receiptEmailSent ? { post_service_sent: true } : {}) }).eq("id", apptToComplete);
     }
   } catch (e) {
     console.error("Error completando la cita al cobrar:", e);

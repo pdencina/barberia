@@ -1,5 +1,7 @@
 import { getResendClient } from "@/lib/resend-client";
 import { couponDiscountText } from "@/lib/retention-message";
+import { receiptThanksHtml } from "@/lib/receipt-thanks";
+import type { CorreoLinks } from "@/lib/post-service-links";
 
 interface SendReceiptParams {
   to: string;
@@ -26,6 +28,8 @@ interface SendReceiptParams {
   boletaFolio?: number | null;
   boletaPdfUrl?: string | null;
   boletaPdfBase64?: string | null;
+  // Enlaces del agradecimiento (calificar en Google Maps o en re-booking, y agendar). Sin esto se usa la calificacion interna de siempre.
+  links?: CorreoLinks | null;
 }
 
 export async function sendReceipt(params: SendReceiptParams) {
@@ -45,6 +49,7 @@ export async function sendReceipt(params: SendReceiptParams) {
     boletaFolio,
     boletaPdfUrl,
     boletaPdfBase64,
+    links,
   } = params;
 
   const paymentLabel: Record<string, string> = {
@@ -158,10 +163,7 @@ export async function sendReceipt(params: SendReceiptParams) {
         </table>
       </td></tr>
 
-      <tr><td align="center" style="padding:28px 36px 8px 36px;">
-        <a href="${appUrl}/review/${transactionId}" style="display:inline-block;background:${ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Califica tu atención</a>
-        <div style="font-size:13px;color:#6B7280;margin-top:14px;">¡Gracias por tu preferencia!</div>
-      </td></tr>
+${receiptThanksHtml({ links: links || { reviewUrl: `${appUrl}/review/${transactionId}`, reviewLabel: "Califica tu experiencia ★", subject: "", intro: "Tu opinion nos ayuda a mejorar!", bookUrl: `${appUrl}/booking` }, barberName, businessName, accent: ACCENT })}
 
       <tr><td style="padding:0 0 12px 0;font-size:0;line-height:0;">&nbsp;</td></tr>
     </table>
@@ -174,7 +176,7 @@ export async function sendReceipt(params: SendReceiptParams) {
   const { data, error } = await resend.emails.send({
     from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
-    subject: `Tu boleta${businessName ? ` de ${businessName}` : ""} - ${new Date(date).toLocaleDateString("es-CL", { timeZone: "America/Santiago" })}`,
+    subject: `Tu boleta${businessName ? ` de ${businessName}` : ""} · gracias por tu visita - ${new Date(date).toLocaleDateString("es-CL", { timeZone: "America/Santiago" })}`,
     html,
     ...(boletaFolio && boletaPdfBase64
       ? { attachments: [{ filename: `boleta-${boletaFolio}.pdf`, content: boletaPdfBase64 }] }
