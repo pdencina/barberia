@@ -5,13 +5,14 @@ export interface DatosFaq {
  servicios:{nombre:string;precio:number|null;duracionMin:number|null}[];
  sucursales?:{id:string;nombre:string|null;direccion:string|null;horario:DatosFaq["horario"]}[]|null;
  // Profesionales que se pueden reservar y su link personal (re-booking.cl/<negocio>/<profesional>); null = no disponible.
- profesionales?:{nombre:string;link:string}[]|null;
+ // id y duracionMin (tiempo base del profesional) los usa la consulta de disponibilidad.
+ profesionales?:{id?:string;nombre:string;link:string;duracionMin?:number|null}[]|null;
 }
 export type IntencionFaq="horario"|"direccion"|"telefono"|"precio_servicio"|"servicios"|"agendar";
 export type ResultadoFaq={tipo:"respuesta";intencion:IntencionFaq;texto:string}|{tipo:"traspaso";motivo:"mensaje_no_admitido"|"sin_intencion"|"datos_incompletos"|"coincidencia_ambigua"};
 const traspaso=(motivo:Extract<ResultadoFaq,{tipo:"traspaso"}>["motivo"]):ResultadoFaq=>({tipo:"traspaso",motivo});
 // Solo retira marcas en vocales. La ñ sigue siendo otra letra, igual que en respuesta-cliente.
-const normalizar=(s:string)=>s.normalize("NFC").toLowerCase().normalize("NFD").replace(/([aeiou])[\u0300-\u036f]+/g,"$1").normalize("NFC").trim().replace(/\s+/g," ");
+export const normalizar=(s:string)=>s.normalize("NFC").toLowerCase().normalize("NFD").replace(/([aeiou])[\u0300-\u036f]+/g,"$1").normalize("NFC").trim().replace(/\s+/g," ");
 const instrucciones=/\b(ignora|ignorar|olvida|olvidar|omite|omitir|instrucciones|prompt|sistema|instruccion|actua|responde|responder|revela|secretos|tokens|ejecuta|obedece|traduce|finge)\b/;
 const excluido=/\b(abono|abonos|abonar|deposito|depositos|devolucion|devoluciones|devolver|reembolso|reembolsos|reclamo|reclamos|queja|quejas|salud|alergia|alergias|dolor|medico|medica|medicina|tratamiento|embarazo|herida|hongos|infeccion|dinero|pago|pagos|pagar|tarjeta|tarjetas|efectivo|transferencia|cuotas|descuento|descuentos|credito|cobro|saldo|propina)\b/;
 const formatosOcultos=/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/;
@@ -185,3 +186,13 @@ export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
  }
  return {tipo:"respuesta",intencion:primera!,texto:textos.join("\n\n")};
 }
+
+// Para otros módulos deterministas (consulta de disponibilidad): mismas reglas de admisión que la FAQ.
+// Devuelve el texto normalizado, o null si el mensaje no es admitido (largo, formato oculto, instrucción, tema excluido o negación).
+export function mensajeAdmitido(texto:unknown):string|null{
+ if(typeof texto!=="string"||!texto.trim()||texto.length>160||formatosOcultos.test(texto))return null;
+ const completo=normalizar(texto);
+ if(instrucciones.test(completo)||excluido.test(completo)||/(^|[^a-zñ0-9_])(no|nunca|jamas|tampoco|ni)(?=$|[^a-zñ0-9_])/.test(completo))return null;
+ return completo;
+}
+export const datoSeguro=(valor:unknown):valor is string=>datoTexto(valor);

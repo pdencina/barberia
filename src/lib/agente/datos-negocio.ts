@@ -95,14 +95,16 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
     try{
      if(linkReserva&&slug){
       const origen=new URL(linkReserva).origin;
-      const perfiles=await filas("profiles",tenantId,"id,tenant_id,name,booking_slug,active,role,also_attends_clients");
+      const perfiles=await filas("profiles",tenantId,"id,tenant_id,name,booking_slug,active,role,also_attends_clients,slot_duration");
       if(!perfiles.some(r=>r.tenant_id!==tenantId)){
-       const lista:{nombre:string;link:string}[]=[];
+       const lista:{id:string;nombre:string;link:string;duracionMin:number|null}[]=[];
        for(const r of perfiles){
         const reservable=r.active===true&&(r.role==="barber"||((r.role==="admin"||r.role==="super_admin")&&r.also_attends_clients===true));
         const nombre=texto(r.name),corto=texto(r.booking_slug);
         if(!reservable||!nombre||!corto||!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(corto))continue;
-        lista.push({nombre,link:`${origen}/${slug}/${corto}`});
+        const id=texto(r.id);if(!id)continue;
+        // Tiempo base del profesional (slot_duration) para calcular los huecos de la consulta de disponibilidad.
+        lista.push({id,nombre,link:`${origen}/${slug}/${corto}`,duracionMin:Number.isInteger(r.slot_duration)&&r.slot_duration>=5&&r.slot_duration<=240?r.slot_duration:null});
        }
        profesionales=lista;
       }
