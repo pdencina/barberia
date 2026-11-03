@@ -48,7 +48,11 @@ function Tarjeta({ icono, titulo, valor, pie, destacada = false }: { icono: Reac
   );
 }
 
+interface Creditos { activo: boolean; incluidosMes: number; usadosMes: number; restantesMes: number; restantesPacks: number; disponibles: number }
+
 export default function WhatsappIndicadoresPage() {
+  const [creditos, setCreditos] = useState<Creditos | null>(null);
+  useEffect(() => { fetch("/api/agente/creditos", { cache: "no-store" }).then((r) => r.json()).then((j) => setCreditos(j.creditos ?? null)).catch(() => {}); }, []);
   const [mes, setMes] = useState(mesActual());
   const [datos, setDatos] = useState<{ actual: Periodo; anterior: Periodo } | null>(null);
   const [error, setError] = useState("");
@@ -72,6 +76,14 @@ export default function WhatsappIndicadoresPage() {
         <span className="min-w-[9rem] text-center text-sm font-semibold capitalize text-brand-dark">{nombreMes(mes)}</span>
         <button onClick={() => setMes(mover(mes, 1))} disabled={mes >= mesActual()} aria-label="Mes siguiente" className="rounded-lg p-2 text-brand-gray hover:bg-brand-blue/10 hover:text-brand-blue disabled:opacity-30"><ChevronRight className="h-4 w-4" /></button>
       </div>
+
+      {creditos?.activo && (
+        <Panel title="Créditos de WhatsApp" subtitle="Mensajes que envía re-booking por WhatsApp (recordatorios). Responder a tus clientes no gasta créditos">
+          <div className="mb-2 flex items-baseline justify-between"><span className="text-sm text-brand-gray">Este mes: {creditos.usadosMes} de {creditos.incluidosMes} usados</span><span className="text-sm font-bold text-brand-dark">{creditos.disponibles} disponibles</span></div>
+          <div className="h-3 overflow-hidden rounded-full bg-brand-blue/10"><div className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-accent" style={{ width: `${creditos.incluidosMes > 0 ? Math.min(100, Math.round((creditos.usadosMes / creditos.incluidosMes) * 100)) : 100}%` }} /></div>
+          {creditos.restantesPacks > 0 && <p className="mt-2 text-xs text-brand-gray">Además tienes {creditos.restantesPacks} créditos de packs comprados.</p>}
+        </Panel>
+      )}
 
       {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</p>}
       {!datos && !error && <p className="text-sm text-brand-gray">Cargando…</p>}
