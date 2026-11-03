@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentUserRoleAndTenant, isManagerLevel, resolveTenantForRequest } from "@/lib/supabase/server";
+import { validarMovimientoManual } from "@/lib/finanzas-validar";
 import { chileDayBoundsUtc, todayInChile } from "@/lib/utils";
 import { accountingColumnsAvailable, isMonthClosed, monthEnd, monthFilter, monthLabelEs, monthStart } from "@/lib/accounting";
 
 export async function GET(req: NextRequest) {
+  // SEGURIDAD: los movimientos de todo el negocio los ven solo administración y recepción (antes cualquier usuario con sesión, también profesionales).
+  const manager = await isManagerLevel();
+  if (!manager.userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (!manager.ok) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   // SEGURIDAD: nunca confiar directo en el tenantId de la URL — resolveTenantForRequest lo
@@ -101,18 +106,21 @@ export async function GET(req: NextRequest) {
 const ASSIGNED_TO_VALUES = new Set(["professional", "reception", "business"]);
 
 export async function POST(req: NextRequest) {
+  // SEGURIDAD: antes esta ruta no pedía sesión ni rol y tomaba el negocio de lo que enviara el navegador: cualquiera podía crear
+  // movimientos en cualquier negocio. Ahora solo administrador; el negocio sale de la sesión (solo super_admin puede indicar otro).
+  const { userId, role } = await getCurrentUserRoleAndTenant();
+  if (!userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  if (role !== "admin" && role !== "super_admin") return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const supabase = createAdminSupabase();
-  const body = await req.json();
-  const { type, description, amount, paymentMethod, notes, tenantId: bodyTenantId, assignedTo, barberId, accountingMonth } = body;
+  const body = await req.json().catch(() => ({}));
+  const v = validarMovimientoManual(body);
+  if (!v.ok) return NextResponse.json({ error: v.error }, { status: 400 });
+  const { type, description, amount, paymentMethod, notes } = v.value;
+  const { assignedTo, barberId, accountingMonth } = body;
 
-  // Resolve tenant: prefer explicit param, fallback to session. Never save a manual
-  // income/expense entry without a business, or it becomes invisible in Finanzas.
-  let resolvedTenantId = bodyTenantId;
-  if (!resolvedTenantId) {
-    const { searchParams } = new URL(req.url);
-    const { tenantId: resolved } = await resolveTenantForRequest(searchParams.get("tenantId"));
-    resolvedTenantId = resolved && resolved !== "ALL" ? resolved : null;
-  }
+  const { searchParams } = new URL(req.url);
+  const { tenantId: resolved } = await resolveTenantForRequest(typeof body?.tenantId === "string" ? body.tenantId : searchParams.get("tenantId"));
+  const resolvedTenantId = resolved && resolved !== "ALL" ? resolved : null;
   if (!resolvedTenantId) {
     return NextResponse.json({ error: "No se pudo determinar el negocio para la transaccion." }, { status: 400 });
   }
@@ -121,22 +129,26 @@ export async function POST(req: NextRequest) {
   // Opcional para no romper otros flujos que sigan llamando a este endpoint sin el
   // campo; un valor invalido se ignora en vez de fallar la transaccion completa.
   const resolvedAssignedTo = ASSIGNED_TO_VALUES.has(assignedTo) ? assignedTo : null;
-  const resolvedBarberId = resolvedAssignedTo === "professional" && barberId ? barberId : null;
+  let resolvedBarberId: string | null = resolvedAssignedTo === "professional" && typeof barberId === "string" && barberId ? barberId : null;
+  if (resolvedBarberId) {
+    // El profesional tiene que ser de este negocio.
+    const { data: pro } = await supabase.from("profiles").select("id").eq("id", resolvedBarberId).eq("tenant_id", resolvedTenantId).maybeSingle();
+    if (!pro) return NextResponse.json({ error: "El profesional no pertenece a este negocio" }, { status: 400 });
+  }
 
   // Fecha contable ("Corresponde al mes"): por defecto el mes de hoy. Y quien emite el movimiento.
   const acc = await accountingColumnsAvailable(supabase);
   const base = {
-    type: type.toLowerCase(),
+    type,
     status: "completed",
     subtotal: amount,
     total: amount,
-    payment_method: paymentMethod.toLowerCase(),
+    payment_method: paymentMethod,
     notes,
     tenant_id: resolvedTenantId,
     assigned_to: resolvedAssignedTo,
     barber_id: resolvedBarberId,
   };
-  const { userId } = await getCurrentUserRoleAndTenant();
   const month = monthStart(accountingMonth) || monthStart(todayInChile());
   // Mes cerrado: no se registran movimientos manuales que correspondan a el (hay que reabrirlo).
   if (acc && month && (await isMonthClosed(supabase, resolvedTenantId, month))) {
@@ -150,7 +162,7 @@ export async function POST(req: NextRequest) {
     .select()
     .single();
 
-  if (txError) return NextResponse.json({ error: txError.message }, { status: 500 });
+  if (txError) return NextResponse.json({ error: "No se pudo registrar el movimiento" }, { status: 500 });
 
   await supabase.from("transaction_items").insert({
     transaction_id: tx.id,

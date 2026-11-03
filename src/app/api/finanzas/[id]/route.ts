@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { METODOS_MANUALES } from "@/lib/finanzas-validar";
 import { accountingColumnsAvailable, isMonthClosed, monthLabelEs, monthStart } from "@/lib/accounting";
 
 // Punto 5 (Pablo): editar/eliminar movimientos manuales, disponible solo para el
@@ -43,6 +44,16 @@ export async function PATCH(
 
   const supabase = createAdminSupabase();
 
+  // Validar lo que llega (antes se guardaba tal cual) y que el profesional elegido sea de este negocio.
+  if (amount !== undefined && (!Number.isFinite(Number(amount)) || Number(amount) <= 0 || Number(amount) > 1_000_000_000)) return NextResponse.json({ error: "El monto debe ser mayor que 0" }, { status: 400 });
+  if (paymentMethod !== undefined && !(METODOS_MANUALES as readonly string[]).includes(String(paymentMethod).toLowerCase())) return NextResponse.json({ error: "Método de pago no válido" }, { status: 400 });
+  if (description !== undefined && (typeof description !== "string" || description.trim().length < 1 || description.length > 200)) return NextResponse.json({ error: "Descripción no válida" }, { status: 400 });
+  if (notes !== undefined && notes !== null && (typeof notes !== "string" || notes.length > 500)) return NextResponse.json({ error: "Las notas son muy largas" }, { status: 400 });
+  if (barberId) {
+    const { data: pro } = await supabase.from("profiles").select("id").eq("id", String(barberId)).eq("tenant_id", checked.tx.tenant_id).maybeSingle();
+    if (!pro) return NextResponse.json({ error: "El profesional no pertenece a este negocio" }, { status: 400 });
+  }
+
   const updates: Record<string, any> = {};
   if (amount !== undefined) {
     updates.subtotal = amount;
@@ -66,7 +77,7 @@ export async function PATCH(
 
   if (Object.keys(updates).length > 0) {
     const { error } = await supabase.from("transactions").update(updates).eq("id", params.id);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) return NextResponse.json({ error: "No se pudo actualizar el movimiento" }, { status: 500 });
   }
 
   if (description !== undefined) {
