@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import { pareceCodigoPlanilla } from "@/lib/planilla-codigo";
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -147,7 +149,23 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   // set from tenant_settings.card_payment_provider — see Configuracion -> TUU.
   const [cardProvider, setCardProvider] = useState<"mercadopago" | "tuu">("mercadopago");
   const { showToast } = useToast();
+  const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
+  // Código largo de «Descuento por planilla» escaneado con la pistola (empieza con PL-): se reconoce solo y se aprueba aquí.
+  const aprobarPlanillaEscaneada = async (scanCode: string, confirmOver = false): Promise<void> => {
+    try {
+      const res = await fetch("/api/planilla/aprobar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scanCode, confirmOver }) });
+      const d = await res.json().catch(() => ({}));
+      if (res.status === 409 && d.needsConfirm) {
+        const ok = await confirm({ title: "Supera el 15%", message: d.message, confirmText: "Confirmar igual", variant: "warning" });
+        if (ok) await aprobarPlanillaEscaneada(scanCode, true);
+        return;
+      }
+      if (res.status === 403) { showToast("Solo recepción o el administrador puede aprobar un descuento por planilla.", "error"); return; }
+      if (!res.ok) { showToast(d.error || "No se pudo aprobar el descuento por planilla", "error"); return; }
+      showToast(`Descuento por planilla aprobado (${formatCurrency(Number(d.total) || 0)})`, "success");
+    } catch { showToast("No se pudo conectar para aprobar el descuento por planilla", "error"); }
+  };
 
   // Get tenant ID (from context or localStorage override for super_admin)
   const getActiveTenantId = () => {
@@ -678,6 +696,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && search.trim()) {
                     // Barcode scanner sends Enter after scan
+                    if (pareceCodigoPlanilla(search)) { const c = search.trim(); setSearch(""); void aprobarPlanillaEscaneada(c); return; }
                     const found = products.find((p) => p.barcode === search.trim());
                     if (found) {
                       addToCart(found, "product");
