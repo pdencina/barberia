@@ -48,11 +48,10 @@ function horarioLegible(rows:DatosFaq["horario"]):string|null{
 }
 const precio=new Intl.NumberFormat("es-CL",{maximumFractionDigits:20});
 // No usa reloj, red, entorno, modelo ni logs. Nunca concatena el texto/captura del cliente en la salida.
-export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
- if(typeof texto!=="string"||!texto.trim()||texto.length>160||formatosOcultos.test(texto))return traspaso("mensaje_no_admitido");
- let pedido=normalizar(texto);
- if(instrucciones.test(pedido)||excluido.test(pedido)||/(^|[^a-zñ0-9_])(no|nunca|jamas|tampoco|ni)(?=$|[^a-zñ0-9_])/.test(pedido))return traspaso("mensaje_no_admitido");
- pedido=pedido.replace(/^hola(?:,|\s)+/,"").replace(/,? por favor[.!?]*$/,"").trim().replace(/^[¿¡]+/,"").replace(/[?!.]+$/,"").trim();
+// Limpia una pregunta ya normalizada: saludo, "por favor" y signos de apertura/cierre.
+const limpiar=(s:string)=>s.replace(/^hola(?:,|\s)+/,"").replace(/,? por favor[.!?]*$/,"").trim().replace(/^[¿¡]+/,"").replace(/[?!.]+$/,"").trim();
+// Una sola pregunta ya normalizada y limpia.
+function resolverUna(pedido:string,datos:DatosFaq|null):ResultadoFaq{
  let intencion:IntencionFaq|null=null,servicioPedido:string|null=null,sucursalPedida:string|null=null,profesionalPedido:string|null=null;
  for(const key of Object.keys(frases) as Exclude<IntencionFaq,"precio_servicio">[])if(frases[key].has(pedido))intencion=key;
  if(!intencion){
@@ -146,4 +145,30 @@ export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
   }
   return {tipo:"respuesta",intencion,texto:respuesta};
  }catch{return traspaso("datos_incompletos");}
+}
+
+// Separadores entre preguntas: signos, "y", "e", "ademas", "tambien". Solo se usan si el mensaje completo no es una pregunta conocida.
+const separadores=/\s*(?:[?¿!;,]+|\sy\s|\se\s|\sademas\s|\stambien\s)\s*/;
+const MAX_PREGUNTAS=3;
+// No usa reloj, red, entorno, modelo ni logs. Nunca concatena el texto/captura del cliente en la salida.
+// Con 2 o 3 preguntas conocidas responde todas juntas; si alguna parte no se entiende o falta un dato, deriva a una persona.
+export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
+ if(typeof texto!=="string"||!texto.trim()||texto.length>160||formatosOcultos.test(texto))return traspaso("mensaje_no_admitido");
+ const completo=normalizar(texto);
+ if(instrucciones.test(completo)||excluido.test(completo)||/(^|[^a-zñ0-9_])(no|nunca|jamas|tampoco|ni)(?=$|[^a-zñ0-9_])/.test(completo))return traspaso("mensaje_no_admitido");
+ const unica=resolverUna(limpiar(completo),datos);
+ // Si la lectura de una sola pregunta respondió (o el mensaje no es admitido), se queda así; si derivó, se prueba separar varias preguntas.
+ if(unica.tipo==="respuesta"||unica.motivo==="mensaje_no_admitido")return unica;
+ const partes=limpiar(completo).split(separadores).map(limpiar).filter(Boolean);
+ if(partes.length<2||partes.length>MAX_PREGUNTAS)return unica;
+ const textos:string[]=[];let primera:IntencionFaq|null=null;
+ for(const parte of partes){
+  const r=resolverUna(parte,datos);
+  if(r.tipo!=="respuesta")return unica; // si una parte falla, se conserva el resultado original de derivar
+  // Una repregunta ("¿de qué sucursal?", "escribe el nombre completo") no se mezcla con otras respuestas: lo ve una persona.
+  if(/^(?:¿De qué sucursal|Hay más de un profesional)/.test(r.texto))return traspaso("coincidencia_ambigua");
+  primera=primera??r.intencion;
+  if(!textos.includes(r.texto))textos.push(r.texto);
+ }
+ return {tipo:"respuesta",intencion:primera!,texto:textos.join("\n\n")};
 }
