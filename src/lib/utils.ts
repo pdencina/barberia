@@ -144,10 +144,9 @@ export function daysBetweenDateStrs(fromStr: string, toStr: string): number {
  * the 31st cycles on Feb 28/29, Apr 30, etc. instead of overflowing into the next month),
  * and never returns a date before the tenant's own creation date.
  */
-export function tenantCycleStart(createdAtIso: string): string {
+export function tenantCycleStart(createdAtIso: string, today: string = todayInChile()): string {
   const created = toChileDateStr(createdAtIso);
   const [cy, cm, cd] = created.split("-").map(Number);
-  const today = todayInChile();
   const [ty, tm] = today.split("-").map(Number);
 
   const daysInMonth = (y: number, m: number) => new Date(Date.UTC(y, m, 0)).getUTCDate(); // m: 1-indexed

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { verifyCron } from "@/lib/cron-auth";
+import { tryConsumeQuota } from "@/lib/message-quota";
 
 export const dynamic = "force-dynamic";
 
@@ -19,7 +20,7 @@ export async function GET(req: NextRequest) {
   const { data: appointments } = await supabase
     .from("appointments")
     .select(`
-      id, date, start_time,
+      id, date, start_time, tenant_id,
       client:clients(id, name, email, phone),
       barber:profiles(name),
       services:appointment_services(service:services(name))
@@ -42,6 +43,13 @@ export async function GET(req: NextRequest) {
     const services = (appt.services as any[])?.map((s: any) => s.service?.name).join(" + ") || "Servicio";
 
     if (!client?.email) continue;
+
+    // Cuenta contra el cupo de correos del negocio (antes no contaba). Si no hay cupo no se envia, y se marca como
+    // atendida para que el cron no la reintente cada hora.
+    if (appt.tenant_id && !(await tryConsumeQuota(appt.tenant_id, "email", "followup", appt.id))) {
+      await supabase.from("appointments").update({ post_service_sent: true }).eq("id", appt.id);
+      continue;
+    }
 
     try {
       const { getResendClient } = await import("@/lib/resend-client");
