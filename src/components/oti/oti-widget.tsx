@@ -62,6 +62,25 @@ export function OtiWidget() {
 
   useEffect(() => { fin.current?.scrollIntoView({ behavior: "smooth" }); }, [msgs, abierto, soporte]);
 
+  // Historial: los últimos mensajes se guardan en este navegador (por usuario) para verlos al volver a abrir el chat.
+  const claveHistorial = user?.id ? `oti-historial-${user.id}` : null;
+  const [historialListo, setHistorialListo] = useState(false);
+  useEffect(() => {
+    if (!claveHistorial) return;
+    try {
+      const g = JSON.parse(localStorage.getItem(claveHistorial) || "[]");
+      if (Array.isArray(g) && g.length) setMsgs([SALUDO, ...g]);
+    } catch {}
+    setHistorialListo(true);
+  }, [claveHistorial]);
+  useEffect(() => {
+    if (!claveHistorial || !historialListo) return;
+    // Solo lo que se entiende sin volver a ejecutar nada: textos y movimientos ya resueltos (nunca confirmaciones pendientes).
+    const guardables = msgs.slice(1).filter((m) => m.tipo === "texto" || (m.tipo === "personal" && m.estado !== "pendiente")).slice(-40);
+    try { localStorage.setItem(claveHistorial, JSON.stringify(guardables)); } catch {}
+  }, [msgs, claveHistorial, historialListo]);
+  const borrarHistorial = () => { setMsgs([SALUDO]); setSoporte(null); setFaltaMonto(null); if (claveHistorial) { try { localStorage.removeItem(claveHistorial); } catch {} } };
+
   // ---- Burbuja flotante (como la de Messenger): se arrastra, se pega al borde y se oculta soltándola sobre la «X» de abajo. ----
   const visible = useOtiVisible();
   const TAM = 56;
@@ -277,6 +296,7 @@ export function OtiWidget() {
                 <p className="text-sm font-bold text-brand-dark dark:text-gray-100">Oti</p>
                 <p className="text-[11px] text-brand-gray">Asistente de tareas pequeñas</p>
               </div>
+              {msgs.length > 1 && <button type="button" onClick={borrarHistorial} className="rounded-lg px-2 py-1 text-[11px] text-brand-gray hover:bg-gray-100 dark:hover:bg-gray-800" title="Borra la conversación guardada en este navegador">Borrar historial</button>}
               <button type="button" onClick={() => { setAbierto(false); ocultarOti(); }} className="rounded-lg px-2 py-1 text-[11px] text-brand-gray hover:bg-gray-100 dark:hover:bg-gray-800" title="Oculta la burbuja; puedes volver a abrirlo desde el menú">Ocultar</button>
               <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar" className="rounded-full p-2 text-brand-gray hover:bg-gray-100 dark:hover:bg-gray-800"><X className="h-4 w-4" /></button>
             </div>
