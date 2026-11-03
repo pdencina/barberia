@@ -88,6 +88,7 @@ const t = (name: string, ok: boolean, extra = "") => {
     { ruta: "personal/voz/llave", metodo: "DELETE", params: {} },
     { ruta: "personal/voz", metodo: "POST", params: {} },
     { ruta: "reportes/demanda", metodo: "GET", params: {} },
+    { ruta: "oti/movimiento-negocio", metodo: "POST", params: {} },
     { ruta: "profesionales/libro/detalle", metodo: "GET", params: {} },
     { ruta: "settings/comision-cosmeticos", metodo: "GET", params: {} },
     { ruta: "settings/comision-cosmeticos", metodo: "POST", params: {} },
