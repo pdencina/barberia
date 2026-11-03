@@ -97,6 +97,7 @@ export default function EditProfessionalPage() {
         also_attends_clients: (data as any).also_attends_clients,
         instagram: (data as any).instagram,
         rental_cash_to_barber: (data as any).rental_cash_to_barber,
+        ...((data as any).rental_transfer_to_barber !== undefined ? { rental_transfer_to_barber: !!(data as any).rental_transfer_to_barber } : {}),
         ...((data as any).rental_cash_settle_from !== undefined ? { rental_cash_settle_from: (data as any).rental_cash_settle_from || null } : {}),
         sii_enabled: !!(data as any).sii_enabled,
         tax_rate: (data as any).sii_enabled ? Number((data as any).tax_rate) || 0 : 0,
@@ -582,6 +583,20 @@ export default function EditProfessionalPage() {
                 Si esta activo, el efectivo de sus ventas NO se cuenta en la caja ni en los
                 ingresos del salon (solo entra el arriendo). Dejalo desactivado si el efectivo
                 queda en la caja y se descuenta del arriendo a fin de mes.
+              </span>
+            </span>
+          </label>
+
+          {/* Transferencias: ¿llegan a la cuenta del profesional o a la del negocio? Solo importa si el negocio cobra los cosméticos que vende (Configuración). */}
+          <label className="flex items-start gap-3 p-3 bg-orange-50 border border-orange-100 rounded-xl cursor-pointer">
+            <input type="checkbox" checked={!!(data as any).rental_transfer_to_barber}
+              onChange={(e) => setData({ ...data, rental_transfer_to_barber: e.target.checked } as any)}
+              className="w-4 h-4 mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500" />
+            <span className="text-sm text-gray-700">
+              <span className="font-medium">Las transferencias llegan directo al profesional</span>
+              <span className="block text-xs text-gray-500 mt-0.5">
+                Activado: las transferencias de sus ventas llegan a su cuenta. Desactivado: llegan a la cuenta del negocio.
+                Se usa para calcular los cosméticos que vende (Configuración › Cosméticos vendidos por profesionales de arriendo).
               </span>
             </span>
           </label>

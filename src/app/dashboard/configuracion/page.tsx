@@ -12,6 +12,7 @@ import { useAuth } from "@/lib/auth-context";
 import { Copy, ExternalLink, Globe, Clock, Building2, Image as ImageIcon, Lock, Moon, Sun, MessageCircle, Mail, CalendarDays } from "lucide-react";
 import { compressImage } from "@/lib/image-compress";
 import { ComisionCosmeticosCard } from "@/components/settings/comision-cosmeticos-card";
+import { ArriendoProductosCard } from "@/components/settings/arriendo-productos-card";
 
 const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
@@ -1233,6 +1234,7 @@ export default function ConfiguracionPage() {
       )}
 
       {isAdmin && tenantId && <ComisionCosmeticosCard tenantId={tenantId} />}
+      {isAdmin && tenantId && <ArriendoProductosCard tenantId={tenantId} />}
 
       </div>
 

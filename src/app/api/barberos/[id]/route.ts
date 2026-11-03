@@ -87,7 +87,7 @@ export async function PATCH(
     "personal_pin", "avatar_url", "bio", "specialties",
     "intro_video_url", "years_experience", "slot_duration",
     "also_attends_clients", "instagram", "rental_cash_to_barber", "birth_date",
-    "manager_name", "sii_enabled", "tax_rate", "rental_cash_settle_from",
+    "manager_name", "sii_enabled", "tax_rate", "rental_cash_settle_from", "rental_transfer_to_barber",
   ];
 
   const update: Record<string, any> = {};
