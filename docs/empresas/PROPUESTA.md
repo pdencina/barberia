@@ -110,3 +110,9 @@ Marcas: **HECHO** = verificado en el código · **INFERENCIA** = deducción mía
 ## 8. Cómo colabora Codex (según la autorización del 29 oct.)
 
 Sección 15 de `AGENTS.md`: Codex escribe en ramas `codex/*` con ficha de tarea, abre PRs hacia `empresas/base` (nunca `main`), prueba solo con datos simulados y no mergea, despliega ni toca secretos, producción ni cobros reales. Claude decide el diseño final y revisa. Primeras tareas sugeridas para Codex (con ficha, tras tu OK): (a) análisis de la planilla de ejemplo de Nishman y propuesta de modelo de datos; (b) borrador SQL de bodegas y movimientos con sus pruebas; (c) lista de casos de prueba "sin sesión" y "cruzado" para las rutas de empresa.
+
+## 9. Avance de la Etapa 1 (3 nov. 2026)
+
+**HECHO, solo en `rebooking-pruebas`:** migración 125 (`tenants.kind`, `company_members`, bodegas, catálogo, stock por bodega, movimientos y `company_stock_move`) y `scripts/test-empresas-stock.ts` (solo datos simulados). Empresas simuladas: `empresa-sim-a` y `empresa-sim-b`.
+**Diseño:** catálogo en `company_products`, no en `products` (ahí el SKU es único en toda la base y la política es abierta). La API solo lee stock y movimientos: escribir pasa siempre por `company_stock_move`. No se agregó ningún valor a `profiles.role`.
+**Falta en la Etapa 1:** login y panel `/empresa`, capacidades en el servidor, rutas API, importación, clientes comerciales y pedidos. `delete_tenant_cascade` no conoce las tablas `company_*`: borrar una empresa con datos falla (a propósito por ahora; a un salón no le afecta).
