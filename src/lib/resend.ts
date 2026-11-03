@@ -555,7 +555,12 @@ interface SendBarberNewAppointmentParams {
   businessLogoUrl?: string | null;
 }
 
+// Apagado: el profesional ya recibe el aviso de cita nueva por la app (push), y este correo gastaba la cuota de Resend.
+// Para volver a enviarlo basta poner esta constante en true.
+const ENVIAR_CORREO_CITA_NUEVA_AL_PROFESIONAL = false;
+
 export async function sendBarberNewAppointment(params: SendBarberNewAppointmentParams) {
+  if (!ENVIAR_CORREO_CITA_NUEVA_AL_PROFESIONAL) return;
   const { to, barberName, clientName, serviceName, date, businessName, businessLogoUrl } = params;
 
   const dateStr = new Date(date).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
