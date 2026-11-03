@@ -2,7 +2,7 @@
 export interface DatosFaq {
  negocio:{nombre:string|null;direccion:string|null;telefono:string|null;linkReserva:string|null};
  horario:{dia:number;cerrado:boolean;abre:string|null;cierra:string|null}[];
- servicios:{nombre:string;precio:number|null;duracionMin:number|null}[];
+ servicios:{id?:string;nombre:string;precio:number|null;duracionMin:number|null}[];
  sucursales?:{id:string;nombre:string|null;direccion:string|null;horario:DatosFaq["horario"]}[]|null;
  // Profesionales que se pueden reservar y su link personal (re-booking.cl/<negocio>/<profesional>); null = no disponible.
  // id y duracionMin (tiempo base del profesional) los usa la consulta de disponibilidad.

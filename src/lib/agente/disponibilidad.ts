@@ -8,11 +8,16 @@ export interface DependenciasDisponibilidad {
   ahora: () => number;
   horasLibres: (profesionalId: string, fecha: string, duracionMin: number) => Promise<HorasLibres>;
 }
-export type ResultadoDisponibilidad = { tipo: "respuesta"; texto: string } | { tipo: "sin_consulta" };
+// Lo que se le ofreció al cliente, para que su siguiente mensaje ("quiero la de las 15:15") se entienda sin que nadie intervenga.
+// No guarda texto del cliente: solo profesional, fecha y horas libres ofrecidas.
+export interface OpcionOfrecida { id: string; nombre: string; duracionMin: number; fecha: string; horas: string[] }
+export interface Oferta { horaExacta: string | null; opciones: OpcionOfrecida[] }
+export type ResultadoDisponibilidad = { tipo: "respuesta"; texto: string; oferta?: Oferta } | { tipo: "sin_consulta" };
 
+export const MAX_HORAS_OFRECIDAS = 40;
 const SIN: ResultadoDisponibilidad = { tipo: "sin_consulta" };
-const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"] as const;
-const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"] as const;
+export const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"] as const;
+export const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"] as const;
 const DIAS_CLAVE: Record<string, number> = { domingo: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6 };
 const NUMEROS: Record<string, number> = { una: 1, uno: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5, seis: 6, siete: 7, ocho: 8, nueve: 9, diez: 10, once: 11, doce: 12 };
 const MAX_PROFESIONALES = 12, MAX_DIAS_ADELANTE = 7, DURACION_BASE = 45;
@@ -22,16 +27,21 @@ const RANGOS: Record<Franja, [number, number]> = { manana: [0, 12 * 60], tarde: 
 
 // ---------- fechas (calendario civil de Chile, sin depender de la zona del servidor)
 const formatoChile = new Intl.DateTimeFormat("en-GB", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
-function ahoraChile(ms: number): { fecha: string; minutos: number } {
+export function ahoraChile(ms: number): { fecha: string; minutos: number } {
   const p = formatoChile.formatToParts(new Date(ms)), g = (t: string) => p.find((x) => x.type === t)!.value;
   return { fecha: `${g("year")}-${g("month")}-${g("day")}`, minutos: Number(g("hour")) * 60 + Number(g("minute")) };
 }
 const dias = (fecha: string) => { const [y, m, d] = fecha.split("-").map(Number); return Date.UTC(y, m - 1, d) / 86_400_000; };
 const desdeDias = (n: number) => { const d = new Date(n * 86_400_000); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`; };
-const sumar = (fecha: string, n: number) => desdeDias(dias(fecha) + n);
-const diaSemana = (fecha: string) => (((dias(fecha) + 4) % 7) + 7) % 7;
+export const sumar = (fecha: string, n: number) => desdeDias(dias(fecha) + n);
+export const diaSemana = (fecha: string) => (((dias(fecha) + 4) % 7) + 7) % 7;
 const fechaValida = (y: number, m: number, d: number) => { const t = new Date(Date.UTC(y, m - 1, d)); return t.getUTCFullYear() === y && t.getUTCMonth() === m - 1 && t.getUTCDate() === d; };
-const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+export const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+
+// "hoy", "mañana" o "el viernes 6 de noviembre", respecto de la fecha de hoy en Chile.
+export function textoDeFecha(f: string, hoy: string): string {
+  return f === hoy ? "hoy" : f === sumar(hoy, 1) ? "mañana" : `el ${DIAS[diaSemana(f)]} ${Number(f.slice(8, 10))} de ${MESES[Number(f.slice(5, 7)) - 1]}`;
+}
 
 // ---------- interpretación del mensaje
 interface Consulta { fecha: string; fechaExplicita: boolean; hora: number | null; franja: Franja | null; profesionales: Perfil[] }
@@ -167,13 +177,14 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
     const cierre = `¿Deseas agendar? Elige aquí:\n${P.link}`;
     if (hh !== null && propias.includes(hh)) {
       const otras = cercanos(propias.filter((h) => h !== hh), q.hora, MAX_HORAS);
-      return { tipo: "respuesta", texto: bloque(`Sí, ${N} tiene disponible ${dia(q.fecha)} a las *${hh}*.`, otras.length > 0 && `También tiene: ${horasTxt(otras)}`, cierre) };
+      return { tipo: "respuesta", texto: bloque(`Sí, ${N} tiene disponible ${dia(q.fecha)} a las *${hh}*.`, otras.length > 0 && `También tiene: ${horasTxt(otras)}`, cierre), oferta: { horaExacta: hh, opciones: [{ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: q.fecha, horas: propias.slice(0, MAX_HORAS_OFRECIDAS) }] } };
     }
     if (hh === null && propias.length) {
-      return { tipo: "respuesta", texto: bloque(`${N} tiene disponible ${dia(q.fecha)}:\n${horasTxt(propias.slice(0, MAX_HORAS_DIA))}${propias.length > MAX_HORAS_DIA ? ` · y ${propias.length - MAX_HORAS_DIA} más` : ""}`, cierre) };
+      return { tipo: "respuesta", texto: bloque(`${N} tiene disponible ${dia(q.fecha)}:\n${horasTxt(propias.slice(0, MAX_HORAS_DIA))}${propias.length > MAX_HORAS_DIA ? ` · y ${propias.length - MAX_HORAS_DIA} más` : ""}`, cierre), oferta: { horaExacta: null, opciones: [{ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: q.fecha, horas: propias.slice(0, MAX_HORAS_OFRECIDAS) }] } };
     }
     let cabecera: string, siguiente: string | null = null;
-    if (propias.length) cabecera = `A las ${hh} ${N} no tiene hora ${dia(q.fecha)}.\nHoras más cercanas: ${horasTxt(cercanos(propias, q.hora, MAX_HORAS))}`;
+    const opciones: OpcionOfrecida[] = [];
+    if (propias.length) { cabecera = `A las ${hh} ${N} no tiene hora ${dia(q.fecha)}.\nHoras más cercanas: ${horasTxt(cercanos(propias, q.hora, MAX_HORAS))}`; opciones.push({ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: q.fecha, horas: propias.slice(0, MAX_HORAS_OFRECIDAS) }); }
     else {
       cabecera = r.cerrado ? `${N} no atiende ${dia(q.fecha)}.` : `${N} no tiene horas disponibles ${dia(q.fecha)}.`;
       let prox: { f: string; horas: string[] } | null = null;
@@ -183,7 +194,7 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
         const horas = horasDe(rr, q.franja);
         if (horas.length) prox = { f, horas };
       }
-      if (prox) siguiente = `Su próxima disponibilidad es ${dia(prox.f)}:\n${horasTxt(cercanos(prox.horas, q.hora, MAX_HORAS))}`;
+      if (prox) { siguiente = `Su próxima disponibilidad es ${dia(prox.f)}:\n${horasTxt(cercanos(prox.horas, q.hora, MAX_HORAS))}`; opciones.push({ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: prox.f, horas: prox.horas.slice(0, MAX_HORAS_OFRECIDAS) }); }
       else if (r.cerrado) siguiente = "No tiene horas disponibles en los próximos días.";
       else cabecera = `${N} no tiene horas disponibles ${dia(q.fecha)} ni en los próximos días.`;
     }
@@ -192,7 +203,8 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
       .sort((a, b) => Number(b.horas.includes(hh ?? "")) - Number(a.horas.includes(hh ?? "")))
       .slice(0, MAX_OTROS);
     const bloqueOtros = otros.length ? `Otros profesionales disponibles ${dia(q.fecha)}:\n${otros.map((x) => `• ${nombreNegrita(x.p.nombre)}: ${horasTxt(cercanos(x.horas, q.hora, MAX_HORAS))}`).join("\n")}` : null;
-    return { tipo: "respuesta", texto: bloque(cabecera, siguiente, bloqueOtros, cierre, otros.length > 0 && general && `O elige a otro profesional aquí:\n${general}`) };
+    for (const x of otros) opciones.push({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) });
+    return { tipo: "respuesta", texto: bloque(cabecera, siguiente, bloqueOtros, cierre, otros.length > 0 && general && `O elige a otro profesional aquí:\n${general}`), ...(opciones.length > 0 ? { oferta: { horaExacta: null, opciones } } : {}) };
   }
 
   // ---- sin profesional (o varios con el mismo nombre): se revisan todos
@@ -205,14 +217,14 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
   const filas = (xs: typeof con) => xs.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}: ${horasTxt(cercanos(x.horas, q.hora, MAX_HORAS))}`).join("\n");
   if (hh !== null) {
     const exactos = con.filter((x) => x.horas.includes(hh));
-    if (exactos.length) return { tipo: "respuesta", texto: bloque(`A las *${hh}* ${dia(q.fecha)} tienen disponible:\n${exactos.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}`).join("\n")}`, cierre) };
+    if (exactos.length) return { tipo: "respuesta", texto: bloque(`A las *${hh}* ${dia(q.fecha)} tienen disponible:\n${exactos.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}`).join("\n")}`, cierre), oferta: { horaExacta: exactos.length === 1 ? hh : null, opciones: exactos.slice(0, 5).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
   }
-  if (con.length) return { tipo: "respuesta", texto: bloque(hh !== null ? `A las ${hh} no hay hora ${dia(q.fecha)}.\nHoras más cercanas:\n${filas(con)}` : `Hay disponibilidad ${dia(q.fecha)}:\n${filas(con)}`, cierre) };
+  if (con.length) return { tipo: "respuesta", texto: bloque(hh !== null ? `A las ${hh} no hay hora ${dia(q.fecha)}.\nHoras más cercanas:\n${filas(con)}` : `Hay disponibilidad ${dia(q.fecha)}:\n${filas(con)}`, cierre), oferta: { horaExacta: null, opciones: con.slice(0, 5).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
   for (let i = 1; i <= MAX_DIAS_ADELANTE; i++) {
     const f = sumar(q.fecha, i), dia2 = await consultarTodos(revisados, f);
     if (dia2.some(({ r }) => r.fueraDeVentana)) break;
     const siguiente = dia2.map(({ p, r }) => ({ p, horas: horasDe(r, q.franja) })).filter((x) => x.horas.length > 0);
-    if (siguiente.length) return { tipo: "respuesta", texto: bloque(`${mayus(dia(q.fecha))} no hay horas disponibles.`, `La próxima disponibilidad es ${dia(f)}:\n${filas(siguiente)}`, cierre) };
+    if (siguiente.length) return { tipo: "respuesta", texto: bloque(`${mayus(dia(q.fecha))} no hay horas disponibles.`, `La próxima disponibilidad es ${dia(f)}:\n${filas(siguiente)}`, cierre), oferta: { horaExacta: null, opciones: siguiente.slice(0, 5).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: f, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
   }
   return { tipo: "respuesta", texto: bloque(`No hay horas disponibles ${dia(q.fecha)} ni en los próximos días.`, `Puedes revisar la agenda aquí:\n${general}`) };
 }

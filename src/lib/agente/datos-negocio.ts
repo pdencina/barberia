@@ -78,7 +78,7 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
     const horario=adaptarHorario(null);
     const active=services.filter(s=>s.active===true);
     // Sin nombre no se puede demostrar coincidencia única: no publicar catálogo parcial de precios.
-    const catalogo:DatosNegocio["servicios"]=active.some(s=>!texto(s.name))?[]:active.map(s=>({nombre:texto(s.name)!,precio:numero(s.price),duracionMin:Number.isInteger(s.duration)?numero(s.duration):null}));
+    const catalogo:DatosNegocio["servicios"]=active.some(s=>!texto(s.name))?[]:active.map(s=>({id:texto(s.id)??undefined,nombre:texto(s.name)!,precio:numero(s.price),duracionMin:Number.isInteger(s.duration)?numero(s.duration):null}));
     let linkReserva:string|null=null;
     const slug=texto(t.slug);
     if(slug&&!/[\s/\\?#\u0000-\u001f\u007f]/.test(slug)){
