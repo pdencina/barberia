@@ -24,6 +24,7 @@ export interface DependenciasWebhook {
   repo: RepositorioWebhook;
   ahora: () => number;
   datosDelNegocio?: (tenantId: string) => Promise<DatosFaq | null>;
+  negocioInactivo?: (tenantId: string) => Promise<boolean>;
   accion: (tipo: "confirmar" | "cancelar", c: { tenantId: string; clienteId: string; referenciaRecordatorio: string }) => Promise<ResultadoAccionCita>;
   responder: (negocio: NegocioWebhook, para: string, texto: string) => Promise<unknown>;
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
@@ -66,7 +67,8 @@ export function crearManejadoresWebhook(config: {
             if (!para) { totals.omitidos++; continue; }
             const eventKey = crearClaveEventoEntrante({tenantId:n.tenantId,referenciaProveedor:p.id});
             // No se guarda texto: HMAC evita diccionarios de frases frecuentes sobre el hash.
-            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,text ?? p.id])).digest("hex");
+            // Un texto que excede la memoria del extractor no trae contenido: se agrupa bajo un marcador fijo para que el límite de repetidos lo alcance.
+            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,text ?? (p.tipo === "text" ? "texto-fuera-de-memoria" : p.id)])).digest("hex");
             const ahora = deps.ahora();
             const admitted = await deps.repo.admitir({key:eventKey,tenantId:n.tenantId,contactHash:p.remitenteHash,messageHash,ahora});
             if (admitted.repetido) { totals.repetidos++; continue; }
@@ -79,6 +81,11 @@ export function crearManejadoresWebhook(config: {
             const current = await deps.repo.negocio(n.phoneNumberId);
             if (!current?.enabled || current.tenantId !== n.tenantId) { await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue; }
             const tipo = clasificarRespuestaCliente(text);
+            // Negocio inactivo o suspendido: no se responde ni se avisa. Solo se conserva una baja pedida por el cliente.
+            if (deps.negocioInactivo && await deps.negocioInactivo(n.tenantId)) {
+              if (tipo === "no_quiero_mensajes") await deps.repo.guardarBaja(n.tenantId,p.remitenteHash);
+              await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue;
+            }
             const responder = async (body: string, acuseBaja = false) => {
               if (!acuseBaja && await deps.repo.baja(n.tenantId,p.remitenteHash)) return;
               const vigente = await deps.repo.negocio(n.phoneNumberId);

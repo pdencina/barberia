@@ -1,4 +1,6 @@
-# Hallazgos F1 — abiertos para Claude
+# Hallazgos F1 — CORREGIDOS en claude/faq-correcciones (3 nov. 2026)
+
+**Estado:** F1-01 a F1-04 corregidos y sus casos reactivados en `scripts/test-agente-faq-adversarial.ts` (234 casos pasan). F1-01/02: `negocioInactivo` en el webhook (no responde ni avisa; solo guarda una baja). F1-03: sin semana ni dirección por sucursal, deriva a una persona. F1-04: texto fuera de memoria se agrupa bajo un marcador fijo. Abajo, el texto original de Codex.
 
 Base: `claude/e3-e4-combinado`, commit `a898cc4`. Solo pruebas y documentación; no se corrigió `src/`. Datos enteramente sintéticos. Los cinco casos fallidos se retiraron del ejecutable con comentarios `EXCLUIDO F1-xx`; **no cuentan como aprobados**. Quedan 227 casos activos, incluidas 85 entradas hostiles probadas contra la FAQ y el webhook con el adaptador real y una base en memoria.
 
