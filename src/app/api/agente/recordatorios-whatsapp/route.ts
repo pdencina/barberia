@@ -4,6 +4,7 @@ import { crearAutorizadorInformeProgramado } from "@/lib/agente/informe-programa
 import { enviarPlantilla, verificarConfiguracionWhatsApp } from "@/lib/agente/whatsapp-meta";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getQuotaStatus, tryConsumeQuota } from "@/lib/message-quota";
+import { hayCreditos, tryConsumirCreditos } from "@/lib/wa-credits";
 import { sendAppointmentReminder } from "@/lib/resend";
 import { parseWallClock } from "@/lib/wallclock";
 
@@ -20,10 +21,15 @@ export const GET = crearManejadorRecordatorios({
       repo: crearRepositorioRecordatorios(db), ahora: Date.now,
       sal: process.env.AGENTE_CONTACT_HASH_SALT ?? "",
       tieneCuota: async (tenant, canal) => {
+        // Con créditos de WhatsApp activos para el negocio, el envío por la API de Meta se mide en créditos; si no, rige el cupo antiguo.
+        if (canal === "whatsapp") { const c = await hayCreditos(tenant, "utility", db); if (c !== null) return c; }
         const status = await getQuotaStatus(tenant, canal);
         return !!status && (status.remaining === null || status.remaining > 0);
       },
-      consumirCuota: (tenant, canal, citaId) => tryConsumeQuota(tenant, canal, "reminder", citaId),
+      consumirCuota: async (tenant, canal, citaId) => {
+        if (canal === "whatsapp") { const c = await tryConsumirCreditos(tenant, "utility", citaId, db); if (c !== null) return c; }
+        return tryConsumeQuota(tenant, canal, "reminder", citaId);
+      },
       enviarWhatsApp: (negocio, cita, para) => enviarPlantilla({
         para, plantilla: process.env.WHATSAPP_REMINDER_TEMPLATE ?? "",
         idioma: process.env.WHATSAPP_REMINDER_LANGUAGE ?? "",
