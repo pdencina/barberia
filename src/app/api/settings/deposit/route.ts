@@ -6,8 +6,12 @@ import { cargarCredencialAbono } from "@/lib/deposit";
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
-  // Never trust the tenantId coming from the browser — see resolveTenantForRequest.
-  const { tenantId } = await resolveTenantForRequest(searchParams.get("tenantId"));
+  // Esta lectura es PUBLICA a proposito: la pagina de reservas del cliente (sin sesion) necesita saber si el negocio cobra abono y de cuanto.
+  // Solo devuelve datos que el cliente ve igual en esa pagina (nunca tokens). Antes pasaba por la sesion y, sin sesion —o con la sesion de
+  // otro negocio—, devolvia vacio o los datos de OTRO negocio: por eso no se pedia el abono.
+  const pedido = searchParams.get("tenantId");
+  let tenantId: string | null = pedido && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(pedido) ? pedido : null;
+  if (!tenantId) ({ tenantId } = await resolveTenantForRequest(pedido));
 
   if (!tenantId || tenantId === "ALL") return NextResponse.json({});
 
