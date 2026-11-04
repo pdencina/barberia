@@ -21,6 +21,8 @@ export function CobrosOnlineCard({ tenantId }: { tenantId: string }) {
   const [horas, setHoras] = useState(24);
   const [mensaje, setMensaje] = useState("Este servicio requiere un abono para confirmar tu cita.");
   const [guardando, setGuardando] = useState(false);
+  const [probando, setProbando] = useState(false);
+  const [prueba, setPrueba] = useState<any>(null);
 
   const cargarEstado = () => fetch(`/api/settings/cobros-online?tenantId=${tenantId}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { if (!d?.error) setEstado(d); }).catch(() => {});
   useEffect(() => {
@@ -59,6 +61,14 @@ export function CobrosOnlineCard({ tenantId }: { tenantId: string }) {
     } finally { setGuardando(false); }
   };
 
+  const probar = async () => {
+    setProbando(true); setPrueba(null);
+    try {
+      const res = await fetch("/api/settings/cobros-online/probar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId }) });
+      setPrueba(await res.json().catch(() => ({ ok: false, error: "No se pudo probar" })));
+    } finally { setProbando(false); }
+  };
+
   if (!estado) return null;
   const ejemploTotal = 35000;
   const ejemplo = calcularAbono(ejemploTotal, { mode: modo, percent: porcentaje, fixed: Number(fijo.replace(/\D/g, "")) || null });
@@ -82,6 +92,20 @@ export function CobrosOnlineCard({ tenantId }: { tenantId: string }) {
           <button type="button" onClick={conectar} disabled={!token.trim() || conectando || !estado.cifradoListo} className="rounded-xl bg-brand-blue px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40">{conectando ? "Conectando…" : estado.origen === "dedicado" ? "Cambiar cuenta" : "Conectar"}</button>
           {estado.origen === "dedicado" && <button type="button" onClick={desconectar} className="rounded-xl border border-gray-200 px-3 py-2.5 text-xs font-semibold text-red-600 dark:border-gray-700">Desconectar</button>}
         </div>
+        {estado.conectado && (
+          <div className="space-y-2">
+            <button type="button" onClick={probar} disabled={probando} className="rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-brand-dark disabled:opacity-40 dark:border-gray-700">{probando ? "Probando…" : "Probar que Mercado Pago acepta cobros"}</button>
+            {prueba && (
+              <div className={`rounded-xl p-3 text-xs ${prueba.ok ? "bg-emerald-50 text-emerald-800" : "bg-amber-50 text-amber-800"}`}>
+                {prueba.error && <p>{prueba.error}</p>}
+                {prueba.cuenta && <p>Cuenta: <b>{prueba.cuenta.nombre || "—"}</b> · token de <b>{prueba.cuenta.token === "produccion" ? "producción" : prueba.cuenta.token === "prueba" ? "prueba" : "tipo desconocido"}</b> · {prueba.cuenta.puedeVender === false ? "NO puede recibir pagos" : prueba.cuenta.puedeVender === true ? "puede recibir pagos" : "recepción de pagos sin confirmar"}</p>}
+                {(prueba.problemas || []).map((x: string, i: number) => <p key={i} className="mt-1">• {x}</p>)}
+                {prueba.linkDePago && <p className="mt-1">Link de pago de prueba: <b>{prueba.linkDePago.ok ? "Mercado Pago lo aceptó" : `Mercado Pago lo rechazó${prueba.linkDePago.detalle ? ` — ${prueba.linkDePago.detalle}` : ""}`}</b></p>}
+                {prueba.ok && <p className="mt-1 font-semibold">Todo listo para cobrar abonos.</p>}
+              </div>
+            )}
+          </div>
+        )}
         <p className="text-[11px] leading-relaxed text-brand-gray">Cómo obtenerlo: entra a <a href="https://www.mercadopago.cl/developers/panel/app" target="_blank" rel="noopener noreferrer" className="text-brand-blue underline">Mercado Pago Developers</a> › crea una aplicación (producto «Checkout Pro») › <b>Credenciales de producción</b> › copia el <b>Access Token</b>. Se guarda cifrado y nunca se muestra de nuevo.</p>
       </div>
 

@@ -95,6 +95,7 @@ const t = (name: string, ok: boolean, extra = "") => {
     { ruta: "settings/cobros-online", metodo: "GET", params: {} },
     { ruta: "settings/cobros-online", metodo: "POST", params: {} },
     { ruta: "settings/cobros-online", metodo: "DELETE", params: {} },
+    { ruta: "settings/cobros-online/probar", metodo: "POST", params: {} },
     { ruta: "profesionales/libro/detalle", metodo: "GET", params: {} },
     { ruta: "settings/comision-cosmeticos", metodo: "GET", params: {} },
     { ruta: "settings/comision-cosmeticos", metodo: "POST", params: {} },
