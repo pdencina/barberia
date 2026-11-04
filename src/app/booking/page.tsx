@@ -77,6 +77,10 @@ export default function BookingPage() {
   const [error, setError] = useState("");
   const [clientFound, setClientFound] = useState(false);
   const [appointmentId, setAppointmentId] = useState("");
+  // Pago del abono: el horario queda reservado 3:30 mientras se paga (contador). Si no se paga a tiempo, se libera y no se toma la hora.
+  const [pago, setPago] = useState<null | { ref: string | null; url: string; expira: number; monto: number; estado: "esperando" | "vencido" | "conflicto" }>(null);
+  const [ahora, setAhora] = useState(() => Date.now());
+  const [slotsKey, setSlotsKey] = useState(0);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
   const [businessName, setBusinessName] = useState("");
@@ -255,7 +259,7 @@ export default function BookingPage() {
         .then((data) => { setSlots(data.slots || []); setSpots(data.spots || {}); })
         .finally(() => { setLoadingSlots(false); preselectSlot.current = ""; });
     }
-  }, [selectedBarber, selectedDate, selectedServices]);
+  }, [selectedBarber, selectedDate, selectedServices, slotsKey]);
 
   // Con cupos por bloque otras personas pueden tomar un cupo mientras miras la lista: se refresca
   // sola cada 15 s (solo cuando el negocio usa cupos) y si tu hora se llena, se te avisa.
@@ -278,6 +282,35 @@ export default function BookingPage() {
     }, 15000);
     return () => clearInterval(id);
   }, [hasSpots, step, selectedBarber, selectedDate, selectedServices, totalDuration]);
+
+  // Contador del pago: se actualiza cada segundo y se pregunta cada 3 s si ya se pagó (la cita se crea cuando Mercado Pago avisa).
+  useEffect(() => {
+    if (!pago) return;
+    const reloj = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(reloj);
+  }, [pago?.ref, pago?.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!pago || !pago.ref || pago.estado === "conflicto") return;
+    const ref = pago.ref, limite = pago.expira + 60_000; // se sigue mirando un minuto despues por si pagó justo al final
+    const sondeo = setInterval(async () => {
+      if (Date.now() > limite) { clearInterval(sondeo); return; }
+      try {
+        const r = await fetch(`/api/booking/deposit-status?ref=${ref}`, { cache: "no-store" });
+        const d = await r.json();
+        if (d.estado === "pagado") { clearInterval(sondeo); setAppointmentId(d.appointmentId || ""); setPago(null); setStep("confirmed"); }
+        else if (d.estado === "conflicto") { clearInterval(sondeo); setPago((p) => (p ? { ...p, estado: "conflicto" } : p)); }
+      } catch { /* se reintenta en 3 s */ }
+    }, 3000);
+    return () => clearInterval(sondeo);
+  }, [pago?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
+  const segundosRestantes = pago ? Math.max(0, Math.ceil((pago.expira - ahora) / 1000)) : 0;
+  const tiempoAgotado = !!pago && pago.estado === "esperando" && segundosRestantes === 0;
+  const volverAElegirHora = () => { setPago(null); setSelectedSlot(""); setSlotsKey((k) => k + 1); setStep("datetime"); };
+  const irAPagar = () => {
+    if (!pago) return;
+    const w = window.open(pago.url, "_blank", "noopener");
+    if (!w) window.location.href = pago.url; // si el navegador bloquea la ventana nueva, se abre aquí
+  };
 
   const handleBook = async () => {
     setError("");
@@ -305,10 +338,13 @@ export default function BookingPage() {
       setSubmitting(false);
 
       if (depositData.checkoutUrl) {
-        // Redirect to MercadoPago Checkout
-        window.location.href = depositData.checkoutUrl;
+        // El horario ya quedó reservado (3:30): se muestra el contador y el cliente paga en Mercado Pago sin perder esta pantalla.
+        const seg = Number(depositData.segundos) || 210;
+        setAhora(Date.now());
+        setPago({ ref: depositData.intentRef || null, url: depositData.checkoutUrl, expira: Date.now() + seg * 1000, monto: Number(depositData.depositAmount) || 0, estado: "esperando" });
         return;
       } else {
+        if (depositRes.status === 409) { setError(depositData.error || "Ese horario ya no está disponible. Elige otro."); setSlotsKey((k) => k + 1); return; }
         setError(depositData.error || "Error al crear link de pago");
         return;
       }
@@ -396,6 +432,35 @@ export default function BookingPage() {
 
   return (
     <div className="min-h-screen bg-brand-light text-brand-dark">
+      {pago && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 text-center shadow-2xl">
+            {pago.estado === "conflicto" ? (
+              <>
+                <h2 className="text-lg font-bold text-brand-dark">Recibimos tu pago, pero la hora se ocupó</h2>
+                <p className="text-sm text-brand-gray">Otra persona alcanzó a tomar ese horario. El negocio te devolverá el abono o te dará otra hora; te contactarán a tu correo.</p>
+                <button type="button" onClick={volverAElegirHora} className="w-full rounded-xl bg-brand-blue py-3 font-bold text-white">Entendido</button>
+              </>
+            ) : tiempoAgotado ? (
+              <>
+                <h2 className="text-lg font-bold text-brand-dark">Se acabó el tiempo</h2>
+                <p className="text-sm text-brand-gray">No alcanzaste a pagar, así que <b>liberamos tu horario</b> y no se tomó. Si ya pagaste, espera unos segundos: se confirma sola.</p>
+                <button type="button" onClick={volverAElegirHora} className="w-full rounded-xl bg-brand-blue py-3 font-bold text-white">Elegir la hora de nuevo</button>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-brand-dark">Tu horario está reservado</h2>
+                <p className="font-mono text-5xl font-extrabold tabular-nums text-brand-blue" aria-live="polite">{String(Math.floor(segundosRestantes / 60)).padStart(2, "0")}:{String(segundosRestantes % 60).padStart(2, "0")}</p>
+                <p className="text-sm text-brand-gray">Tienes ese tiempo para pagar el abono de <b className="text-brand-dark">{formatCurrency(pago.monto)}</b>. Si no pagas, el horario se libera y no se toma.</p>
+                <button type="button" onClick={irAPagar} className="w-full rounded-xl bg-brand-blue py-3 font-bold text-white">Pagar con Mercado Pago</button>
+                <p className="text-[11px] text-brand-gray">Se abre en otra pestaña. Cuando el pago se apruebe, esta pantalla se confirma sola.</p>
+                <button type="button" onClick={volverAElegirHora} className="text-xs text-brand-gray underline">Cancelar y elegir otra hora</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header: logo y nombre del negocio integrados (con la presentacion visible solo dice "Agendar hora") */}
       <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/90 px-4 py-2.5 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-3">

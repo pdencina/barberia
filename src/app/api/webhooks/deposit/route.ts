@@ -9,6 +9,13 @@ import { resolverServicios } from "@/lib/booking-services";
 import { parseWallClock } from "@/lib/wallclock";
 import { leerIntento } from "@/lib/booking-intent";
 
+// Deja anotado en la reserva en espera si se pagó (o si el horario se ocupó) para que la página de reservas lo muestre.
+async function marcarResultado(supabase: any, referencia: unknown, data: Record<string, any>, extra: Record<string, unknown>) {
+  const ref = String(referencia ?? "");
+  if (!/^[0-9a-f-]{36}$/i.test(ref)) return;
+  await supabase.from("booking_intents").update({ data: { ...data, ...extra } }).eq("ref", ref).then(() => {}, () => {});
+}
+
 /**
  * MercadoPago Webhook for deposit payments.
  * Called by MP when payment status changes.
@@ -131,6 +138,7 @@ export async function POST(req: NextRequest) {
       if (!libre.ok) {
         await supabase.from("booking_deposits").insert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: null, amount: Math.round(Number(depositAmount) || 0), status: "needs_refund", payer_email: clientEmail || null }).then(() => {}, () => {});
         await notify({ tenantId, kind: "deposit_conflict", roles: ["admin", "receptionist"], title: "Abono pagado, pero el horario se ocupó", body: `${clientName} pagó $${Number(depositAmount).toLocaleString("es-CL")} para el ${date} a las ${horaTexto.slice(11, 16)}, pero ese horario ya no estaba libre. Hay que devolverle el abono o darle otra hora.`, url: "/dashboard/calendario" }).catch(() => {});
+        await marcarResultado(supabase, paymentData.external_reference, bookingData, { resultado: "conflicto" });
         return NextResponse.json({ ok: true });
       }
     } catch (e) { console.error("Deposit webhook: no se pudo revisar el horario", e); }
@@ -205,6 +213,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    if (appointment) await marcarResultado(supabase, paymentData.external_reference, bookingData, { resultado: "pagado", appointmentId: appointment.id });
     // Registro del abono recibido (historial y control de duplicados). Si aun no esta la migracion 131, se omite.
     if (appointment) {
       await supabase.from("booking_deposits").upsert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: appointment.id, amount: Math.round(Number(depositAmount) || 0), status: "approved", payer_email: clientEmail || null }, { onConflict: "payment_id" }).then(() => {}, () => {});

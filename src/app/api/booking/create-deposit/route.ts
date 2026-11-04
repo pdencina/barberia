@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { calcularAbono, cargarCredencialAbono, firmarNegocio } from "@/lib/deposit";
 import { resolverServicios } from "@/lib/booking-services";
-import { horarioDisponible, limpiarHoldsVencidos, crearHold, liberarHold } from "@/lib/deposit-hold";
+import { horarioDisponible, limpiarHoldsVencidos, crearHold, liberarHold, HOLD_SEGUNDOS } from "@/lib/deposit-hold";
 import { parseWallClock } from "@/lib/wallclock";
 import { guardarIntento } from "@/lib/booking-intent";
 
@@ -91,7 +91,9 @@ export async function POST(req: NextRequest) {
   // Direccion canonica CON www: re-booking.cl redirige (307) y Mercado Pago no sigue redirecciones al avisar el pago.
   const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl").replace(/\/$/, "");
 
-  const holdRef = await crearHold(supabase, { barberId, date, start, end });
+  const hold = await crearHold(supabase, { barberId, date, start, end });
+  const holdRef = hold?.ref ?? null;
+  const expiraEn = hold?.expira ?? new Date(Date.now() + HOLD_SEGUNDOS * 1000);
 
   // Los datos de la reserva se guardan aqui; a Mercado Pago solo va una referencia corta (acepta maximo 256 caracteres y estos datos ocupan mas de 400).
   let referenciaPago: string;
@@ -135,7 +137,7 @@ export async function POST(req: NextRequest) {
       statement_descriptor: tenant?.name || "RE-BOOKING",
       expires: true,
       expiration_date_from: new Date().toISOString(),
-      expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min to pay
+      expiration_date_to: new Date(expiraEn.getTime() + 15_000).toISOString(), // el link vence junto con el bloqueo del horario (3:30): si no paga a tiempo, no queda ni el link ni el horario
     }),
   });
 
@@ -153,5 +155,8 @@ export async function POST(req: NextRequest) {
     depositAmount,
     depositPercentage,
     preferenceId: preferenceData.id,
+    intentRef: /^[0-9a-f-]{36}$/i.test(referenciaPago) ? referenciaPago : null,
+    segundos: HOLD_SEGUNDOS,
+    expiraEn: expiraEn.toISOString(),
   });
 }
