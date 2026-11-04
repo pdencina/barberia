@@ -89,6 +89,21 @@ async function pruebasDisponibilidad(){
     await enviar(f,"matias tiene hora a las 3?");
     check("disponibilidad: sin dependencia deriva como antes",f.sent[0]==="Te contactará una persona."&&f.notices.length===1);
   }
+  { // modo Avanzado: la IA responde solo cuando nada anterior pudo, y si falla o no sabe se deriva
+    const llamadas:string[]=[];
+    const {f}=armar(undefined);(f.deps as any).ia=async(_t:string,texto:string)=>{llamadas.push(texto);return "Sí, hacemos degradé.";};
+    await enviar(f,"hacen degrade?");
+    check("ia: responde lo que nada anterior pudo",f.sent[0]==="Sí, hacemos degradé."&&f.notices.length===0&&llamadas.length===1);
+    const g=armar(undefined);(g.f.deps as any).ia=async()=>null;
+    await enviar(g.f,"hacen degrade?");
+    check("ia: si no sabe deriva a una persona",g.f.sent[0]==="Te contactará una persona."&&g.f.notices.length===1);
+    const h=armar(undefined);let n=0;(h.f.deps as any).ia=async()=>{n++;throw new Error("caida");};
+    await enviar(h.f,"hacen degrade?");
+    check("ia: si falla deriva a una persona",h.f.sent[0]==="Te contactará una persona."&&n===1);
+    const k=armar(undefined);let m=0;(k.f.deps as any).ia=async()=>{m++;return "no debería";};
+    await enviar(k.f,"¿Cuál es la dirección?");
+    check("ia: no se llama si la FAQ ya respondió",k.f.sent[0]==="Dirección: Ubicación comercial A."&&m===0);
+  }
   { // una pregunta de FAQ sigue funcionando aunque haya agenda conectada
     const {f}=armar(async(_id,fecha)=>({slots:[`${fecha}T15:00:00`],cerrado:false,fueraDeVentana:false}));
     await enviar(f,"¿Cuál es la dirección?");
