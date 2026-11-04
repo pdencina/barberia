@@ -7,6 +7,7 @@ import { cargarCredencialAbono, firmaValida } from "@/lib/deposit";
 import { horarioDisponible, liberarHold } from "@/lib/deposit-hold";
 import { resolverServicios } from "@/lib/booking-services";
 import { parseWallClock } from "@/lib/wallclock";
+import { leerIntento } from "@/lib/booking-intent";
 
 /**
  * MercadoPago Webhook for deposit payments.
@@ -76,7 +77,8 @@ export async function POST(req: NextRequest) {
       try {
         let tid: string | null = firmado;
         let monto = Math.round(Number(paymentData.transaction_amount) || 0);
-        try { const ref = JSON.parse(paymentData.external_reference); tid = tid || ref?.tenantId || null; monto = Math.round(Number(ref?.depositAmount) || monto); } catch { /* sin referencia */ }
+        const ref = await leerIntento(supabase, paymentData.external_reference).catch(() => null);
+        if (ref) { tid = tid || ref.tenantId || null; monto = Math.round(Number(ref.depositAmount) || monto); }
         if (tid) {
           await supabase.from("booking_deposits").upsert({ tenant_id: tid, payment_id: String(paymentId), amount: monto, status: `${paymentData.status}:${paymentData.status_detail || "sin_detalle"}`.slice(0, 120), payer_email: paymentData.payer?.email || null }, { onConflict: "payment_id" }).then(() => {}, () => {});
         }
@@ -84,12 +86,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
-    // Parse external_reference to get booking details
-    let bookingData: any;
-    try {
-      bookingData = JSON.parse(paymentData.external_reference);
-    } catch {
-      console.error("Deposit webhook: invalid external_reference", paymentData.external_reference);
+    // Datos de la reserva: la referencia del pago es un id corto que apunta a booking_intents (o, en pagos antiguos, el JSON completo).
+    const bookingData: any = await leerIntento(supabase, paymentData.external_reference).catch(() => null);
+    if (!bookingData) {
+      console.error("Deposit webhook: no se encontraron los datos de la reserva", paymentData.external_reference);
       return NextResponse.json({ ok: true });
     }
 

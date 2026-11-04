@@ -32,7 +32,8 @@ export async function limpiarHoldsVencidos(supabase: any, f?: { barberId?: strin
     if (f?.barberId) q = q.eq("barber_id", f.barberId);
     if (f?.date) q = q.eq("date", f.date);
     await q;
-  } catch { /* sin la migracion 132 no hay bloqueos de pago */ }
+    if (!f) await supabase.from("booking_intents").delete().lt("created_at", new Date(Date.now() - 14 * 86400000).toISOString()); // reservas en espera de pago de hace mas de 14 dias
+  } catch { /* sin las migraciones 132 / 133 no hay nada que limpiar */ }
 }
 
 // Bloquea el horario mientras se paga. Devuelve la referencia, o null si no se pudo (sin la migracion 132 todo sigue como antes, sin bloqueo).
