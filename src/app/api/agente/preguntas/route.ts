@@ -24,7 +24,9 @@ function limpiar(body: any) {
   if (unicas.length === 0) return { error: "Agrega al menos una palabra clave de 3 letras o más" };
   if (!respuesta || respuesta.length > MAX_LARGO_RESPUESTA) return { error: `La respuesta debe tener entre 1 y ${MAX_LARGO_RESPUESTA} letras` };
   if (FORMATO.test(titulo + respuesta)) return { error: "Hay caracteres no permitidos" };
-  return { valor: { titulo, claves: unicas, respuesta, activo: body?.activo !== false } };
+  const activo = body?.activo !== false;
+  if (activo && /\[[^\]]+\]/.test(respuesta)) return { error: "Completa lo que está entre [corchetes] antes de activarla" };
+  return { valor: { titulo, claves: unicas, respuesta, activo } };
 }
 
 export async function GET(req: NextRequest) {
