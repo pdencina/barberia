@@ -5,6 +5,7 @@ import { calcularAbono, cargarCredencialAbono, firmarNegocio } from "@/lib/depos
 import { resolverServicios } from "@/lib/booking-services";
 import { horarioDisponible, limpiarHoldsVencidos, crearHold, liberarHold } from "@/lib/deposit-hold";
 import { parseWallClock } from "@/lib/wallclock";
+import { guardarIntento } from "@/lib/booking-intent";
 
 /**
  * Creates a MercadoPago Checkout Pro preference for a booking deposit.
@@ -92,6 +93,18 @@ export async function POST(req: NextRequest) {
 
   const holdRef = await crearHold(supabase, { barberId, date, start, end });
 
+  // Los datos de la reserva se guardan aqui; a Mercado Pago solo va una referencia corta (acepta maximo 256 caracteres y estos datos ocupan mas de 400).
+  let referenciaPago: string;
+  try {
+    referenciaPago = await guardarIntento(supabase, barber.tenant_id, {
+      barberId, clientName, clientEmail, clientPhone, serviceIds, date, startTime, notes, totalPrice, depositAmount, tenantId: barber.tenant_id, holdRef,
+    });
+  } catch (e: any) {
+    await liberarHold(supabase, holdRef);
+    console.error("create-deposit:", e?.message);
+    return NextResponse.json({ error: "No se pudo preparar el pago. Intenta de nuevo en unos minutos." }, { status: 500 });
+  }
+
   // Create MP Checkout Pro preference
   const preferenceRes = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
@@ -117,20 +130,7 @@ export async function POST(req: NextRequest) {
         pending: `${baseUrl}/booking/deposit-pending`,
       },
       auto_return: "approved",
-      external_reference: JSON.stringify({
-        barberId,
-        clientName,
-        clientEmail,
-        clientPhone,
-        serviceIds,
-        date,
-        startTime,
-        notes,
-        totalPrice,
-        depositAmount,
-        tenantId: barber.tenant_id,
-        holdRef,
-      }),
+      external_reference: referenciaPago,
       notification_url: `${baseUrl}/api/webhooks/deposit?t=${barber.tenant_id}&s=${firmarNegocio(barber.tenant_id)}`,
       statement_descriptor: tenant?.name || "RE-BOOKING",
       expires: true,
