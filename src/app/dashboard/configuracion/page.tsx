@@ -399,7 +399,7 @@ export default function ConfiguracionPage() {
 
   const bookingUrl = typeof window !== "undefined"
     ? tenantSlug
-      ? `${window.location.origin}/b/${tenantSlug}`
+      ? `${window.location.origin}/${tenantSlug}`
       : `${window.location.origin}/booking`
     : "re-booking.cl/booking";
 

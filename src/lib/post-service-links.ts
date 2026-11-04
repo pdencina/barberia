@@ -17,6 +17,6 @@ export function armarEnlacesCorreo(appUrl: string, tenant: TenantLinks | null | 
     reviewLabel: usaGoogle ? "Califícanos en Google Maps ★" : "Califica tu experiencia ★",
     subject: usaGoogle ? "Gracias por tu visita! — Califícanos en Google Maps" : "Gracias por tu visita! — Califica tu experiencia",
     intro: usaGoogle ? "Tu reseña en Google Maps nos ayuda a que más personas nos encuentren!" : "Tu opinion nos ayuda a mejorar!",
-    bookUrl: tenant?.slug ? `${appUrl}/b/${tenant.slug}` : `${appUrl}/booking`,
+    bookUrl: tenant?.slug ? `${appUrl}/${tenant.slug}` : `${appUrl}/booking`,
   };
 }

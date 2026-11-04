@@ -123,8 +123,9 @@ export default function BookingPage() {
     const urlParams = new URLSearchParams(window.location.search);
     // Link corto /<negocio>/<profesional>: negocio y profesional vienen de la ruta.
     const pathParts = window.location.pathname.split("/").filter(Boolean);
-    const pathTenant = pathParts.length === 2 && pathParts[0] !== "booking" ? decodeURIComponent(pathParts[0]) : null;
-    const pathProf = pathTenant ? decodeURIComponent(pathParts[1]) : null;
+    // /<negocio> (1 parte) o /<negocio>/<profesional> (2 partes); /booking?tenant=… sigue funcionando.
+    const pathTenant = (pathParts.length === 1 || pathParts.length === 2) && pathParts[0] !== "booking" ? decodeURIComponent(pathParts[0]) : null;
+    const pathProf = pathTenant && pathParts.length === 2 ? decodeURIComponent(pathParts[1]) : null;
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch") || pathTenant;
     if (tenantSlug) setTenantSlugState(tenantSlug);
     const barberSlug = urlParams.get("profesional") || urlParams.get("barber");
@@ -135,6 +136,14 @@ export default function BookingPage() {
     // Fetch business info if on subdomain
     if (tenantSlug) {
       fetch(`/api/public/business-info?slug=${tenantSlug}`).then((r) => r.json()).then((data) => {
+        // El negocio cambió su link: se pasa al nuevo, conservando el profesional y los parámetros (utm, etc.).
+        if (data.movedTo) {
+          const partes = window.location.pathname.split("/").filter(Boolean);
+          const usaRuta = partes.length >= 1 && partes[0] !== "booking";
+          if (usaRuta) { partes[0] = data.movedTo; window.location.replace(`/${partes.join("/")}${window.location.search}`); }
+          else { const q = new URLSearchParams(window.location.search); q.set("tenant", data.movedTo); window.location.replace(`${window.location.pathname}?${q.toString()}`); }
+          return;
+        }
         if (data.name) {
           setBusinessName(data.name); setBusinessInfo(data);
           if (data.suspended) setBusinessSuspended(true);
@@ -305,7 +314,9 @@ export default function BookingPage() {
   }, [pago?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
   const segundosRestantes = pago ? Math.max(0, Math.ceil((pago.expira - ahora) / 1000)) : 0;
   const tiempoAgotado = !!pago && pago.estado === "esperando" && segundosRestantes === 0;
-  const volverAElegirHora = () => { setPago(null); setSelectedSlot(""); setSlotsKey((k) => k + 1); setStep("datetime"); };
+  const volverAElegirHora = () => {
+    if (pago?.ref) fetch("/api/booking/deposit-release", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: pago.ref }) }).catch(() => {}); // libera el horario al tiro
+    setPago(null); setSelectedSlot(""); setSlotsKey((k) => k + 1); setStep("datetime"); };
   const irAPagar = () => {
     if (!pago) return;
     const w = window.open(pago.url, "_blank", "noopener");
@@ -627,7 +638,8 @@ export default function BookingPage() {
             <h2 className="text-2xl font-bold mb-2">Elige tu profesional</h2>
             <p className="text-brand-gray mb-6">Selecciona un miembro del equipo</p>
 
-            {/* First available button */}
+            {/* «Primer profesional disponible» solo tiene sentido si hay más de uno que elegir */}
+            {barbers.length > 1 && (
             <button
               onClick={async () => {
                 // Sin fecha elegida no se manda "hoy": el servidor busca quien tenga horas libres en los proximos dias.
@@ -652,9 +664,10 @@ export default function BookingPage() {
               <p className="font-bold text-brand-blue text-lg">Primer profesional disponible</p>
               <p className="text-xs text-brand-gray">Te asignamos al profesional con mas disponibilidad</p>
             </button>
+            )}
 
             {error && <p className="mb-4 text-sm text-red-500 text-center bg-red-50 rounded-lg py-2">{error}</p>}
-            <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>
+            {barbers.length > 1 && <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {barbers.map((b) => (

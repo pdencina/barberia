@@ -29,7 +29,7 @@ export default function PublicidadPage() {
   const [content, setContent] = useState("");
   const [term, setTerm] = useState("");
 
-  const baseUrl = typeof window !== "undefined" && tenant?.slug ? `${window.location.origin}/b/${tenant.slug}` : "";
+  const baseUrl = typeof window !== "undefined" && tenant?.slug ? `${window.location.origin}/${tenant.slug}` : "";
   const link = useMemo(
     () => (baseUrl && campaign.trim() ? buildTrackedLink(baseUrl, { medium, campaign, content, term }) : ""),
     [baseUrl, medium, campaign, content, term],
