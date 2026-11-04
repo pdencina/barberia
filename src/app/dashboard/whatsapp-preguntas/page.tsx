@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Pencil, Sparkles } from "lucide-react";
 import { PageHeader, Panel } from "@/components/ui/premium";
+import Avanzado from "./avanzado";
 
 interface Pregunta { id: string; titulo: string; claves: string[]; respuesta: string; activo: boolean }
 const PENDIENTE = "Escribe aquí la respuesta.";
@@ -31,7 +32,7 @@ const SUGERIDAS: { titulo: string; claves: string; respuesta: string }[] = [
 const tieneHuecos = (r: string) => r.trim() === PENDIENTE || /\[[^\]]+\]/.test(r);
 const vacio = { titulo: "", claves: "", respuesta: "" };
 
-export default function PreguntasPage() {
+function Clasica() {
   const [lista, setLista] = useState<Pregunta[] | null>(null);
   const [error, setError] = useState("");
   const [form, setForm] = useState<{ id?: string; titulo: string; claves: string; respuesta: string }>(vacio);
@@ -84,8 +85,7 @@ export default function PreguntasPage() {
   };
 
   return (
-    <div className="p-3 md:p-6 space-y-4 max-w-4xl animate-fade-in">
-      <PageHeader title="Preguntas del agente" subtitle="Escribe una vez lo que tus clientes preguntan siempre; el agente de WhatsApp lo responde solo" />
+    <div className="space-y-4">
       {error && <p className="rounded-xl bg-red-50 p-3 text-sm text-red-600">{error}</p>}
 
       <Panel title={form.id ? "Editar pregunta" : "Nueva pregunta"} subtitle="Las palabras clave son las que, si el cliente las escribe, activan esta respuesta (sepáralas con coma)">
@@ -124,6 +124,20 @@ export default function PreguntasPage() {
           })}
         </div>
       </Panel>
+    </div>
+  );
+}
+
+export default function PreguntasPage() {
+  const [modo, setModo] = useState<"clasica" | "avanzado">("clasica");
+  const tab = (id: "clasica" | "avanzado", texto: string) => (
+    <button onClick={() => setModo(id)} className={`rounded-full px-4 py-1.5 text-sm font-semibold transition-colors ${modo === id ? "bg-brand-blue text-white" : "border border-gray-200 text-brand-gray hover:border-brand-blue/40 dark:border-white/10"}`}>{texto}</button>
+  );
+  return (
+    <div className="p-3 md:p-6 space-y-4 max-w-4xl animate-fade-in">
+      <PageHeader title="Preguntas del agente" subtitle="Enséñale a tu agente de WhatsApp lo que tus clientes preguntan siempre" />
+      <div className="flex gap-2">{tab("clasica", "Clásica (preguntas y respuestas)")}{tab("avanzado", "Avanzado (IA)")}</div>
+      {modo === "clasica" ? <Clasica /> : <Avanzado />}
     </div>
   );
 }
