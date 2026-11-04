@@ -19,7 +19,7 @@ import {
   Tablet, CreditCard, Tag, Settings, LogOut, Scissors, Menu, X,
   Heart, Bell, Zap, Image, Star, ChevronLeft, ChevronRight, ChevronDown,
   MessageCircle, Clock, FileText, UserCircle, PiggyBank, ClipboardList,
-  Building2, ShieldCheck, Ticket, Percent, KeyRound, Truck, Briefcase, Plane, LifeBuoy,
+  Building2, ShieldCheck, Ticket, Percent, KeyRound, Truck, Briefcase, Plane, LifeBuoy, HandCoins,
 } from "lucide-react";
 
 interface NavItem {
@@ -96,6 +96,7 @@ const sections: NavSection[] = [
     title: "Finanzas",
     items: [
       { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign, minRole: "admin", basicLocked: true },
+      { name: "Abonos", href: "/dashboard/abonos", icon: HandCoins, minRole: "receptionist", basicLocked: true },
       { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin", basicLocked: true },
       { name: "Facturas", href: "/dashboard/facturas", icon: FileText, minRole: "admin", feature: "invoices" },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: ClipboardList, minRole: "admin" },
@@ -220,7 +221,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
       "/dashboard/pos", "/dashboard/clientes", "/dashboard/calendario",
       "/dashboard/agenda", "/dashboard/recepcion", "/dashboard/standby",
       "/dashboard/fidelidad", "/dashboard/retencion", "/dashboard/whatsapp",
-      "/dashboard/boletas", "/dashboard/cupones", "/dashboard/resenas", "/dashboard/configuracion",
+      "/dashboard/boletas", "/dashboard/cupones", "/dashboard/resenas", "/dashboard/abonos", "/dashboard/configuracion",
       // Nico's request: receptionist also gets Caja, Profesionales (schedules only) and
       // Inventario (read-only, changes gated behind the admin PIN).
       "/dashboard/caja", "/dashboard/barberos", "/dashboard/inventario", "/dashboard/solicitud",
