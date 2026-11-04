@@ -156,3 +156,19 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   assert.equal(a.e.estado?.etapa, "datos");
   console.log("OK pregunta durante datos");
 })();
+(async () => {
+  const unaSola: EstadoChat = { etapa: "oferta", datos: { horaExacta: null, opciones: [{ id: "m", nombre: "Matías Soto", duracionMin: 45, fecha: "2026-11-03", horas: ["19:00"] }] } };
+  for (const msg of ["Si, quiero agendar", "Confirmo", "claro", "dale"]) {
+    const a = armar(unaSola); const x = await manejarReservaChat(msg, TEL, datos(), a.deps);
+    assert.ok(x!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto* hoy a las *19:00*."), msg);
+  }
+  const varias: EstadoChat = { etapa: "oferta", datos: { horaExacta: null, opciones: [
+    { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", horas: ["19:15"] },
+    { id: "m", nombre: "Matías Soto", duracionMin: 45, fecha: "2026-11-03", horas: ["19:00"] } ] } };
+  const a = armar(varias);
+  const y = await manejarReservaChat("Con matias porfavor", TEL, datos(), a.deps);
+  assert.ok(y!.texto.includes("tengo *19:00*") && y!.texto.includes("Responde *sí*"));
+  const z = await manejarReservaChat("Si, quiero agendar", TEL, datos(), a.deps); // el estado quedó solo con Matías
+  assert.ok(z!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto*"));
+  console.log("OK cierre rápido");
+})();

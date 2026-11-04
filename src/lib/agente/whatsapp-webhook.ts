@@ -1,4 +1,5 @@
-import { responderFaq, type DatosFaq } from "./faq-fija";
+import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
+const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
 import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
 import { fetchAllRows } from "../accounting";
@@ -159,6 +160,21 @@ export function crearManejadoresWebhook(config: {
                             await contar("consultas_disponibilidad");
                             if (chat && d.oferta) {
                               try { await chat.guardarEstado(n.tenantId,p.remitenteHash,{ etapa: "oferta", datos: d.oferta },deps.ahora() + VIGENCIA_MIN * 60000); await contar("ofertas_horas"); } catch { /* sin memoria: igual se muestra la respuesta */ }
+                              // Cierre rápido: si ya dijo con quién y a qué hora quiere agendar y esa hora está libre, se piden los datos de una vez.
+                              if (d.oferta.horaExacta && d.oferta.opciones.length === 1 && INTENCION_AGENDAR.test(normalizar(text))) {
+                                try {
+                                  const rc = await manejarReservaChat("si",para,datosNegocio,{
+                                    ahora: deps.ahora,
+                                    leerEstado: () => chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()),
+                                    guardarEstado: (e) => chat.guardarEstado(n.tenantId,p.remitenteHash,e,deps.ahora() + VIGENCIA_MIN * 60000),
+                                    borrarEstado: () => chat.borrarEstado(n.tenantId,p.remitenteHash),
+                                    reservasFuturas: (tel) => chat.reservasFuturas(n.tenantId,tel,deps.ahora()),
+                                    crearReserva: (a) => chat.crearReserva(n.tenantId,a),
+                                    contar,
+                                  });
+                                  if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; }
+                                } catch { /* se deja la respuesta de disponibilidad */ }
+                              }
                             }
                           }
                         } catch { /* agenda no disponible o demora: se sigue con la FAQ */ }

@@ -174,7 +174,7 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
     const r = await consultar(P, q.fecha);
     if (r.fueraDeVentana) return { tipo: "respuesta", texto: fueraDeVentana(P.link, ` de ${P.nombre}`) };
     const propias = horasDe(r, q.franja);
-    const cierre = `¿Deseas agendar? Elige aquí:\n${P.link}`;
+    const cierre = `¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${P.link}`;
     if (hh !== null && propias.includes(hh)) {
       const otras = cercanos(propias.filter((h) => h !== hh), q.hora, MAX_HORAS);
       return { tipo: "respuesta", texto: bloque(`Sí, ${N} tiene disponible ${dia(q.fecha)} a las *${hh}*.`, otras.length > 0 && `También tiene: ${horasTxt(otras)}`, cierre), oferta: { horaExacta: hh, opciones: [{ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: q.fecha, horas: propias.slice(0, MAX_HORAS_OFRECIDAS) }] } };
@@ -213,7 +213,7 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
   const dia1 = await consultarTodos(revisados, q.fecha);
   if (dia1.some(({ r }) => r.fueraDeVentana)) return { tipo: "respuesta", texto: fueraDeVentana(general, "") };
   const con = dia1.map(({ p, r }) => ({ p, horas: horasDe(r, q.franja) })).filter((x) => x.horas.length > 0);
-  const cierre = `¿Deseas agendar? Elige al profesional y la hora aquí:\n${general}`;
+  const cierre = `¿Quieres que te agende? Dime con quién y a qué hora (por ejemplo: «Matías a las 19:00») y te pido tus datos.\nO reserva tú aquí: ${general}`;
   const filas = (xs: typeof con) => xs.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}: ${horasTxt(cercanos(x.horas, q.hora, MAX_HORAS))}`).join("\n");
   if (hh !== null) {
     const exactos = con.filter((x) => x.horas.includes(hh));
