@@ -10,7 +10,7 @@ import { ETIQUETA_ESTADO, type EstadoAbono } from "@/lib/abonos";
 
 interface Item { paymentId: string; monto: number; estado: EstadoAbono; detalle: string; pagador: string | null; fecha: string; cita: null | { id: string; fecha: string; hora: string; estado: string; cliente: string | null; profesional: string | null } }
 interface Datos { items: Item[]; totales: { recibido: number; por_devolver: number; devuelto: number; intentosNoAprobados: number }; migrationMissing?: boolean }
-const COLOR: Record<EstadoAbono, string> = { recibido: "bg-emerald-100 text-emerald-700", por_devolver: "bg-amber-100 text-amber-800", devuelto: "bg-gray-100 text-gray-600", no_aprobado: "bg-red-50 text-red-600" };
+const COLOR: Record<EstadoAbono, string> = { recibido: "bg-brand-blue/10 text-brand-blue", por_devolver: "bg-brand-dark text-white", devuelto: "bg-gray-100 text-gray-600", no_aprobado: "bg-gray-100 text-gray-500" };
 const fecha = (iso: string) => new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso)).replace(",", "");
 const dmy = (f: string) => f.split("-").reverse().join("/");
 
@@ -47,14 +47,14 @@ export default function AbonosPage() {
   return (
     <div className="p-3 md:p-6 space-y-4 max-w-5xl animate-fade-in">
       <PageHeader title="Abonos" subtitle="Lo que tus clientes pagaron al reservar con Mercado Pago" />
-      {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
-      {d?.migrationMissing && <p className="rounded-xl bg-amber-50 p-3 text-xs text-amber-700">Falta una actualización de la base de datos (migración 131).</p>}
+      {error && <p className="rounded-xl border border-brand-blue/20 bg-brand-blue/5 text-brand-dark px-3 py-2 text-sm">{error}</p>}
+      {d?.migrationMissing && <p className="rounded-xl border border-brand-blue/20 bg-brand-blue/5 text-brand-dark p-3 text-xs">Falta una actualización de la base de datos (migración 131).</p>}
       {!d && !error && <Spinner />}
       {d && (
         <>
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4"><p className="text-xs font-semibold text-emerald-700">Recibido</p><p className="mt-1 text-2xl font-extrabold text-brand-dark">{formatCurrency(d.totales.recibido)}</p></div>
-            <div className={`rounded-2xl border p-4 ${d.totales.por_devolver > 0 ? "border-amber-300 bg-amber-50" : "border-gray-100 bg-white"}`}><p className="text-xs font-semibold text-amber-700">Por devolver</p><p className="mt-1 text-2xl font-extrabold text-brand-dark">{formatCurrency(d.totales.por_devolver)}</p><p className="text-[11px] text-brand-gray">Pagos cuyo horario se ocupó antes</p></div>
+            <div className="rounded-2xl border border-brand-blue/20 bg-brand-blue/5 p-4"><p className="text-xs font-semibold text-brand-blue">Recibido</p><p className="mt-1 text-2xl font-extrabold text-brand-dark">{formatCurrency(d.totales.recibido)}</p></div>
+            <div className={`rounded-2xl border p-4 ${d.totales.por_devolver > 0 ? "border-brand-dark/30 bg-brand-dark/5" : "border-gray-100 bg-white"}`}><p className="text-xs font-semibold text-brand-dark">Por devolver</p><p className="mt-1 text-2xl font-extrabold text-brand-dark">{formatCurrency(d.totales.por_devolver)}</p><p className="text-[11px] text-brand-gray">Pagos cuyo horario se ocupó antes</p></div>
             <div className="rounded-2xl border border-gray-100 bg-white p-4"><p className="text-xs font-semibold text-brand-gray">Devuelto</p><p className="mt-1 text-2xl font-extrabold text-brand-dark">{formatCurrency(d.totales.devuelto)}</p></div>
           </div>
 
