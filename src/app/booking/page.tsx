@@ -874,12 +874,12 @@ export default function BookingPage() {
                 <span className="text-brand-blue font-bold text-lg">{formatCurrency(totalPrice)}</span>
               </div>
               {depositRequired && (
-                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-yellow-800 font-medium">Abono requerido{depositMode === "percent" ? ` (${depositPercentage}%)` : ""}</span>
-                    <span className="text-yellow-800 font-bold">{formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}</span>
+                <div className="mt-3 rounded-xl border border-brand-blue/20 bg-brand-blue/5 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-brand-dark">Abono para confirmar{depositMode === "percent" ? ` (${depositPercentage}%)` : ""}</span>
+                    <span className="text-base font-bold text-brand-blue">{formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}</span>
                   </div>
-                  <p className="text-[10px] text-yellow-700 mt-1">{depositMessage || "Se cobra al confirmar la reserva. El resto se paga en el local."}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-brand-gray">{depositMessage || "Se cobra al confirmar la reserva. El resto se paga en el local."}</p>
                 </div>
               )}
             </div>
@@ -953,7 +953,7 @@ export default function BookingPage() {
               {process.env.NEXT_PUBLIC_LEGAL_PAGES_ENABLED !== "0" && (<> — <a href="/privacidad/clientes" target="_blank" rel="noopener noreferrer" className="underline">Aviso de privacidad</a></>)}.
             </p>
 
-            {error && <p className="text-red-500 text-sm mt-3 text-center bg-red-50 rounded-lg py-2">{error}</p>}
+            {error && <p className={depositRequired ? "mt-3 rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3 py-2 text-center text-sm font-medium text-brand-dark" : "text-red-500 text-sm mt-3 text-center bg-red-50 rounded-lg py-2"}>{error}</p>}
 
             <button
               onClick={handleBook}
