@@ -4,6 +4,9 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { notify } from "@/lib/notify";
 import { cargarCredencialAbono, firmaValida } from "@/lib/deposit";
+import { horarioDisponible, liberarHold } from "@/lib/deposit-hold";
+import { resolverServicios } from "@/lib/booking-services";
+import { parseWallClock } from "@/lib/wallclock";
 
 /**
  * MercadoPago Webhook for deposit payments.
@@ -93,6 +96,7 @@ export async function POST(req: NextRequest) {
       totalPrice,
       depositAmount,
       tenantId,
+      holdRef,
     } = bookingData;
 
     // El negocio de la reserva tiene que ser el del aviso firmado (no se puede usar el pago de un negocio para reservar en otro).
@@ -103,6 +107,24 @@ export async function POST(req: NextRequest) {
     // Idempotencia: Mercado Pago puede avisar varias veces del mismo pago; no se crea otra cita.
     const { data: yaCreada } = await supabase.from("appointments").select("id").eq("deposit_payment_id", String(paymentId)).limit(1).maybeSingle();
     if (yaCreada) return NextResponse.json({ ok: true });
+
+    // El bloqueo del horario cumplió su trabajo: se libera para poder crear la cita en ese mismo horario.
+    await liberarHold(supabase, holdRef);
+    // Si el bloqueo ya había vencido y otra persona tomó el horario, no se crea una cita encima de otra:
+    // el abono queda registrado «por devolver» y se avisa al negocio.
+    // La hora llega como «2026-11-05T15:00:00» (hora de pared de Chile): se lee sin convertir zonas (antes se pegaba la fecha dos veces y la fecha quedaba invalida).
+    const horaTexto = /^\d{4}-\d{2}-\d{2}T/.test(String(startTime)) ? String(startTime) : `${date}T${startTime}`;
+    const resuelto = await resolverServicios(supabase, barberId, tenantId, serviceIds).catch(() => null);
+    try {
+      const ini = parseWallClock(horaTexto);
+      const fin = new Date(ini.getTime() + (resuelto?.duracion || 30) * 60000);
+      const libre = await horarioDisponible(supabase, { barberId, tenantId, date, start: ini, end: fin });
+      if (!libre.ok) {
+        await supabase.from("booking_deposits").insert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: null, amount: Math.round(Number(depositAmount) || 0), status: "needs_refund", payer_email: clientEmail || null }).then(() => {}, () => {});
+        await notify({ tenantId, kind: "deposit_conflict", roles: ["admin", "receptionist"], title: "Abono pagado, pero el horario se ocupó", body: `${clientName} pagó $${Number(depositAmount).toLocaleString("es-CL")} para el ${date} a las ${horaTexto.slice(11, 16)}, pero ese horario ya no estaba libre. Hay que devolverle el abono o darle otra hora.`, url: "/dashboard/calendario" }).catch(() => {});
+        return NextResponse.json({ ok: true });
+      }
+    } catch (e) { console.error("Deposit webhook: no se pudo revisar el horario", e); }
 
     // Find or create client
     let clientId: string | null = null;
@@ -144,8 +166,8 @@ export async function POST(req: NextRequest) {
       .select("duration")
       .in("id", serviceIds);
 
-    const totalDuration = (services || []).reduce((sum, s) => sum + (s.duration || 30), 0);
-    const startDate = new Date(`${date}T${startTime}`);
+    const totalDuration = resuelto?.duracion || (services || []).reduce((sum, s) => sum + (s.duration || 30), 0);
+    const startDate = parseWallClock(horaTexto);
     const endDate = new Date(startDate.getTime() + totalDuration * 60 * 1000);
 
     // Create confirmed appointment with deposit info
