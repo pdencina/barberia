@@ -1,5 +1,6 @@
 "use client";
 
+import { calcularAbono } from "@/lib/deposit-calc";
 import { useState, useEffect, useRef } from "react";
 import BusinessProfile, { type BusinessInfo } from "@/components/booking/business-profile";
 import TimeFirstFlow, { type TimePick } from "@/components/booking/time-first-flow";
@@ -97,6 +98,8 @@ export default function BookingPage() {
   const preselectSlot = useRef<string>(""); // hora elegida en la vista por horario
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(30);
+  const [depositMode, setDepositMode] = useState<"percent" | "fixed">("percent");
+  const [depositFixed, setDepositFixed] = useState<number | null>(null);
   const [depositMessage, setDepositMessage] = useState("");
 
   // Computed totals
@@ -137,9 +140,12 @@ export default function BookingPage() {
         // Fetch deposit settings for this tenant
         if (data.id) {
           fetch(`/api/settings/deposit?tenantId=${data.id}`).then((r) => r.json()).then((dep) => {
-            if (dep.deposit_enabled) {
+            // Solo se exige el abono si el negocio lo activó Y tiene su cuenta de Mercado Pago conectada.
+            if (dep.deposit_enabled && dep.deposit_ready !== false) {
               setDepositRequired(true);
               setDepositPercentage(dep.deposit_percentage || 30);
+              setDepositMode(dep.deposit_mode === "fixed" ? "fixed" : "percent");
+              setDepositFixed(dep.deposit_fixed_amount ?? null);
               setDepositMessage(dep.deposit_message || "");
             }
           }).catch(() => {});
@@ -805,8 +811,8 @@ export default function BookingPage() {
               {depositRequired && (
                 <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-yellow-800 font-medium">Abono requerido ({depositPercentage}%)</span>
-                    <span className="text-yellow-800 font-bold">{formatCurrency(Math.ceil(totalPrice * depositPercentage / 100))}</span>
+                    <span className="text-sm text-yellow-800 font-medium">Abono requerido{depositMode === "percent" ? ` (${depositPercentage}%)` : ""}</span>
+                    <span className="text-yellow-800 font-bold">{formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}</span>
                   </div>
                   <p className="text-[10px] text-yellow-700 mt-1">{depositMessage || "Se cobra al confirmar la reserva. El resto se paga en el local."}</p>
                 </div>
@@ -889,7 +895,7 @@ export default function BookingPage() {
               disabled={!clientName.trim() || !clientPhone.trim() || !/^\S+@\S+\.\S+$/.test(clientEmail.trim()) || submitting}
               className="w-full mt-6 py-4 rounded-xl bg-brand-blue text-white font-bold text-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? "Procesando..." : depositRequired ? `Pagar abono ${formatCurrency(Math.ceil(totalPrice * depositPercentage / 100))}` : "Confirmar Cita"}
+              {submitting ? "Procesando..." : depositRequired ? `Pagar abono ${formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}` : "Confirmar Cita"}
             </button>
           </div>
         )}

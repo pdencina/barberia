@@ -13,6 +13,7 @@ import { Copy, ExternalLink, Globe, Clock, Building2, Image as ImageIcon, Lock, 
 import { compressImage } from "@/lib/image-compress";
 import { ComisionCosmeticosCard } from "@/components/settings/comision-cosmeticos-card";
 import { ArriendoProductosCard } from "@/components/settings/arriendo-productos-card";
+import { CobrosOnlineCard } from "@/components/settings/cobros-online-card";
 
 const dayNames = ["Domingo", "Lunes", "Martes", "Miercoles", "Jueves", "Viernes", "Sabado"];
 
@@ -896,6 +897,7 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
+      {isAdmin && tenantId && <CobrosOnlineCard tenantId={tenantId} />}
       {/* Deposit / Abono Config
           (Configuracion de terminales de cobro con tarjeta: ver /dashboard/terminal-pos.
           Antes vivia aqui duplicado con otra pagina vieja separada, se unifico todo alla.) */}
