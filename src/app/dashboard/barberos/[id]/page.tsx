@@ -1,5 +1,6 @@
 "use client";
 
+import { LinkEditor } from "@/components/settings/link-editor";
 import { useState, useEffect } from "react";
 import { TAX_PRESETS, IVA_RATE } from "@/lib/pro-tax";
 import { ProSiiAccount } from "@/components/barberos/pro-sii-account";
@@ -294,47 +295,25 @@ export default function EditProfessionalPage() {
 
       <div className={tab === "datos" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Personal booking link */}
-      {!isReceptionistProfile && (
-      <div className="bg-brand-light border border-brand-blue/20 rounded-2xl p-4">
-        <p className="text-xs text-brand-gray font-medium mb-1.5">Link de agenda personal</p>
-        <div className="flex items-center gap-2">
-          {/* Short readable link using the barber's unique booking_slug:
-              /b/<tenant>/<barber-slug>. Falls back to the barberId link if the slug or
-              tenant slug isn't available yet. Both resolve to the correct barber
-              unambiguously (no more "any available barber"). */}
-          {(() => {
-            const origin = typeof window !== "undefined" ? window.location.origin : "https://re-booking.cl";
-            // Prefer the SHORT readable link: /<tenant-slug>/<barber-slug>
-            // (e.g. re-booking.cl/estudiolevels/javier-garcia). Both the tenant slug and
-            // the barber's booking_slug must exist; if either isn't ready yet we fall
-            // back to /pro/<uuid>, which is longer but still resolves the right barber.
-            const barberSlug = (data as any).booking_slug as string | undefined;
-            const tenantSlug = (data as any).tenant_slug || tenant?.slug;
-            const bookingLink = barberSlug && tenantSlug
-              ? `${origin}/${tenantSlug}/${barberSlug}`
-              : `${origin}/pro/${data.id}`;
-            return (
-              <>
-                <code className="flex-1 text-sm text-brand-blue bg-white px-3 py-2 rounded-xl border border-gray-200 truncate">
-                  {bookingLink.replace(/^https?:\/\//, "")}
-                </code>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(bookingLink);
-                    showToast("Link copiado!", "success");
-                  }}
-                  className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:opacity-90 flex-shrink-0"
-                >
-                  Copiar
-                </button>
-              </>
-            );
-          })()}
-        </div>
-        <p className="text-[10px] text-brand-gray mt-2">Comparte este link en Instagram, WhatsApp o redes sociales para que tus clientes agenden directo contigo.</p>
-      </div>
-
-      )}
+      {!isReceptionistProfile && (() => {
+        const barberSlug = (data as any).booking_slug as string | undefined;
+        const tenantSlug = (data as any).tenant_slug || tenant?.slug;
+        const tid = (data as any).tenant_id || tenant?.id;
+        if (barberSlug && tenantSlug && tid) {
+          return <LinkEditor tipo="profesional" tenantId={tid} slugActual={barberSlug} slugNegocio={tenantSlug} barberId={data.id} titulo="Link de agenda personal" ayuda="Comparte este link en Instagram, WhatsApp o redes sociales para que tus clientes agenden directo contigo." onGuardado={(n) => setData({ ...data, booking_slug: n } as any)} />;
+        }
+        const origin = typeof window !== "undefined" ? window.location.origin : "https://www.re-booking.cl";
+        const enlace = `${origin}/pro/${data.id}`;
+        return (
+          <div className="bg-brand-light border border-brand-blue/20 rounded-2xl p-4">
+            <p className="text-xs text-brand-gray font-medium mb-1.5">Link de agenda personal</p>
+            <div className="flex items-center gap-2">
+              <code className="flex-1 text-sm text-brand-blue bg-white px-3 py-2 rounded-xl border border-gray-200 truncate">{enlace.replace(/^https?:\/\//, "")}</code>
+              <button onClick={() => { navigator.clipboard.writeText(enlace); showToast("Link copiado!", "success"); }} className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:opacity-90 flex-shrink-0">Copiar</button>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Basic info */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-4">

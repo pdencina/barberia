@@ -77,7 +77,7 @@ export default function WhatsAppBroadcastPage() {
   const today = todayInChile();
 
   // Link de reserva del negocio (mismo patron usado en el resto de la app).
-  const bookingLink = tenant?.slug ? `https://re-booking.cl/b/${tenant.slug}` : "https://re-booking.cl/booking";
+  const bookingLink = tenant?.slug ? `https://www.re-booking.cl/${tenant.slug}` : "https://re-booking.cl/booking";
 
   // Segmentos (definiciones claras):
   //  - Recientes: ultima visita completada hace 30 dias o menos.

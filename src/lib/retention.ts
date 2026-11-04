@@ -215,7 +215,7 @@ export async function tenantBookingUrl(
   supabase: ReturnType<typeof createAdminSupabase>,
   tenantId: string
 ): Promise<string> {
-  const base = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
+  const base = process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl";
   const { data } = await supabase.from("tenants").select("slug").eq("id", tenantId).single();
-  return data?.slug ? `${base}/b/${data.slug}` : `${base}/booking`;
+  return data?.slug ? `${base}/${data.slug}` : `${base}/booking`;
 }

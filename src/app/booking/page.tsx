@@ -123,8 +123,9 @@ export default function BookingPage() {
     const urlParams = new URLSearchParams(window.location.search);
     // Link corto /<negocio>/<profesional>: negocio y profesional vienen de la ruta.
     const pathParts = window.location.pathname.split("/").filter(Boolean);
-    const pathTenant = pathParts.length === 2 && pathParts[0] !== "booking" ? decodeURIComponent(pathParts[0]) : null;
-    const pathProf = pathTenant ? decodeURIComponent(pathParts[1]) : null;
+    // /<negocio> (1 parte) o /<negocio>/<profesional> (2 partes); /booking?tenant=… sigue funcionando.
+    const pathTenant = (pathParts.length === 1 || pathParts.length === 2) && pathParts[0] !== "booking" ? decodeURIComponent(pathParts[0]) : null;
+    const pathProf = pathTenant && pathParts.length === 2 ? decodeURIComponent(pathParts[1]) : null;
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch") || pathTenant;
     if (tenantSlug) setTenantSlugState(tenantSlug);
     const barberSlug = urlParams.get("profesional") || urlParams.get("barber");
@@ -135,6 +136,14 @@ export default function BookingPage() {
     // Fetch business info if on subdomain
     if (tenantSlug) {
       fetch(`/api/public/business-info?slug=${tenantSlug}`).then((r) => r.json()).then((data) => {
+        // El negocio cambió su link: se pasa al nuevo, conservando el profesional y los parámetros (utm, etc.).
+        if (data.movedTo) {
+          const partes = window.location.pathname.split("/").filter(Boolean);
+          const usaRuta = partes.length >= 1 && partes[0] !== "booking";
+          if (usaRuta) { partes[0] = data.movedTo; window.location.replace(`/${partes.join("/")}${window.location.search}`); }
+          else { const q = new URLSearchParams(window.location.search); q.set("tenant", data.movedTo); window.location.replace(`${window.location.pathname}?${q.toString()}`); }
+          return;
+        }
         if (data.name) {
           setBusinessName(data.name); setBusinessInfo(data);
           if (data.suspended) setBusinessSuspended(true);

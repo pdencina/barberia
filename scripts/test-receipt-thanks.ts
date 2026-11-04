@@ -10,7 +10,7 @@ t("con Google Maps: el botón y las estrellas van a Google y se agenda en el lin
   const h = receiptThanksHtml({ links: armarEnlacesCorreo(A, { google_maps_url: "https://maps.app.goo.gl/abc", slug: "levels" }, "tx1"), barberName: "Vicente", businessName: "Estudio Levels", accent: "#0F8B8D" });
   assert.ok(h.includes("Califícanos en Google Maps ★"));
   assert.equal((h.match(/https:\/\/maps\.app\.goo\.gl\/abc/g) || []).length, 6); // 5 estrellas + botón
-  assert.ok(h.includes(`${A}/b/levels`) && h.includes("Vicente") && h.includes("Estudio Levels"));
+  assert.ok(h.includes(`${A}/levels`) && h.includes("Vicente") && h.includes("Estudio Levels"));
 });
 t("sin Google Maps: califica en re-booking con el id de la venta", () => {
   const h = receiptThanksHtml({ links: armarEnlacesCorreo(A, { slug: "levels" }, "tx1"), barberName: "Vicente", accent: "#0F8B8D" });

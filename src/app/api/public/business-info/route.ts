@@ -45,6 +45,15 @@ export async function GET(req: NextRequest) {
     ) || null;
   }
 
+  if (!found) {
+    // Link antiguo de un negocio que cambió su dirección: se le indica la nueva (la página de reservas redirige sola).
+    const { data: h, error: he } = await supabase.from("tenant_slug_history").select("tenant_id").eq("old_slug", slug).maybeSingle();
+    if (!he && h) {
+      const { data: nuevo } = await supabase.from("tenants").select("slug").eq("id", h.tenant_id).eq("active", true).maybeSingle();
+      if (nuevo?.slug) return NextResponse.json({ movedTo: nuevo.slug });
+    }
+  }
+
   if (!found) return NextResponse.json({ error: "Negocio no encontrado" }, { status: 404 });
 
   const { data: hours } = await supabase
