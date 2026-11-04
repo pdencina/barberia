@@ -2,6 +2,9 @@ import { isTenantSuspended, isBarberTenantSuspended, TENANT_SUSPENDED_MESSAGE } 
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { calcularAbono, cargarCredencialAbono, firmarNegocio } from "@/lib/deposit";
+import { resolverServicios } from "@/lib/booking-services";
+import { horarioDisponible, limpiarHoldsVencidos, crearHold, liberarHold } from "@/lib/deposit-hold";
+import { parseWallClock } from "@/lib/wallclock";
 
 /**
  * Creates a MercadoPago Checkout Pro preference for a booking deposit.
@@ -57,10 +60,18 @@ export async function POST(req: NextRequest) {
   const cred = await cargarCredencialAbono(supabase, barber.tenant_id);
   if (!cred.token) return NextResponse.json({ error: "MercadoPago no configurado para este negocio" }, { status: 400 });
 
-  // El total se calcula AQUI con los precios del negocio (antes se confiaba en el total que mandaba el navegador).
-  const { data: svcRows } = await supabase.from("services").select("id, name, price").in("id", serviceIds).eq("tenant_id", barber.tenant_id);
-  if (!svcRows || svcRows.length !== new Set(serviceIds).size) return NextResponse.json({ error: "Servicio no válido" }, { status: 400 });
-  const totalPrice = svcRows.reduce((t: number, x: any) => t + (Number(x.price) || 0), 0);
+  // El total y la duracion se calculan AQUI con los precios del profesional (el navegador no decide cuanto se cobra).
+  const resuelto = await resolverServicios(supabase, barberId, barber.tenant_id, serviceIds);
+  if (!resuelto) return NextResponse.json({ error: "Servicio no válido" }, { status: 400 });
+  const totalPrice = resuelto.total;
+  const svcRows = resuelto.servicios;
+
+  // El horario tiene que seguir libre; si lo esta, se BLOQUEA mientras el cliente paga (no se lo puede llevar otra persona).
+  const start = parseWallClock(startTime);
+  const end = new Date(start.getTime() + resuelto.duracion * 60000);
+  await limpiarHoldsVencidos(supabase, { barberId, date });
+  const libre = await horarioDisponible(supabase, { barberId, tenantId: barber.tenant_id, date, start, end });
+  if (!libre.ok) return NextResponse.json({ error: libre.error, code: "slot_taken" }, { status: 409 });
   const depositPercentage = Number(settings.deposit_percentage) || 30;
   const depositAmount = calcularAbono(totalPrice, {
     mode: settings.deposit_mode === "fixed" ? "fixed" : "percent", percent: depositPercentage,
@@ -76,7 +87,10 @@ export async function POST(req: NextRequest) {
     .single();
 
   const serviceNames = svcRows.map((x: any) => x.name).join(" + ");
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || "https://re-booking.cl";
+  // Direccion canonica CON www: re-booking.cl redirige (307) y Mercado Pago no sigue redirecciones al avisar el pago.
+  const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl").replace(/\/$/, "");
+
+  const holdRef = await crearHold(supabase, { barberId, date, start, end });
 
   // Create MP Checkout Pro preference
   const preferenceRes = await fetch("https://api.mercadopago.com/checkout/preferences", {
@@ -115,6 +129,7 @@ export async function POST(req: NextRequest) {
         totalPrice,
         depositAmount,
         tenantId: barber.tenant_id,
+        holdRef,
       }),
       notification_url: `${baseUrl}/api/webhooks/deposit?t=${barber.tenant_id}&s=${firmarNegocio(barber.tenant_id)}`,
       statement_descriptor: tenant?.name || "RE-BOOKING",
@@ -128,6 +143,7 @@ export async function POST(req: NextRequest) {
 
   if (!preferenceRes.ok) {
     console.error("MP Preference error:", preferenceData);
+    await liberarHold(supabase, holdRef); // no se pudo armar el link de pago: el horario vuelve a quedar libre
     return NextResponse.json({ error: "Error creando link de pago" }, { status: 500 });
   }
 

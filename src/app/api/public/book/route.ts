@@ -10,6 +10,7 @@ import { parseWallClock } from "@/lib/wallclock";
 import { isOnVacation } from "@/lib/vacations";
 import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
 import { notify } from "@/lib/notify";
+import { limpiarHoldsVencidos } from "@/lib/deposit-hold";
 import { cleanClientName } from "@/lib/client-name";
 import { sanitizeAttribution, isAdTrackingEnabled } from "@/lib/ad-tracking";
 
@@ -78,6 +79,7 @@ export async function POST(req: NextRequest) {
 
   // Check for conflicts (double booking prevention). Con "cupos por bloque" (solo
   // kinesiologia) un horario admite varias citas hasta llegar al cupo.
+  await limpiarHoldsVencidos(supabase, { barberId, date }); // abonos sin pagar que ya vencieron (migracion 132)
   if (await isOnVacation(supabase, barberId, date)) {
     return NextResponse.json({ error: "El profesional no atiende ese día. Selecciona otra fecha." }, { status: 409 });
   }
