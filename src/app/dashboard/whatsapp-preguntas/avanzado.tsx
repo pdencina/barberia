@@ -26,7 +26,12 @@ Reglas:
 - No inventes nada. Si no te doy un dato, escribe "NO DEFINIDO".
 - No incluyas datos personales de clientes, contraseñas ni claves.
 
-Cuando yo diga "listo", entrégame el resultado FINAL en texto plano, con estos títulos exactos y en este orden: NEGOCIO, HORARIOS, EQUIPO, SERVICIOS Y PRECIOS, RESERVAS Y POLÍTICAS, PAGOS, BENEFICIOS, PRODUCTOS, CURSOS, TONO Y LÍMITES, PREGUNTAS FRECUENTES (formato "P: ... R: ..."). Máximo 10.000 caracteres, sin tablas ni emojis, frases cortas y concretas.`;
+Cuando yo diga "listo", entrégame el resultado FINAL en texto plano, con estos títulos exactos (en mayúsculas, solos en su línea) y en este orden: NEGOCIO, HORARIOS, EQUIPO, SERVICIOS Y PRECIOS, RESERVAS Y POLÍTICAS, PAGOS, BENEFICIOS, PRODUCTOS, CURSOS, TONO Y LÍMITES, PREGUNTAS FRECUENTES.
+
+MUY IMPORTANTE sobre el formato, porque un asistente copiará estas líneas tal cual a los clientes:
+- UN dato por línea, y cada línea debe entenderse SOLA, repitiendo el nombre del servicio o tema (por ejemplo "El corte de cabello cuesta $12.000 y dura 45 minutos." y no "Cuesta $12.000.").
+- En PREGUNTAS FRECUENTES, una pregunta por línea con este formato exacto: P: pregunta R: respuesta completa.
+- Frases cortas (menos de 300 letras), sin tablas, sin emojis, sin viñetas anidadas. Máximo 10.000 caracteres.`;
 
 export default function Avanzado() {
   const [contexto, setContexto] = useState("");
@@ -66,12 +71,12 @@ export default function Avanzado() {
     <div className="space-y-4">
       {!llave && <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">Falta la llave técnica de la IA en el servidor (la carga el equipo de re-booking). Hasta entonces puedes dejar listo el contexto, pero no responderá.</div>}
 
-      <Panel title="Paso 1: genera el contexto con tu IA" subtitle="Copia este prompt y pégalo en la IA que uses. Te hará preguntas sobre tu negocio y al final te entregará un texto ordenado.">
+      <Panel title="Paso 1: genera el contexto con tu IA" subtitle="Copia este prompt y pégalo en la IA que uses. Te hará preguntas sobre tu negocio y al final te entregará un texto ordenado, con un dato por línea.">
         <pre className="max-h-56 overflow-auto whitespace-pre-wrap rounded-xl bg-brand-blue/5 p-3 text-xs text-brand-dark/80">{PROMPT_CONTEXTO}</pre>
         <button onClick={copiar} className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-brand-blue px-4 py-2 text-sm font-semibold text-white"><Copy className="h-4 w-4" />Copiar prompt</button>
       </Panel>
 
-      <Panel title="Paso 2: pega aquí el resultado" subtitle="Revísalo antes de guardar: el agente solo podrá responder lo que esté escrito aquí. No incluyas datos de clientes ni claves.">
+      <Panel title="Paso 2: pega aquí el resultado" subtitle="Revísalo antes de guardar: el agente solo podrá responder con lo que esté escrito aquí, tal cual. No incluyas datos de clientes ni claves.">
         <textarea value={contexto} onChange={(e) => setContexto(e.target.value)} rows={16} maxLength={MAX} disabled={!cargado} placeholder="NEGOCIO&#10;...&#10;HORARIOS&#10;..." className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm dark:border-white/10 dark:bg-transparent" />
         <div className="mt-2 flex items-center justify-between">
           <span className={`text-xs ${contexto.length > MAX * 0.9 ? "text-red-500" : "text-brand-gray"}`}>{contexto.length}/{MAX}</span>
@@ -80,13 +85,13 @@ export default function Avanzado() {
         {msg && <p className={`mt-2 text-sm ${msg.ok ? "text-brand-blue" : "text-red-600"}`}>{msg.t}</p>}
       </Panel>
 
-      <Panel title="Paso 3: activa las respuestas con IA" subtitle={`Primero responde el modo Clásico. La IA solo contesta lo que no esté resuelto, usando únicamente tu contexto; si no sabe, avisa a una persona. Tope: ${limite} respuestas con IA al mes.`}>
+      <Panel title="Paso 3: activa las respuestas con IA" subtitle={`La IA solo ENTIENDE la pregunta del cliente y elige cuál de tus líneas la responde. No escribe ni inventa nada: la respuesta es tu texto, palabra por palabra. Si ninguna línea responde, o el tema no es de tu negocio, avisa a una persona. Primero responde el modo Clásico. Tope: ${limite} usos de IA al mes.`}>
         <label className="flex items-start gap-3 text-sm text-brand-dark">
           <input type="checkbox" className="mt-1" checked={iaActiva} disabled={!cargado || guardando || (contexto !== guardado)} onChange={(e) => guardar(e.target.checked)} />
-          <span><b>Activar respuestas con IA</b>{contexto !== guardado && <span className="block text-xs text-amber-700">Guarda el contexto antes de activar.</span>}</span>
+          <span><b>Activar la IA para entender mensajes</b>{contexto !== guardado && <span className="block text-xs text-amber-700">Guarda el contexto antes de activar.</span>}</span>
         </label>
         <div className="mt-3 rounded-xl bg-brand-blue/5 p-3 text-xs text-brand-dark/80">
-          <b>Aviso de privacidad.</b> Al activarla, el texto de los mensajes que el modo Clásico no puede responder se envía a Anthropic (proveedor de la IA) solo para redactar la respuesta. No se guarda el texto de los clientes. Los mensajes con datos como RUT, tarjetas o correos, o sobre salud, reclamos y devoluciones, no se envían: los ve una persona. Recomendamos mencionarlo en tu política de privacidad.
+          <b>Aviso de privacidad.</b> Al activarla, el texto de los mensajes que el modo Clásico no puede responder se envía a Anthropic (proveedor de la IA) solo para entender qué pregunta hizo (junto con las líneas de tu contexto). No se guarda el texto de los clientes. Los mensajes con datos como RUT, tarjetas o correos, o sobre salud, reclamos y devoluciones, no se envían: los ve una persona. Recomendamos mencionarlo en tu política de privacidad.
         </div>
       </Panel>
     </div>

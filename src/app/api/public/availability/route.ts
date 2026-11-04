@@ -4,6 +4,7 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 import { getSlotCapacity, fullSegments, peakOverlap } from "@/lib/capacity";
 import { isOnVacation } from "@/lib/vacations";
 import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
+import { limpiarHoldsVencidos } from "@/lib/deposit-hold";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -15,6 +16,9 @@ export async function GET(req: NextRequest) {
   if (!barberId || !date) {
     return NextResponse.json({ error: "barberId and date required" }, { status: 400 });
   }
+
+  // Bloqueos de horario de abonos que no se pagaron a tiempo (migracion 132): se borran aqui para que el horario vuelva a verse libre.
+  await limpiarHoldsVencidos(supabase, { barberId, date });
 
   // Vacaciones del profesional (migracion 095): ese dia no hay horas.
   if (await isOnVacation(supabase, barberId, date)) {

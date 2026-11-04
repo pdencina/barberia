@@ -3,6 +3,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { notify } from "@/lib/notify";
+import { cargarCredencialAbono, firmaValida } from "@/lib/deposit";
+import { horarioDisponible, liberarHold } from "@/lib/deposit-hold";
+import { resolverServicios } from "@/lib/booking-services";
+import { parseWallClock } from "@/lib/wallclock";
 
 /**
  * MercadoPago Webhook for deposit payments.
@@ -28,29 +32,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true }); // Acknowledge but ignore non-payment notifications
     }
 
-    // We need to find which tenant this payment belongs to
-    // The external_reference in the preference contains all booking data
-    // First, get payment details from MP to find the external_reference
-
-    // Try to get payment info - we need the access token
-    // Since we don't know which tenant yet, get all tokens and try
-    const { data: allSettings } = await supabase
-      .from("tenant_settings")
-      .select("tenant_id, mp_access_token")
-      .not("mp_access_token", "is", null);
+    // Los avisos nuevos traen el negocio y una firma (?t=&s=): se usa SU token, sin probar los de todos.
+    // Los avisos de links antiguos (sin firma) siguen buscando entre los negocios, como antes.
+    const url = new URL(req.url);
+    const firmado = firmaValida(url.searchParams.get("t"), url.searchParams.get("s")) ? url.searchParams.get("t") : null;
 
     let paymentData: any = null;
     let usedToken: string = "";
 
-    for (const setting of allSettings || []) {
-      if (!setting.mp_access_token) continue;
-      const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: { Authorization: `Bearer ${setting.mp_access_token}` },
-      });
-      if (res.ok) {
-        paymentData = await res.json();
-        usedToken = setting.mp_access_token;
-        break;
+    if (firmado) {
+      const cred = await cargarCredencialAbono(supabase, firmado);
+      if (cred.token) {
+        const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, { headers: { Authorization: `Bearer ${cred.token}` } });
+        if (res.ok) { paymentData = await res.json(); usedToken = cred.token; }
+      }
+    } else {
+      const { data: allSettings } = await supabase
+        .from("tenant_settings")
+        .select("tenant_id, mp_access_token")
+        .not("mp_access_token", "is", null);
+      for (const setting of allSettings || []) {
+        if (!setting.mp_access_token) continue;
+        const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: { Authorization: `Bearer ${setting.mp_access_token}` },
+        });
+        if (res.ok) {
+          paymentData = await res.json();
+          usedToken = setting.mp_access_token;
+          break;
+        }
       }
     }
 
@@ -86,7 +96,35 @@ export async function POST(req: NextRequest) {
       totalPrice,
       depositAmount,
       tenantId,
+      holdRef,
     } = bookingData;
+
+    // El negocio de la reserva tiene que ser el del aviso firmado (no se puede usar el pago de un negocio para reservar en otro).
+    if (firmado && tenantId !== firmado) {
+      console.error("Deposit webhook: el negocio de la reserva no coincide con el del aviso", paymentId);
+      return NextResponse.json({ ok: true });
+    }
+    // Idempotencia: Mercado Pago puede avisar varias veces del mismo pago; no se crea otra cita.
+    const { data: yaCreada } = await supabase.from("appointments").select("id").eq("deposit_payment_id", String(paymentId)).limit(1).maybeSingle();
+    if (yaCreada) return NextResponse.json({ ok: true });
+
+    // El bloqueo del horario cumplió su trabajo: se libera para poder crear la cita en ese mismo horario.
+    await liberarHold(supabase, holdRef);
+    // Si el bloqueo ya había vencido y otra persona tomó el horario, no se crea una cita encima de otra:
+    // el abono queda registrado «por devolver» y se avisa al negocio.
+    // La hora llega como «2026-11-05T15:00:00» (hora de pared de Chile): se lee sin convertir zonas (antes se pegaba la fecha dos veces y la fecha quedaba invalida).
+    const horaTexto = /^\d{4}-\d{2}-\d{2}T/.test(String(startTime)) ? String(startTime) : `${date}T${startTime}`;
+    const resuelto = await resolverServicios(supabase, barberId, tenantId, serviceIds).catch(() => null);
+    try {
+      const ini = parseWallClock(horaTexto);
+      const fin = new Date(ini.getTime() + (resuelto?.duracion || 30) * 60000);
+      const libre = await horarioDisponible(supabase, { barberId, tenantId, date, start: ini, end: fin });
+      if (!libre.ok) {
+        await supabase.from("booking_deposits").insert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: null, amount: Math.round(Number(depositAmount) || 0), status: "needs_refund", payer_email: clientEmail || null }).then(() => {}, () => {});
+        await notify({ tenantId, kind: "deposit_conflict", roles: ["admin", "receptionist"], title: "Abono pagado, pero el horario se ocupó", body: `${clientName} pagó $${Number(depositAmount).toLocaleString("es-CL")} para el ${date} a las ${horaTexto.slice(11, 16)}, pero ese horario ya no estaba libre. Hay que devolverle el abono o darle otra hora.`, url: "/dashboard/calendario" }).catch(() => {});
+        return NextResponse.json({ ok: true });
+      }
+    } catch (e) { console.error("Deposit webhook: no se pudo revisar el horario", e); }
 
     // Find or create client
     let clientId: string | null = null;
@@ -128,8 +166,8 @@ export async function POST(req: NextRequest) {
       .select("duration")
       .in("id", serviceIds);
 
-    const totalDuration = (services || []).reduce((sum, s) => sum + (s.duration || 30), 0);
-    const startDate = new Date(`${date}T${startTime}`);
+    const totalDuration = resuelto?.duracion || (services || []).reduce((sum, s) => sum + (s.duration || 30), 0);
+    const startDate = parseWallClock(horaTexto);
     const endDate = new Date(startDate.getTime() + totalDuration * 60 * 1000);
 
     // Create confirmed appointment with deposit info
@@ -156,6 +194,11 @@ export async function POST(req: NextRequest) {
     if (apptError) {
       console.error("Deposit webhook: error creating appointment", apptError);
       return NextResponse.json({ ok: true });
+    }
+
+    // Registro del abono recibido (historial y control de duplicados). Si aun no esta la migracion 131, se omite.
+    if (appointment) {
+      await supabase.from("booking_deposits").insert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: appointment.id, amount: Math.round(Number(depositAmount) || 0), status: "approved", payer_email: clientEmail || null }).then(() => {}, () => {});
     }
 
     // Create appointment_services

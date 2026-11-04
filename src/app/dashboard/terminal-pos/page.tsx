@@ -5,7 +5,8 @@ import { CreditCard } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { createClient } from "@/lib/supabase/client";
-import MpSetupGuide, { MP_DEVICE_PREFIX } from "@/components/terminal-pos/mp-setup-guide";
+import MpSetupGuide from "@/components/terminal-pos/mp-setup-guide";
+import { deviceIdDesdeSerie, serieDesdeDeviceId, MP_MODELO } from "@/lib/mp-terminal";
 
 // Terminal POS — single place to configure whichever card terminal the POS charges
 // to. Before this page existed, the same job was split across two disconnected
@@ -46,7 +47,9 @@ export default function TerminalPosPage() {
   const [mpSaving, setMpSaving] = useState(false);
   const [mpTerminals, setMpTerminals] = useState<MpTerminal[]>([]);
   const [showAddMpTerminal, setShowAddMpTerminal] = useState(false);
-  const [newMpTerminal, setNewMpTerminal] = useState({ name: "", device_id: "", terminal_type: "all", access_token: "" });
+  const [newMpTerminal, setNewMpTerminal] = useState({ name: "", serial: "", terminal_type: "all", access_token: "" });
+  const [mostrarAvanzado, setMostrarAvanzado] = useState(false);
+  const [editMp, setEditMp] = useState<null | { id: string; name: string; serial: string; terminal_type: string; access_token: string }>(null);
 
   // TUU (Haulmer)
   const [tuuApiKey, setTuuApiKey] = useState("");
@@ -184,25 +187,39 @@ export default function TerminalPosPage() {
     }
   };
 
+  // Editar una máquina ya registrada (nombre, número de serie, tipo de cobro y, si quieres, su token propio).
+  const guardarEdicionMp = async () => {
+    if (!editMp) return;
+    const dev = deviceIdDesdeSerie(editMp.serial);
+    if (!dev.ok) { showToast(dev.error, "error"); return; }
+    if (!editMp.name.trim()) { showToast("Ponle un nombre a la máquina", "error"); return; }
+    const res = await fetch("/api/settings/mercadopago/terminals", {
+      method: "PATCH", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id: editMp.id, name: editMp.name.trim(), device_id: dev.deviceId, terminal_type: editMp.terminal_type, ...(editMp.access_token ? { access_token: editMp.access_token } : {}) }),
+    });
+    const d = await res.json().catch(() => ({}));
+    if (res.ok && d.id) { setMpTerminals((prev) => prev.map((x) => (x.id === d.id ? { ...x, ...d } : x))); setEditMp(null); showToast("Máquina actualizada", "success"); }
+    else showToast(d.error || "No se pudo guardar los cambios", "error");
+  };
+
   const addMpTerminal = async () => {
     if (!tenantId) {
       showToast("Espera un momento a que cargue la pagina y vuelve a intentar.", "error");
       return;
     }
-    if (!newMpTerminal.name || !newMpTerminal.device_id || newMpTerminal.device_id.trim() === MP_DEVICE_PREFIX) {
-      showToast("Completa nombre y Device ID (prefijo + número de serie)", "error");
-      return;
-    }
+    const nombre = newMpTerminal.name.trim() || `Máquina ${tenant?.name || ""}`.trim();
+    const dev = deviceIdDesdeSerie(newMpTerminal.serial);
+    if (!dev.ok) { showToast(dev.error, "error"); return; }
     const res = await fetch("/api/settings/mercadopago/terminals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tenantId, ...newMpTerminal }),
+      body: JSON.stringify({ tenantId, name: nombre, device_id: dev.deviceId, terminal_type: newMpTerminal.terminal_type, access_token: newMpTerminal.access_token }),
     });
     const data = await res.json();
     if (res.ok && data.id) {
       setMpTerminals((prev) => [...prev, data]);
       setShowAddMpTerminal(false);
-      setNewMpTerminal({ name: "", device_id: "", terminal_type: "all", access_token: "" });
+      setNewMpTerminal({ name: "", serial: "", terminal_type: "all", access_token: "" });
       showToast("Terminal agregado", "success");
     } else {
       showToast(data.error || "No se pudo agregar la terminal", "error");
@@ -258,7 +275,7 @@ export default function TerminalPosPage() {
     const res = await fetch("/api/mercadopago/terminals", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ barberId, accessToken: rentalToken, deviceId: rentalDevice }),
+      body: JSON.stringify({ barberId, accessToken: rentalToken, deviceId: (deviceIdDesdeSerie(rentalDevice) as any).deviceId || rentalDevice }),
     });
     if (res.ok) {
       showToast("Terminal del profesional guardado", "success");
@@ -408,7 +425,7 @@ export default function TerminalPosPage() {
                 <p className="text-[10px] text-brand-gray">Agrega multiples maquinas y asigna cuales cobran servicios y cuales productos</p>
               </div>
               <button
-                onClick={() => { setNewMpTerminal((prev) => ({ ...prev, device_id: prev.device_id || MP_DEVICE_PREFIX })); setShowAddMpTerminal(true); }}
+                onClick={() => { setNewMpTerminal((prev) => ({ ...prev, name: prev.name || `Máquina ${tenant?.name || ""}`.trim() })); setShowAddMpTerminal(true); }}
                 className="px-3 py-1.5 bg-brand-blue text-white text-xs rounded-lg hover:bg-brand-blue/90 font-medium"
               >
                 + Anadir terminal
@@ -418,7 +435,8 @@ export default function TerminalPosPage() {
             {mpTerminals.length > 0 ? (
               <div className="space-y-2">
                 {mpTerminals.map((t) => (
-                  <div key={t.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
+                  <div key={t.id}>
+                  <div className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl border border-gray-200">
                     <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center flex-shrink-0">
                       <CreditCard className="w-4 h-4 text-blue-600" />
                     </div>
@@ -435,6 +453,12 @@ export default function TerminalPosPage() {
                        t.terminal_type === "products" ? "PRODUCTOS" : "TODO"}
                     </span>
                     <button
+                      onClick={() => setEditMp(editMp?.id === t.id ? null : { id: t.id, name: t.name, serial: serieDesdeDeviceId(t.device_id), terminal_type: t.terminal_type || "all", access_token: "" })}
+                      className="px-2.5 py-1 text-[11px] border border-gray-200 rounded-lg text-brand-gray hover:bg-white flex-shrink-0"
+                    >
+                      {editMp?.id === t.id ? "Cancelar" : "Configurar"}
+                    </button>
+                    <button
                       onClick={async () => {
                         if (!confirm(`Eliminar terminal "${t.name}"?`)) return;
                         await fetch(`/api/settings/mercadopago/terminals?id=${t.id}`, { method: "DELETE" });
@@ -445,6 +469,36 @@ export default function TerminalPosPage() {
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                     </button>
+                  </div>
+                  {editMp?.id === t.id && (
+                    <div className="mt-2 border border-brand-blue/20 bg-brand-blue/5 rounded-xl p-4 space-y-3">
+                      <div>
+                        <label className="block text-[10px] text-brand-gray mb-1">Nombre</label>
+                        <input type="text" value={editMp.name} onChange={(e) => setEditMp({ ...editMp, name: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-brand-gray mb-1">Número de serie (S/N de la etiqueta trasera)</label>
+                        <input type="text" value={editMp.serial} onChange={(e) => setEditMp({ ...editMp, serial: e.target.value })} autoCapitalize="characters" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono" />
+                        {(() => { const d = deviceIdDesdeSerie(editMp.serial); return d.ok ? <p className="text-[10px] text-emerald-600 mt-1">Se registrará como <span className="font-mono">{d.deviceId}</span></p> : <p className="text-[10px] text-amber-600 mt-1">{d.error}</p>; })()}
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-brand-gray mb-1">Tipo de cobro</label>
+                        <select value={editMp.terminal_type} onChange={(e) => setEditMp({ ...editMp, terminal_type: e.target.value })} className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                          <option value="all">Todo (servicios + productos)</option>
+                          <option value="services">Solo Servicios (exento IVA)</option>
+                          <option value="products">Solo Productos (afecto IVA)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-[10px] text-brand-gray mb-1">Access Token propio de esta máquina (opcional; vacío = no se cambia)</label>
+                        <input type="password" value={editMp.access_token} onChange={(e) => setEditMp({ ...editMp, access_token: e.target.value })} placeholder="Déjalo vacío para mantener el actual" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono" />
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={() => setEditMp(null)} className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-brand-gray hover:bg-gray-50">Cancelar</button>
+                        <button onClick={guardarEdicionMp} disabled={!deviceIdDesdeSerie(editMp.serial).ok || !editMp.name.trim()} className="flex-1 py-2 bg-brand-blue text-white rounded-lg text-sm font-medium hover:bg-brand-blue/90 disabled:opacity-50">Guardar cambios</button>
+                      </div>
+                    </div>
+                  )}
                   </div>
                 ))}
               </div>
@@ -469,16 +523,21 @@ export default function TerminalPosPage() {
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm"
                 />
               </div>
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                <p className="text-[10px] text-brand-gray">Modelo</p>
+                <p className="text-sm font-medium text-brand-dark">{MP_MODELO}</p>
+              </div>
               <div>
-                <label className="block text-[10px] text-brand-gray mb-1">Device ID</label>
+                <label className="block text-[10px] text-brand-gray mb-1">Número de serie (S/N de la etiqueta trasera)</label>
                 <input
                   type="text"
-                  value={newMpTerminal.device_id}
-                  onChange={(e) => setNewMpTerminal({ ...newMpTerminal, device_id: e.target.value })}
-                  placeholder="NEWLAND_N950__SERIAL"
+                  value={newMpTerminal.serial}
+                  onChange={(e) => setNewMpTerminal({ ...newMpTerminal, serial: e.target.value })}
+                  placeholder="Ej: NCD300018012"
+                  autoCapitalize="characters"
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
                 />
-                <p className="text-[10px] text-brand-gray mt-1">Prefijo + número de serie (S/N de la etiqueta trasera), sin espacios.</p>
+                {(() => { const d = deviceIdDesdeSerie(newMpTerminal.serial); return newMpTerminal.serial.trim() ? (d.ok ? <p className="text-[10px] text-emerald-600 mt-1">Listo. Se registrará como <span className="font-mono">{d.deviceId}</span></p> : <p className="text-[10px] text-amber-600 mt-1">{d.error}</p>) : <p className="text-[10px] text-brand-gray mt-1">Solo escribe el número: el resto (modelo y formato) se completa solo.</p>; })()}
               </div>
               <div>
                 <label className="block text-[10px] text-brand-gray mb-1">Tipo de cobro</label>
@@ -492,6 +551,8 @@ export default function TerminalPosPage() {
                   <option value="products">Solo Productos (afecto IVA)</option>
                 </select>
               </div>
+              <button type="button" onClick={() => setMostrarAvanzado((v) => !v)} className="text-[11px] text-brand-blue underline">{mostrarAvanzado ? "Ocultar opciones avanzadas" : "Opciones avanzadas (cuenta propia de Mercado Pago)"}</button>
+              {mostrarAvanzado && (
               <div>
                 <label className="block text-[10px] text-brand-gray mb-1">Access Token (opcional, si tiene cuenta propia)</label>
                 <input
@@ -502,14 +563,15 @@ export default function TerminalPosPage() {
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm font-mono"
                 />
               </div>
+              )}
               <div className="flex gap-2">
-                <button onClick={() => { setShowAddMpTerminal(false); setNewMpTerminal({ name: "", device_id: "", terminal_type: "all", access_token: "" }); }}
+                <button onClick={() => { setShowAddMpTerminal(false); setNewMpTerminal({ name: "", serial: "", terminal_type: "all", access_token: "" }); }}
                   className="flex-1 py-2 border border-gray-200 rounded-lg text-sm text-brand-gray hover:bg-gray-50">
                   Cancelar
                 </button>
                 <button
                   onClick={addMpTerminal}
-                  disabled={!newMpTerminal.name || newMpTerminal.device_id.trim() === MP_DEVICE_PREFIX || !newMpTerminal.device_id.trim() || !tenantId}
+                  disabled={!deviceIdDesdeSerie(newMpTerminal.serial).ok || !tenantId}
                   className="flex-1 py-2 bg-brand-blue text-white rounded-lg text-sm font-medium hover:bg-brand-blue/90 disabled:opacity-50"
                 >
                   Agregar
@@ -670,12 +732,19 @@ export default function TerminalPosPage() {
 
       {/* Per-professional terminals (Arriendo) — only relevant if there's at least one
           rental professional, only supported for MercadoPago today. */}
-      {rentalTerminals.length > 0 && (
+      {(
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-6 space-y-4">
           <div>
             <h2 className="font-bold text-brand-dark">Terminales por Profesional (Arriendo)</h2>
-            <p className="text-xs text-brand-gray">Un profesional en modalidad Arriendo puede tener su propia maquina MercadoPago en vez de usar la del negocio.</p>
+            <p className="text-xs text-brand-gray">Un profesional en modalidad Arriendo puede tener su propia maquina MercadoPago en vez de usar la del negocio. Solo necesitas el número de serie de su máquina.</p>
           </div>
+
+          {rentalTerminals.length === 0 && (
+            <div className="text-center py-5 bg-gray-50 rounded-xl border border-dashed border-gray-200">
+              <p className="text-sm text-brand-gray">Aún no tienes profesionales en modalidad Arriendo</p>
+              <p className="text-[10px] text-brand-gray mt-1">Cuando agregues uno (Profesionales › su ficha › Arriendo), aparecerá aquí para asignarle su máquina.</p>
+            </div>
+          )}
 
           <div className="space-y-3">
             {rentalTerminals.map((t) => (
@@ -691,7 +760,7 @@ export default function TerminalPosPage() {
                     </div>
                   </div>
                   <button
-                    onClick={() => { setEditingRentalId(editingRentalId === t.id ? null : t.id); setRentalDevice(t.deviceId || ""); setRentalToken(""); }}
+                    onClick={() => { setEditingRentalId(editingRentalId === t.id ? null : t.id); setRentalDevice(serieDesdeDeviceId(t.deviceId)); setRentalToken(""); }}
                     className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg hover:bg-gray-50 text-brand-gray"
                   >
                     {editingRentalId === t.id ? "Cancelar" : "Configurar"}
@@ -707,12 +776,13 @@ export default function TerminalPosPage() {
                         className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
                     </div>
                     <div>
-                      <label className="text-xs text-brand-gray block mb-1">Device ID</label>
+                      <label className="text-xs text-brand-gray block mb-1">Número de serie de su máquina (S/N)</label>
                       <input type="text" value={rentalDevice} onChange={(e) => setRentalDevice(e.target.value)}
-                        placeholder="NEWLAND_N950__..."
-                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+                        placeholder="Ej: NCD300018012" autoCapitalize="characters"
+                        className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm font-mono" />
+                      {rentalDevice.trim() && (() => { const d = deviceIdDesdeSerie(rentalDevice); return d.ok ? <p className="text-[10px] text-emerald-600 mt-1">Se registrará como <span className="font-mono">{d.deviceId}</span></p> : <p className="text-[10px] text-amber-600 mt-1">{d.error}</p>; })()}
                     </div>
-                    <button onClick={() => saveRentalTerminal(t.id)} disabled={!rentalDevice}
+                    <button onClick={() => saveRentalTerminal(t.id)} disabled={!deviceIdDesdeSerie(rentalDevice).ok}
                       className="px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:opacity-90 disabled:opacity-50">
                       Guardar Terminal
                     </button>
