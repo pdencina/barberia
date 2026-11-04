@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
   // Get barber's tenant to find MP credentials and deposit config
   const { data: barber } = await supabase
     .from("profiles")
-    .select("tenant_id, name")
+    .select("tenant_id, name, booking_slug")
     .eq("id", barberId)
     .single();
 
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
   // Get tenant name for display
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("name")
+    .select("name, slug")
     .eq("id", barber.tenant_id)
     .single();
 
@@ -107,6 +107,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No se pudo preparar el pago. Intenta de nuevo en unos minutos." }, { status: 500 });
   }
 
+  // Al volver de Mercado Pago (pago no completado, pendiente o confirmado) se regresa al link del NEGOCIO, no a una pantalla genérica;
+  // y con la referencia de la reserva se libera el horario si el pago falló (así puede reintentar al tiro).
+  const volverParams = new URLSearchParams();
+  if (tenant?.slug) volverParams.set("n", tenant.slug);
+  if ((barber as any).booking_slug) volverParams.set("p", (barber as any).booking_slug);
+  if (/^[0-9a-f-]{36}$/i.test(referenciaPago)) volverParams.set("r", referenciaPago);
+  const volver = volverParams.toString();
+
   // Create MP Checkout Pro preference
   const preferenceRes = await fetch("https://api.mercadopago.com/checkout/preferences", {
     method: "POST",
@@ -127,9 +135,9 @@ export async function POST(req: NextRequest) {
         email: clientEmail || undefined,
       },
       back_urls: {
-        success: `${baseUrl}/booking/deposit-success`,
-        failure: `${baseUrl}/booking/deposit-failure`,
-        pending: `${baseUrl}/booking/deposit-pending`,
+        success: `${baseUrl}/booking/deposit-success?${volver}`,
+        failure: `${baseUrl}/booking/deposit-failure?${volver}`,
+        pending: `${baseUrl}/booking/deposit-pending?${volver}`,
       },
       auto_return: "approved",
       external_reference: referenciaPago,

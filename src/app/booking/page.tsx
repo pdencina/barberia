@@ -314,7 +314,9 @@ export default function BookingPage() {
   }, [pago?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
   const segundosRestantes = pago ? Math.max(0, Math.ceil((pago.expira - ahora) / 1000)) : 0;
   const tiempoAgotado = !!pago && pago.estado === "esperando" && segundosRestantes === 0;
-  const volverAElegirHora = () => { setPago(null); setSelectedSlot(""); setSlotsKey((k) => k + 1); setStep("datetime"); };
+  const volverAElegirHora = () => {
+    if (pago?.ref) fetch("/api/booking/deposit-release", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: pago.ref }) }).catch(() => {}); // libera el horario al tiro
+    setPago(null); setSelectedSlot(""); setSlotsKey((k) => k + 1); setStep("datetime"); };
   const irAPagar = () => {
     if (!pago) return;
     const w = window.open(pago.url, "_blank", "noopener");
@@ -636,7 +638,8 @@ export default function BookingPage() {
             <h2 className="text-2xl font-bold mb-2">Elige tu profesional</h2>
             <p className="text-brand-gray mb-6">Selecciona un miembro del equipo</p>
 
-            {/* First available button */}
+            {/* «Primer profesional disponible» solo tiene sentido si hay más de uno que elegir */}
+            {barbers.length > 1 && (
             <button
               onClick={async () => {
                 // Sin fecha elegida no se manda "hoy": el servidor busca quien tenga horas libres en los proximos dias.
@@ -661,9 +664,10 @@ export default function BookingPage() {
               <p className="font-bold text-brand-blue text-lg">Primer profesional disponible</p>
               <p className="text-xs text-brand-gray">Te asignamos al profesional con mas disponibilidad</p>
             </button>
+            )}
 
             {error && <p className="mb-4 text-sm text-red-500 text-center bg-red-50 rounded-lg py-2">{error}</p>}
-            <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>
+            {barbers.length > 1 && <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {barbers.map((b) => (
