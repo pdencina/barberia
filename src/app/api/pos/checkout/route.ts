@@ -26,6 +26,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
+  // Abono pagado al reservar: se vuelve a verificar con la cita (nunca se confia en el navegador). El navegador ya
+  // lo incluyo en "discount" para que el total sea lo que falta cobrar.
+  const abono = Math.max(0, Number(body.abono) || 0);
+  if (abono > 0) {
+    const { data: appt } = appointmentId
+      ? await supabase.from("appointments").select("tenant_id, deposit_amount, deposit_status").eq("id", appointmentId).maybeSingle()
+      : { data: null };
+    const real = appt && appt.tenant_id === tenantId && appt.deposit_status === "paid" ? Number(appt.deposit_amount) || 0 : 0;
+    if (abono > real) return NextResponse.json({ error: "El abono no corresponde a esta cita" }, { status: 400 });
+  }
+
   // Validate coupon
   let couponId: string | null = null;
   if (couponCode) {
@@ -89,7 +100,7 @@ export async function POST(req: NextRequest) {
     description: `Venta $${total.toLocaleString("es-CL")} — ${items.map((i: any) => i.name).join(", ")}${clientName ? ` — ${clientName}` : ""} (${primaryMethod})`,
     user_id: barberId,
     user_name: barberName,
-    metadata: { total, subtotal, discount, paymentMethod: primaryMethod, clientId, items: items.length },
+    metadata: { total, subtotal, discount, abono, paymentMethod: primaryMethod, clientId, items: items.length },
   });
 
   // MODO COMPARACION (no cambia ni rechaza la venta): el servidor recalcula los totales y los compara con

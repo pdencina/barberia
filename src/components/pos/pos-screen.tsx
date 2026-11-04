@@ -98,6 +98,8 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const [selectedClient, setSelectedClient] = useState("");
   // Cita que viene del boton "Cobrar" del calendario: al cobrar queda completada.
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
+  // Abono pagado al reservar (Mercado Pago): se resta de lo que falta cobrar.
+  const [abono, setAbono] = useState(0);
   const [clientSearch, setClientSearch] = useState("");
   // Alta rapida de cliente desde el POS (Nico, 29-sep): si el nombre escrito no existe.
   const [addingClient, setAddingClient] = useState(false);
@@ -215,7 +217,10 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
         const preClient = sp.get("clientId");
         const preServices = sp.get("serviceIds");
         const preAppt = sp.get("appointmentId");
-        if (preAppt) setAppointmentId(preAppt);
+        if (preAppt) {
+          setAppointmentId(preAppt);
+          fetch(`/api/appointments/${preAppt}/abono`).then((r) => r.json()).then((d) => setAbono(Number(d?.abono) || 0)).catch(() => {});
+        }
         if (preBarber) setSelectedBarber(preBarber);
         if (preClient) {
           setSelectedClient(preClient);
@@ -292,7 +297,8 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   // itself asks the client for a tip when they pay with debit/credit, and that tip is
   // only recorded here afterwards (informational) — never bundled into "total" or sent
   // to MercadoPago as part of the charge. See tipAmount / tip modal below.
-  const total = subtotal - discount;
+  const abonoAplicado = Math.min(abono, Math.max(0, subtotal - discount));
+  const total = subtotal - discount - abonoAplicado;
   const [showTipModal, setShowTipModal] = useState(false);
   // Con el libro de movimientos encendido (Configuracion) la propina se pregunta en TODA venta (tambien efectivo) y se
   // sugiere el 10%; va al profesional que atendio. Apagado: solo se pregunta tras un pago con tarjeta, como siempre.
@@ -577,7 +583,8 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
           paymentMethod: splitMode ? "mixed" : paymentMethod,
           payments,
           couponCode: couponCode || null,
-          discount,
+          discount: discount + abonoAplicado,
+          abono: abonoAplicado,
           subtotal,
           total,
           redeemedPoints: redeemedPoints || 0,
@@ -589,6 +596,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
       if (res.ok) {
         const result = await res.json();
         setAppointmentId(null);
+        setAbono(0);
         // Was any part of this sale paid by card? The terminal asks for a tip itself
         // when that happens, so we ask the cashier to record it afterwards — we never
         // charge the tip ourselves, only log what the client added on the machine.
@@ -1157,6 +1165,12 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                 <div className="flex justify-between text-green-600">
                   <span>Descuento</span>
                   <span className="font-medium tabular-nums">-{formatCurrency(discount)}</span>
+                </div>
+              )}
+              {abonoAplicado > 0 && (
+                <div className="flex justify-between text-brand-blue">
+                  <span>Abono pagado al reservar</span>
+                  <span className="font-medium tabular-nums">-{formatCurrency(abonoAplicado)}</span>
                 </div>
               )}
             </div>
