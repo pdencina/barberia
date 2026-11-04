@@ -4,7 +4,8 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { notify } from "@/lib/notify";
 import { cargarCredencialAbono, firmaValida } from "@/lib/deposit";
-import { horarioDisponible, liberarHold } from "@/lib/deposit-hold";
+import { horarioLibreTrasPago, perdioCarrera, liberarHold } from "@/lib/deposit-hold";
+import { reclamarPago } from "@/lib/deposit-claim";
 import { resolverServicios } from "@/lib/booking-services";
 import { parseWallClock } from "@/lib/wallclock";
 import { leerIntento } from "@/lib/booking-intent";
@@ -120,9 +121,12 @@ export async function POST(req: NextRequest) {
       console.error("Deposit webhook: el negocio de la reserva no coincide con el del aviso", paymentId);
       return NextResponse.json({ ok: true });
     }
-    // Idempotencia: Mercado Pago puede avisar varias veces del mismo pago; no se crea otra cita.
+    // Mercado Pago avisa varias veces del mismo pago y a veces JUNTAS: el primer aviso reserva el pago y los demás se descartan
+    // (antes dos avisos simultáneos se tropezaban y generaban un «choque» falso).
     const { data: yaCreada } = await supabase.from("appointments").select("id").eq("deposit_payment_id", String(paymentId)).limit(1).maybeSingle();
     if (yaCreada) return NextResponse.json({ ok: true });
+    const reclamado = await reclamarPago(supabase, { tenantId, paymentId: String(paymentId), amount: Number(depositAmount) || 0, email: clientEmail || null });
+    if (!reclamado) return NextResponse.json({ ok: true });
 
     // El bloqueo del horario cumplió su trabajo: se libera para poder crear la cita en ese mismo horario.
     await liberarHold(supabase, holdRef);
@@ -134,10 +138,10 @@ export async function POST(req: NextRequest) {
     try {
       const ini = parseWallClock(horaTexto);
       const fin = new Date(ini.getTime() + (resuelto?.duracion || 30) * 60000);
-      const libre = await horarioDisponible(supabase, { barberId, tenantId, date, start: ini, end: fin });
-      if (!libre.ok) {
-        await supabase.from("booking_deposits").insert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: null, amount: Math.round(Number(depositAmount) || 0), status: "needs_refund", payer_email: clientEmail || null }).then(() => {}, () => {});
-        await notify({ tenantId, kind: "deposit_conflict", roles: ["admin", "receptionist"], title: "Abono pagado, pero el horario se ocupó", body: `${clientName} pagó $${Number(depositAmount).toLocaleString("es-CL")} para el ${date} a las ${horaTexto.slice(11, 16)}, pero ese horario ya no estaba libre. Hay que devolverle el abono o darle otra hora.`, url: "/dashboard/calendario" }).catch(() => {});
+      const libre = await horarioLibreTrasPago(supabase, { barberId, tenantId, date, start: ini, end: fin });
+      if (!libre) {
+        await supabase.from("booking_deposits").upsert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: null, amount: Math.round(Number(depositAmount) || 0), status: "needs_refund", payer_email: clientEmail || null }, { onConflict: "payment_id" }).then(() => {}, () => {});
+        await notify({ tenantId, kind: "deposit_conflict", roles: ["admin", "receptionist"], title: "Abono pagado, pero el horario se ocupó", body: `${clientName} pagó $${Number(depositAmount).toLocaleString("es-CL")} para el ${date} a las ${horaTexto.slice(11, 16)}, pero ese horario ya no estaba libre. Hay que devolverle el abono o darle otra hora.`, url: "/dashboard/abonos" }).catch(() => {});
         await marcarResultado(supabase, paymentData.external_reference, bookingData, { resultado: "conflicto" });
         return NextResponse.json({ ok: true });
       }
@@ -213,6 +217,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true });
     }
 
+    // Si dos personas reservaron este horario casi al mismo tiempo, la cita creada ÚLTIMO pierde: se borra y el abono queda «por devolver».
+    if (appointment) {
+      try {
+        const { data: mia } = await supabase.from("appointments").select("created_at").eq("id", appointment.id).maybeSingle();
+        const perdio = await perdioCarrera(supabase, { appointmentId: appointment.id, createdAt: mia?.created_at || new Date().toISOString(), barberId, tenantId, date, start: startDate, end: endDate });
+        if (perdio) {
+          await supabase.from("appointments").delete().eq("id", appointment.id);
+          await supabase.from("booking_deposits").upsert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: null, amount: Math.round(Number(depositAmount) || 0), status: "needs_refund", payer_email: clientEmail || null }, { onConflict: "payment_id" }).then(() => {}, () => {});
+          await notify({ tenantId, kind: "deposit_conflict", roles: ["admin", "receptionist"], title: "Abono pagado, pero el horario se ocupó", body: `${clientName} pagó $${Number(depositAmount).toLocaleString("es-CL")} para el ${date} a las ${horaTexto.slice(11, 16)}, pero otra persona tomó ese horario al mismo tiempo. Hay que devolverle el abono o darle otra hora.`, url: "/dashboard/abonos" }).catch(() => {});
+          await marcarResultado(supabase, paymentData.external_reference, bookingData, { resultado: "conflicto" });
+          return NextResponse.json({ ok: true });
+        }
+      } catch (e) { console.error("Deposit webhook: no se pudo revisar el cruce de horarios", e); }
+    }
     if (appointment) await marcarResultado(supabase, paymentData.external_reference, bookingData, { resultado: "pagado", appointmentId: appointment.id });
     // Registro del abono recibido (historial y control de duplicados). Si aun no esta la migracion 131, se omite.
     if (appointment) {

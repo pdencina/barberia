@@ -20,8 +20,8 @@ function fake(respuestas: Record<string, any>) {
 }
 
 (async () => {
-  await t("el bloqueo dura 3 min 30 s (no más)", () => { assert.equal(HOLD_SEGUNDOS, 210); });
-  await t("crea el bloqueo con la hora del servicio y vence a los 3:30", async () => {
+  await t("el bloqueo dura 3 minutos (no más)", () => { assert.equal(HOLD_SEGUNDOS, 180); });
+  await t("crea el bloqueo con la hora del servicio y vence a los 3 minutos", async () => {
     const { cliente, llamadas } = fake({});
     const h = await crearHold(cliente, { barberId: "b1", date: "2026-11-05", start: new Date("2026-11-05T15:00:00Z"), end: new Date("2026-11-05T15:45:00Z") });
     assert.ok(h && /^[0-9a-f-]{36}$/.test(h.ref));
