@@ -17,6 +17,7 @@ import { PageHeader, StatCard, Panel, Segmented } from "@/components/ui/premium"
 import { BusinessQuoteNote } from "@/components/dashboard/business-quote-note";
 import { SuperAdminDashboard } from "@/components/dashboard/superadmin-dashboard";
 import { BirthdaysCard } from "@/components/dashboard/birthdays-card";
+import { AvisoCorreos } from "@/components/dashboard/aviso-correos";
 import { SupplyRequestsCard } from "@/components/dashboard/supply-requests-card";
 import { ProblemReportsCard } from "@/components/dashboard/problem-reports-card";
 import { BookingRuleCard } from "@/components/dashboard/booking-rule-card";
@@ -311,6 +312,9 @@ export default function DashboardPage() {
           </div>
         }
       />
+
+      {/* Aviso discreto cuando los correos del mes se estan agotando (administrador y recepcionista) */}
+      {isAtLeast("receptionist") && <AvisoCorreos />}
 
       {/* Stat Cards: Ventas destacada + 4 metricas */}
       <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4 lg:grid-cols-6">

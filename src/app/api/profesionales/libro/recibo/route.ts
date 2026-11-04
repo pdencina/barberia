@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 import { computeProMonths, isLedgerEnabled, type ProMode } from "@/lib/ledger";
 import { buildReceiptPdf } from "@/lib/receipt-pdf";
+import { computeProSalesDetail } from "@/lib/pro-sales-detail";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +46,12 @@ export async function GET(req: NextRequest) {
     } catch { logo = null; }
   }
 
+  // Detalle de todas las ventas del mes de este profesional (solo las suyas). Si falla, el recibo sale igual sin el detalle.
+  let sales = null;
+  try { sales = (await computeProSalesDetail(supabase, { tenantId, mode: pro.mode, year, month, barberId }))[0] || null; } catch { sales = null; }
+
   const bytes = await buildReceiptPdf({
-    businessName: tenant?.name || "re-booking", logo, pro, monthLabel: `${MONTHS[month - 1]} ${year}`,
+    businessName: tenant?.name || "re-booking", logo, pro, monthLabel: `${MONTHS[month - 1]} ${year}`, sales,
   });
   const slug = pro.name.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
   return new NextResponse(Buffer.from(bytes), {

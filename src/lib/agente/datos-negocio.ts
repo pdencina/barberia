@@ -49,6 +49,9 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
   catch(e){if(!(e instanceof EsquemaAusente))throw e;try{return await leer("*");}catch(next){if(next instanceof EsquemaAusente){if(table==="branches")throw next;return [];}throw next;}}
  }
  return {
+  async negocioInactivo(tenantId:string):Promise<boolean>{
+   try{const t=await negocio(tenantId);return !t||t.id!==tenantId||t.active!==true||t.status==="suspended";}catch{return false;}
+  },
   async datosDelNegocio(tenantId:string):Promise<DatosNegocio|null>{
    if(typeof tenantId!=="string"||!tenantId.trim()||tenantId!==tenantId.trim()||tenantId==="ALL")return null;
    try{

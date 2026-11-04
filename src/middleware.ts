@@ -26,10 +26,22 @@ const CACHE_MS = 15_000;
 // Se usa getSession() (lee la cookie, sin red) porque solo sirve para DENEGAR: cada ruta de API
 // sigue validando la sesion por su cuenta, asi que un token falso no gana nada aqui.
 async function isSuspendedStaff(request: NextRequest): Promise<boolean> {
+  // remove debe "borrar" de verdad (aqui, solo en memoria). Si la cookie es invalida (p. ej. JSON sin expires_at), auth-js la
+  // borra, avisa SIGNED_OUT y realtime vuelve a llamar getSession(): si la cookie sigue ahi, el ciclo no termina nunca y deja
+  // el proceso al 100% de CPU sin atender ninguna otra peticion.
+  const removed = new Set<string>();
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder",
-    { cookies: { get: (name: string) => request.cookies.get(name)?.value, set() {}, remove() {} } }
+    {
+      cookies: {
+        get: (name: string) => (removed.has(name) ? undefined : request.cookies.get(name)?.value),
+        set() {},
+        remove: (name: string) => {
+          removed.add(name);
+        },
+      },
+    }
   );
   const {
     data: { session },

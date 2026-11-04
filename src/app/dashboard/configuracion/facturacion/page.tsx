@@ -5,6 +5,7 @@ import { useToast } from "@/components/ui/toast";
 import { useIsNativeApp } from "@/lib/native-app";
 import { useTenant } from "@/lib/tenant-context";
 import { Monitor } from "lucide-react";
+import { ReferidosCard } from "@/components/settings/referidos-card";
 
 interface Plan {
   plan: string;
@@ -181,6 +182,8 @@ function FacturacionContent() {
         <h1 className="text-xl font-bold text-brand-dark">Plan y facturación</h1>
         <p className="text-sm text-brand-gray mt-1">Administra tu suscripción a re-booking.</p>
       </div>
+
+      <ReferidosCard />
 
       {canReactivateMonthly && (
         <div className="rounded-2xl border border-red-200 bg-red-50 p-5">

@@ -76,7 +76,7 @@ function fixture(){
    referencia:async()=>null,referenciaAlternativa:async()=>null,
   },
   datosDelNegocio:async tenant=>{flags.datosLeidos++;const r=await comercial.datosDelNegocio(tenant);if(flags.bajaAlLeer)flags.baja=true;if(flags.apagarAlLeer)flags.enabled=false;return r;},
-  negocioInactivo:async t=>{const r=tablas.tenants.find(x=>x.id===t);if(!r)throw new Error("Estado del negocio no disponible");return r.active!==true||r.status==="suspended";},
+  negocioInactivo:async t=>{if(await comercial.negocioInactivo(t))return true;const r=tablas.tenants.find(x=>x.id===t);if(!r)throw new Error("Estado del negocio no disponible");return r.active!==true||r.status==="suspended";},
   accion:async(...args)=>{acciones.push(args);return {motivo:"ok"};},responder:async(n,_para,texto)=>{enviados.push({tenant:n.tenantId,texto});},avisarAdministrador:async t=>{avisos.push(t);},
  };
  const handler=crearManejadoresWebhook({secretoFirma:firma,salHashes:sal,crearDependencias:()=>deps});
@@ -121,7 +121,7 @@ async function main(){
  ] as const){await caso("P-dato-ausente",()=>sinLogs(()=>{const d=datos();mutar(d);assert.equal(responderFaq(pregunta,d).tipo,"traspaso");}));}
  for(const valor of [null,undefined,3,{},[],{toString(){throw Error("no convertir");}}])await caso("P-tipo-no-texto",()=>sinLogs(()=>assert.equal(responderFaq(valor,datos()).tipo,"traspaso")));
  for(const tabla of ["tenants","services","business_hours","branches"]){
-  await caso(`W-ajeno-${tabla}`,()=>sinLogs(async()=>{const f=fixture();f.flags.spoof=tabla;const r=await f.post("¿Cuál es la dirección?");assert.deepEqual(f.enviados,[{tenant:"A",texto:traspaso}]);assert.ok(!JSON.stringify([f.enviados,r]).includes("AJENA_F1"));assert.equal(f.acciones.length,0);}));
+  await caso(`W-ajeno-${tabla}`,()=>sinLogs(async()=>{const f=fixture();f.flags.spoof=tabla;const r=await f.post("¿Cuál es la dirección?");assert.deepEqual(f.enviados,tabla==="tenants"?[]:[{tenant:"A",texto:traspaso}]);assert.ok(!JSON.stringify([f.enviados,r]).includes("AJENA_F1"));assert.equal(f.acciones.length,0);}));
   await caso(`W-error-${tabla}`,()=>sinLogs(async()=>{const f=fixture();f.flags.error=tabla;await f.post("¿Qué horario tienen?");assert.deepEqual(f.enviados,[{tenant:"A",texto:traspaso}]);assert.deepEqual(f.avisos,["A"]);}));
  }
  for(const estado of ["inactive","suspended"]){

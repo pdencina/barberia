@@ -9,7 +9,9 @@ import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/ui/spinner";
 import { PageHeader, StatCard, Panel, inputClass, primaryButton, ghostButton } from "@/components/ui/premium";
+import { computeProTax } from "@/lib/pro-tax";
 import { LEDGER_KINDS, type LedgerKind, type ProMode, type ProMonth } from "@/lib/ledger";
+import { MovimientosDetalle, BotonDetalleMovimientos } from "@/components/finance/movimientos-detalle";
 
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
 
@@ -49,6 +51,7 @@ export function ProfessionalLedgerView({ mode }: { mode: ProMode }) {
   const tq = tenant?.id ? `&tenantId=${tenant.id}` : "";
 
   // Modales
+  const [verDetalle, setVerDetalle] = useState(false);
   const [addFor, setAddFor] = useState<ProMonth | null>(null);
   const [form, setForm] = useState({ kind: "money_in_favor" as LedgerKind, effect: "1", amount: "", reason: "" });
   const [payFor, setPayFor] = useState<ProMonth | null>(null);
@@ -264,6 +267,8 @@ export function ProfessionalLedgerView({ mode }: { mode: ProMode }) {
         <StatCard label={copy.paid} value={formatCurrency(totals.paid)} Icon={Wallet} tone="green" />
         <StatCard label={copy.pending} value={formatCurrency(totals.pending)} Icon={Hourglass} tone="amber" />
       </div>
+      <div><BotonDetalleMovimientos onClick={() => setVerDetalle(true)} /></div>
+      {verDetalle && <MovimientosDetalle mode={mode} month={month} year={year} tenantQuery={tq} onClose={() => setVerDetalle(false)} />}
 
       {loading ? (
         <Spinner />
@@ -279,6 +284,17 @@ export function ProfessionalLedgerView({ mode }: { mode: ProMode }) {
                   <div className="min-w-0">
                     <p className="truncate text-base font-bold text-brand-dark">{p.name}</p>
                     <p className="text-xs text-brand-gray">{p.baseLabel}</p>
+                    {p.tax && (() => {
+                      const t = computeProTax(mode, p.base, true, p.tax.rate);
+                      if (t.kind === "none") return p.tax.rate > 0 ? <p className="text-[11px] text-brand-gray">SII: {t.note}</p> : null;
+                      return (
+                        <p className="text-[11px] text-brand-gray">
+                          SII · {t.kind === "iva" ? `IVA ${t.rate}%` : `Retención ${t.rate}%`}: {formatCurrency(t.amount)}
+                          {" · "}{t.kind === "retencion" ? "boleta de honorarios por" : mode === "commission" ? "factura por" : "se factura"} {formatCurrency(t.documentTotal)}
+                          {t.kind === "retencion" && <> · neto a pagar {formatCurrency(t.finalAmount)}</>}
+                        </p>
+                      );
+                    })()}
                   </div>
                   <div className="text-right">
                     <p className="text-xl font-extrabold tabular-nums text-brand-dark">{money(p.total)}</p>

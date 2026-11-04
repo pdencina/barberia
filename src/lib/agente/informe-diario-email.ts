@@ -66,6 +66,7 @@ export function renderDailyReportEmail(report: DailyAppointmentReport, generadoE
         </tr></table>
         <p style="margin:12px 0;color:#6b7280;font-size:12px;">Canceladas: ${report.cancelledAppointments} · No asistió: ${report.noShowAppointments}</p>
         ${professionalSections}
+        <p style="margin:28px 0 0;padding-top:14px;border-top:1px solid #e5e7eb;color:#9ca3af;font-size:11px;line-height:1.5;">Recibes este informe porque lo activaste en re-booking, en Mi Perfil &rsaquo; Informes. Para dejar de recibirlo, desmarca «Quiero recibir el informe» en esa misma pantalla.</p>
       </td></tr>
     </table>
   </td></tr></table>

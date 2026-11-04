@@ -14,6 +14,11 @@
 
 import { chileDayBoundsUtc } from "@/lib/utils";
 import { fetchAllRows, monthEnd } from "@/lib/accounting";
+import { computeProTax, ProTax } from "@/lib/pro-tax";
+import { productCommission, type ProductRule } from "@/lib/product-commission";
+import { getCosmeticRule, cosmeticAmountOn } from "@/lib/cosmetic-amount";
+import { calcularProductosArriendo, type ConfigNegocio, type Venta } from "@/lib/rental-products";
+import { isCosmeticCategory } from "@/lib/product-commission";
 
 export type ProMode = "commission" | "rental";
 
@@ -65,6 +70,7 @@ export interface ProMonth {
   pending: number;
   paidAt: string | null;
   paidBy: string | null;
+  tax: ProTax | null;        // impuesto del profesional (migracion 117); solo informativo, no cambia el total
 }
 
 const chunk = <T,>(arr: T[], n: number) => Array.from({ length: Math.ceil(arr.length / n) }, (_, i) => arr.slice(i * n, i * n + n));
@@ -91,11 +97,14 @@ export async function computeProMonths(
   const endUtc = chileDayBoundsUtc(last).endUtc;
 
   // Profesionales del modo pedido (work_mode vacio = comision, el valor por defecto).
-  let pq = supabase.from("profiles")
-    .select("id, name, work_mode, commission_rate, rental_daily_rate")
-    .eq("tenant_id", tenantId).eq("role", "barber").eq("active", true).order("name");
-  pq = mode === "rental" ? pq.eq("work_mode", "rental") : pq.or("work_mode.eq.commission,work_mode.is.null");
-  const { data: pros } = await pq;
+  // sii_enabled/tax_rate son de la migracion 117: si aun no esta aplicada se reintenta sin ellas.
+  const loadPros = (cols: string) => {
+    let pq = supabase.from("profiles").select(cols)
+      .eq("tenant_id", tenantId).eq("role", "barber").eq("active", true).order("name");
+    return mode === "rental" ? pq.eq("work_mode", "rental") : pq.or("work_mode.eq.commission,work_mode.is.null");
+  };
+  let { data: pros, error: prosErr } = await loadPros("id, name, work_mode, commission_rate, rental_daily_rate, sii_enabled, tax_rate");
+  if (prosErr) ({ data: pros } = await loadPros("id, name, work_mode, commission_rate, rental_daily_rate"));
   if (!pros || pros.length === 0) return [];
   const ids: string[] = pros.map((p: any) => p.id);
 
@@ -103,7 +112,7 @@ export async function computeProMonths(
   const run = (b: PromiseLike<any>): Promise<any> => Promise.resolve(b);
   // Ventas del mes de estos profesionales (sin los "[AJUSTE MANUAL]" antiguos: ahora viven en el libro).
   const txsP = fetchAllRows<any>(() =>
-    supabase.from("transactions").select("id, barber_id, total, tip_amount, notes")
+    supabase.from("transactions").select("id, barber_id, total, tip_amount, notes, payment_method, created_at")
       .eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed")
       .in("barber_id", ids).gte("created_at", startUtc).lt("created_at", endUtc)
   ).catch(() => [] as any[]);
@@ -124,20 +133,53 @@ export async function computeProMonths(
   const sales = txs.filter((t) => !String(t.notes || "").startsWith("[AJUSTE MANUAL]"));
   const txBarber = new Map<string, string>(sales.map((t) => [t.id, t.barber_id]));
 
+  // Arriendo: efectivo de sus ventas que quedo en la caja del negocio (rental_cash_to_barber = false) y se descuenta del arriendo,
+  // desde el mes elegido (profiles.rental_cash_settle_from, migracion 123). Si falta la migracion o no hay mes elegido, no se descuenta nada.
+  const cashHeldByBarber = new Map<string, number>();
+  const cashCountedPros = new Set<string>(); // profesionales cuyo efectivo en caja ya se acredita (para no contar dos veces los productos)
+  const cashToBarberPros = new Set<string>();
+  if (mode === "rental") {
+    try {
+      const { data: cfg, error: cfgErr } = await supabase.from("profiles").select("id, rental_cash_to_barber, rental_cash_settle_from").in("id", ids);
+      if (!cfgErr) {
+        for (const c of cfg || []) if (c.rental_cash_to_barber) cashToBarberPros.add(c.id);
+        const eligible = new Set<string>((cfg || []).filter((c: any) => !c.rental_cash_to_barber && c.rental_cash_settle_from && String(c.rental_cash_settle_from).slice(0, 10) <= first).map((c: any) => c.id));
+        for (const id of Array.from(eligible)) cashCountedPros.add(id);
+        const cashTx = sales.filter((t) => eligible.has(t.barber_id));
+        const splitCash = new Map<string, number>();
+        const mixedIds = cashTx.filter((t) => t.payment_method === "mixed").map((t) => t.id);
+        for (const c of chunk(mixedIds, 200)) {
+          const { data: parts } = await supabase.from("transaction_payments").select("transaction_id, amount").in("transaction_id", c).eq("payment_method", "cash");
+          for (const r of parts || []) splitCash.set(r.transaction_id, (splitCash.get(r.transaction_id) || 0) + (Number(r.amount) || 0));
+        }
+        for (const t of cashTx) {
+          const cash = t.payment_method === "cash" ? Number(t.total) || 0 : t.payment_method === "mixed" ? splitCash.get(t.id) || 0 : 0;
+          if (cash > 0) cashHeldByBarber.set(t.barber_id, (cashHeldByBarber.get(t.barber_id) || 0) + cash);
+        }
+      }
+    } catch { /* sin migracion 123: no se descuenta nada */ }
+  }
+
   // Productos vendidos (por venta) y su comision.
   const itemResults: any[] = await Promise.all(
     chunk(sales.map((t) => t.id), 200).map((c) => run(supabase.from("transaction_items").select("transaction_id, product_id, total, quantity").in("transaction_id", c)))
   );
   const items: any[] = itemResults.flatMap((r) => r.data || []);
   const productIds = Array.from(new Set(items.map((i) => i.product_id).filter(Boolean)));
-  const productRule = new Map<string, { type: string | null; value: number }>();
+  // Solo los cosmeticos dan comision de venta (lib/product-commission.ts); consumibles y demas productos, nunca.
+  const productRule = new Map<string, ProductRule>();
   const productResults: any[] = await Promise.all(
-    chunk(productIds as string[], 200).map((c) => run(supabase.from("products").select("id, sales_commission_type, sales_commission_value").in("id", c)))
+    chunk(productIds as string[], 200).map(async (c) => {
+      const r = await run(supabase.from("products").select("id, category, sales_commission_type, sales_commission_value").in("id", c));
+      return r.error ? run(supabase.from("products").select("id").in("id", c)) : r;
+    })
   );
   for (const r of productResults) {
-    if (!r.error) for (const p of r.data || []) productRule.set(p.id, { type: p.sales_commission_type, value: Number(p.sales_commission_value) || 0 });
+    if (!r.error) for (const p of r.data || []) productRule.set(p.id, { category: p.category, type: p.sales_commission_type, value: Number(p.sales_commission_value) || 0 });
   }
 
+  const cosmeticRule = await getCosmeticRule(supabase, tenantId);
+  const txCreated = new Map<string, string>(sales.map((t) => [t.id, t.created_at]));
   const productSalesByTx = new Map<string, number>();
   const productCommissionByBarber = new Map<string, number>();
   const productSalesByBarber = new Map<string, number>();
@@ -148,11 +190,42 @@ export async function computeProMonths(
     const total = Number(it.total) || 0;
     productSalesByTx.set(it.transaction_id, (productSalesByTx.get(it.transaction_id) || 0) + total);
     productSalesByBarber.set(barberId, (productSalesByBarber.get(barberId) || 0) + total);
-    const rule = productRule.get(it.product_id);
-    let com = 0;
-    if (rule?.type === "percent") com = (total * rule.value) / 100;
-    else if (rule?.type === "fixed") com = (Number(it.quantity) || 1) * rule.value;
+    // Solo los profesionales con pago por comisión ganan comisión por cosméticos; los de arriendo no.
+    const com = mode === "commission" ? productCommission(productRule.get(it.product_id), Number(it.quantity) || 1, total, cosmeticAmountOn(cosmeticRule, txCreated.get(it.transaction_id))) : 0;
     if (com > 0) productCommissionByBarber.set(barberId, (productCommissionByBarber.get(barberId) || 0) + com);
+  }
+
+  // Arriendo: productos cosmeticos vendidos (opcional por negocio, migracion 130). Segun quien recibio la plata el profesional paga o el negocio le debe la comision.
+  const rentalOwed = new Map<string, number>();
+  const rentalCredit = new Map<string, number>();
+  if (mode === "rental") {
+    try {
+      const { data: tcfg, error: tErr } = await supabase.from("tenants").select("rental_product_mode, rental_product_from, rental_card_to_barber").eq("id", tenantId).maybeSingle();
+      const modo = !tErr && (tcfg as any)?.rental_product_mode === "business_collects";
+      if (modo) {
+        const neg: ConfigNegocio = { mode: "business_collects", from: (tcfg as any).rental_product_from ? String((tcfg as any).rental_product_from).slice(0, 10) : null, cardToBarber: (tcfg as any).rental_card_to_barber !== false };
+        const { data: tr } = await supabase.from("profiles").select("id, rental_transfer_to_barber").in("id", ids);
+        const transferPros = new Set<string>((tr || []).filter((x: any) => x.rental_transfer_to_barber).map((x: any) => x.id));
+        const mixedIds = sales.filter((t) => t.payment_method === "mixed").map((t) => t.id);
+        const parts = new Map<string, Array<{ method: string; amount: number }>>();
+        for (const c of chunk(mixedIds, 200)) {
+          const { data: pr } = await supabase.from("transaction_payments").select("transaction_id, payment_method, amount").in("transaction_id", c);
+          for (const r of pr || []) parts.set(r.transaction_id, [...(parts.get(r.transaction_id) || []), { method: r.payment_method, amount: Number(r.amount) || 0 }]);
+        }
+        const ventas = new Map<string, Venta>(sales.map((t) => [t.id, { id: t.id, createdAt: t.created_at, method: t.payment_method, total: Number(t.total) || 0, parts: parts.get(t.id) }]));
+        for (const id of ids) {
+          const itemsPro = items.filter((it) => it.product_id && txBarber.get(it.transaction_id) === id).map((it) => {
+            const total = Number(it.total) || 0;
+            const rule = productRule.get(it.product_id);
+            return { txId: it.transaction_id, total, isCosmetic: isCosmeticCategory(rule?.category), commission: productCommission(rule, Number(it.quantity) || 1, total, cosmeticAmountOn(cosmeticRule, txCreated.get(it.transaction_id))) };
+          });
+          const r = calcularProductosArriendo(itemsPro, ventas, neg, { cashToBarber: cashToBarberPros.has(id), transferToBarber: transferPros.has(id), cashCounted: cashCountedPros.has(id) });
+          if (r.owed > 0) rentalOwed.set(id, r.owed);
+          if (r.credit > 0) rentalCredit.set(id, r.credit);
+          if (r.cashHeldAdjust > 0) cashHeldByBarber.set(id, Math.max(0, (cashHeldByBarber.get(id) || 0) - r.cashHeldAdjust));
+        }
+      }
+    } catch { /* sin migracion 130 o con error: todo igual que antes */ }
   }
 
   // Servicios = venta menos lo vendido como producto (el producto no suma a la produccion).
@@ -207,6 +280,11 @@ export async function computeProMonths(
     const tips = Math.round(tipsByBarber.get(p.id) || 0);
     if (tips > 0) lines.push({ key: "auto-tips", label: "Propinas", amount: tips, effect: 1, source: "auto" });
     const prodCom = Math.round(productCommissionByBarber.get(p.id) || 0);
+    const cashHeld = Math.round(cashHeldByBarber.get(p.id) || 0);
+    if (cashHeld > 0) lines.push({ key: "auto-cash-held", label: "Efectivo de sus ventas que quedó en la caja del negocio", amount: cashHeld, effect: 1, source: "auto", reason: "Ya está en la caja: se descuenta del arriendo para no cobrarlo dos veces" });
+    const rOwed = Math.round(rentalOwed.get(p.id) || 0), rCredit = Math.round(rentalCredit.get(p.id) || 0);
+    if (rOwed > 0) lines.push({ key: "auto-rental-product-owed", label: "Productos que vendió con dinero suyo (precio menos su comisión)", amount: rOwed, effect: -1, source: "auto", reason: "El producto es del negocio: lo que recibió el profesional se rinde a fin de mes, descontando su comisión" });
+    if (rCredit > 0) lines.push({ key: "auto-rental-product-credit", label: "Comisión por productos vendidos (el negocio recibió el dinero)", amount: rCredit, effect: 1, source: "auto" });
     if (prodCom > 0) lines.push({ key: "auto-product-commission", label: "Comisión por venta de productos", amount: prodCom, effect: 1, source: "auto" });
     for (const r of (ledgerRows || []).filter((x: any) => x.barber_id === p.id)) {
       const kind = (LEDGER_KINDS as any)[r.kind];
@@ -246,6 +324,7 @@ export async function computeProMonths(
     return {
       barberId: p.id, name: p.name, mode, base, baseLabel, lines, adjustments, total,
       paid, pending: total - paid, paidAt: st?.paid_at || null, paidBy: st?.updated_by_name || null, ...extra,
+      tax: p.sii_enabled ? computeProTax(mode, base, true, Number(p.tax_rate) || 0) : null,
     };
   });
 }

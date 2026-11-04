@@ -1,0 +1,20 @@
+import { computeProTax, taxKindOf } from "../src/lib/pro-tax";
+let fails = 0;
+const eq = (name: string, a: unknown, b: unknown) => {
+  if (JSON.stringify(a) !== JSON.stringify(b)) { fails++; console.log("FALLA", name, a, b); } else console.log("ok", name);
+};
+eq("kind 0", taxKindOf(0), "none");
+eq("kind 15.25", taxKindOf(15.25), "retencion");
+eq("kind 19", taxKindOf(19), "iva");
+const a = computeProTax("commission", 1000000, true, 15.25);
+eq("retencion monto", a.amount, 152500);
+eq("retencion neto", a.finalAmount, 847500);
+eq("retencion boleta", a.documentTotal, 1000000);
+const b = computeProTax("commission", 1000000, true, 19);
+eq("iva comision", [b.amount, b.finalAmount, b.documentTotal], [190000, 1190000, 1190000]);
+const c = computeProTax("rental", 580000, true, 19);
+eq("iva arriendo", [c.amount, c.finalAmount], [110200, 690200]);
+const d = computeProTax("rental", 580000, true, 15.25);
+eq("retencion en arriendo no aplica", [d.kind, d.amount, d.finalAmount], ["none", 0, 580000]);
+eq("apagado", computeProTax("commission", 1000000, false, 19).amount, 0);
+process.exit(fails ? 1 : 0);

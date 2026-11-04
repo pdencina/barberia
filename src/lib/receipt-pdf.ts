@@ -1,5 +1,6 @@
 import { PDFDocument, StandardFonts, rgb, type PDFFont, type PDFImage, type PDFPage } from "pdf-lib";
 import type { ProMonth } from "@/lib/ledger";
+import type { ProSalesDetail } from "@/lib/pro-sales-detail";
 
 // Recibo en PDF por profesional y mes (Arriendo o Comision). Verde = lo que suma al profesional, rojo = lo que
 // le descuenta. Es un documento de apoyo del negocio: no reemplaza una liquidacion de sueldo ni una boleta.
@@ -22,6 +23,7 @@ export async function buildReceiptPdf(o: {
   pro: ProMonth;
   monthLabel: string; // "Septiembre 2026"
   issuedAt?: Date;
+  sales?: ProSalesDetail | null; // detalle de todas las ventas del mes (paginas siguientes)
 }): Promise<Uint8Array> {
   const { pro } = o;
   const rental = pro.mode === "rental";
@@ -127,14 +129,109 @@ export async function buildReceiptPdf(o: {
     y -= 14;
   }
 
-  // Firmas y nota.
-  ensure(110);
-  y -= 50;
+  // Impuesto SII del profesional (migracion 117): solo informativo, no cambia el total de arriba.
+  const tax = pro.tax;
+  if (tax && tax.kind !== "none") {
+    const rate = String(tax.rate).replace(".", ",");
+    ensure(96);
+    y -= 6;
+    text("IMPUESTO SII (informativo, no incluido en el total)", M, y, 8, bold, GRAY);
+    y -= 8;
+    rule(y);
+    y -= 18;
+    const taxRow = (label: string, amountText: string, strong = false) => {
+      ensure(20);
+      text(label, M, y, 10, strong ? bold : font, DARK);
+      textRight(amountText, W - M, y, 10, strong ? bold : font, DARK);
+      y -= 16;
+    };
+    if (tax.kind === "retencion") {
+      taxRow("Boleta de honorarios a emitir por el profesional", clp(tax.documentTotal));
+      taxRow(`Retencion ${rate}% (la declara el negocio)`, `-${clp(tax.amount)}`);
+      taxRow("Neto de la boleta", clp(tax.finalAmount), true);
+    } else {
+      taxRow(`Base: ${rental ? "arriendo" : "comision"}`, clp(tax.base));
+      taxRow(`IVA ${rate}%`, `+${clp(tax.amount)}`);
+      taxRow(rental ? "Total del arriendo con IVA" : "Total de la factura con IVA", clp(tax.documentTotal), true);
+    }
+    y -= 4;
+  }
+
+  // ---- Detalle de TODAS las ventas del mes (paginas siguientes) ----
+  if (o.sales) {
+    const sd = o.sales;
+    const MEDIOS: Record<string, string> = { cash: "Efectivo", debit_card: "Debito", credit_card: "Credito", transfer: "Transf.", mixed: "Mixto", mercadopago: "M. Pago" };
+    // Privacidad: solo nombre de pila e inicial del apellido.
+    const corto = (n: string) => { const p = String(n || "").trim().split(/\s+/); return p.length > 1 ? `${p[0]} ${p[1][0]}.` : p[0] || "-"; };
+    const wrap = (t: string, width: number, size: number, f: PDFFont = font): string[] => {
+      const words = safe(t).split(/\s+/).filter(Boolean); const lines: string[] = []; let cur = "";
+      for (const w of words) { const next = cur ? `${cur} ${w}` : w; if (f.widthOfTextAtSize(next, size) <= width) cur = next; else { if (cur) lines.push(cur); cur = w; } }
+      if (cur) lines.push(cur);
+      return lines.length ? lines : ["-"];
+    };
+    // El detalle continua en la misma hoja si hay espacio (evita hojas casi vacias); si no, abre una nueva.
+    ensure(230);
+    y -= 28;
+    text("DETALLE DE VENTAS", M, y, 11, bold, DARK);
+    textRight(`${pro.name} - ${o.monthLabel} - ${sd.resumen.ventas} ventas`, W - M, y, 9, font, GRAY);
+    y -= 12; rule(y); y -= 18;
+    const sum = (label: string, val: string, note?: string) => { text(label, M, y, 9, font, GRAY); if (note) text(note, M + 150, y, 8, font, GRAY); textRight(val, W - M, y, 10, bold, DARK); y -= 15; };
+    sum("Servicios", clp(sd.resumen.servicios), rental ? undefined : `base de su ${sd.rate}%`);
+    sum("Productos vendidos", clp(sd.resumen.productos), "no suman al profesional (solo cosmeticos dan comision)");
+    sum("Propinas", clp(sd.resumen.propinas), "100% para el profesional");
+    sum("Comision por cosmeticos", clp(sd.resumen.comisionProductos));
+    if (!rental && sd.resumen.comisionServicios !== null) sum(`Comision sobre servicios (${sd.rate}%)`, clp(sd.resumen.comisionServicios));
+    y -= 6;
+    const cF = M, cC = M + 58, cD = M + 150, cP = M + 330, cT = W - M - 52, cTot = W - M;
+    const header = () => {
+      text("FECHA", cF, y, 7, bold, GRAY); text("CLIENTE", cC, y, 7, bold, GRAY); text("QUE SE VENDIO", cD, y, 7, bold, GRAY); text("PAGO", cP, y, 7, bold, GRAY);
+      textRight("PROPINA", cT, y, 7, bold, GRAY); textRight("TOTAL", cTot, y, 7, bold, GRAY); y -= 6; rule(y); y -= 12;
+    };
+    header();
+    if (sd.ventas.length === 0) { text("Sin ventas este mes.", M, y, 9, font, GRAY); y -= 16; }
+    for (const v of sd.ventas) {
+      const itemLines: Array<{ t: string; prod: boolean }> = [];
+      if (v.items.length === 0) itemLines.push({ t: "(sin detalle)", prod: false });
+      for (const it of v.items) {
+        const label = `${it.cantidad > 1 ? `${it.cantidad}x ` : ""}${it.nombre} ${clp(it.total)}${it.tipo === "producto" ? (it.comisionProducto > 0 ? ` [PRODUCTO, comision ${clp(it.comisionProducto)}]` : " [PRODUCTO, no va al profesional]") : ""}`;
+        for (const l of wrap(label, 168, 7.5)) itemLines.push({ t: l, prod: it.tipo === "producto" });
+      }
+      const need = Math.max(14, itemLines.length * 10 + 6);
+      if (y - need < M + 30) { page = pdf.addPage([W, H]); y = H - M; header(); }
+      text(v.fecha, cF, y, 7.5, font, DARK); text(corto(v.cliente), cC, y, 7.5, font, DARK);
+      itemLines.forEach((l, k) => text(l.t, cD, y - k * 10, 7.5, font, l.prod ? RED : DARK));
+      text(MEDIOS[v.medio] || v.medio || "-", cP, y, 7.5, font, DARK);
+      textRight(v.propina > 0 ? clp(v.propina) : "-", cT, y, 7.5, font, DARK); textRight(clp(v.total), cTot, y, 7.5, bold, DARK);
+      y -= need; page.drawLine({ start: { x: M, y: y + 4 }, end: { x: W - M, y: y + 4 }, thickness: 0.4, color: LINE });
+    }
+  }
+
+  // Firmas al FINAL del documento (ultima pagina, justo despues del ultimo contenido): nunca quedan solas en una hoja aparte
+  // mientras haya contenido que las acompane. Si no caben, se abre una hoja de continuacion con el nombre y el mes.
+  if (y - 70 < M + 30) {
+    page = pdf.addPage([W, H]); y = H - M;
+    text(`${o.businessName} - ${pro.name} - ${o.monthLabel} (continuacion)`, M, y - 6, 9, font, GRAY);
+    y -= 34;
+    text(rental ? "Total a cobrar al profesional" : "Total a pagar al profesional", M, y, 11, bold, DARK);
+    textRight(clp(Math.abs(pro.total)), W - M, y, 13, bold, DARK);
+    y -= 18;
+    text("Pendiente", M, y, 9, font, GRAY);
+    textRight(clp(pro.pending), W - M, y, 9, font, DARK);
+    y -= 14;
+  }
+  y -= 34;
   page.drawLine({ start: { x: M, y }, end: { x: M + 190, y }, thickness: 0.7, color: GRAY });
   page.drawLine({ start: { x: W - M - 190, y }, end: { x: W - M, y }, thickness: 0.7, color: GRAY });
   text("Firma profesional", M, y - 12, 8, font, GRAY);
   textRight("Firma administración", W - M, y - 12, 8, font, GRAY);
-  text("Verde: suma al profesional. Rojo: descuenta al profesional. Documento de apoyo generado con re-booking.", M, M - 8, 7, font, GRAY);
+  const note = o.sales
+    ? "Verde: suma al profesional. Rojo: descuenta al profesional (o producto en el detalle). Documento de apoyo generado con re-booking."
+    : "Verde: suma al profesional. Rojo: descuenta al profesional. Documento de apoyo generado con re-booking.";
+  const all = pdf.getPages();
+  all.forEach((pg, k) => {
+    pg.drawText(safe(note), { x: M, y: M - 8, size: 7, font, color: GRAY });
+    pg.drawText(safe(`Pagina ${k + 1} de ${all.length}`), { x: W - M - 60, y: M - 20, size: 7, font, color: GRAY });
+  });
 
   return pdf.save();
 }

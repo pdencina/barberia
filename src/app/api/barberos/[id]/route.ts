@@ -87,12 +87,23 @@ export async function PATCH(
     "personal_pin", "avatar_url", "bio", "specialties",
     "intro_video_url", "years_experience", "slot_duration",
     "also_attends_clients", "instagram", "rental_cash_to_barber", "birth_date",
-    "manager_name",
+    "manager_name", "sii_enabled", "tax_rate", "rental_cash_settle_from", "rental_transfer_to_barber",
   ];
 
   const update: Record<string, any> = {};
   for (const key of auth.self ? selfEditableFields : allowedFields) {
     if (body[key] !== undefined) update[key] = body[key];
+  }
+  // Impuesto/SII por profesional: solo el administrador (no el propio profesional ni recepcion).
+  // Mes desde el que se descuenta el efectivo de caja del arriendo: solo administrador; null o el primer dia de un mes.
+  if ("rental_cash_settle_from" in update) {
+    const v = update.rental_cash_settle_from;
+    if (auth.role !== "admin" && auth.role !== "super_admin") delete update.rental_cash_settle_from;
+    else if (v !== null && !(typeof v === "string" && /^\d{4}-(0[1-9]|1[0-2])-01$/.test(v))) return NextResponse.json({ error: "Mes no valido" }, { status: 400 });
+  }
+  if (auth.role !== "admin" && auth.role !== "super_admin") {
+    delete update.sii_enabled;
+    delete update.tax_rate;
   }
 
   // PIN: se valida (4 dígitos o vacío) y se guarda junto con su huella.
@@ -100,6 +111,20 @@ export async function PATCH(
     const v = typeof update.personal_pin === "string" ? update.personal_pin.trim() : "";
     if (v && !/^\d{4}$/.test(v)) return NextResponse.json({ error: "El PIN debe tener 4 dígitos." }, { status: 400 });
     Object.assign(update, await pinWriteFields(supabase, v));
+  }
+
+  // Impuesto por profesional (migracion 117): 0, 15.25 o 19 (u otra tasa de honorarios futura). Apagado = tasa 0.
+  if ("sii_enabled" in update) update.sii_enabled = update.sii_enabled === true;
+  if ("tax_rate" in update) {
+    const n = Number(update.tax_rate);
+    update.tax_rate = Number.isFinite(n) && n >= 0 && n <= 100 ? Math.round(n * 100) / 100 : 0;
+  }
+  if (update.sii_enabled === false) update.tax_rate = 0;
+  if (update.sii_enabled === true && Number(update.tax_rate) > 0 && Number(update.tax_rate) !== 19) {
+    const { data: cur } = await supabase.from("profiles").select("tax_bearer").eq("id", params.id).maybeSingle();
+    if ((cur as any)?.tax_bearer === "professional") {
+      return NextResponse.json({ error: "Este profesional usa su propia cuenta SII (IVA). Primero pasa a “El negocio asume” para usar retención de honorarios." }, { status: 400 });
+    }
   }
 
   // Fecha de nacimiento: solo se acepta YYYY-MM-DD; vacio la borra.
@@ -136,6 +161,15 @@ export async function PATCH(
   if (error && "manager_name" in update && /manager_name/.test(error.message)) {
     const { manager_name: _omit, ...rest } = update;
     ({ data, error } = await supabase.from("profiles").update(rest).eq("id", params.id).select().single());
+  }
+
+  // sii_enabled/tax_rate son columnas nuevas (migracion 117): si aun no se aplica, no se pierde el resto.
+  if (error && ("sii_enabled" in update || "tax_rate" in update) && /sii_enabled|tax_rate/.test(error.message)) {
+    const { sii_enabled: _s, tax_rate: _r, ...rest } = update;
+    ({ data, error } = await supabase.from("profiles").update(rest).eq("id", params.id).select().single());
+    // Solo es un error si de verdad se queria encender el impuesto; con los valores por defecto (apagado) no se pierde nada
+    // y el guardado del perfil debe salir normal aunque la migracion 117 aun no este en esta base.
+    if (!error && update.sii_enabled === true) return NextResponse.json({ error: "Falta aplicar la migración 117 para guardar el impuesto" }, { status: 503 });
   }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

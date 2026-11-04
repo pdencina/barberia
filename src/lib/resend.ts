@@ -1,5 +1,7 @@
 import { getResendClient } from "@/lib/resend-client";
 import { couponDiscountText } from "@/lib/retention-message";
+import { receiptThanksHtml } from "@/lib/receipt-thanks";
+import type { CorreoLinks } from "@/lib/post-service-links";
 
 interface SendReceiptParams {
   to: string;
@@ -22,6 +24,12 @@ interface SendReceiptParams {
   businessLogoUrl?: string | null;
   // Nombre del negocio: se muestra si el negocio no tiene logo cargado.
   businessName?: string | null;
+  // Boleta electronica del SII asociada a esta venta (si el negocio la tiene activada).
+  boletaFolio?: number | null;
+  boletaPdfUrl?: string | null;
+  boletaPdfBase64?: string | null;
+  // Enlaces del agradecimiento (calificar en Google Maps o en re-booking, y agendar). Sin esto se usa la calificacion interna de siempre.
+  links?: CorreoLinks | null;
 }
 
 export async function sendReceipt(params: SendReceiptParams) {
@@ -38,6 +46,10 @@ export async function sendReceipt(params: SendReceiptParams) {
     barberName,
     businessLogoUrl,
     businessName,
+    boletaFolio,
+    boletaPdfUrl,
+    boletaPdfBase64,
+    links,
   } = params;
 
   const paymentLabel: Record<string, string> = {
@@ -105,8 +117,8 @@ export async function sendReceipt(params: SendReceiptParams) {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr>
           <td valign="middle">${headerBrand}</td>
           <td valign="middle" align="right">
-            <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${ACCENT};font-weight:700;">Boleta</div>
-            <div style="font-size:16px;color:#111827;font-weight:800;margin-top:2px;">N° ${receiptNumber}</div>
+            <div style="font-size:11px;letter-spacing:0.14em;text-transform:uppercase;color:${ACCENT};font-weight:700;">${boletaFolio ? "Boleta electrónica" : "Boleta"}</div>
+            <div style="font-size:16px;color:#111827;font-weight:800;margin-top:2px;">N° ${boletaFolio ? esc(String(boletaFolio)) : receiptNumber}</div>${boletaFolio && boletaPdfUrl && /^https?:\/\//.test(boletaPdfUrl) ? `<div style="margin-top:4px;"><a href="${esc(boletaPdfUrl)}" style="font-size:12px;color:${ACCENT};">Ver boleta (SII)</a></div>` : ""}
           </td>
         </tr></table>
       </td></tr>
@@ -151,10 +163,7 @@ export async function sendReceipt(params: SendReceiptParams) {
         </table>
       </td></tr>
 
-      <tr><td align="center" style="padding:28px 36px 8px 36px;">
-        <a href="${appUrl}/review/${transactionId}" style="display:inline-block;background:${ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Califica tu atención</a>
-        <div style="font-size:13px;color:#6B7280;margin-top:14px;">¡Gracias por tu preferencia!</div>
-      </td></tr>
+${receiptThanksHtml({ links: links || { reviewUrl: `${appUrl}/review/${transactionId}`, reviewLabel: "Califica tu experiencia ★", subject: "", intro: "Tu opinion nos ayuda a mejorar!", bookUrl: `${appUrl}/booking` }, barberName, businessName, accent: ACCENT })}
 
       <tr><td style="padding:0 0 12px 0;font-size:0;line-height:0;">&nbsp;</td></tr>
     </table>
@@ -167,8 +176,11 @@ export async function sendReceipt(params: SendReceiptParams) {
   const { data, error } = await resend.emails.send({
     from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
-    subject: `Tu boleta${businessName ? ` de ${businessName}` : ""} - ${new Date(date).toLocaleDateString("es-CL", { timeZone: "America/Santiago" })}`,
+    subject: `Tu boleta${businessName ? ` de ${businessName}` : ""} · gracias por tu visita - ${new Date(date).toLocaleDateString("es-CL", { timeZone: "America/Santiago" })}`,
     html,
+    ...(boletaFolio && boletaPdfBase64
+      ? { attachments: [{ filename: `boleta-${boletaFolio}.pdf`, content: boletaPdfBase64 }] }
+      : {}),
   });
 
   if (error) {
@@ -545,7 +557,12 @@ interface SendBarberNewAppointmentParams {
   businessLogoUrl?: string | null;
 }
 
+// Apagado: el profesional ya recibe el aviso de cita nueva por la app (push), y este correo gastaba la cuota de Resend.
+// Para volver a enviarlo basta poner esta constante en true.
+const ENVIAR_CORREO_CITA_NUEVA_AL_PROFESIONAL = false;
+
 export async function sendBarberNewAppointment(params: SendBarberNewAppointmentParams) {
+  if (!ENVIAR_CORREO_CITA_NUEVA_AL_PROFESIONAL) return;
   const { to, barberName, clientName, serviceName, date, businessName, businessLogoUrl } = params;
 
   const dateStr = new Date(date).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
@@ -669,5 +686,51 @@ export async function sendSupplyRequestEmail(params: SendSupplyRequestParams) {
   } catch (error: any) {
     console.error("Error sending supply request email:", error);
     return { success: false, error: error.message };
+  }
+}
+
+
+// ==================== AVISO DE BOLETA DE HONORARIOS (al profesional) ====================
+// El administrador avisa a cada profesional por comision con retencion cuanto debe emitir en el SII.
+interface SendHonorariosNoticeParams {
+  to: string;
+  name: string;
+  businessName: string;
+  businessLogoUrl?: string | null;
+  monthLabel: string;   // "Octubre 2026"
+  gross: number;        // monto de la boleta de honorarios
+  rate: number;         // % de retencion
+  retention: number;
+  net: number;
+}
+
+export async function sendHonorariosNotice(p: SendHonorariosNoticeParams) {
+  const money = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
+  const rate = String(p.rate).replace(".", ",");
+  const html = mailShell({
+    label: "Boleta de honorarios",
+    businessLogoUrl: p.businessLogoUrl,
+    inner: `
+      <p style="font-size:15px;color:#111827;margin:8px 0 16px;">Hola <strong>${escHtml(p.name)}</strong>,</p>
+      <p style="font-size:14px;color:#374151;line-height:1.6;margin:0 0 18px;">Para cerrar <strong>${escHtml(p.monthLabel)}</strong> en <strong>${escHtml(p.businessName)}</strong>, debes emitir tu boleta de honorarios en el SII por el siguiente monto:</p>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:18px;">
+        ${mailRow("Boleta de honorarios a emitir", money(p.gross), true)}
+        ${mailRow(`Retención ${rate}%`, `-${money(p.retention)}`)}
+        ${mailRow("Recibes", money(p.net))}
+      </table>
+      <p style="font-size:13px;color:#6B7280;line-height:1.6;margin:0;">Cuando la emitas, envía el número de folio a la administración de ${escHtml(p.businessName)} para registrarla. Este aviso es informativo.</p>`,
+  });
+  try {
+    const resend = getResendClient();
+    const { error } = await resend.emails.send({
+      from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
+      to: p.to,
+      subject: `Tu boleta de honorarios de ${p.monthLabel} - ${p.businessName}`,
+      html,
+    });
+    if (error) return { success: false, error: error.message };
+    return { success: true };
+  } catch (e: any) {
+    return { success: false, error: e.message };
   }
 }

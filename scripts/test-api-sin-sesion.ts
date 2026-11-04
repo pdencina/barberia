@@ -67,7 +67,7 @@ const t = (name: string, ok: boolean, extra = "") => {
     }
   }
   // Rutas con parametro en la URL ([id]): sin sesion tampoco deben leer, editar ni borrar nada.
-  const escritura: Array<{ ruta: string; metodo: "GET" | "POST" | "PATCH" | "DELETE"; params: Record<string, string> }> = [
+  const escritura: Array<{ ruta: string; metodo: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; params: Record<string, string>; qs?: string }> = [
     { ruta: "cupones/[id]", metodo: "PATCH", params: { id: ID } },
     { ruta: "cupones/[id]", metodo: "DELETE", params: { id: ID } },
     { ruta: "retention/campaigns/[id]", metodo: "GET", params: { id: ID } },
@@ -76,13 +76,54 @@ const t = (name: string, ok: boolean, extra = "") => {
     { ruta: "services/[id]", metodo: "DELETE", params: { id: ID } },
     { ruta: "services/[id]/photo", metodo: "POST", params: { id: ID } },
     { ruta: "services/[id]/photo", metodo: "DELETE", params: { id: ID } },
+    // escrituras de dinero y de agenda que antes no pedian sesion
+    { ruta: "oti/consulta", metodo: "POST", params: {} },
+    { ruta: "referidos", metodo: "GET", params: {} },
+    { ruta: "personal/movimientos", metodo: "GET", params: {} },
+    { ruta: "personal/movimientos", metodo: "POST", params: {} },
+    { ruta: "personal/movimientos", metodo: "PATCH", params: {}, qs: `?id=${ID}` },
+    { ruta: "personal/movimientos", metodo: "DELETE", params: {}, qs: `?id=${ID}` },
+    { ruta: "personal/voz/llave", metodo: "GET", params: {} },
+    { ruta: "personal/voz/llave", metodo: "POST", params: {} },
+    { ruta: "personal/voz/llave", metodo: "DELETE", params: {} },
+    { ruta: "personal/voz", metodo: "POST", params: {} },
+    { ruta: "reportes/demanda", metodo: "GET", params: {} },
+    { ruta: "oti/movimiento-negocio", metodo: "POST", params: {} },
+    { ruta: "finanzas", metodo: "GET", params: {} },
+    { ruta: "finanzas", metodo: "POST", params: {} },
+    { ruta: "resenas", metodo: "GET", params: {} },
+    { ruta: "profesionales/libro/detalle", metodo: "GET", params: {} },
+    { ruta: "settings/comision-cosmeticos", metodo: "GET", params: {} },
+    { ruta: "settings/comision-cosmeticos", metodo: "POST", params: {} },
+    { ruta: "arriendo", metodo: "POST", params: {} },
+    { ruta: "arriendo", metodo: "PATCH", params: {} },
+    { ruta: "comisiones", metodo: "POST", params: {} },
+    { ruta: "comisiones", metodo: "PATCH", params: {} },
+    { ruta: "barber-services", metodo: "POST", params: {} },
+    { ruta: "barber-service-assignments", metodo: "POST", params: {} },
+    { ruta: "barber/blocks", metodo: "PATCH", params: {}, qs: `?id=${ID}` },
+    { ruta: "products/[id]", metodo: "PATCH", params: { id: ID } },
+    { ruta: "gallery", metodo: "POST", params: {} },
+    { ruta: "gallery", metodo: "DELETE", params: {}, qs: `?id=${ID}` },
+    { ruta: "gallery/upload", metodo: "POST", params: {} },
+    { ruta: "invite-codes", metodo: "POST", params: {} },
+    { ruta: "invite-codes", metodo: "DELETE", params: {}, qs: `?id=${ID}` },
+    { ruta: "waitlist", metodo: "PATCH", params: {} },
+    { ruta: "waitlist/notify", metodo: "POST", params: {} },
+    { ruta: "boletas/emit", metodo: "POST", params: {} },
+    { ruta: "boletas/send", metodo: "POST", params: {} },
+    // cobros en el terminal de tarjeta
+    { ruta: "tuu", metodo: "POST", params: {} },
+    { ruta: "tuu/cancel", metodo: "POST", params: {} },
+    { ruta: "mercadopago", metodo: "POST", params: {} },
+    { ruta: "mercadopago/cancel", metodo: "POST", params: {} },
   ];
   for (const e of escritura) {
     const mod = await import(`../src/app/api/${e.ruta}/route`);
     networkCalls = 0;
     const init: any = { method: e.metodo, headers: { "content-type": "application/json" } };
-    if (e.metodo === "PATCH") init.body = JSON.stringify({ active: false });
-    const res: Response = await mod[e.metodo](new NextRequest(`http://localhost:3000/api/${e.ruta.replace("[id]", ID)}`, init), { params: e.params });
+    if (e.metodo === "PATCH" || e.metodo === "POST" || e.metodo === "PUT") init.body = JSON.stringify({ active: false, barberId: ID, idempotencyKey: ID, orderId: ID, cancelAll: true, recordId: ID, id: ID, status: "notified", waitlistId: ID, transactionId: ID, email: "prueba@example.com", serviceId: ID, serviceIds: [], commissionRate: 40, month: 10, year: 2026, daysWorked: 1, amount: 1 });
+    const res: Response = await mod[e.metodo](new NextRequest(`http://localhost:3000/api/${e.ruta.replace("[id]", ID)}${e.qs ?? ""}`, init), { params: e.params });
     const cerrada = res.status === 401 || res.status === 403;
     t(`${e.metodo} /api/${e.ruta} sin sesion`, cerrada && networkCalls === 0, `status ${res.status}, llamadas a la red: ${networkCalls}`);
   }
