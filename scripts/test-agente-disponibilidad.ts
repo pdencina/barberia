@@ -40,34 +40,34 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
 
 (async () => {
   await caso("Sí tiene la hora pedida (a las 3 = 15:00)", async () => {
-    assert.equal(await texto("matias tiene hora a las 3?", { "m|2026-11-03": ["15:00"] }), `Sí, *Matías Soto* tiene disponible hoy a las *15:00*.\n\n¿Deseas agendar? Elige aquí:\n${M}`);
+    assert.equal(await texto("matias tiene hora a las 3?", { "m|2026-11-03": ["15:00"] }), `Sí, *Matías Soto* tiene disponible hoy a las *15:00*.\n\n¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${M}`);
   });
   await caso("Sí tiene la hora y ofrece otras cercanas", async () => {
     const t = await texto("¿Matías tiene hora hoy a las 5?", { "m|2026-11-03": ["16:00", "17:00", "18:00", "19:00"] });
-    assert.equal(t, `Sí, *Matías Soto* tiene disponible hoy a las *17:00*.\n\nTambién tiene: 16:00 · 18:00 · 19:00\n\n¿Deseas agendar? Elige aquí:\n${M}`);
+    assert.equal(t, `Sí, *Matías Soto* tiene disponible hoy a las *17:00*.\n\nTambién tiene: 16:00 · 18:00 · 19:00\n\n¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${M}`);
   });
   await caso("No tiene esa hora: muestra las que le quedan y otro profesional disponible", async () => {
     const t = await texto("matias tiene hora a las 3?", { "m|2026-11-03": ["17:00", "18:00", "19:00"], "c|2026-11-03": ["15:00"] });
-    assert.equal(t, `A las 15:00 *Matías Soto* no tiene hora hoy.\nHoras más cercanas: 17:00 · 18:00 · 19:00\n\nOtros profesionales disponibles hoy:\n• *Camila Rojas*: 15:00\n\n¿Deseas agendar? Elige aquí:\n${M}\n\nO elige a otro profesional aquí:\n${GENERAL}`);
+    assert.equal(t, `A las 15:00 *Matías Soto* no tiene hora hoy.\nHoras más cercanas: 17:00 · 18:00 · 19:00\n\nOtros profesionales disponibles hoy:\n• *Camila Rojas*: 15:00\n\n¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${M}\n\nO elige a otro profesional aquí:\n${GENERAL}`);
   });
   await caso("Sin horas ese día: próxima disponibilidad propia y otros profesionales", async () => {
     const t = await texto("matias tiene hora hoy?", { "m|2026-11-04": ["10:00", "11:00"], "d|2026-11-03": ["16:00"] });
-    assert.equal(t, `*Matías Soto* no tiene horas disponibles hoy.\n\nSu próxima disponibilidad es mañana:\n10:00 · 11:00\n\nOtros profesionales disponibles hoy:\n• *Diego Fuentes*: 16:00\n\n¿Deseas agendar? Elige aquí:\n${M}\n\nO elige a otro profesional aquí:\n${GENERAL}`);
+    assert.equal(t, `*Matías Soto* no tiene horas disponibles hoy.\n\nSu próxima disponibilidad es mañana:\n10:00 · 11:00\n\nOtros profesionales disponibles hoy:\n• *Diego Fuentes*: 16:00\n\n¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${M}\n\nO elige a otro profesional aquí:\n${GENERAL}`);
   });
   await caso("Día cerrado: dice que no atiende", async () => {
     const t = await texto("matias tiene hora mañana", {}, datos(), { cerrado: ["m|2026-11-04"] });
     assert.ok(t!.startsWith("*Matías Soto* no atiende mañana."));
   });
   await caso("Sin hora pedida lista las disponibles del día", async () => {
-    assert.equal(await texto("tiene hora matias mañana?", { "m|2026-11-04": ["10:00", "11:30", "15:00"] }), `*Matías Soto* tiene disponible mañana:\n10:00 · 11:30 · 15:00\n\n¿Deseas agendar? Elige aquí:\n${M}`);
+    assert.equal(await texto("tiene hora matias mañana?", { "m|2026-11-04": ["10:00", "11:30", "15:00"] }), `*Matías Soto* tiene disponible mañana:\n10:00 · 11:30 · 15:00\n\n¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${M}`);
   });
   await caso("Sin profesional: quiénes tienen esa hora", async () => {
     const t = await texto("tienen hora mañana a las 4?", { "c|2026-11-04": ["16:00"], "v|2026-11-04": ["16:00", "17:00"] });
-    assert.equal(t, `A las *16:00* mañana tienen disponible:\n• *Camila Rojas*\n• *Valentina Paredes*\n\n¿Deseas agendar? Elige al profesional y la hora aquí:\n${GENERAL}`);
+    assert.equal(t, `A las *16:00* mañana tienen disponible:\n• *Camila Rojas*\n• *Valentina Paredes*\n\n¿Quieres que te agende? Dime con quién y a qué hora (por ejemplo: «Matías a las 19:00») y te pido tus datos.\nO reserva tú aquí: ${GENERAL}`);
   });
   await caso("Sin profesional ni hora: hay disponibilidad con", async () => {
     const t = await texto("tienen hora para mañana", { "c|2026-11-04": ["10:00", "11:00"] });
-    assert.equal(t, `Hay disponibilidad mañana:\n• *Camila Rojas*: 10:00 · 11:00\n\n¿Deseas agendar? Elige al profesional y la hora aquí:\n${GENERAL}`);
+    assert.equal(t, `Hay disponibilidad mañana:\n• *Camila Rojas*: 10:00 · 11:00\n\n¿Quieres que te agende? Dime con quién y a qué hora (por ejemplo: «Matías a las 19:00») y te pido tus datos.\nO reserva tú aquí: ${GENERAL}`);
   });
   await caso("Sin profesional: nadie ese día, busca los próximos días", async () => {
     const t = await texto("tienen hora hoy a las 3", { "d|2026-11-05": ["15:00"] });
@@ -89,7 +89,7 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
   });
   await caso("Franja: mañana en la tarde filtra por la tarde", async () => {
     const t = await texto("tiene hora matias mañana en la tarde", { "m|2026-11-04": ["10:00", "15:00", "16:00", "20:00"] });
-    assert.equal(t, `*Matías Soto* tiene disponible mañana:\n15:00 · 16:00\n\n¿Deseas agendar? Elige aquí:\n${M}`);
+    assert.equal(t, `*Matías Soto* tiene disponible mañana:\n15:00 · 16:00\n\n¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${M}`);
   });
   await caso("Interpretación de horas", async () => {
     const a: Agenda = { "m|2026-11-03": ["10:00", "13:00", "15:30", "17:00", "21:00", "09:00"] };
@@ -100,7 +100,7 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     assert.ok((await texto("mati tiene hora hoy a las 3", { "m|2026-11-03": ["15:00"] }))!.startsWith("Sí, *Matías Soto*"));
     const d = datos({ profesionales: [{ id: "g", nombre: "Javier García", link: "https://s.invalid/n/javier-garcia" }, { id: "s", nombre: "Javier Soto", link: "https://s.invalid/n/javier-soto" }] });
     const t = await texto("javier tiene hora hoy a las 4", { "g|2026-11-03": ["16:00"], "s|2026-11-03": ["16:00"] }, d);
-    assert.equal(t, `A las *16:00* hoy tienen disponible:\n• *Javier García*\n• *Javier Soto*\n\n¿Deseas agendar? Elige al profesional y la hora aquí:\n${GENERAL}`);
+    assert.equal(t, `A las *16:00* hoy tienen disponible:\n• *Javier García*\n• *Javier Soto*\n\n¿Quieres que te agende? Dime con quién y a qué hora (por ejemplo: «Matías a las 19:00») y te pido tus datos.\nO reserva tú aquí: ${GENERAL}`);
   });
   await caso("Tiempo base del profesional (30) o el de reserva por defecto (45)", async () => {
     const d = deps({});
@@ -132,17 +132,17 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
       "m|2026-11-03": ["15:15", "16:00", "16:45", "17:30", "18:15", "19:00"],
       "d|2026-11-03": ["16:00", "16:45", "17:30", "18:15"], "v|2026-11-03": ["16:00", "16:45", "17:30"], "c|2026-11-03": ["16:00", "16:45", "17:30", "18:15", "19:00"],
     });
-    assert.equal(t, `A las 17:00 *Matías Soto* no tiene hora hoy.\nHoras más cercanas: 16:00 · 16:45 · 17:30\n\nOtros profesionales disponibles hoy:\n• *Camila Rojas*: 16:00 · 16:45 · 17:30\n• *Diego Fuentes*: 16:00 · 16:45 · 17:30\n• *Valentina Paredes*: 16:00 · 16:45 · 17:30\n\n¿Deseas agendar? Elige aquí:\n${M}\n\nO elige a otro profesional aquí:\n${GENERAL}`);
+    assert.equal(t, `A las 17:00 *Matías Soto* no tiene hora hoy.\nHoras más cercanas: 16:00 · 16:45 · 17:30\n\nOtros profesionales disponibles hoy:\n• *Camila Rojas*: 16:00 · 16:45 · 17:30\n• *Diego Fuentes*: 16:00 · 16:45 · 17:30\n• *Valentina Paredes*: 16:00 · 16:45 · 17:30\n\n¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${M}\n\nO elige a otro profesional aquí:\n${GENERAL}`);
   });
   await caso("Sin horas ni próximos días: un solo mensaje claro, sin repetir", async () => {
-    assert.equal(await texto("valentina tiene hora hoy", {}), `*Valentina Paredes* no tiene horas disponibles hoy ni en los próximos días.\n\n¿Deseas agendar? Elige aquí:\nhttps://sintetico.invalid/negocio/valentina-paredes`);
+    assert.equal(await texto("valentina tiene hora hoy", {}), `*Valentina Paredes* no tiene horas disponibles hoy ni en los próximos días.\n\n¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: https://sintetico.invalid/negocio/valentina-paredes`);
   });
   await caso("Formato: nunca dice 'ese día' y cada link va solo en su línea", async () => {
     const a: Agenda = { "m|2026-11-03": ["16:00", "17:30"], "c|2026-11-04": ["10:00"], "d|2026-11-03": ["17:00"] };
     for (const msg of ["matias tiene hora hoy a las 5", "matias tiene hora mañana", "tienen hora hoy a las 3", "camila tiene hora hoy", "tienen hora el viernes"]) {
       const t = (await texto(msg, a))!;
       assert.ok(t && !/ese día/i.test(t), msg);
-      for (const linea of t.split("\n")) if (linea.includes("https://")) assert.ok(linea.startsWith("https://") && !linea.includes(" "), `${msg} :: ${linea}`);
+      for (const linea of t.split("\n")) if (linea.includes("https://")) assert.ok(/^(O reserva tú aquí: )?https:\/\/\S+$/.test(linea), `${msg} :: ${linea}`);
     }
   });
   await caso("Nunca repite el texto del cliente", async () => {

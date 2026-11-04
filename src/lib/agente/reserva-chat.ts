@@ -26,7 +26,7 @@ export interface DependenciasReserva {
 export type RespuestaReserva = { texto: string; derivar?: boolean } | null;
 
 const NEGATIVO = /^(?:no|nop|nel|ya no|no gracias|gracias no|cancelar|cancelo|cancela|olvidalo|dejalo|deja|mejor no|nada)\b/;
-const AFIRMATIVO = /^(?:si|dale|ok|okey|ya|listo|perfecto|esa|esa misma|me sirve|me interesa|la quiero|quiero esa|quiero agendar|agendala|agendame|agendame esa|reservala|reservame)\b/;
+const AFIRMATIVO = /^(?:si|dale|ok|okey|ya|listo|perfecto|esa|esa misma|me sirve|me interesa|la quiero|quiero esa|quiero agendar|agendala|agendame|agendame esa|reservala|reservame|confirmo|confirmado|confirmar|vale|claro|sii+|de acuerdo|quiero reservar|reservar|agendar|agendarme)\b/;
 const PARECE_CONSULTA = /\?|\b(tiene|tienen|hay|queda|quedan|disponible|disponibles|mañana|hoy|pasado|lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/;
 const CARACTERES = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ0-9\s.,;:@'’\-_+()/#]{1,200}$/;
 const CORREO = /[^\s@,;<>()]+@[^\s@,;<>()]+\.[^\s@,;<>()]{2,}/;
@@ -89,10 +89,14 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       for (const o of quien) if (exacta && o.horas.includes(exacta)) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: exacta });
       if (elegidas.length === 0) {
         const o = quien[0];
+        // Se queda solo con esa persona: así un "sí" o "la de las 19:00" ya sabe a quién se refiere.
+        await deps.guardarEstado({ etapa: "oferta", datos: { horaExacta: o.horas.length === 1 ? o.horas[0] : null, opciones: [o] } });
+        if (o.horas.length === 1) return { texto: `Con *${o.nombre}* ${textoDeFecha(o.fecha, hoy)} tengo *${o.horas[0]}*.\n\n¿Te la agendo? Responde *sí* y te pido tus datos.` };
         return { texto: `Con *${o.nombre}* ${textoDeFecha(o.fecha, hoy)} tengo: ${o.horas.slice(0, 6).join(" · ")}.\n\nEscríbeme la hora que prefieras, por ejemplo: «la de las ${o.horas[0]}».` };
       }
-    } else if (AFIRMATIVO.test(t) && estado.datos.horaExacta && op.length === 1 && op[0].horas.includes(estado.datos.horaExacta)) {
-      elegidas = [{ id: op[0].id, nombre: op[0].nombre, duracionMin: op[0].duracionMin, fecha: op[0].fecha, hora: estado.datos.horaExacta }];
+    } else if (AFIRMATIVO.test(t) && op.length === 1 && (estado.datos.horaExacta ? op[0].horas.includes(estado.datos.horaExacta) : op[0].horas.length === 1)) {
+      // "sí" cuando solo hay una hora posible (la consultada o la única que tiene esa persona).
+      elegidas = [{ id: op[0].id, nombre: op[0].nombre, duracionMin: op[0].duracionMin, fecha: op[0].fecha, hora: estado.datos.horaExacta ?? op[0].horas[0] }];
     } else return null;
     const conNombre = elegidas.filter((e) => nombreMencionado(t, e.nombre));
     if (conNombre.length > 0) elegidas = conNombre;
