@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { notify } from "@/lib/notify";
+import { cargarCredencialAbono, firmaValida } from "@/lib/deposit";
 
 /**
  * MercadoPago Webhook for deposit payments.
@@ -28,29 +29,35 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true }); // Acknowledge but ignore non-payment notifications
     }
 
-    // We need to find which tenant this payment belongs to
-    // The external_reference in the preference contains all booking data
-    // First, get payment details from MP to find the external_reference
-
-    // Try to get payment info - we need the access token
-    // Since we don't know which tenant yet, get all tokens and try
-    const { data: allSettings } = await supabase
-      .from("tenant_settings")
-      .select("tenant_id, mp_access_token")
-      .not("mp_access_token", "is", null);
+    // Los avisos nuevos traen el negocio y una firma (?t=&s=): se usa SU token, sin probar los de todos.
+    // Los avisos de links antiguos (sin firma) siguen buscando entre los negocios, como antes.
+    const url = new URL(req.url);
+    const firmado = firmaValida(url.searchParams.get("t"), url.searchParams.get("s")) ? url.searchParams.get("t") : null;
 
     let paymentData: any = null;
     let usedToken: string = "";
 
-    for (const setting of allSettings || []) {
-      if (!setting.mp_access_token) continue;
-      const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: { Authorization: `Bearer ${setting.mp_access_token}` },
-      });
-      if (res.ok) {
-        paymentData = await res.json();
-        usedToken = setting.mp_access_token;
-        break;
+    if (firmado) {
+      const cred = await cargarCredencialAbono(supabase, firmado);
+      if (cred.token) {
+        const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, { headers: { Authorization: `Bearer ${cred.token}` } });
+        if (res.ok) { paymentData = await res.json(); usedToken = cred.token; }
+      }
+    } else {
+      const { data: allSettings } = await supabase
+        .from("tenant_settings")
+        .select("tenant_id, mp_access_token")
+        .not("mp_access_token", "is", null);
+      for (const setting of allSettings || []) {
+        if (!setting.mp_access_token) continue;
+        const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+          headers: { Authorization: `Bearer ${setting.mp_access_token}` },
+        });
+        if (res.ok) {
+          paymentData = await res.json();
+          usedToken = setting.mp_access_token;
+          break;
+        }
       }
     }
 
@@ -87,6 +94,15 @@ export async function POST(req: NextRequest) {
       depositAmount,
       tenantId,
     } = bookingData;
+
+    // El negocio de la reserva tiene que ser el del aviso firmado (no se puede usar el pago de un negocio para reservar en otro).
+    if (firmado && tenantId !== firmado) {
+      console.error("Deposit webhook: el negocio de la reserva no coincide con el del aviso", paymentId);
+      return NextResponse.json({ ok: true });
+    }
+    // Idempotencia: Mercado Pago puede avisar varias veces del mismo pago; no se crea otra cita.
+    const { data: yaCreada } = await supabase.from("appointments").select("id").eq("deposit_payment_id", String(paymentId)).limit(1).maybeSingle();
+    if (yaCreada) return NextResponse.json({ ok: true });
 
     // Find or create client
     let clientId: string | null = null;
@@ -156,6 +172,11 @@ export async function POST(req: NextRequest) {
     if (apptError) {
       console.error("Deposit webhook: error creating appointment", apptError);
       return NextResponse.json({ ok: true });
+    }
+
+    // Registro del abono recibido (historial y control de duplicados). Si aun no esta la migracion 131, se omite.
+    if (appointment) {
+      await supabase.from("booking_deposits").insert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: appointment.id, amount: Math.round(Number(depositAmount) || 0), status: "approved", payer_email: clientEmail || null }).then(() => {}, () => {});
     }
 
     // Create appointment_services
