@@ -1,4 +1,6 @@
 import { responderFaq, type DatosFaq } from "./faq-fija";
+import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
+import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
 import { fetchAllRows } from "../accounting";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
@@ -24,7 +26,18 @@ export interface DependenciasWebhook {
   repo: RepositorioWebhook;
   ahora: () => number;
   datosDelNegocio?: (tenantId: string) => Promise<DatosFaq | null>;
+  // Horas libres de un profesional (misma regla que la reserva web). Sin esto no se atiende la consulta de disponibilidad.
+  horasLibres?: DependenciasDisponibilidad["horasLibres"];
   negocioInactivo?: (tenantId: string) => Promise<boolean>;
+  // Reserva por chat: memoria mínima del contacto (30 min), creación de la cita e indicadores. Sin esto no se agenda por chat.
+  chat?: {
+    leerEstado: (tenantId: string, contactHash: string, ahora: number) => Promise<EstadoChat | null>;
+    guardarEstado: (tenantId: string, contactHash: string, estado: EstadoChat, expiraMs: number) => Promise<void>;
+    borrarEstado: (tenantId: string, contactHash: string) => Promise<void>;
+    reservasFuturas: (tenantId: string, telefono: string, ahora: number) => Promise<number>;
+    crearReserva: (tenantId: string, a: { profesionalId: string; fecha: string; hora: string; servicioId: string; nombre: string; correo: string; telefono: string }) => Promise<ResultadoCreacion>;
+    contar: (tenantId: string, campo: CampoIndicador, ahora: number) => Promise<void>;
+  };
   accion: (tipo: "confirmar" | "cancelar", c: { tenantId: string; clienteId: string; referenciaRecordatorio: string }) => Promise<ResultadoAccionCita>;
   responder: (negocio: NegocioWebhook, para: string, texto: string) => Promise<unknown>;
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
@@ -32,6 +45,10 @@ export interface DependenciasWebhook {
 export class MigracionWebhookPendiente extends Error { constructor() { super("Falta aplicar la migración del webhook"); } }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const hour = 60 * 60 * 1000;
+const conTiempoMaximo = <T,>(promesa: Promise<T>, ms: number) => new Promise<T>((resolve, reject) => {
+  const t = setTimeout(() => reject(new Error("tiempo agotado")), ms);
+  promesa.then((v) => { clearTimeout(t); resolve(v); }, (e) => { clearTimeout(t); reject(e); });
+});
 
 export function crearManejadoresWebhook(config: {
   secretoFirma?: string; tokenVerificacion?: string; salHashes?: string;
@@ -67,8 +84,8 @@ export function crearManejadoresWebhook(config: {
             if (!para) { totals.omitidos++; continue; }
             const eventKey = crearClaveEventoEntrante({tenantId:n.tenantId,referenciaProveedor:p.id});
             // No se guarda texto: HMAC evita diccionarios de frases frecuentes sobre el hash.
-            // Texto de tipo "text" demasiado largo llega como null: se usa un valor fijo para que sus repeticiones sigan contando como idénticas.
-            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,text ?? (p.tipo === "text" ? "__texto_omitido__" : p.id)])).digest("hex");
+            // Un texto que excede la memoria del extractor no trae contenido: se agrupa bajo un marcador fijo para que el límite de repetidos lo alcance.
+            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,text ?? (p.tipo === "text" ? "texto-fuera-de-memoria" : p.id)])).digest("hex");
             const ahora = deps.ahora();
             const admitted = await deps.repo.admitir({key:eventKey,tenantId:n.tenantId,contactHash:p.remitenteHash,messageHash,ahora});
             if (admitted.repetido) { totals.repetidos++; continue; }
@@ -81,6 +98,11 @@ export function crearManejadoresWebhook(config: {
             const current = await deps.repo.negocio(n.phoneNumberId);
             if (!current?.enabled || current.tenantId !== n.tenantId) { await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue; }
             const tipo = clasificarRespuestaCliente(text);
+            // Negocio inactivo o suspendido: no se responde ni se avisa. Solo se conserva una baja pedida por el cliente.
+            if (deps.negocioInactivo && await deps.negocioInactivo(n.tenantId)) {
+              if (tipo === "no_quiero_mensajes") await deps.repo.guardarBaja(n.tenantId,p.remitenteHash);
+              await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue;
+            }
             const responder = async (body: string, acuseBaja = false) => {
               if (!acuseBaja && await deps.repo.baja(n.tenantId,p.remitenteHash)) return;
               const vigente = await deps.repo.negocio(n.phoneNumberId);
@@ -103,19 +125,59 @@ export function crearManejadoresWebhook(config: {
                 await responder(tipo === "confirmar" ? "Tu cita está confirmada." : "Tu cita está cancelada.");
               } else {
                 let respuestaFaq: string | null = null;
-                if (tipo === "desconocido" && p.tipo === "text" && typeof text === "string" && deps.datosDelNegocio) {
+                let derivarChat = false;
+                const chat = deps.chat;
+                const contar = async (c: CampoIndicador) => { if (chat) { try { await chat.contar(n.tenantId,c,deps.ahora()); } catch { /* indicador: no debe romper la respuesta */ } } };
+                if (p.tipo === "text" && typeof text === "string" && deps.datosDelNegocio && (tipo === "desconocido" || chat)) {
                   const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
                     : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                   if (!ref) {
                     // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
-                    // Negocio inactivo o suspendido: no se responde nada ni se avisa. Un error de lectura NO cuenta como inactivo.
-                    if (deps.negocioInactivo && await deps.negocioInactivo(n.tenantId)) { await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue; }
-                    const faq = responderFaq(text,await deps.datosDelNegocio(n.tenantId));
-                    if (faq.tipo === "respuesta") respuestaFaq = faq.texto;
+                    const datosNegocio = await deps.datosDelNegocio(n.tenantId);
+                    // 1) Conversación de reserva en curso (elegir hora, enviar datos).
+                    if (chat) {
+                      try {
+                        const rc = await manejarReservaChat(text,para,datosNegocio,{
+                          ahora: deps.ahora,
+                          leerEstado: () => chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()),
+                          guardarEstado: (e) => chat.guardarEstado(n.tenantId,p.remitenteHash,e,deps.ahora() + VIGENCIA_MIN * 60000),
+                          borrarEstado: () => chat.borrarEstado(n.tenantId,p.remitenteHash),
+                          reservasFuturas: (tel) => chat.reservasFuturas(n.tenantId,tel,deps.ahora()),
+                          crearReserva: (a) => chat.crearReserva(n.tenantId,a),
+                          contar,
+                        });
+                        if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; }
+                      } catch { /* memoria o agenda no disponible: se sigue como antes */ }
+                    }
+                    if (respuestaFaq === null && tipo === "desconocido") {
+                      // 2) Consulta de disponibilidad ("¿Matías tiene hora a las 3?"); si no aplica o falla, la FAQ.
+                      if (deps.horasLibres) {
+                        try {
+                          const d = await conTiempoMaximo(responderDisponibilidad(text,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres}),6000);
+                          if (d.tipo === "respuesta") {
+                            respuestaFaq = d.texto;
+                            await contar("consultas_disponibilidad");
+                            if (chat && d.oferta) {
+                              try { await chat.guardarEstado(n.tenantId,p.remitenteHash,{ etapa: "oferta", datos: d.oferta },deps.ahora() + VIGENCIA_MIN * 60000); await contar("ofertas_horas"); } catch { /* sin memoria: igual se muestra la respuesta */ }
+                            }
+                          }
+                        } catch { /* agenda no disponible o demora: se sigue con la FAQ */ }
+                      }
+                      if (respuestaFaq === null) {
+                        const faq = responderFaq(text,datosNegocio);
+                        if (faq.tipo === "respuesta") { respuestaFaq = faq.texto; await contar("respuestas_automaticas"); }
+                      }
+                    }
                   }
                 }
-                if (respuestaFaq !== null) await responder(respuestaFaq);
-                else {
+                if (respuestaFaq !== null) {
+                  await responder(respuestaFaq);
+                  if (derivarChat) {
+                    await contar("derivadas_persona");
+                    if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
+                  }
+                } else {
+                  await contar("derivadas_persona");
                   await responder("Te contactará una persona.");
                   if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
                 }

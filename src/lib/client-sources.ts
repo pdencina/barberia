@@ -19,6 +19,7 @@ export const BUILTIN_SOURCES: SourceOption[] = [
 // Todas las etiquetas conocidas, incluidas las que no se ofrecen (se crean solas o son historicas).
 export const SOURCE_LABELS: Record<string, string> = {
   link: "Reserva por link",
+  whatsapp_agente: "Agente de WhatsApp",
   ...Object.fromEntries(BUILTIN_SOURCES.map((s) => [s.code, s.label])),
   manual: "Agendado manualmente (registro anterior)",
   unknown: "Sin registrar",
