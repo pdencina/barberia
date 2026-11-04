@@ -76,7 +76,7 @@ function fixture(){
    referencia:async()=>null,referenciaAlternativa:async()=>null,
   },
   datosDelNegocio:async tenant=>{flags.datosLeidos++;const r=await comercial.datosDelNegocio(tenant);if(flags.bajaAlLeer)flags.baja=true;if(flags.apagarAlLeer)flags.enabled=false;return r;},
-  negocioInactivo:async t=>{const r=tablas.tenants.find(x=>x.id===t);if(!r)throw new Error("Estado del negocio no disponible");return r.active!==true||r.status==="suspended";},
+  negocioInactivo:async t=>{if(await comercial.negocioInactivo(t))return true;const r=tablas.tenants.find(x=>x.id===t);if(!r)throw new Error("Estado del negocio no disponible");return r.active!==true||r.status==="suspended";},
   accion:async(...args)=>{acciones.push(args);return {motivo:"ok"};},responder:async(n,_para,texto)=>{enviados.push({tenant:n.tenantId,texto});},avisarAdministrador:async t=>{avisos.push(t);},
  };
  const handler=crearManejadoresWebhook({secretoFirma:firma,salHashes:sal,crearDependencias:()=>deps});
