@@ -77,8 +77,7 @@ const handlers = () => crearManejadoresWebhook({
         if (usados.error) return null;
         const total = (usados.data ?? []).reduce((a: number, r: any) => a + Number(r.total || 0), 0);
         if (total >= (typeof c.data.limite_mensual === "number" ? c.data.limite_mensual : TOPE_IA_POR_DEFECTO)) return null;
-        const enlaces = [datosNegocio?.negocio.linkReserva, ...(datosNegocio?.profesionales ?? []).map((p) => p.link)].filter((x): x is string => typeof x === "string");
-        const r = await responderConIA(texto, { contexto: c.data.contexto, nombreNegocio: datosNegocio?.negocio.nombre ?? null, enlacesPermitidos: enlaces }, {
+        const r = await responderConIA(texto, { contexto: c.data.contexto, nombreNegocio: datosNegocio?.negocio.nombre ?? null }, {
           llamar: async ({ modelo, sistema, usuario, maxTokens }) => {
             const res = await fetch("https://api.anthropic.com/v1/messages", {
               method: "POST", headers: { "x-api-key": llave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
