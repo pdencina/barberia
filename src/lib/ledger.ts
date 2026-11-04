@@ -111,11 +111,14 @@ export async function computeProMonths(
   // Las consultas que no dependen unas de otras arrancan JUNTAS (antes iban una tras otra y la pantalla tardaba mucho).
   const run = (b: PromiseLike<any>): Promise<any> => Promise.resolve(b);
   // Ventas del mes de estos profesionales (sin los "[AJUSTE MANUAL]" antiguos: ahora viven en el libro).
-  const txsP = fetchAllRows<any>(() =>
-    supabase.from("transactions").select("id, barber_id, total, tip_amount, notes, payment_method, created_at")
+  // prepaid_amount (migracion 135): abono pagado al reservar; la comision se calcula sobre el precio completo.
+  const txsQ = (cols: string) => fetchAllRows<any>(() =>
+    supabase.from("transactions").select(cols)
       .eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed")
       .in("barber_id", ids).gte("created_at", startUtc).lt("created_at", endUtc)
-  ).catch(() => [] as any[]);
+  );
+  const baseCols = "id, barber_id, total, tip_amount, notes, payment_method, created_at";
+  const txsP = txsQ(baseCols + ", prepaid_amount").catch(() => txsQ(baseCols)).catch(() => [] as any[]);
   const ledgerP = run(supabase.from("professional_ledger").select("*")
     .eq("tenant_id", tenantId).eq("month", first).eq("status", "active").order("created_at", { ascending: true }));
   const settlementsP = run(supabase.from("professional_settlements").select("*")
@@ -232,7 +235,7 @@ export async function computeProMonths(
   const serviceSalesByBarber = new Map<string, number>();
   const tipsByBarber = new Map<string, number>();
   for (const t of sales) {
-    const svc = Math.max(0, Number(t.total) - (productSalesByTx.get(t.id) || 0));
+    const svc = Math.max(0, Number(t.total) + (Number(t.prepaid_amount) || 0) - (productSalesByTx.get(t.id) || 0));
     serviceSalesByBarber.set(t.barber_id, (serviceSalesByBarber.get(t.barber_id) || 0) + svc);
     tipsByBarber.set(t.barber_id, (tipsByBarber.get(t.barber_id) || 0) + (Number(t.tip_amount) || 0));
   }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { HORAS_DEVOLUCION, textoPoliticaAbono, type PoliticaAbono } from "@/lib/deposit-policy";
 import { useToast } from "@/components/ui/toast";
 import { formatCurrency } from "@/lib/utils";
 import { calcularAbono } from "@/lib/deposit-calc";
@@ -19,6 +20,8 @@ export function CobrosOnlineCard({ tenantId }: { tenantId: string }) {
   const [porcentaje, setPorcentaje] = useState(30);
   const [fijo, setFijo] = useState("");
   const [horas, setHoras] = useState(24);
+  const [politica, setPolitica] = useState<PoliticaAbono | "">("");
+  const [horasDev, setHorasDev] = useState(24);
   const [mensaje, setMensaje] = useState("Este servicio requiere un abono para confirmar tu cita.");
   const [guardando, setGuardando] = useState(false);
   const [probando, setProbando] = useState(false);
@@ -31,6 +34,7 @@ export function CobrosOnlineCard({ tenantId }: { tenantId: string }) {
     fetch(`/api/settings/deposit?tenantId=${tenantId}`, { cache: "no-store" }).then((r) => r.json()).then((d) => {
       setActivo(!!d.deposit_enabled); setModo(d.deposit_mode === "fixed" ? "fixed" : "percent"); setPorcentaje(d.deposit_percentage || 30);
       setFijo(d.deposit_fixed_amount ? String(d.deposit_fixed_amount) : ""); setHoras(d.cancellation_free_hours ?? 24);
+      setPolitica(d.deposit_refund_policy || ""); setHorasDev(d.deposit_refund_hours || 24);
       if (d.deposit_message) setMensaje(d.deposit_message);
     }).catch(() => {});
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -54,7 +58,7 @@ export function CobrosOnlineCard({ tenantId }: { tenantId: string }) {
   const guardar = async () => {
     setGuardando(true);
     try {
-      const res = await fetch("/api/settings/deposit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId, deposit_enabled: activo, deposit_mode: modo, deposit_percentage: porcentaje, deposit_fixed_amount: modo === "fixed" ? Number(fijo.replace(/\D/g, "")) : null, cancellation_free_hours: horas, deposit_message: mensaje }) });
+      const res = await fetch("/api/settings/deposit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId, deposit_enabled: activo, deposit_mode: modo, deposit_percentage: porcentaje, deposit_fixed_amount: modo === "fixed" ? Number(fijo.replace(/\D/g, "")) : null, cancellation_free_hours: politica === "until_hours" ? horasDev : horas, deposit_refund_policy: politica || null, deposit_refund_hours: horasDev, deposit_message: mensaje }) });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { showToast(d?.error || "No se pudo guardar", "error"); return; }
       showToast("Abono guardado", "success");
@@ -142,10 +146,18 @@ export function CobrosOnlineCard({ tenantId }: { tenantId: string }) {
               </label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              <div><label className="mb-1 block text-xs font-medium text-brand-gray">Cancelación gratis hasta</label>
-                <select value={horas} onChange={(e) => setHoras(parseInt(e.target.value))} className={input}>{[2, 6, 12, 24, 48, 72].map((h) => <option key={h} value={h}>{h} horas antes</option>)}</select></div>
               <div><label className="mb-1 block text-xs font-medium text-brand-gray">Mensaje al cliente</label>
                 <input value={mensaje} maxLength={300} onChange={(e) => setMensaje(e.target.value)} className={input} /></div>
+            </div>
+            <div className="rounded-xl border border-gray-100 dark:border-gray-800 p-3 space-y-2">
+              <p className="text-sm font-semibold text-brand-dark">Política de devolución <span className="text-xs font-normal text-brand-gray">(obligatoria; el cliente la ve antes de pagar)</span></p>
+              {([["none", "No se devuelve el abono"], ["until_hours", "Se devuelve si cancela con anticipación"], ["always", "Se devuelve siempre que cancele"]] as const).map(([v, t]) => (
+                <label key={v} className="flex cursor-pointer items-center gap-2 text-sm text-brand-dark"><input type="radio" name="pol-abono" checked={politica === v} onChange={() => setPolitica(v)} />{t}</label>
+              ))}
+              {politica === "until_hours" && (
+                <select value={horasDev} onChange={(e) => setHorasDev(parseInt(e.target.value))} className={input}>{HORAS_DEVOLUCION.map((h) => <option key={h} value={h}>{h >= 48 && h % 24 === 0 ? `${h / 24} días` : `${h} horas`} antes de la cita</option>)}</select>
+              )}
+              {politica && <p className="text-[11px] text-brand-gray">El cliente verá: «{textoPoliticaAbono(politica, horasDev)}»</p>}
             </div>
             <p className="rounded-xl border border-brand-blue/20 bg-brand-blue/5 text-brand-dark p-3 text-xs"><b>Ejemplo:</b> un servicio de {formatCurrency(ejemploTotal)} → el cliente paga <b>{formatCurrency(ejemplo)}</b> al agendar y el resto en el local.</p>
           </>
