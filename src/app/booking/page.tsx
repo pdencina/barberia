@@ -6,6 +6,7 @@ import BusinessProfile, { type BusinessInfo } from "@/components/booking/busines
 import TimeFirstFlow, { type TimePick } from "@/components/booking/time-first-flow";
 import { formatCurrency } from "@/lib/utils";
 import { SuccessMark } from "@/components/ui/empty-state";
+import { textoPoliticaAbono } from "@/lib/deposit-policy";
 
 interface Service {
   id: string;
@@ -105,6 +106,7 @@ export default function BookingPage() {
   const [depositMode, setDepositMode] = useState<"percent" | "fixed">("percent");
   const [depositFixed, setDepositFixed] = useState<number | null>(null);
   const [depositMessage, setDepositMessage] = useState("");
+  const [depositPolicy, setDepositPolicy] = useState("");
 
   // Computed totals
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
@@ -160,6 +162,7 @@ export default function BookingPage() {
               setDepositMode(dep.deposit_mode === "fixed" ? "fixed" : "percent");
               setDepositFixed(dep.deposit_fixed_amount ?? null);
               setDepositMessage(dep.deposit_message || "");
+              setDepositPolicy(textoPoliticaAbono(dep.deposit_refund_policy, dep.deposit_refund_hours));
             }
           }).catch(() => {});
         }
@@ -893,6 +896,7 @@ export default function BookingPage() {
                     <span className="text-base font-bold text-brand-blue">{formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}</span>
                   </div>
                   <p className="mt-1 text-[11px] leading-relaxed text-brand-gray">{depositMessage || "Se cobra al confirmar la reserva. El resto se paga en el local."}</p>
+                  {depositPolicy && <p className="mt-1 text-[10px] leading-snug text-brand-gray/80">{depositPolicy}</p>}
                 </div>
               )}
             </div>

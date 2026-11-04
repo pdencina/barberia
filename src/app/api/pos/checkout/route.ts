@@ -78,11 +78,12 @@ export async function POST(req: NextRequest) {
     tenant_id: tenantId,
     created_by: issuedBy,
     origin,
+    ...(abono > 0 ? { prepaid_amount: abono } : {}),
   };
   let { data: tx, error } = await supabase.from("transactions").insert(txRow).select().single();
-  if (error && /origin|created_by/i.test(error.message)) {
+  if (error && /origin|created_by|prepaid_amount/i.test(error.message)) {
     // Migraciones 090/097 aun no aplicadas: se guarda la venta igual, sin esos datos.
-    const { origin: _o, created_by: _c, ...legacy } = txRow;
+    const { origin: _o, created_by: _c, prepaid_amount: _p, ...legacy } = txRow;
     ({ data: tx, error } = await supabase.from("transactions").insert(legacy).select().single());
   }
   if (error || !tx) return NextResponse.json({ error: error?.message || "No se pudo registrar la venta" }, { status: 500 });
