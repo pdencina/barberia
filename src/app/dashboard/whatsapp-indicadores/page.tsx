@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight, MessageCircle, CalendarCheck, Percent, UserRound } from "lucide-react";
 import { PageHeader, Panel } from "@/components/ui/premium";
 
-interface Periodo { mes: string; respuestas_automaticas: number; consultas_disponibilidad: number; ofertas_horas: number; reservas_iniciadas: number; reservas_cerradas: number; derivadas_persona: number; citas_whatsapp: number; citas_completadas: number; citas_canceladas: number; conversion_pct: number | null }
+interface Periodo { mes: string; respuestas_automaticas: number; consultas_disponibilidad: number; ofertas_horas: number; reservas_iniciadas: number; reservas_cerradas: number; derivadas_persona: number; respuestas_ia: number; citas_whatsapp: number; citas_completadas: number; citas_canceladas: number; conversion_pct: number | null }
 type Num = Exclude<keyof Periodo, "mes" | "conversion_pct">;
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
