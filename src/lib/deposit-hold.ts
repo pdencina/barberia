@@ -5,8 +5,8 @@ import { isOnVacation } from "@/lib/vacations";
 import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
 
 // Mientras el cliente paga el abono, su horario queda bloqueado (la cita recien se crea cuando el pago se aprueba).
-// El bloqueo vence solo: si no paga, el horario vuelve a estar libre.
-export const HOLD_MINUTOS = 32; // un poco mas que los 30 min que Mercado Pago deja abierto el link de pago
+// El bloqueo vence solo a los 3:30: si no paga, el horario vuelve a estar libre.
+export const HOLD_SEGUNDOS = 210; // 3 min 30 s: es lo que tiene el cliente para pagar; si no paga, el horario se libera y no queda nada bloqueado
 const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 
 // ¿El horario sigue libre? (vacaciones, dias permitidos, bloqueos —incluidos los de otros que estan pagando— y citas).
@@ -37,14 +37,15 @@ export async function limpiarHoldsVencidos(supabase: any, f?: { barberId?: strin
 }
 
 // Bloquea el horario mientras se paga. Devuelve la referencia, o null si no se pudo (sin la migracion 132 todo sigue como antes, sin bloqueo).
-export async function crearHold(supabase: any, o: { barberId: string; date: string; start: Date; end: Date }): Promise<string | null> {
+export async function crearHold(supabase: any, o: { barberId: string; date: string; start: Date; end: Date }): Promise<{ ref: string; expira: Date } | null> {
   const ref = randomUUID();
+  const expira = new Date(Date.now() + HOLD_SEGUNDOS * 1000);
   const { error } = await supabase.from("barber_blocks").insert({
     barber_id: o.barberId, date: o.date, all_day: false,
     start_time: hhmm(o.start.getUTCHours() * 60 + o.start.getUTCMinutes()), end_time: hhmm(o.end.getUTCHours() * 60 + o.end.getUTCMinutes()),
-    reason: "Reserva en pago (abono)", hold_ref: ref, hold_expires_at: new Date(Date.now() + HOLD_MINUTOS * 60_000).toISOString(),
+    reason: "Reserva en pago (abono)", hold_ref: ref, hold_expires_at: expira.toISOString(),
   });
-  return error ? null : ref;
+  return error ? null : { ref, expira };
 }
 
 export async function liberarHold(supabase: any, ref: string | null | undefined): Promise<void> {

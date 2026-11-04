@@ -25,3 +25,13 @@ export async function leerIntento(supabase: any, referencia: string | null | und
   }
   try { const j = JSON.parse(raw); return j && typeof j === "object" ? j : null; } catch { return null; }
 }
+
+// Estado de una reserva en espera de pago, para que la pagina de reservas muestre el contador y la confirmacion.
+export type EstadoPago = { estado: "esperando"; segundosRestantes: number } | { estado: "pagado"; appointmentId: string | null } | { estado: "conflicto" } | { estado: "vencido" };
+export function estadoReservaEnPago(data: Record<string, any> | null | undefined, creadoEn: string | Date, ahora: number, segundosDeCobro: number, gracia = 45): EstadoPago {
+  if (data?.resultado === "pagado") return { estado: "pagado", appointmentId: data.appointmentId || null };
+  if (data?.resultado === "conflicto") return { estado: "conflicto" };
+  const transcurrido = (ahora - new Date(creadoEn).getTime()) / 1000;
+  if (transcurrido > segundosDeCobro + gracia) return { estado: "vencido" }; // la gracia cubre un pago hecho justo al final, cuyo aviso llega unos segundos despues
+  return { estado: "esperando", segundosRestantes: Math.max(0, Math.round(segundosDeCobro - transcurrido)) };
+}
