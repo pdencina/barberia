@@ -1,6 +1,7 @@
 import { fetchAllRows } from "../accounting";
 import { tenantBookingUrl } from "../retention";
 import type { DatosFaq } from "./faq-fija";
+import { preguntaPropiaValida } from "./faq-extra";
 export interface DatosNegocio extends DatosFaq {}
 class EsquemaAusente extends Error {}
 const revisar=(r:any)=>{
@@ -113,7 +114,13 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
       }
      }
     }catch{profesionales=null;}
-    return {negocio:{nombre:texto(t.name),direccion:texto(t.address),telefono:texto(t.phone),linkReserva},horario,servicios:catalogo,sucursales,profesionales};
+    // Preguntas y respuestas escritas por el administrador (migración 011). Si falta la tabla o falla, se sigue sin ellas.
+    let personalizadas:DatosNegocio["personalizadas"]=null;
+    try{
+     const r=await db.from("agent_faq_custom").select("id,claves,respuesta").eq("tenant_id",tenantId).eq("activo",true).order("orden",{ascending:true}).limit(200);
+     if(!r.error&&Array.isArray(r.data))personalizadas=r.data.filter(preguntaPropiaValida);
+    }catch{personalizadas=null;}
+    return {negocio:{nombre:texto(t.name),direccion:texto(t.address),telefono:texto(t.phone),linkReserva},horario,servicios:catalogo,sucursales,profesionales,personalizadas};
    }catch{return null;} // Error operativo no se disfraza de dato conocido ni se serializa en logs.
   },
  };

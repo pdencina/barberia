@@ -7,9 +7,12 @@ export interface DatosFaq {
  // Profesionales que se pueden reservar y su link personal (re-booking.cl/<negocio>/<profesional>); null = no disponible.
  // id y duracionMin (tiempo base del profesional) los usa la consulta de disponibilidad.
  profesionales?:{id?:string;nombre:string;link:string;duracionMin?:number|null}[]|null;
+ // Preguntas y respuestas que escribe el administrador (curso, políticas, cómo llegar...). Tienen prioridad sobre las reglas fijas.
+ personalizadas?:{id:string;claves:string[];respuesta:string}[]|null;
 }
+import { responderPersonalizadas, responderExtra } from "./faq-extra";
 export type IntencionFaq="horario"|"direccion"|"telefono"|"precio_servicio"|"servicios"|"agendar";
-export type ResultadoFaq={tipo:"respuesta";intencion:IntencionFaq;texto:string}|{tipo:"traspaso";motivo:"mensaje_no_admitido"|"sin_intencion"|"datos_incompletos"|"coincidencia_ambigua"};
+export type ResultadoFaq={tipo:"respuesta";intencion:IntencionFaq|"personalizada";texto:string}|{tipo:"traspaso";motivo:"mensaje_no_admitido"|"sin_intencion"|"datos_incompletos"|"coincidencia_ambigua"};
 const traspaso=(motivo:Extract<ResultadoFaq,{tipo:"traspaso"}>["motivo"]):ResultadoFaq=>({tipo:"traspaso",motivo});
 // Solo retira marcas en vocales. La ñ sigue siendo otra letra, igual que en respuesta-cliente.
 export const normalizar=(s:string)=>s.normalize("NFC").toLowerCase().normalize("NFD").replace(/([aeiou])[\u0300-\u036f]+/g,"$1").normalize("NFC").trim().replace(/\s+/g," ");
@@ -169,16 +172,22 @@ const MAX_PREGUNTAS=3;
 export function responderFaq(texto:unknown,datos:DatosFaq|null):ResultadoFaq{
  if(typeof texto!=="string"||!texto.trim()||texto.length>160||formatosOcultos.test(texto))return traspaso("mensaje_no_admitido");
  const completo=normalizar(texto);
- if(instrucciones.test(completo)||excluido.test(completo)||/(^|[^a-zñ0-9_])(no|nunca|jamas|tampoco|ni)(?=$|[^a-zñ0-9_])/.test(completo))return traspaso("mensaje_no_admitido");
+ if(instrucciones.test(completo))return traspaso("mensaje_no_admitido");
+ // Las respuestas que escribió el administrador pasan antes de los temas que se derivan (abono, pagos...): él decidió qué responder.
+ const propia=responderPersonalizadas(completo,datos?.personalizadas);
+ if(propia!==null)return {tipo:"respuesta",intencion:"personalizada",texto:propia};
+ if(excluido.test(completo)||/(^|[^a-zñ0-9_])(no|nunca|jamas|tampoco|ni)(?=$|[^a-zñ0-9_])/.test(completo))return traspaso("mensaje_no_admitido");
  const unica=resolverUna(limpiar(completo),datos);
+ // Reglas con datos del negocio (link por profesional, horario por día, servicios, ubicación): solo si no se pudo leer como pregunta conocida ni separar en varias.
+ const respaldo=():ResultadoFaq=>{if(unica.tipo==="traspaso"&&unica.motivo!=="mensaje_no_admitido"){const extra=responderExtra(completo,datos);if(extra)return {tipo:"respuesta",intencion:extra.intencion,texto:extra.texto};}return unica;};
  // Si la lectura de una sola pregunta respondió (o el mensaje no es admitido), se queda así; si derivó, se prueba separar varias preguntas.
  if(unica.tipo==="respuesta"||unica.motivo==="mensaje_no_admitido")return unica;
  const partes=limpiar(completo).split(separadores).map(limpiar).filter(Boolean);
- if(partes.length<2||partes.length>MAX_PREGUNTAS)return unica;
- const textos:string[]=[];let primera:IntencionFaq|null=null;
+ if(partes.length<2||partes.length>MAX_PREGUNTAS)return respaldo();
+ const textos:string[]=[];let primera:IntencionFaq|"personalizada"|null=null;
  for(const parte of partes){
   const r=resolverUna(parte,datos);
-  if(r.tipo!=="respuesta")return unica; // si una parte falla, se conserva el resultado original de derivar
+  if(r.tipo!=="respuesta")return respaldo(); // si una parte falla, se conserva el resultado original de derivar
   // Una repregunta ("¿de qué sucursal?", "escribe el nombre completo") no se mezcla con otras respuestas: lo ve una persona.
   if(/^(?:¿De qué sucursal|Hay más de un profesional)/.test(r.texto))return traspaso("coincidencia_ambigua");
   primera=primera??r.intencion;
