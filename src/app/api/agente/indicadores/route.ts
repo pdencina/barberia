@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest, isManagerLevel } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-const CAMPOS = ["respuestas_automaticas", "consultas_disponibilidad", "ofertas_horas", "reservas_iniciadas", "reservas_cerradas", "derivadas_persona"] as const;
+const CAMPOS = ["respuestas_automaticas", "consultas_disponibilidad", "ofertas_horas", "reservas_iniciadas", "reservas_cerradas", "derivadas_persona", "respuestas_ia"] as const;
 const MES = /^\d{4}-(0[1-9]|1[0-2])$/;
 const sumar = (mes: string, n: number) => { const [y, m] = mes.split("-").map(Number); const d = new Date(Date.UTC(y, m - 1 + n, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`; };
 

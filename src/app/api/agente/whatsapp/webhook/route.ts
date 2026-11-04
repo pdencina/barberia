@@ -6,6 +6,7 @@ import { enviarTexto } from "@/lib/agente/whatsapp-meta";
 import { POST as reservaPublica } from "@/app/api/public/book/route";
 import { ahoraChile } from "@/lib/agente/disponibilidad";
 import { formatPhoneCL } from "@/lib/phone";
+import { responderConIA, TOPE_IA_POR_DEFECTO, MODELO_IA } from "@/lib/agente/ia-respuesta";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getResendClient } from "@/lib/resend-client";
 import { resolverRemitente } from "@/lib/agente/informe-diario-email";
@@ -64,6 +65,34 @@ const handlers = () => crearManejadoresWebhook({
           return { ok: false, motivo: "otro" };
         },
         contar: async (tenantId, campo, ahora) => { await db.rpc("agent_whatsapp_contar", { p_tenant: tenantId, p_dia: ahoraChile(ahora).fecha, p_campo: campo }); },
+      },
+      // Modo Avanzado (IA): solo si el negocio lo activó, hay llave y no se pasó del tope del mes. Falla cerrado: ante cualquier duda, null.
+      ia: async (tenantId, texto, datosNegocio) => {
+        const llave = process.env.ANTHROPIC_API_KEY;
+        if (!llave) return null;
+        const c = await db.from("agent_ai_context").select("contexto,ia_activa,limite_mensual").eq("tenant_id", tenantId).maybeSingle();
+        if (c.error || !c.data || c.data.ia_activa !== true || typeof c.data.contexto !== "string") return null;
+        const mes = ahoraChile(Date.now()).fecha.slice(0, 7);
+        const usados = await db.from("agent_whatsapp_indicadores").select("total").eq("tenant_id", tenantId).eq("campo", "respuestas_ia").gte("dia", `${mes}-01`).lte("dia", `${mes}-31`);
+        if (usados.error) return null;
+        const total = (usados.data ?? []).reduce((a: number, r: any) => a + Number(r.total || 0), 0);
+        if (total >= (typeof c.data.limite_mensual === "number" ? c.data.limite_mensual : TOPE_IA_POR_DEFECTO)) return null;
+        const enlaces = [datosNegocio?.negocio.linkReserva, ...(datosNegocio?.profesionales ?? []).map((p) => p.link)].filter((x): x is string => typeof x === "string");
+        const r = await responderConIA(texto, { contexto: c.data.contexto, nombreNegocio: datosNegocio?.negocio.nombre ?? null, enlacesPermitidos: enlaces }, {
+          llamar: async ({ modelo, sistema, usuario, maxTokens }) => {
+            const res = await fetch("https://api.anthropic.com/v1/messages", {
+              method: "POST", headers: { "x-api-key": llave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+              body: JSON.stringify({ model: modelo || MODELO_IA, max_tokens: maxTokens, system: sistema, messages: [{ role: "user", content: usuario }] }),
+              signal: AbortSignal.timeout(8000),
+            });
+            if (!res.ok) return null;
+            const j: any = await res.json().catch(() => null);
+            const t = j?.content?.find?.((b: any) => b?.type === "text")?.text;
+            return typeof t === "string" ? t : null;
+          },
+        });
+        if (r !== null) await db.rpc("agent_whatsapp_contar", { p_tenant: tenantId, p_dia: ahoraChile(Date.now()).fecha, p_campo: "respuestas_ia" });
+        return r;
       },
       // Falla cerrado: si no se puede leer el estado, lanza y el evento queda "fallido" sin responder.
       negocioInactivo: async tenantId => {

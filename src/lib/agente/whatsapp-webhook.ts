@@ -30,6 +30,8 @@ export interface DependenciasWebhook {
   // Horas libres de un profesional (misma regla que la reserva web). Sin esto no se atiende la consulta de disponibilidad.
   horasLibres?: DependenciasDisponibilidad["horasLibres"];
   negocioInactivo?: (tenantId: string) => Promise<boolean>;
+  // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
+  ia?: (tenantId: string, texto: string, datos: DatosFaq | null) => Promise<string | null>;
   // Reserva por chat: memoria mínima del contacto (30 min), creación de la cita e indicadores. Sin esto no se agenda por chat.
   chat?: {
     leerEstado: (tenantId: string, contactHash: string, ahora: number) => Promise<EstadoChat | null>;
@@ -182,6 +184,10 @@ export function crearManejadoresWebhook(config: {
                       if (respuestaFaq === null) {
                         const faq = responderFaq(text,datosNegocio);
                         if (faq.tipo === "respuesta") { respuestaFaq = faq.texto; await contar("respuestas_automaticas"); }
+                      }
+                      // 3) Modo Avanzado (IA) con el contexto del negocio, solo si lo anterior no respondió.
+                      if (respuestaFaq === null && deps.ia) {
+                        try { respuestaFaq = await conTiempoMaximo(deps.ia(n.tenantId,text,datosNegocio),9000); } catch { /* sin IA: se deriva a una persona */ }
                       }
                     }
                   }
