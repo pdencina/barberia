@@ -71,7 +71,16 @@ export async function POST(req: NextRequest) {
 
     // Only process approved payments
     if (paymentData.status !== "approved") {
-      console.log("Deposit webhook: payment not approved yet", paymentData.status);
+      console.log("Deposit webhook: payment not approved yet", paymentData.status, paymentData.status_detail);
+      // Se deja constancia del intento y del MOTIVO que dio Mercado Pago (ej. rechazado:cc_rejected_other_reason), para poder diagnosticar un pago que no pasa.
+      try {
+        let tid: string | null = firmado;
+        let monto = Math.round(Number(paymentData.transaction_amount) || 0);
+        try { const ref = JSON.parse(paymentData.external_reference); tid = tid || ref?.tenantId || null; monto = Math.round(Number(ref?.depositAmount) || monto); } catch { /* sin referencia */ }
+        if (tid) {
+          await supabase.from("booking_deposits").upsert({ tenant_id: tid, payment_id: String(paymentId), amount: monto, status: `${paymentData.status}:${paymentData.status_detail || "sin_detalle"}`.slice(0, 120), payer_email: paymentData.payer?.email || null }, { onConflict: "payment_id" }).then(() => {}, () => {});
+        }
+      } catch { /* solo diagnostico */ }
       return NextResponse.json({ ok: true });
     }
 
@@ -198,7 +207,7 @@ export async function POST(req: NextRequest) {
 
     // Registro del abono recibido (historial y control de duplicados). Si aun no esta la migracion 131, se omite.
     if (appointment) {
-      await supabase.from("booking_deposits").insert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: appointment.id, amount: Math.round(Number(depositAmount) || 0), status: "approved", payer_email: clientEmail || null }).then(() => {}, () => {});
+      await supabase.from("booking_deposits").upsert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: appointment.id, amount: Math.round(Number(depositAmount) || 0), status: "approved", payer_email: clientEmail || null }, { onConflict: "payment_id" }).then(() => {}, () => {});
     }
 
     // Create appointment_services
