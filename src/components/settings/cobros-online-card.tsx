@@ -106,7 +106,20 @@ export function CobrosOnlineCard({ tenantId }: { tenantId: string }) {
             )}
           </div>
         )}
-        <p className="text-[11px] leading-relaxed text-brand-gray">Cómo obtenerlo: entra a <a href="https://www.mercadopago.cl/developers/panel/app" target="_blank" rel="noopener noreferrer" className="text-brand-blue underline">Mercado Pago Developers</a> › crea una aplicación (producto «Checkout Pro») › <b>Credenciales de producción</b> › copia el <b>Access Token</b>. Se guarda cifrado y nunca se muestra de nuevo.</p>
+        {estado.origen === "terminal" && (
+          <p className="rounded-lg bg-amber-50 p-2.5 text-[11px] leading-relaxed text-amber-800">Hoy se usa el token de tu <b>máquina Point</b>. Ese token es para el terminal y a veces Mercado Pago <b>no lo deja cobrar online</b>. Si el abono falla al pagar, crea una aplicación de cobros online (pasos abajo) y conéctala aquí.</p>
+        )}
+        <div className="rounded-lg border border-gray-100 p-3 text-[11px] leading-relaxed text-brand-gray dark:border-gray-800">
+          <p className="mb-1 font-semibold text-brand-dark">Cómo habilitar los cobros online en tu cuenta de Mercado Pago (una sola vez):</p>
+          <ol className="list-decimal space-y-1 pl-4">
+            <li>Entra a <a href="https://www.mercadopago.cl/developers/panel/app" target="_blank" rel="noopener noreferrer" className="text-brand-blue underline">Mercado Pago Developers › Tus integraciones</a> con la cuenta que va a recibir el dinero.</li>
+            <li><b>Crea una aplicación nueva</b> para <b>Pagos online</b> y elige el producto <b>«Checkout Pro»</b>. (La integración de Point es solo para la máquina: no sirve para esto.)</li>
+            <li>Dentro de la aplicación entra a <b>Credenciales de producción</b> (si te lo pide, activa las credenciales de producción).</li>
+            <li>Copia el <b>Access Token</b> (empieza con <b>APP_USR-</b>), pégalo arriba y toca <b>Conectar</b>.</li>
+            <li>Toca <b>«Probar que Mercado Pago acepta cobros»</b>: debe decir «Todo listo para cobrar abonos».</li>
+          </ol>
+          <p className="mt-1.5">El token se guarda cifrado y nunca se muestra de nuevo.</p>
+        </div>
       </div>
 
       <div className="space-y-3 rounded-xl border border-gray-100 p-3 dark:border-gray-800">
