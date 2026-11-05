@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { ChevronDown } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
+import { marcasEje, montoCorto, resumenPeriodo } from "@/lib/dashboard-format";
 
 export type ChartRange = "7d" | "1m" | "3m" | "12m";
 
@@ -11,6 +11,7 @@ export interface ChartPoint {
   label: string;
   date: string;
   total: number;
+  prev?: number; // mismo balde del período anterior (línea punteada)
 }
 
 interface SalesChartProps {
@@ -23,182 +24,198 @@ interface SalesChartProps {
 }
 
 const RANGE_OPTIONS: { value: ChartRange; label: string }[] = [
-  { value: "7d", label: "7 dias" },
+  { value: "7d", label: "7 días" },
   { value: "1m", label: "1 mes" },
   { value: "3m", label: "3 meses" },
   { value: "12m", label: "12 meses" },
 ];
 
-// Punto 9 (Pablo): grafico de ventas rediseñado con la estetica de tarjeta elegante
-// (bordes suaves, blur, barras interactivas con tooltip) que Pablo envio como
-// referencia, adaptado a los datos reales del negocio y con selector de rango
-// (7 dias / 1 mes / 3 meses / 12 meses) para ir viendo el crecimiento.
+const DIAS = ["dom", "lun", "mar", "mié", "jue", "vie", "sáb"];
+const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
+const MESES_LARGO = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+
+// Nombre completo del punto para el cuadro flotante: «vie 20 nov», «semana del 14 nov» o «noviembre 2026».
+function nombrePunto(date: string, range: ChartRange): string {
+  const [y, m, d] = date.split("-").map(Number);
+  if (!y) return date;
+  if (range === "12m") return `${MESES_LARGO[m - 1]} ${y}`;
+  const dia = `${d} ${MESES[m - 1]}`;
+  if (range === "3m") return `semana del ${dia}`;
+  return `${DIAS[new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay()]} ${dia}`;
+}
+
+const AZUL = "hsl(var(--brand-blue))";
+
+// Gráfico de ventas de área: eje con montos legibles, comparación con el período anterior (línea punteada),
+// resumen arriba (total, variación, promedio y mejor día) y cuadro flotante al pasar el mouse o tocar.
 export function SalesChart({ data, range, onRangeChange, total, growth, loading }: SalesChartProps) {
-  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
-  const [isHovering, setIsHovering] = useState(false);
-  // Total y variacion vs el periodo anterior quedan plegados tras la flecha junto a "Ventas".
-  const [showSummary, setShowSummary] = useState(false);
+  const cajaRef = useRef<HTMLDivElement>(null);
+  const [ancho, setAncho] = useState(640);
+  const [hover, setHover] = useState<number | null>(null);
 
-  const maxValue = Math.max(...data.map((d) => d.total), 1);
-  const hoveredPoint = hoveredIndex !== null ? data[hoveredIndex] : null;
-  const isPositive = growth >= 0;
+  useEffect(() => {
+    const el = cajaRef.current;
+    if (!el) return;
+    const medir = () => setAncho(Math.max(240, Math.floor(el.clientWidth)));
+    medir();
+    const ro = new ResizeObserver(medir);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [loading]);
 
-  // Con 30 barras diarias (1 mes) mostrar una etiqueta por barra satura el eje —
-  // se muestra 1 de cada N para que siga siendo legible.
-  const labelStride = data.length > 14 ? Math.ceil(data.length / 8) : 1;
+  const res = useMemo(() => resumenPeriodo(data), [data]);
+  const prevTotal = useMemo(() => data.reduce((s, d) => s + (d.prev || 0), 0), [data]);
+  const hayPrev = prevTotal > 0;
+  const positivo = growth >= 0;
+  const vacio = data.length === 0 || data.every((d) => d.total === 0);
 
-  const handleContainerLeave = () => {
-    setIsHovering(false);
-    setHoveredIndex(null);
+  const alto = ancho < 420 ? 190 : 240;
+  const m = { l: 58, r: 12, t: 12, b: 26 };
+  const w = ancho - m.l - m.r, h = alto - m.t - m.b;
+  const maxDato = Math.max(...data.map((d) => Math.max(d.total, d.prev || 0)), 1);
+  const marcas = marcasEje(maxDato, ancho < 420 ? 3 : 4);
+  const tope = marcas[marcas.length - 1] || 1;
+  const x = (i: number) => m.l + (data.length <= 1 ? w / 2 : (i / (data.length - 1)) * w);
+  const y = (v: number) => m.t + h - (v / tope) * h;
+
+  // Curva suave (Catmull-Rom → Bézier) para que se lea como tendencia y no como una quebrada.
+  const trazo = (vals: number[]) => {
+    if (vals.length === 0) return "";
+    const pts = vals.map((v, i) => [x(i), y(v)] as const);
+    let d = `M${pts[0][0]},${pts[0][1]}`;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
+      const c1x = p1[0] + (p2[0] - p0[0]) / 6, c2x = p2[0] - (p3[0] - p1[0]) / 6;
+      const clamp = (v: number) => Math.min(Math.max(v, m.t), m.t + h);
+      d += ` C${c1x},${clamp(p1[1] + (p2[1] - p0[1]) / 6)} ${c2x},${clamp(p2[1] - (p3[1] - p1[1]) / 6)} ${p2[0]},${p2[1]}`;
+    }
+    return d;
   };
+  const lineaVentas = trazo(data.map((d) => d.total));
+  const lineaPrev = hayPrev ? trazo(data.map((d) => d.prev || 0)) : "";
+  const area = data.length > 1 ? `${lineaVentas} L${x(data.length - 1)},${m.t + h} L${x(0)},${m.t + h} Z` : "";
+  const pasoEtiqueta = Math.max(1, Math.ceil(data.length / (ancho < 420 ? 5 : 9)));
+  const conPuntos = data.length <= 14;
+
+  const mover = (e: React.PointerEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - r.left;
+    const i = Math.round(((px - m.l) / (w || 1)) * (data.length - 1));
+    setHover(Math.min(Math.max(i, 0), data.length - 1));
+  };
+  const punto = hover !== null ? data[hover] : null;
+  const difHover = punto && punto.prev ? Math.round(((punto.total - punto.prev) / punto.prev) * 100) : null;
 
   return (
-    <div
-      onMouseEnter={() => setIsHovering(true)}
-      onMouseLeave={handleContainerLeave}
-      className="group relative bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-3.5 md:p-6 backdrop-blur-sm transition-all duration-500 hover:border-brand-blue/20 hover:shadow-lg hover:shadow-brand-blue/5"
-    >
-      {/* Header: solo "Ventas" y una flecha; el total y la variacion se despliegan al tocarla */}
-      <div className="mb-3 md:mb-6">
-        <div className="flex items-center gap-2.5">
-          <span className="relative flex h-2 w-2">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-          </span>
-          <h3 className="text-[13px] font-bold uppercase tracking-[0.12em] text-brand-dark">Ventas</h3>
-          <button
-            type="button"
-            aria-label={showSummary ? "Ocultar detalle de ventas" : "Ver detalle de ventas"}
-            aria-expanded={showSummary}
-            onClick={() => setShowSummary((v) => !v)}
-            className="flex h-6 w-6 items-center justify-center rounded-full text-brand-gray transition-colors hover:bg-brand-light hover:text-brand-dark"
-          >
-            <ChevronDown className={cn("h-4 w-4 transition-transform duration-200", showSummary && "rotate-180")} strokeWidth={2.25} />
-          </button>
-        </div>
-
-        {(showSummary || (isHovering && hoveredPoint)) && (
-          <div className="mt-2 flex flex-wrap items-center gap-2 pl-[18px]">
-            <span
-              className={cn(
-                "text-xs font-medium tabular-nums transition-all duration-300 ease-out",
-                isHovering && hoveredPoint ? "text-brand-blue" : "text-brand-gray"
-              )}
-            >
-              {isHovering && hoveredPoint
-                ? `${hoveredPoint.label}: ${formatCurrency(hoveredPoint.total)}`
-                : `Total: ${formatCurrency(total)}`}
-            </span>
-            {showSummary && (
-              <span
-                className={cn(
-                  "text-xs font-semibold px-2 py-1 rounded-full",
-                  isPositive ? "text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-500/10" : "text-red-500 bg-red-50 dark:text-red-400 dark:bg-red-500/10"
-                )}
-              >
-                {isPositive ? "+" : ""}
-                {growth}% vs periodo anterior
-              </span>
-            )}
+    <div className="rounded-2xl border border-gray-100 bg-white p-3.5 dark:border-white/10 dark:bg-brand-white md:p-6">
+      {/* Resumen */}
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-brand-blue" />
+            <h3 className="text-[13px] font-bold uppercase tracking-[0.12em] text-brand-dark">Ventas</h3>
           </div>
-        )}
-      </div>
-
-      {/* Range toggle */}
-      <div className="flex items-center justify-between gap-3 mb-3 md:mb-6">
-        <div className="flex items-center gap-1 bg-brand-light rounded-2xl border border-gray-100 p-1 w-fit">
+          <p className="mt-2 text-2xl font-extrabold tracking-tight text-brand-dark tabular-nums md:text-3xl">{formatCurrency(total)}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
+            <span className={cn("rounded-full px-2 py-0.5 font-semibold tabular-nums", positivo ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400")}>
+              {positivo ? "▲" : "▼"} {Math.abs(growth)}%
+            </span>
+            <span className="text-brand-gray">vs período anterior{hayPrev ? ` (${montoCorto(prevTotal)})` : ""}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 rounded-2xl border border-gray-100 bg-brand-light p-1">
           {RANGE_OPTIONS.map((opt) => (
-            <button
-              key={opt.value}
-              type="button"
-              onClick={() => onRangeChange(opt.value)}
-              className={cn(
-                "px-3.5 py-1.5 rounded-xl text-xs font-semibold transition-all duration-200",
-                range === opt.value
-                  ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25"
-                  : "text-brand-gray hover:text-brand-dark"
-              )}
-            >
+            <button key={opt.value} type="button" onClick={() => onRangeChange(opt.value)}
+              className={cn("rounded-xl px-3 py-1.5 text-xs font-semibold transition-all duration-200", range === opt.value ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25" : "text-brand-gray hover:text-brand-dark")}>
               {opt.label}
             </button>
           ))}
         </div>
-        <Link href="/dashboard/reportes" className="hidden sm:block text-xs text-brand-blue font-medium hover:underline shrink-0">
-          Ver reportes →
-        </Link>
       </div>
 
-      {/* Chart */}
-      {loading ? (
-        <div className="h-40 flex items-center justify-center text-sm text-brand-gray">Cargando...</div>
-      ) : data.every((d) => d.total === 0) ? (
-        <div className="h-40 flex items-center justify-center text-sm text-brand-gray">Sin ventas en este periodo</div>
-      ) : (
-        <div className="flex items-end gap-1 h-28 md:h-40">
-          {data.map((item, index) => {
-            const heightPx = Math.max((item.total / maxValue) * 152, item.total > 0 ? 4 : 2);
-            const isHovered = hoveredIndex === index;
-            const isAnyHovered = hoveredIndex !== null;
-            const isNeighbor = isAnyHovered && (index === hoveredIndex - 1 || index === hoveredIndex + 1);
-            const showLabel = index % labelStride === 0 || index === data.length - 1;
-
-            return (
-              <div
-                key={item.date}
-                className="relative flex-1 flex flex-col items-center justify-end h-full"
-                onMouseEnter={() => setHoveredIndex(index)}
-              >
-                {/* Tooltip */}
-                <div
-                  className={cn(
-                    // Tooltip oscuro fijo (no brand-dark): brand-dark se invierte a casi-blanco
-                    // en tema oscuro (para el texto), asi que usarlo de fondo aca dejaria el
-                    // tooltip blanco sobre blanco.
-                    "absolute -top-8 left-1/2 -translate-x-1/2 px-2 py-1 rounded-md bg-gray-900 text-white text-[10px] font-medium transition-all duration-200 whitespace-nowrap z-10 pointer-events-none",
-                    isHovered ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
-                  )}
-                >
-                  {formatCurrency(item.total)}
-                </div>
-
-                {/* Bar */}
-                <div
-                  className={cn(
-                    "w-full max-w-[22px] rounded-full cursor-pointer transition-all duration-300 ease-out origin-bottom",
-                    isHovered
-                      ? "bg-gradient-to-t from-brand-blue to-emerald-400"
-                      : isNeighbor
-                      ? "bg-brand-blue/40"
-                      : isAnyHovered
-                      ? "bg-brand-blue/15"
-                      : item.total > 0
-                      ? "bg-brand-blue/25 group-hover:bg-brand-blue/30"
-                      : "bg-gray-100 dark:bg-white/10"
-                  )}
-                  style={{
-                    height: `${heightPx}px`,
-                    transform: isHovered ? "scaleX(1.15)" : isNeighbor ? "scaleX(1.05)" : "scaleX(1)",
-                  }}
-                />
-
-                {/* Label */}
-                <span
-                  className={cn(
-                    "text-[9px] font-medium mt-2 transition-colors duration-200 truncate max-w-full",
-                    !showLabel && "opacity-0",
-                    isHovered ? "text-brand-blue" : "text-brand-gray/70"
-                  )}
-                >
-                  {item.label}
-                </span>
-              </div>
-            );
-          })}
+      {/* Datos clave del período */}
+      {!vacio && (
+        <div className="mt-4 grid grid-cols-2 gap-2 md:gap-3">
+          <div className="rounded-xl bg-brand-light/70 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-gray">Promedio {range === "12m" ? "por mes" : range === "3m" ? "por semana" : "por día"}</p>
+            <p className="text-sm font-bold text-brand-dark tabular-nums md:text-base">{formatCurrency(res.promedio)}</p>
+          </div>
+          <div className="rounded-xl bg-brand-light/70 px-3 py-2">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-gray">Mejor {range === "12m" ? "mes" : range === "3m" ? "semana" : "día"}</p>
+            <p className="truncate text-sm font-bold text-brand-dark tabular-nums md:text-base">{res.mejor ? formatCurrency(res.mejor.total) : "—"}
+              {res.mejor && <span className="ml-1.5 text-[11px] font-medium text-brand-gray">{nombrePunto(res.mejor.date, range)}</span>}</p>
+          </div>
         </div>
       )}
 
-      {/* Subtle glow on hover */}
-      <div className="absolute inset-0 rounded-2xl bg-gradient-to-b from-brand-blue/[0.02] to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+      {/* Gráfico */}
+      <div ref={cajaRef} className="relative mt-4">
+        {loading ? (
+          <div className="flex h-44 items-center justify-center text-sm text-brand-gray">Cargando...</div>
+        ) : vacio ? (
+          <div className="flex h-44 items-center justify-center text-sm text-brand-gray">Sin ventas en este período</div>
+        ) : (
+          <>
+            <svg width={ancho} height={alto} role="img" aria-label="Gráfico de ventas del período" className="block select-none"
+              style={{ touchAction: "pan-y" }} onPointerMove={mover} onPointerDown={mover} onPointerLeave={() => setHover(null)}>
+              <defs>
+                <linearGradient id="ventas-area" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="0%" style={{ stopColor: AZUL, stopOpacity: 0.3 }} />
+                  <stop offset="100%" style={{ stopColor: AZUL, stopOpacity: 0.02 }} />
+                </linearGradient>
+              </defs>
+              {/* Marcas y líneas guía */}
+              {marcas.map((v) => (
+                <g key={v}>
+                  <line x1={m.l} x2={ancho - m.r} y1={y(v)} y2={y(v)} stroke="currentColor" className="text-brand-gray" strokeOpacity={v === 0 ? 0.25 : 0.12} strokeDasharray={v === 0 ? undefined : "3 4"} />
+                  <text x={m.l - 8} y={y(v) + 3.5} textAnchor="end" className="fill-brand-gray" style={{ fontSize: 10.5 }}>{montoCorto(v)}</text>
+                </g>
+              ))}
+              {/* Etiquetas del eje horizontal */}
+              {data.map((d, i) => (i % pasoEtiqueta === 0 || i === data.length - 1) && (
+                <text key={d.date} x={x(i)} y={alto - 8} textAnchor={i === 0 && data.length > 1 ? "start" : i === data.length - 1 && data.length > 1 ? "end" : "middle"}
+                  className={hover === i ? "fill-brand-blue" : "fill-brand-gray"} style={{ fontSize: 10.5, fontWeight: hover === i ? 700 : 500 }}>{d.label}</text>
+              ))}
+              {area && <path d={area} fill="url(#ventas-area)" />}
+              {lineaPrev && <path d={lineaPrev} fill="none" stroke="currentColor" className="text-brand-gray" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" strokeLinecap="round" />}
+              <path d={lineaVentas} fill="none" style={{ stroke: AZUL }} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+              {conPuntos && data.map((d, i) => (
+                <circle key={d.date} cx={x(i)} cy={y(d.total)} r={hover === i ? 5 : 3} style={{ stroke: AZUL }} className="fill-white" strokeWidth={2} />
+              ))}
+              {/* Punto marcado: línea vertical y círculo */}
+              {punto && (
+                <g>
+                  <line x1={x(hover!)} x2={x(hover!)} y1={m.t} y2={m.t + h} style={{ stroke: AZUL }} strokeOpacity={0.35} strokeWidth={1} />
+                  <circle cx={x(hover!)} cy={y(punto.total)} r={5.5} style={{ stroke: AZUL, fill: AZUL }} strokeWidth={2} fillOpacity={0.15} />
+                  <circle cx={x(hover!)} cy={y(punto.total)} r={3} style={{ fill: AZUL }} />
+                </g>
+              )}
+            </svg>
+            {punto && (
+              <div className="pointer-events-none absolute z-10 w-max max-w-[200px] -translate-x-1/2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs shadow-lg dark:border-white/10"
+                style={{ left: Math.min(Math.max(x(hover!), 70), ancho - 70), top: 0 }}>
+                <p className="font-semibold text-brand-dark first-letter:uppercase">{nombrePunto(punto.date, range)}</p>
+                <p className="mt-0.5 text-sm font-extrabold tabular-nums text-brand-blue">{formatCurrency(punto.total)}</p>
+                {hayPrev && (
+                  <p className="mt-0.5 text-[11px] text-brand-gray tabular-nums">
+                    Antes: {formatCurrency(punto.prev || 0)}{difHover !== null && <span className={difHover >= 0 ? " text-emerald-600" : " text-red-500"}> ({difHover >= 0 ? "+" : ""}{difHover}%)</span>}
+                  </p>
+                )}
+              </div>
+            )}
+            {hayPrev && (
+              <div className="mt-1 flex items-center justify-center gap-4 text-[11px] text-brand-gray">
+                <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ background: AZUL }} /> Este período</span>
+                <span className="flex items-center gap-1.5"><span className="h-0 w-4 border-t-2 border-dashed border-brand-gray/60" /> Período anterior</span>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+
+      <div className="mt-2 text-right">
+        <Link href="/dashboard/reportes" className="text-xs font-medium text-brand-blue hover:underline">Ver reportes →</Link>
+      </div>
     </div>
   );
 }
