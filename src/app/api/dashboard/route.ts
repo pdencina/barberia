@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest, isManagerLevel } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc, dateStrOffset } from "@/lib/utils";
+import { fetchAllRows } from "@/lib/accounting";
+import { ventasPorMedio } from "@/lib/dashboard-format";
 
 const CHART_RANGES = ["7d", "1m", "3m", "12m"] as const;
 type ChartRange = (typeof CHART_RANGES)[number];
@@ -28,7 +30,7 @@ function buildChartBuckets(todayStr: string, range: ChartRange): ChartBucket[] {
       const i = 29 - idx;
       const d = dateStrOffset(todayStr, -i);
       const next = dateStrOffset(d, 1);
-      return { label: String(Number(d.slice(8, 10))), date: d, endDate: next, startUtc: dayStartUtc(d), endUtcExclusive: dayStartUtc(next) };
+      return { label: (idx === 0 || d.slice(8, 10) === "01") ? `${Number(d.slice(8, 10))} ${monthLabelsEs[Number(d.slice(5, 7)) - 1].toLowerCase()}` : String(Number(d.slice(8, 10))), date: d, endDate: next, startUtc: dayStartUtc(d), endUtcExclusive: dayStartUtc(next) };
     });
   }
 
@@ -145,7 +147,7 @@ export async function GET(req: NextRequest) {
   // Crecimiento: total del rango elegido vs el mismo largo de dias inmediatamente
   // anterior (ej. estos ultimos 30 dias vs los 30 dias previos a esos).
   const rangeSpanDays = daysBetween(chartBuckets[0].date, chartBuckets[chartBuckets.length - 1].endDate);
-  const prevRangeStartDate = dateStrOffset(chartBuckets[0].date, -rangeSpanDays);
+  const prevRangeStartDate = chartRange === "12m" ? `${Number(chartBuckets[0].date.slice(0, 4)) - 1}${chartBuckets[0].date.slice(4)}` : dateStrOffset(chartBuckets[0].date, -rangeSpanDays);
   const prevRangeStartUtc = chileDayBoundsUtc(prevRangeStartDate).startUtc;
   const prevRangeEndUtc = chartBuckets[0].startUtc;
 
@@ -189,13 +191,22 @@ export async function GET(req: NextRequest) {
     .eq("date", todayStr)
     .in("status", ["scheduled", "confirmed", "in_progress"]));
 
-  const chartTxQuery = withTenant(supabase
+  // Todas las filas del rango (con paginación: más de 1.000 ventas en 3 o 12 meses se cortaban y el gráfico quedaba corto).
+  const chartTxP = fetchAllRows<any>(() => withTenant(supabase
     .from("transactions")
-    .select("total, created_at")
+    .select("id, total, created_at, barber_id, payment_method")
     .eq("type", "income")
     .eq("status", "completed")
     .gte("created_at", chartRangeStartUtc)
-    .lt("created_at", chartRangeEndUtc));
+    .lt("created_at", chartRangeEndUtc))).catch(() => [] as any[]).then((data) => ({ data }));
+  const prevChartP = fetchAllRows<any>(() => withTenant(supabase
+    .from("transactions")
+    .select("id, total, created_at")
+    .eq("type", "income")
+    .eq("status", "completed")
+    .gte("created_at", prevRangeStartUtc)
+    .lt("created_at", prevRangeEndUtc))).catch(() => [] as any[]).then((data) => ({ data }));
+  const barbersP = withTenant(supabase.from("profiles").select("id, name, role"));
 
   const [
     { count: todayApptCount },
@@ -214,6 +225,7 @@ export async function GET(req: NextRequest) {
     { data: chartTxRaw },
     { data: prevChartTx },
     { data: pendingAppts },
+    { data: barberRows },
   ] = await Promise.all([
     countAppts(todayStr),
     countAppts(yesterdayStr),
@@ -228,9 +240,10 @@ export async function GET(req: NextRequest) {
     todayAppointmentsQuery,
     topServicesQuery,
     productsForStockQuery,
-    chartTxQuery,
-    incomeIn(prevRangeStartUtc, prevRangeEndUtc),
+    chartTxP,
+    prevChartP,
     pendingApptsQuery,
+    barbersP,
   ]);
 
   const todayIncome = (todayTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
@@ -271,15 +284,48 @@ export async function GET(req: NextRequest) {
     return Math.round(((today - yesterday) / yesterday) * 100);
   };
 
+  // Mismo balde del período anterior (para la línea punteada de comparación): corrido los mismos días hacia atrás;
+  // en «12 meses», el mismo mes del año anterior.
+  const shiftBack = (d: string) => {
+    if (chartRange === "12m") return `${Number(d.slice(0, 4)) - 1}${d.slice(4)}`;
+    return dateStrOffset(d, -rangeSpanDays);
+  };
+  const inBucket = (rows: any[] | null, a: string, b: string) => (rows || []).filter((t: any) => t.created_at >= a && t.created_at < b);
   const chartData = chartBuckets.map((b) => {
-    const total = (chartTxRaw || [])
-      .filter((t: any) => t.created_at >= b.startUtc && t.created_at < b.endUtcExclusive)
+    const total = inBucket(chartTxRaw, b.startUtc, b.endUtcExclusive).reduce((sum: number, t: any) => sum + Number(t.total), 0);
+    const prev = inBucket(prevChartTx, chileDayBoundsUtc(shiftBack(b.date)).startUtc, chileDayBoundsUtc(shiftBack(b.endDate)).startUtc)
       .reduce((sum: number, t: any) => sum + Number(t.total), 0);
-    return { label: b.label, date: b.date, total };
+    return { label: b.label, date: b.date, total, prev };
   });
   const chartTotal = chartData.reduce((s, d) => s + d.total, 0);
   const prevChartTotal = (prevChartTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
   const chartGrowth = calcChange(chartTotal, prevChartTotal);
+
+  // Ventas del período por profesional y por medio de pago (gráficos del Dashboard).
+  const nombreDe = new Map<string, string>((barberRows || []).map((b: any) => [b.id, b.name]));
+  const esRecepcion = new Set<string>((barberRows || []).filter((b: any) => b.role === "receptionist").map((b: any) => b.id));
+  const porBarbero = new Map<string, { total: number; ventas: number }>();
+  let sinProfesional = { total: 0, ventas: 0 };
+  for (const t of chartTxRaw || []) {
+    // Ventas hechas por recepción (o sin profesional) no son de ningún profesional: van aparte para que todo sume 100 %.
+    if (!t.barber_id || esRecepcion.has(t.barber_id)) { sinProfesional = { total: sinProfesional.total + (Number(t.total) || 0), ventas: sinProfesional.ventas + 1 }; continue; }
+    const c = porBarbero.get(t.barber_id) || { total: 0, ventas: 0 };
+    c.total += Number(t.total) || 0; c.ventas += 1; porBarbero.set(t.barber_id, c);
+  }
+  const ventasPorProfesional = [
+    ...Array.from(porBarbero.entries()).map(([id, c]) => ({ id, name: nombreDe.get(id) || "Profesional", total: c.total, ventas: c.ventas })).sort((a, b) => b.total - a.total).slice(0, 12),
+    ...(sinProfesional.total > 0 ? [{ id: "sin-profesional", name: "Recepción / sin profesional", total: sinProfesional.total, ventas: sinProfesional.ventas }] : []),
+  ];
+  let medios: { medio: string; nombre: string; total: number }[] = [];
+  try {
+    const mixtos = (chartTxRaw || []).filter((t: any) => t.payment_method === "mixed").map((t: any) => t.id);
+    const trozos: string[][] = [];
+    for (let i = 0; i < mixtos.length; i += 200) trozos.push(mixtos.slice(i, i + 200));
+    const partes: any[] = (await Promise.all(trozos.map((c) =>
+      supabase.from("transaction_payments").select("transaction_id, payment_method, amount").in("transaction_id", c).then((r: any) => r.data || [])
+    ))).flat();
+    medios = ventasPorMedio(chartTxRaw || [], partes);
+  } catch { /* sin desglose: el resto del Dashboard sigue igual */ }
 
   return NextResponse.json({
     greeting: true,
@@ -308,5 +354,7 @@ export async function GET(req: NextRequest) {
     chartData,
     chartTotal,
     chartGrowth,
+    ventasPorProfesional,
+    ventasPorMedio: medios,
   });
 }
