@@ -111,6 +111,11 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
   const lineaVentas = trazo(data.map((d) => d.total));
   const lineaPrev = hayPrev ? trazo(data.map((d) => d.prev || 0)) : "";
   const area = data.length > 1 ? `${lineaVentas} L${x(data.length - 1)},${m.t + h} L${x(0)},${m.t + h} Z` : "";
+  // «Normal» del período = mediana de los puntos con ventas. Entre la curva y esa línea: azul si sube, rojo suave si baja.
+  const conVentaOrden = data.filter((d) => d.total > 0).map((d) => d.total).sort((p, q) => p - q);
+  const normal = conVentaOrden.length ? conVentaOrden[Math.floor(conVentaOrden.length / 2)] : 0;
+  const yNormal = y(normal);
+  const entreLinea = data.length > 1 ? `${lineaVentas} L${x(data.length - 1)},${yNormal} L${x(0)},${yNormal} Z` : "";
   const pasoEtiqueta = Math.max(1, Math.ceil(data.length / (ancho < 420 ? 5 : 9)));
   const conPuntos = data.length <= 14;
   const ultimo = data.length - 1;
@@ -178,10 +183,17 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
             <svg width={ancho} height={alto} role="img" aria-label="Gráfico de ventas del período" className="block select-none"
               style={{ touchAction: "pan-y" }} onPointerMove={mover} onPointerDown={mover} onPointerLeave={() => setHover(null)}>
               <defs>
-                <linearGradient id="ventas-area" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" style={{ stopColor: AZUL, stopOpacity: 0.3 }} />
-                  <stop offset="100%" style={{ stopColor: AZUL, stopOpacity: 0.02 }} />
+                <linearGradient id="vc-grad" gradientUnits="userSpaceOnUse" x1="0" y1={m.t} x2="0" y2={yNormal}>
+                  <stop offset="0%" style={{ stopColor: AZUL, stopOpacity: 0.8 }} />
+                  <stop offset="100%" style={{ stopColor: AZUL, stopOpacity: 0.12 }} />
                 </linearGradient>
+                <linearGradient id="vc-rojo" gradientUnits="userSpaceOnUse" x1="0" y1={yNormal} x2="0" y2={m.t + h}>
+                  <stop offset="0%" style={{ stopColor: "rgb(220 60 60)", stopOpacity: 0.02 }} />
+                  <stop offset="100%" style={{ stopColor: "rgb(220 60 60)", stopOpacity: 0.32 }} />
+                </linearGradient>
+                <clipPath id="vc-base"><rect x={m.l} y={yNormal} width={w} height={Math.max(0, m.t + h - yNormal)} /></clipPath>
+                <clipPath id="vc-sobre"><rect x={m.l} y={m.t} width={w} height={Math.max(0, yNormal - m.t)} /></clipPath>
+                <clipPath id="vc-bajo"><rect x={m.l} y={yNormal} width={w} height={Math.max(0, m.t + h - yNormal)} /></clipPath>
               </defs>
               {/* Marcas y líneas guía */}
               {marcas.map((v) => (
@@ -195,17 +207,18 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
                 <text key={d.date} x={x(i)} y={m.t + h + 15} textAnchor={i === 0 && data.length > 1 ? "start" : i === data.length - 1 && data.length > 1 ? "end" : "middle"}
                   className={hover === i ? "fill-brand-blue" : "fill-brand-gray"} style={{ fontSize: 10.5, fontWeight: hover === i ? 700 : 500 }}>{d.label}</text>
               ))}
-              {/* Fondo por día: rojo suave = día lento, azul = día fuerte (más opacidad = más extremo) */}
-              {data.map((d, i) => inten[i] && (inten[i].tono === "lento" || inten[i].tono === "fuerte") && (
-                <rect key={`b-${d.date}`} x={Math.max(m.l, x(i) - (w / data.length) / 2)} y={m.t}
-                  width={Math.min(w / data.length, ancho - m.r - Math.max(m.l, x(i) - (w / data.length) / 2))} height={h}
-                  style={{ fill: colorTono({ ...inten[i], opacidad: inten[i].opacidad * 0.45 }) }} />
-              ))}
-              {area && <path d={area} fill="url(#ventas-area)" />}
+              {/* Relleno por fuerza (como la referencia): azul más intenso cuanto más alto sobre lo normal, rojo suave cuando se queda por debajo */}
+              {area && (
+                <g>
+                  <path d={area} clipPath="url(#vc-base)" style={{ fill: AZUL }} fillOpacity={0.07} />
+                  <path d={entreLinea} clipPath="url(#vc-sobre)" fill="url(#vc-grad)" />
+                  <path d={entreLinea} clipPath="url(#vc-bajo)" fill="url(#vc-rojo)" />
+                </g>
+              )}
               {lineaPrev && <path d={lineaPrev} fill="none" stroke="currentColor" className="text-brand-gray" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" strokeLinecap="round" />}
               <path d={lineaVentas} fill="none" style={{ stroke: AZUL }} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
               {conPuntos && data.map((d, i) => (
-                <circle key={d.date} cx={x(i)} cy={y(d.total)} r={hover === i ? 5 : 3} style={{ stroke: inten[i]?.tono === "lento" ? "rgb(220 60 60 / 0.85)" : AZUL }} className="fill-white" strokeWidth={2} />
+                <circle key={d.date} cx={x(i)} cy={y(d.total)} r={hover === i ? 5 : 3} style={{ stroke: AZUL }} className="fill-white" strokeWidth={2} />
               ))}
               {/* Punto marcado: línea vertical y círculo */}
               {punto && (
@@ -233,17 +246,6 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
                     Antes: {formatCurrency(punto.prev || 0)}{difHover !== null && <span className={difHover >= 0 ? " text-emerald-600" : " text-red-500"}> ({difHover >= 0 ? "+" : ""}{difHover}%)</span>}
                   </p>
                 )}
-              </div>
-            )}
-            {!loading && !vacio && (
-              <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-brand-gray">
-                <span>Más lento</span>
-                <span className="flex gap-0.5">
-                  {[0.55, 0.35, 0.18].map((o) => <span key={o} className="h-2 w-4 rounded-sm" style={{ background: `rgb(220 60 60 / ${o})` }} />)}
-                  <span className="h-2 w-4 rounded-sm" style={{ background: "rgb(148 163 184 / 0.22)" }} />
-                  {[0.3, 0.55, 0.85].map((o) => <span key={o} className="h-2 w-4 rounded-sm" style={{ background: `hsl(var(--brand-blue) / ${o})` }} />)}
-                </span>
-                <span>Más fuerte</span>
               </div>
             )}
             {hayPrev && (
