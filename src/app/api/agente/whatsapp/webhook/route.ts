@@ -68,6 +68,7 @@ const handlers = () => crearManejadoresWebhook({
       },
       // Modo Avanzado (IA): solo si el negocio lo activó, hay llave y no se pasó del tope del mes. Falla cerrado: ante cualquier duda, null.
       conCta: true,
+      conMenu: true,
       ia: async (tenantId, texto, datosNegocio) => {
         const llave = process.env.ANTHROPIC_API_KEY;
         if (!llave) return null;

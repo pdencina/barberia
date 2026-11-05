@@ -1,6 +1,7 @@
 import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
 const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
 import { conLlamadaAReservar } from "./cta";
+import { opcionMenu, esSaludo, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
 import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
 import { fetchAllRows } from "../accounting";
@@ -35,6 +36,8 @@ export interface DependenciasWebhook {
   ia?: (tenantId: string, texto: string, datos: DatosFaq | null) => Promise<string | null>;
   // true: las respuestas informativas (reglas e IA) terminan con "¿Quieres agendar? Reserva aquí: <link>". Apagado si no se indica.
   conCta?: boolean;
+  // true: si nada entiende el mensaje (o solo saluda) se muestra el menú de opciones en vez de "Te contactará una persona.".
+  conMenu?: boolean;
   // Reserva por chat: memoria mínima del contacto (30 min), creación de la cita e indicadores. Sin esto no se agenda por chat.
   chat?: {
     leerEstado: (tenantId: string, contactHash: string, ahora: number) => Promise<EstadoChat | null>;
@@ -132,6 +135,9 @@ export function crearManejadoresWebhook(config: {
               } else {
                 let respuestaFaq: string | null = null;
                 let derivarChat = false;
+                let datosMenu: DatosFaq | null = null;
+                let desdeMenu = false;
+                let consulta: string = typeof text === "string" ? text : "";
                 const chat = deps.chat;
                 const contar = async (c: CampoIndicador) => { if (chat) { try { await chat.contar(n.tenantId,c,deps.ahora()); } catch { /* indicador: no debe romper la respuesta */ } } };
                 if (p.tipo === "text" && typeof text === "string" && deps.datosDelNegocio && (tipo === "desconocido" || chat)) {
@@ -140,6 +146,7 @@ export function crearManejadoresWebhook(config: {
                   if (!ref) {
                     // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
                     const datosNegocio = await deps.datosDelNegocio(n.tenantId);
+                    datosMenu = datosNegocio;
                     // 1) Conversación de reserva en curso (elegir hora, enviar datos).
                     if (chat) {
                       try {
@@ -155,6 +162,13 @@ export function crearManejadoresWebhook(config: {
                         if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; }
                       } catch { /* memoria o agenda no disponible: se sigue como antes */ }
                     }
+                    if (respuestaFaq === null && tipo === "desconocido" && deps.conMenu) {
+                      // Respuesta a las opciones del menú: 1 reservar, 2 curso, 3 precios/horarios/ubicación, 4 una persona.
+                      const op = opcionMenu(text);
+                      if (op === 4) { respuestaFaq = RESPUESTA_OTRAS; derivarChat = true; }
+                      else if (op === 3 && infoGeneral(datosNegocio)) { const info = infoGeneral(datosNegocio) as string; respuestaFaq = deps.conCta ? conLlamadaAReservar(info,datosNegocio?.negocio.linkReserva) : info; await contar("respuestas_automaticas"); }
+                      else if (op !== null) { consulta = CONSULTA_POR_OPCION[op]; desdeMenu = true; }
+                    }
                     if (respuestaFaq === null && tipo === "desconocido") {
                       // 2) Consulta de disponibilidad ("¿Matías tiene hora a las 3?"); si no aplica o falla, la FAQ.
                       if (deps.horasLibres) {
@@ -163,7 +177,7 @@ export function crearManejadoresWebhook(config: {
                           let previo: EstadoChat | null = null;
                           if (chat) { try { previo = await chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()); } catch { /* sin memoria: respuesta normal */ } }
                           const fechaOferta = previo?.etapa === "oferta" ? previo.datos.opciones[0]?.fecha : undefined;
-                          const d = await conTiempoMaximo(responderDisponibilidad(text,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres,...(fechaOferta ? { fechaPorDefecto: fechaOferta } : {})}),6000);
+                          const d = await conTiempoMaximo(responderDisponibilidad(consulta,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres,...(fechaOferta ? { fechaPorDefecto: fechaOferta } : {})}),6000);
                           if (d.tipo === "respuesta") {
                             respuestaFaq = d.texto;
                             await contar("consultas_disponibilidad");
@@ -189,12 +203,12 @@ export function crearManejadoresWebhook(config: {
                         } catch { /* agenda no disponible o demora: se sigue con la FAQ */ }
                       }
                       if (respuestaFaq === null) {
-                        const faq = responderFaq(text,datosNegocio);
+                        const faq = responderFaq(consulta,datosNegocio);
                         if (faq.tipo === "respuesta") { respuestaFaq = deps.conCta ? conLlamadaAReservar(faq.texto,datosNegocio?.negocio.linkReserva) : faq.texto; await contar("respuestas_automaticas"); }
                       }
                       // 3) Modo Avanzado (IA) con el contexto del negocio, solo si lo anterior no respondió.
                       if (respuestaFaq === null && deps.ia) {
-                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,text,datosNegocio),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva) : ia; } catch { /* sin IA: se deriva a una persona */ }
+                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,consulta,datosNegocio),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva) : ia; } catch { /* sin IA: se deriva a una persona */ }
                       }
                     }
                   }
@@ -205,6 +219,10 @@ export function crearManejadoresWebhook(config: {
                     await contar("derivadas_persona");
                     if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
                   }
+                } else if (deps.conMenu && tipo === "desconocido" && p.tipo === "text" && typeof text === "string" && !desdeMenu && !esConsultaLarga(text)) {
+                  // No entendido o solo saluda: opciones en vez de derivar (no se avisa al administrador).
+                  await responder(textoMenu(datosMenu, esSaludo(text) ? "saludo" : "no_entendi"));
+                  await contar("respuestas_automaticas");
                 } else {
                   await contar("derivadas_persona");
                   await responder("Te contactará una persona.");
