@@ -2,6 +2,7 @@
 
 import { calcularAbono } from "@/lib/deposit-calc";
 import { useState, useEffect, useRef } from "react";
+import ResenasCarrusel from "@/components/booking/resenas-carrusel";
 import BusinessProfile, { type BusinessInfo } from "@/components/booking/business-profile";
 import TimeFirstFlow, { type TimePick } from "@/components/booking/time-first-flow";
 import { formatCurrency } from "@/lib/utils";
@@ -1079,6 +1080,8 @@ export default function BookingPage() {
           </div>
         )}
       </div>
+
+      {businessInfo?.id && <ResenasCarrusel tenantId={businessInfo.id} />}
 
       <div className="border-t border-gray-100 py-4 text-center text-xs text-brand-gray">
         re-booking · rebooking.cl
