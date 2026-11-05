@@ -107,6 +107,8 @@ const handlers = () => crearManejadoresWebhook({
         fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
       }),
       avisarAdministrador: async tenantId => {
+        // Apagado: los avisos van a la app del super admin. Para volver al correo, AGENTE_AVISO_CORREO=1 en Vercel.
+        if (process.env.AGENTE_AVISO_CORREO !== "1") return;
         const profiles = await fetchAllRows<{id: string; email: string}>(() =>
           db.from("profiles").select("id,email").eq("tenant_id", tenantId).eq("role", "admin").eq("active", true));
         for (const p of profiles) {
