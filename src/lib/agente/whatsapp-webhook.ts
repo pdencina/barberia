@@ -224,6 +224,8 @@ export function crearManejadoresWebhook(config: {
                   // No entendido o solo saluda: opciones en vez de derivar (no se avisa al administrador).
                   await responder(textoMenu(datosMenu, esSaludo(text) ? "saludo" : "no_entendi"));
                   await contar("respuestas_automaticas");
+                  // Los números del menú no deben leerse como elección de una oferta anterior: se empieza de cero.
+                  if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
                 } else {
                   await contar("derivadas_persona");
                   await responder("Te contactará una persona.");

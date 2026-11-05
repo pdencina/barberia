@@ -130,6 +130,21 @@ async function pruebasDisponibilidad(){
       check("seguimiento: la oferta resume cuando hay muchas horas",w.f.sent[0].includes("10 horas disponibles mañana"));
       check("seguimiento: 'en la tarde' usa el mismo profesional y fecha",w.f.sent[1].includes("Matías Soto")&&w.f.sent[1].includes("en la tarde")&&w.f.sent[1].includes("mañana")&&!w.f.sent[1].includes("Elige una opción")&&w.f.notices.length===0);
     }
+    { // el menú empieza de cero: un "1" después de un saludo es la opción del menú, no una hora de la oferta anterior
+      const w=armar(async(_id,fecha)=>({slots:[`${fecha}T10:00:00`,`${fecha}T13:00:00`,`${fecha}T16:00:00`],cerrado:false,fueraDeVentana:false}));
+      (w.f.deps as any).conMenu=true;
+      const memoria=new Map<string,any>();let creadas=0;
+      (w.f.deps as any).chat={
+        leerEstado:async(t:string,c:string)=>memoria.get(t+c)??null,guardarEstado:async(t:string,c:string,e:any)=>{memoria.set(t+c,e);},borrarEstado:async(t:string,c:string)=>{memoria.delete(t+c);},
+        reservasFuturas:async()=>0,crearReserva:async()=>{creadas++;return {ok:true,citaId:"x"};},contar:async()=>{},
+      };
+      await enviar(w.f,"matias tiene hora hoy");
+      check("menu: hay una oferta guardada antes del saludo",memoria.size===1);
+      await enviar(w.f,"hola");
+      check("menu: mostrar el menú borra la oferta pendiente",memoria.size===0&&w.f.sent[1].includes("1. Deseo reservar."));
+      await enviar(w.f,"1");
+      check("menu: el 1 después del saludo muestra disponibilidad, no elige una hora vieja",!w.f.sent[2].startsWith("Perfecto. Te dejo la hora")&&/disponib/i.test(w.f.sent[2])&&creadas===0);
+    }
     const g=armar(undefined);(g.f.deps as any).ia=async()=>null;
     await enviar(g.f,"hacen degrade?");
     check("ia: si no sabe deriva a una persona",g.f.sent[0]==="Te contactará una persona."&&g.f.notices.length===1);
