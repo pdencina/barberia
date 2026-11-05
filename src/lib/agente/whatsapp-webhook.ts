@@ -1,5 +1,6 @@
 import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
 const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
+import { conLlamadaAReservar } from "./cta";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
 import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
 import { fetchAllRows } from "../accounting";
@@ -32,6 +33,8 @@ export interface DependenciasWebhook {
   negocioInactivo?: (tenantId: string) => Promise<boolean>;
   // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
   ia?: (tenantId: string, texto: string, datos: DatosFaq | null) => Promise<string | null>;
+  // true: las respuestas informativas (reglas e IA) terminan con "¿Quieres agendar? Reserva aquí: <link>". Apagado si no se indica.
+  conCta?: boolean;
   // Reserva por chat: memoria mínima del contacto (30 min), creación de la cita e indicadores. Sin esto no se agenda por chat.
   chat?: {
     leerEstado: (tenantId: string, contactHash: string, ahora: number) => Promise<EstadoChat | null>;
@@ -187,11 +190,11 @@ export function crearManejadoresWebhook(config: {
                       }
                       if (respuestaFaq === null) {
                         const faq = responderFaq(text,datosNegocio);
-                        if (faq.tipo === "respuesta") { respuestaFaq = faq.texto; await contar("respuestas_automaticas"); }
+                        if (faq.tipo === "respuesta") { respuestaFaq = deps.conCta ? conLlamadaAReservar(faq.texto,datosNegocio?.negocio.linkReserva) : faq.texto; await contar("respuestas_automaticas"); }
                       }
                       // 3) Modo Avanzado (IA) con el contexto del negocio, solo si lo anterior no respondió.
                       if (respuestaFaq === null && deps.ia) {
-                        try { respuestaFaq = await conTiempoMaximo(deps.ia(n.tenantId,text,datosNegocio),9000); } catch { /* sin IA: se deriva a una persona */ }
+                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,text,datosNegocio),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva) : ia; } catch { /* sin IA: se deriva a una persona */ }
                       }
                     }
                   }
