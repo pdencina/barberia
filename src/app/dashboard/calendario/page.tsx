@@ -718,6 +718,12 @@ export default function CalendarioPage() {
     return `${hours.toString().padStart(2, "0")}:${mins.toString().padStart(2, "0")}`;
   };
 
+  // Hora exacta bajo el cursor (sin redondear a 15): el cuadro de ayuda y el clic usan la misma, así lo que se ve es lo que se agenda.
+  const rawTime = (y: number): string => {
+    const total = START_HOUR * 60 + Math.max(0, Math.floor((y / HOUR_HEIGHT) * 60));
+    return `${Math.floor(total / 60).toString().padStart(2, "0")}:${(total % 60).toString().padStart(2, "0")}`;
+  };
+
   // Suma minutos a una hora "HH:MM" (tope 23:59: una cita no pasa de medianoche).
   const addMinutesToTime = (t: string, mins: number): string => {
     const [h, m] = t.split(":").map(Number);
@@ -786,7 +792,7 @@ export default function CalendarioPage() {
     // Si el mouse solo salio de la columna sin soltar, no se abre nada.
     if (isClick && fromLeave) { setDragging(false); return; }
 
-    const startTime = isClick ? snapToSlot(dragBarberId, yToTime(minY)) : yToTime(minY);
+    const startTime = isClick ? snapToSlot(dragBarberId, rawTime(minY)) : yToTime(minY);
     const endTime = isClick ? addMinutesToTime(startTime, durationFor(dragBarberId, 45)) : yToTime(maxY);
     const barber = displayBarbers.find((b) => b.id === dragBarberId);
 
@@ -1617,7 +1623,7 @@ export default function CalendarioPage() {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const y = Math.max(0, e.clientY - rect.top);
                         popupOpenedAt.current = Date.now();
-                        { const st = snapToSlot(pro.id, yToTime(y)); openCreatePopup(pro.id, st, addMinutesToTime(st, durationFor(pro.id, 45)), d); }
+                        { const st = snapToSlot(pro.id, rawTime(y)); openCreatePopup(pro.id, st, addMinutesToTime(st, durationFor(pro.id, 45)), d); }
                       }}
                     >
                       {hours.map((h) => (
@@ -1871,7 +1877,7 @@ export default function CalendarioPage() {
                         const end = Math.min(m + slot, gridBotMin);
                         bands.push(
                           <div key={m} className="absolute left-0 right-0 pointer-events-none z-0"
-                            style={{ top: `${((m - gridTopMin) / 60) * HOUR_HEIGHT}px`, height: `${((end - m) / 60) * HOUR_HEIGHT}px`, background: i % 2 === 0 ? "rgba(100,116,139,0.045)" : "transparent", borderTop: "1px solid rgba(100,116,139,0.10)" }} />
+                            style={{ top: `${((m - gridTopMin) / 60) * HOUR_HEIGHT}px`, height: `${((end - m) / 60) * HOUR_HEIGHT}px`, background: i % 2 === 0 ? "rgba(100,116,139,0.06)" : "transparent", borderTop: "1px solid rgba(100,116,139,0.16)" }} />
                         );
                       }
                       return bands;
@@ -1925,16 +1931,30 @@ export default function CalendarioPage() {
                         mirar la columna de horas ni el header de arriba constantemente. No
                         se muestra mientras se arrastra (ya hay otro indicador de hora) ni
                         con el popup de crear cita abierto. */}
-                    {hoverInfo && hoverInfo.barberId === barber.id && !dragging && !showPopup && (
-                      <div
-                        className="absolute left-1 right-1 z-40 pointer-events-none flex justify-center"
-                        style={{ top: `${Math.max(0, hoverInfo.y - 11)}px` }}
-                      >
-                        <span className="text-[10px] font-bold text-white bg-gray-900/85 rounded px-1.5 py-0.5 shadow-sm whitespace-nowrap">
-                          {barber.name} · {formatTime12(yToTime(hoverInfo.y))}
-                        </span>
-                      </div>
-                    )}
+                    {hoverInfo && hoverInfo.barberId === barber.id && !dragging && !showPopup && (() => {
+                      const slot = slotOf(barber.id);
+                      // Con tiempo base: cuadro del tamaño del slot, alineado a la regla del profesional (lo que se agendará al hacer clic).
+                      if (slot) {
+                        const st = snapToSlot(barber.id, rawTime(hoverInfo.y));
+                        const a = hhmmToMin(st) ?? START_HOUR * 60;
+                        const top = ((a - START_HOUR * 60) / 60) * HOUR_HEIGHT;
+                        return (
+                          <div className="absolute left-1 right-1 z-[2] pointer-events-none rounded-lg border border-brand-blue/50 bg-brand-blue/10"
+                            style={{ top: `${top}px`, height: `${(slot / 60) * HOUR_HEIGHT}px` }}>
+                            <span className="block truncate px-1.5 pt-0.5 text-[10px] font-semibold text-brand-blue">
+                              {formatTime12(st)} · {slot} min
+                            </span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="absolute left-1 right-1 z-40 pointer-events-none flex justify-center" style={{ top: `${Math.max(0, hoverInfo.y - 11)}px` }}>
+                          <span className="text-[10px] font-bold text-white bg-gray-900/85 rounded px-1.5 py-0.5 shadow-sm whitespace-nowrap">
+                            {barber.name} · {formatTime12(yToTime(hoverInfo.y))}
+                          </span>
+                        </div>
+                      );
+                    })()}
 
                     {/* Espacios libres al lado de una cita (cupos por bloque) */}
                     {freeLaneHints(barberAppts, lanes, blocks.filter((bl) => bl.barber_id === barber.id), false).map((h) => (
