@@ -1,0 +1,56 @@
+name: CI
+
+# Revision automatica de cada PR hacia agente/whatsapp (y hacia main): tipos, pruebas y limites de carpeta.
+# No usa llaves ni base de datos: las pruebas corren con datos simulados.
+on:
+  pull_request:
+    branches: [agente/whatsapp, main]
+
+# Si se sube otro commit al mismo PR, se cancela la revision vieja en vez de hacerla esperar.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # tsx no es dependencia del proyecto: con "npx tsx" se descargaba 85 veces (una por prueba). Se instala una sola vez.
+      - run: npm install --no-save --no-audit --no-fund tsx@4
+      - name: Tipos y pruebas (a la vez)
+        env:
+          RESEND_API_KEY: x
+        run: |
+          npx tsc --noEmit & tsc_pid=$!
+          ls scripts/test-*.ts | xargs -P 4 -I{} sh -c './node_modules/.bin/tsx {} > "$(basename {}).log" 2>&1 && echo "OK {}" || { echo "FALLA: {}"; cat "$(basename {}).log"; exit 255; }'
+          pruebas=$?
+          wait $tsc_pid; tipos=$?
+          [ $tipos -eq 0 ] || echo "FALLA: tipos (tsc)"
+          [ $pruebas -eq 0 ] || echo "FALLA: pruebas"
+          [ $tipos -eq 0 ] && [ $pruebas -eq 0 ]
+
+  limites-de-carpeta:
+    # Solo PRs hacia agente/whatsapp: Codex solo puede tocar sus carpetas (AGENTS.md, seccion 12).
+    if: github.base_ref == 'agente/whatsapp' && startsWith(github.head_ref, 'codex/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archivos fuera de las carpetas permitidas
+        run: |
+          git diff --name-only "origin/${{ github.base_ref }}...HEAD" > cambiados.txt
+          cat cambiados.txt
+          malos=$(grep -Ev '^(docs/agente/|src/lib/agente/|src/app/api/agente/|scripts/test-agente-[^/]*\.ts$)' cambiados.txt || true)
+          if [ -n "$malos" ]; then
+            echo "::error::Archivos fuera de las carpetas permitidas para Codex:"
+            echo "$malos"
+            exit 1
+          fi
