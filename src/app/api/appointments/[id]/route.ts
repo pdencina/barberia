@@ -110,6 +110,8 @@ export async function PATCH(
       .update({ cancelled_by: quien, cancel_reason: update.status === "cancelled" ? motivoValido(body.cancel_reason) : null, cancelled_at: new Date().toISOString() })
       .eq("id", params.id);
     if (regErr && !/cancelled_by|cancel_reason|cancelled_at/.test(regErr.message)) console.error("registro de cancelación:", regErr.message);
+    // La cuenta exacta y el canal (migración 138), en un paso aparte para no perder lo anterior si aún falta.
+    await supabase.from("appointments").update({ cancelled_by_user: session.userId, cancel_channel: "panel" }).eq("id", params.id);
   }
 
   // Aviso al profesional si le cancelan o le cambian la hora de una cita (quien lo hizo no se avisa a si mismo).
