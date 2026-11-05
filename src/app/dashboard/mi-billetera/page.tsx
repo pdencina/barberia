@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
-import { GastosPersonales } from "@/components/finance/gastos-personales";
-import { AtajoVoz } from "@/components/finance/atajo-voz";
+import Link from "next/link";
+import { ChevronRight, PiggyBank } from "lucide-react";
+import { CrecimientoBilletera } from "@/components/finance/crecimiento-billetera";
 
 interface WalletMovement {
   id: string;
@@ -23,6 +24,20 @@ interface WalletData {
   dailyEarnings: Array<{ day: string; amount: number }>;
   movements: WalletMovement[];
   movementsRange: { from: string; to: string };
+}
+
+// Entrada a «Mis gastos personales» (sueldo, ahorro, torta del mes, reporte y gastos con Oti): es privado, vive en su propia pantalla.
+function BotonGastosPersonales() {
+  return (
+    <Link href="/dashboard/mi-billetera/personal" className="flex items-center gap-3 rounded-2xl border border-gray-100 bg-white p-4 transition-colors hover:border-brand-blue/40 hover:bg-brand-blue/[0.03]">
+      <span className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><PiggyBank className="h-5 w-5" strokeWidth={1.75} /></span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-sm font-bold text-brand-dark">Mis gastos personales</span>
+        <span className="block text-xs text-brand-gray">Tu sueldo, ahorro, torta del mes, reporte y gastos con Oti</span>
+      </span>
+      <ChevronRight className="h-4 w-4 flex-shrink-0 text-brand-gray" />
+    </Link>
+  );
 }
 
 export default function MiBilleteraPage() {
@@ -64,7 +79,7 @@ export default function MiBilleteraPage() {
           <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Mi Billetera</h1>
           <p className="text-sm text-brand-gray">Tus gastos e ingresos personales</p>
         </div>
-        <><GastosPersonales /><AtajoVoz /></>
+        <BotonGastosPersonales />
       </div>
     );
   }
@@ -117,6 +132,9 @@ export default function MiBilleteraPage() {
           <p className="text-[10px] text-brand-gray uppercase mt-1">Pendientes</p>
         </div>
       </div>
+
+      {/* Entrada a las finanzas personales (privadas) */}
+      <BotonGastosPersonales />
 
       {/* Projection breakdown */}
       <div className="bg-white rounded-2xl border border-gray-100 p-5">
@@ -235,8 +253,9 @@ export default function MiBilleteraPage() {
         )}
       </div>
 
-      {/* Gastos e ingresos personales (privados). Se llenan aqui o hablando con Oti. */}
-      <><GastosPersonales /><AtajoVoz /></>
+      {/* Crecimiento: dos gráficos separados (lo que ganas y tus clientes) */}
+      <CrecimientoBilletera />
+
 
       {/* Info */}
       <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-2xl p-4 text-xs text-brand-blue">
