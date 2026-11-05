@@ -1,3 +1,4 @@
+import { normalizarPrecioInterno } from "@/lib/precio-interno";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 
@@ -65,9 +66,13 @@ export async function POST(req: NextRequest) {
   if (comType) { optional.sales_commission_type = comType; optional.sales_commission_value = comValue; }
   if (body.product_type === "supply" || body.product_type === "sale") optional.product_type = body.product_type;
   if (typeof body.category === "string" && body.category.trim()) optional.category = body.category.trim().slice(0, 40);
+  // Precio interno / especial (migración 139): vacío = se usa el precio de venta.
+  const interno = normalizarPrecioInterno(body.internal_price);
+  if (interno === undefined) return NextResponse.json({ error: "El precio interno no es válido" }, { status: 400 });
+  if (interno !== null) optional.internal_price = interno;
   let { data, error } = await supabase.from("products").insert({ ...base, ...optional }).select().single();
   // Si alguna columna nueva aun no existe, el producto se guarda igual sin ella.
-  if (error && Object.keys(optional).length > 0 && /sales_commission|product_type|category/.test(error.message)) {
+  if (error && Object.keys(optional).length > 0 && /sales_commission|product_type|category|internal_price/.test(error.message)) {
     ({ data, error } = await supabase.from("products").insert(base).select().single());
   }
 
