@@ -145,6 +145,30 @@ async function pruebasDisponibilidad(){
       await enviar(w.f,"1");
       check("menu: el 1 después del saludo muestra disponibilidad, no elige una hora vieja",!w.f.sent[2].startsWith("Perfecto. Te dejo la hora")&&/disponib/i.test(w.f.sent[2])&&creadas===0);
     }
+    { // "menú" y un saludo suelto sacan de la reserva en curso; "hola quiero reservar" no
+      const mk=()=>{
+        const w=armar(async(_id,fecha)=>({slots:[`${fecha}T15:00:00`],cerrado:false,fueraDeVentana:false}));
+        (w.f.deps as any).conMenu=true;
+        const memoria=new Map<string,any>();
+        (w.f.deps as any).chat={
+          leerEstado:async(t:string,c:string)=>memoria.get(t+c)??null,guardarEstado:async(t:string,c:string,e:any)=>{memoria.set(t+c,e);},borrarEstado:async(t:string,c:string)=>{memoria.delete(t+c);},
+          reservasFuturas:async()=>0,crearReserva:async()=>({ok:true,citaId:"x"}),contar:async()=>{},
+        };
+        return {w,memoria};
+      };
+      let {w,memoria}=mk();
+      await enviar(w.f,"matias tiene hora hoy a las 3");await enviar(w.f,"si");
+      const pideDatos=w.f.sent[1];
+      check("volver: el paso de datos avisa cómo volver al inicio",pideDatos.includes("tu nombre completo")&&pideDatos.includes("Escribe *menú* para volver al inicio."));
+      await enviar(w.f,"quiero abrir el menu");
+      check("volver: 'menú' sale del paso de datos y muestra las opciones",memoria.size===0&&w.f.sent[2].startsWith("Volvamos al inicio. Elige una opción:")&&w.f.sent[2].includes("1. Deseo reservar.")&&w.f.notices.length===0);
+      ({w,memoria}=mk());
+      await enviar(w.f,"matias tiene hora hoy a las 3");await enviar(w.f,"si");await enviar(w.f,"hola");
+      check("volver: un saludo suelto reinicia la reserva",memoria.size===0&&w.f.sent[2].startsWith("¡Hola!")&&w.f.sent[2].includes("4. Otras preguntas."));
+      ({w,memoria}=mk());
+      await enviar(w.f,"matias tiene hora hoy a las 3");await enviar(w.f,"si");await enviar(w.f,"hola quiero reservar");
+      check("volver: 'hola quiero reservar' no reinicia (sigue pidiendo datos)",memoria.size===1&&!w.f.sent[2].startsWith("¡Hola!"));
+    }
     const g=armar(undefined);(g.f.deps as any).ia=async()=>null;
     await enviar(g.f,"hacen degrade?");
     check("ia: si no sabe deriva a una persona",g.f.sent[0]==="Te contactará una persona."&&g.f.notices.length===1);

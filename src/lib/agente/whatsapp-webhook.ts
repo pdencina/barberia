@@ -1,7 +1,7 @@
 import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
 const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
 import { conLlamadaAReservar } from "./cta";
-import { opcionMenu, esSaludo, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
+import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
 import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
 import { fetchAllRows } from "../accounting";
@@ -147,8 +147,16 @@ export function crearManejadoresWebhook(config: {
                     // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
                     const datosNegocio = await deps.datosDelNegocio(n.tenantId);
                     datosMenu = datosNegocio;
+                    // 0) "menú", "volver" o un saludo suelto: se sale de cualquier reserva en curso y se empieza de cero.
+                    let reiniciado = false;
+                    if (deps.conMenu && tipo === "desconocido" && (esVolver(text) || esSoloSaludo(text))) {
+                      if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
+                      respuestaFaq = textoMenu(datosNegocio, esSoloSaludo(text) ? "saludo" : "volver");
+                      reiniciado = true;
+                      await contar("respuestas_automaticas");
+                    }
                     // 1) Conversación de reserva en curso (elegir hora, enviar datos).
-                    if (chat) {
+                    if (chat && !reiniciado) {
                       try {
                         const rc = await manejarReservaChat(text,para,datosNegocio,{
                           ahora: deps.ahora,
