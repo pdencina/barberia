@@ -177,7 +177,8 @@ export function crearManejadoresWebhook(config: {
                           let previo: EstadoChat | null = null;
                           if (chat) { try { previo = await chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()); } catch { /* sin memoria: respuesta normal */ } }
                           const fechaOferta = previo?.etapa === "oferta" ? previo.datos.opciones[0]?.fecha : undefined;
-                          const d = await conTiempoMaximo(responderDisponibilidad(consulta,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres,...(fechaOferta ? { fechaPorDefecto: fechaOferta } : {})}),6000);
+                          const unica = previo?.etapa === "oferta" && previo.datos.opciones.length === 1 ? previo.datos.opciones[0] : undefined;
+                          const d = await conTiempoMaximo(responderDisponibilidad(consulta,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres,...(fechaOferta ? { fechaPorDefecto: fechaOferta } : {}),...(unica ? { profesionalPorDefecto: unica.id, horasOfrecidas: unica.horas } : {})}),6000);
                           if (d.tipo === "respuesta") {
                             respuestaFaq = d.texto;
                             await contar("consultas_disponibilidad");

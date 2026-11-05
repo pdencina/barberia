@@ -97,7 +97,7 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
   });
   await caso("Franja: mañana en la tarde filtra por la tarde", async () => {
     const t = await texto("tiene hora matias mañana en la tarde", { "m|2026-11-04": ["10:00", "15:00", "16:00", "20:00"] });
-    assert.equal(t, `*Matías Soto* tiene disponible mañana (miércoles 4 de noviembre):\n15:00 · 16:00\n\n¿Quieres que te agende? Dime a qué hora y te pido tus datos.\nO reserva tú aquí: ${M}`);
+    assert.equal(t, `*Matías Soto* tiene disponible mañana (miércoles 4 de noviembre) en la tarde:\n15:00 · 16:00\n\n¿Quieres que te agende? Dime a qué hora y te pido tus datos.\nO reserva tú aquí: ${M}`);
   });
   await caso("Interpretación de horas", async () => {
     const a: Agenda = { "m|2026-11-03": ["10:00", "13:00", "15:30", "17:00", "21:00", "09:00"] };
@@ -156,6 +156,36 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     const otra = deps(ag); otra.fechaPorDefecto = "2026-11-04";
     const explicita = await responderDisponibilidad("valentina tiene hora hoy a las 10:15", datos(), otra);
     assert.ok(explicita.tipo === "respuesta" && explicita.texto.includes(" hoy"), "una fecha escrita gana sobre la heredada");
+  });
+  await caso("Muchos profesionales con horas: resume en vez de listar horas", async () => {
+    const ag: Agenda = { "m|2026-11-03": ["15:00", "16:00"], "c|2026-11-03": ["15:00"], "d|2026-11-03": ["17:00"], "v|2026-11-03": ["18:00"] };
+    const t = await texto("tienen hora hoy", ag);
+    assert.equal(t, `Hay horas disponibles hoy con 4 profesionales: Matías, Camila, Diego, Valentina.\n¿Con quién y en qué horario te acomoda? (por ejemplo «Matías en la tarde»)\n\nO reserva tú aquí: ${GENERAL}`);
+    const pocos = await texto("tienen hora hoy", { "m|2026-11-03": ["15:00", "16:00"], "c|2026-11-03": ["15:00"] });
+    assert.ok(pocos !== null && pocos.startsWith("Hay disponibilidad hoy:\n• *Matías Soto*: 15:00 · 16:00\n• *Camila Rojas*: 15:00"), "con 3 o menos profesionales se listan");
+  });
+  await caso("Un profesional con muchas horas: rango y pregunta el horario; con franja, lista", async () => {
+    const horas = ["10:00", "10:45", "11:30", "12:15", "13:00", "13:45", "14:30", "15:15", "16:00", "17:30"];
+    const t = await texto("matias tiene hora hoy", { "m|2026-11-03": horas });
+    assert.equal(t, `*Matías Soto* tiene 10 horas disponibles hoy, entre las 10:00 y las 17:30.\n¿Prefieres en la mañana, en la tarde o en la noche? O dime la hora que buscas.\n\nO reserva tú aquí: ${M}`);
+    const f = await texto("matias tiene hora hoy en la tarde", { "m|2026-11-03": horas });
+    assert.ok(f !== null && f.startsWith("*Matías Soto* tiene disponible hoy en la tarde:\n12:15 · 13:00 · 13:45 · 14:30 · 15:15 · 16:00 · y 1 más"));
+    const pocas = await texto("matias tiene hora hoy", { "m|2026-11-03": horas.slice(0, 6) });
+    assert.ok(pocas !== null && pocas.includes("10:00 · 10:45 · 11:30 · 12:15 · 13:00 · 13:45") && !pocas.includes("entre las"), "6 o menos se listan completas");
+  });
+  await caso("Seguimiento: franja suelta, hora suelta y más tarde usan el profesional y la fecha de la oferta", async () => {
+    const ag: Agenda = { "v|2026-11-04": ["10:00", "10:45", "12:15", "13:00", "16:00", "17:30"], "m|2026-11-04": ["11:00"] };
+    const con = (extra: Partial<ReturnType<typeof deps>> = {}) => { const d = deps(ag); d.fechaPorDefecto = "2026-11-04"; d.profesionalPorDefecto = "v"; Object.assign(d, extra); return d; };
+    const tarde = await responderDisponibilidad("me gustaría en la tarde", datos(), con());
+    assert.ok(tarde.tipo === "respuesta" && tarde.texto.startsWith("*Valentina Paredes* tiene disponible mañana (miércoles 4 de noviembre) en la tarde:\n12:15 · 13:00 · 16:00 · 17:30"), "franja suelta");
+    const hora = await responderDisponibilidad("a las 4", datos(), con());
+    assert.ok(hora.tipo === "respuesta" && hora.texto.includes("Valentina Paredes") && hora.texto.includes("16:00"), "hora suelta");
+    const tardeRel = await responderDisponibilidad("tienes más tarde?", datos(), con({ horasOfrecidas: ["10:00", "10:45", "12:15"] }));
+    assert.ok(tardeRel.tipo === "respuesta" && tardeRel.texto.includes("13:00 · 16:00 · 17:30") && !tardeRel.texto.includes("10:00"), "más tarde");
+    const tempRel = await responderDisponibilidad("más temprano", datos(), con({ horasOfrecidas: ["13:00", "16:00"] }));
+    assert.ok(tempRel.tipo === "respuesta" && tempRel.texto.includes("10:00 · 10:45 · 12:15") && !tempRel.texto.includes("16:00"), "más temprano");
+    const sin = await responderDisponibilidad("me gustaría en la tarde", datos(), deps(ag));
+    assert.equal(sin.tipo, "sin_consulta", "sin oferta previa, una franja suelta no se interpreta");
   });
   await caso("Formato: nunca dice 'ese día' y cada link va solo en su línea", async () => {
     const a: Agenda = { "m|2026-11-03": ["16:00", "17:30"], "c|2026-11-04": ["10:00"], "d|2026-11-03": ["17:00"] };
