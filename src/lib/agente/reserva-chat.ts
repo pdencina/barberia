@@ -170,7 +170,8 @@ async function faltan(sel: Seleccion, deps: DependenciasReserva, texto: string):
 }
 const unirFaltas = (a: string[]) => (a.length <= 1 ? a.join("") : `${a.slice(0, -1).join(", ")} y ${a[a.length - 1]}`);
 function ejemplo(servicios: Array<{ nombre: string }>): string {
-  return servicios.length > 1 ? "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl, 1" : "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl";
+  const ej = servicios.length > 1 ? "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl, 1" : "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl";
+  return `${ej}\n\nEscribe *menú* para volver al inicio.`;
 }
 function pedirDatos(profesional: string, dia: string, hora: string, servicios: Array<{ nombre: string; precio: number | null }>): string {
   const lista = servicios.length > 1 ? `\n• el servicio:\n${servicios.map((s, i) => `   ${i + 1}. ${s.nombre}${typeof s.precio === "number" ? ` ($${moneda.format(s.precio)})` : ""}`).join("\n")}` : "";

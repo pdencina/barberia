@@ -19,6 +19,28 @@ export function opcionMenu(texto: string): OpcionMenu | null {
   return m ? (Number(m[1]) as OpcionMenu) : null;
 }
 
+// Saludo y nada más: reinicia la conversación. "hola quiero reservar" NO cuenta: trae una petición.
+const PALABRAS_SALUDO = new Set(["hola", "holi", "holaa", "ola", "buenas", "buenos", "buen", "dia", "dias", "tardes", "noches", "hey", "hello", "saludos", "que", "tal", "como", "estas", "estan", "todos", "todo", "bien", "a"]);
+export function esSoloSaludo(texto: string): boolean {
+  const n = normalizar(texto).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!n) return false;
+  const palabras = n.split(" ");
+  return palabras.length <= 5 && /^(hola|holi|ola|buenas|buenos|buen|hey|hello|saludos)/.test(palabras[0]) && palabras.every((w) => PALABRAS_SALUDO.has(w) || /^hola+$/.test(w));
+}
+
+const VOLVER_EXACTO = new Set(["volver", "inicio", "salir", "atras", "reiniciar", "empezar de nuevo", "empezar otra vez", "de nuevo", "otra vez", "olvidalo", "no quiero", "ya no quiero", "cancelar", "menu"]);
+/** "menú", "volver", "quiero abrir el menú", "empezar de nuevo": el cliente quiere salir del flujo y ver las opciones. */
+export function esVolver(texto: string): boolean {
+  const n = normalizar(texto).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
+  if (!n) return false;
+  const palabras = n.split(" ");
+  if (VOLVER_EXACTO.has(n)) return true;
+  if (palabras.length <= 6 && /\bmenu\b/.test(n)) return true;
+  return palabras.length <= 5 && /^(quiero |puedo |podemos |necesito )?(volver|empezar|reiniciar|comenzar)\b/.test(n);
+}
+
+export const AVISO_VOLVER = "Escribe *menú* para volver al inicio.";
+
 export function esConsultaLarga(texto: string): boolean {
   return normalizar(texto).split(/\s+/).filter(Boolean).length >= PALABRAS_CONSULTA_LARGA;
 }
@@ -32,12 +54,12 @@ export const CONSULTA_POR_OPCION: Record<1 | 2 | 3, string> = {
 
 export const RESPUESTA_OTRAS = "Perfecto. Escribe tu consulta en un solo mensaje y una persona te contactará para responderla.";
 
-export function textoMenu(datos: DatosFaq | null, tipo: "saludo" | "no_entendi"): string {
+export function textoMenu(datos: DatosFaq | null, tipo: "saludo" | "no_entendi" | "volver"): string {
   const nombre = datos?.negocio.nombre && datoSeguro(datos.negocio.nombre) ? datos.negocio.nombre.trim() : null;
   const tel = datos?.negocio.telefono && /^\+?[\d\s()-]{8,20}$/.test(datos.negocio.telefono.trim()) ? datos.negocio.telefono.trim() : null;
   const encabezado = tipo === "saludo"
     ? `¡Hola! ${nombre ? `Soy el asistente de ${nombre}. ` : ""}¿En qué te puedo ayudar? Elige una opción:`
-    : "No entendí lo que me escribes. Por favor elige una de estas opciones:";
+    : tipo === "volver" ? "Volvamos al inicio. Elige una opción:" : "No entendí lo que me escribes. Por favor elige una de estas opciones:";
   return `${encabezado}\n\n1. Deseo reservar.\n2. Quiero información del curso.\n3. Quiero información de precios, horarios y ubicación.\n4. Otras preguntas.${tel ? `\n\nSi tienes dudas, llámanos al ${tel}, con gusto te atenderemos.` : ""}`;
 }
 
