@@ -11,6 +11,7 @@ import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashboard/sales-chart";
+import { VentasPorProfesional, MediosDePago, type VentaProfesional, type VentaMedio } from "@/components/dashboard/ventas-desglose";
 import { ProductCarousel, type CarouselItem } from "@/components/dashboard/product-carousel";
 import { Eye, EyeOff, SlidersHorizontal, PackageX, ShoppingBag, CalendarCheck, Wallet, UserPlus, RefreshCw, CalendarX, CalendarDays } from "lucide-react";
 import { PageHeader, StatCard, Panel, Segmented } from "@/components/ui/premium";
@@ -54,6 +55,8 @@ interface DashboardData {
   chartData: ChartPoint[];
   chartTotal: number;
   chartGrowth: number;
+  ventasPorProfesional?: VentaProfesional[];
+  ventasPorMedio?: VentaMedio[];
 }
 
 const HIDDEN_KEY = "dashboard_hidden_sections";
@@ -389,6 +392,18 @@ export default function DashboardPage() {
         loading={chartLoading}
       />
       </Sec>
+
+      {/* Desglose de las ventas del período: por profesional (si hay más de uno) y por medio de pago */}
+      {((data.ventasPorProfesional?.length || 0) > 1 || (data.ventasPorMedio?.length || 0) > 0) && (
+        <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
+          {(data.ventasPorProfesional?.length || 0) > 1 && (
+            <Sec id="porProfesional" {...secProps}><VentasPorProfesional data={data.ventasPorProfesional!} total={data.chartTotal} /></Sec>
+          )}
+          {(data.ventasPorMedio?.length || 0) > 0 && (
+            <Sec id="mediosPago" {...secProps}><MediosDePago data={data.ventasPorMedio!} /></Sec>
+          )}
+        </div>
+      )}
 
       {/* Aviso de stock bajo + Productos mas vendidos — carruseles de 3 por vista */}
       <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
