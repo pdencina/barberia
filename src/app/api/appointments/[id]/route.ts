@@ -63,18 +63,18 @@ export async function PATCH(
     }
   }
 
-  // Cupos por bloque (solo kinesiologia): mover una cita a un horario/profesional ya lleno no se
-  // permite. Con cupo 1 (todos los demas rubros) no se comprueba nada, igual que siempre.
+  // Mover una cita a un horario/profesional ya ocupado no se permite.
   if (update.start_time || update.end_time || update.barber_id) {
     const { data: cur } = await supabase.from("appointments").select("barber_id, date, start_time, end_time, tenant_id").eq("id", params.id).single();
     if (cur) {
       const barber = update.barber_id || cur.barber_id;
-      if (await getSlotCapacity(supabase, cur.tenant_id) > 1) {
-        const start = parseWallClock(update.start_time || cur.start_time);
-        const end = parseWallClock(update.end_time || cur.end_time);
-        if (await isSlotFull(supabase, barber, cur.tenant_id, update.date || cur.date, start, end, params.id)) {
-          return NextResponse.json({ error: "Ese horario ya no tiene cupo" }, { status: 409 });
-        }
+      // Antes solo se revisaba con cupos por bloque: con cupo 1 mover, cambiar de profesional o alargar una cita
+      // podia dejarla encima de otra. Ahora se revisa siempre (la propia cita no cuenta).
+      const cap = await getSlotCapacity(supabase, cur.tenant_id);
+      const start = parseWallClock(update.start_time || cur.start_time);
+      const end = parseWallClock(update.end_time || cur.end_time);
+      if (await isSlotFull(supabase, barber, cur.tenant_id, update.date || cur.date, start, end, params.id)) {
+        return NextResponse.json({ error: cap > 1 ? "Ese horario ya no tiene cupo" : "El profesional ya tiene una cita en ese horario" }, { status: 409 });
       }
     }
   }
