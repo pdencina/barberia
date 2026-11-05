@@ -14,6 +14,7 @@ import { norm } from "@/lib/oti/texto";
 import { entenderConsulta, NOMBRE_MEDIO, periodo, type ConsultaOti } from "@/lib/oti/consulta";
 import { useOtiVisible, ocultarOti, mostrarOti, leerPosicion, guardarPosicion, type PosicionOti } from "@/lib/oti/visibilidad";
 import { MEDIOS_PAGO_NEGOCIO, pareceDelNegocio } from "@/lib/oti/negocio";
+import { entenderNota, buscarNotas, estadoVencimiento, ordenarNotas, type NotaOti } from "@/lib/oti/notas";
 import { entenderMovimientoPersonal, entenderResumenPersonal, extraerMonto, CATEGORIAS_GASTO, CATEGORIAS_INGRESO, type MovimientoPersonal } from "@/lib/oti/personal";
 
 type Mensaje =
@@ -23,6 +24,8 @@ type Mensaje =
   | { de: "oti"; tipo: "confirmar"; pedido: Extract<PedidoBloqueo, { ok: true }>; estado: "pendiente" | "hecho" | "cancelado" }
   | { de: "oti"; tipo: "soporte"; pregunta: string }
   | { de: "oti"; tipo: "personal"; mov: MovimientoPersonal; estado: "pendiente" | "hecho" | "cancelado"; destino?: "personal" | "negocio"; medio?: string }
+  | { de: "oti"; tipo: "nota"; texto: string; dia: number | null; estado: "pendiente" | "hecho" | "cancelado" }
+  | { de: "oti"; tipo: "borrarNota"; notas: NotaOti[]; sel?: string; estado: "pendiente" | "hecho" | "cancelado" }
   | { de: "oti"; tipo: "opciones"; opciones: { texto: string; ayuda?: EntradaOti; relleno?: string; soporte?: string }[] };
 
 const formatCLP = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
@@ -32,6 +35,7 @@ const SUGERENCIAS = [
   { titulo: "Anotar un gasto personal", frase: "Gasté $ en " },
   { titulo: "Anotar un ingreso personal", frase: "Recibí $ por " },
   { titulo: "Ver mis gastos del mes", frase: "¿Cuánto gasté este mes?" },
+  { titulo: "Dejar una nota", frase: "Recuérdame ", soloAdmin: true },
 ];
 // Ejemplos de pedidos de cierre: se muestran mientras la persona escribe algo parecido.
 const EJEMPLOS_CIERRE = ["Cierra mañana mi agenda", "Cierra el domingo mi agenda", "Cierra del 28 al 30 de octubre mi agenda"];
@@ -215,6 +219,31 @@ export function OtiWidget() {
     setMsgs((m) => [...m, { de: "yo", tipo: "texto", texto: pregunta }]);
     setOcupado(true);
     try {
+      // -2) Notas del administrador (Dashboard): «recuérdame pagar la luz el 5», «ver mis notas», «borra la nota de la luz». Solo administrador;
+      // el servidor valida la sesión. Crear y borrar siempre piden confirmar.
+      const pedidoNota = esAdmin ? entenderNota(pregunta) : null;
+      if (pedidoNota) {
+        setFaltaMonto(null);
+        const dice = (texto: string) => setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto }]);
+        if (pedidoNota.tipo === "crear") { setMsgs((m) => [...m, { de: "oti", tipo: "nota", texto: pedidoNota.texto, dia: pedidoNota.dia, estado: "pendiente" }]); return; }
+        try {
+          const res = await fetch("/api/notas", { cache: "no-store" });
+          const d = await res.json().catch(() => ({}));
+          if (!res.ok || d?.migracionPendiente) { dice(d?.migracionPendiente ? "Todavía no están listas las notas (falta una actualización)." : "No pude leer tus notas. Intenta de nuevo."); return; }
+          const notas: NotaOti[] = d.notas || [];
+          if (pedidoNota.tipo === "listar") {
+            if (notas.length === 0) { dice("No tienes notas. Dime, por ejemplo: «recuérdame pagar la luz el 5»."); return; }
+            dice("Tus notas:\n" + ordenarNotas(notas, todayInChile()).map((n) => `• ${n.texto}${estadoVencimiento(n.dia, todayInChile()) ? ` (${estadoVencimiento(n.dia, todayInChile())!.texto.toLowerCase()})` : ""}`).join("\n"));
+            return;
+          }
+          const hallas = buscarNotas(notas, pedidoNota.consulta);
+          if (notas.length === 0) { dice("No tienes notas para borrar."); return; }
+          if (hallas.length === 0) { dice("No encontré una nota que coincida. Escribe «ver mis notas» para ver cuáles tienes."); return; }
+          setMsgs((m) => [...m, { de: "oti", tipo: "borrarNota", notas: hallas, estado: "pendiente" }]);
+        } catch { dice("No pude conectar. Revisa tu conexión e intenta de nuevo."); }
+        return;
+      }
+
       // -1) Gastos e ingresos PERSONALES (Mi Billetera). Privados: se guardan a nombre de quien escribe; Oti siempre pide confirmar.
       let textoPersonal = pregunta;
       if (faltaMonto && extraerMonto(pregunta) && pregunta.split(/\s+/).length <= 4) textoPersonal = `${faltaMonto} ${pregunta}`;
@@ -314,6 +343,32 @@ export function OtiWidget() {
       const medioTxt = MEDIOS_PAGO_NEGOCIO.find((x) => x.value === medio)?.label || medio;
       setMsgs((m) => m.map((x, k) => (k === i && x.tipo === "personal" ? { ...x, estado: "hecho" as const } : x)).concat([{ de: "oti", tipo: "texto", texto: `Listo, anoté ${mov.tipo === "gasto" ? "un egreso" : "un ingreso"} de ${formatCLP(mov.monto)} (${medioTxt}) en Ingresos/Egresos del negocio.` }]));
       showToast("Anotado en Ingresos/Egresos", "success");
+    } catch { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "No pude conectar. Revisa tu conexión e intenta de nuevo." }]); }
+    finally { setOcupado(false); }
+  };
+
+  // Notas del administrador: guardar y borrar (el servidor valida sesión y rol; borrar pide un segundo «sí»).
+  const guardarNota = async (i: number, texto: string, dia: number | null) => {
+    setOcupado(true);
+    try {
+      const res = await fetch("/api/notas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto, dia, fuente: "oti" }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: `No pude guardarla: ${d?.error || "intenta de nuevo"}.` }]); return; }
+      setMsgs((m) => m.map((x, k) => (k === i && x.tipo === "nota" ? { ...x, estado: "hecho" as const } : x)).concat([{ de: "oti", tipo: "texto", texto: "Listo, dejé la nota en tu Dashboard. Va a seguir ahí hasta que la borres." }]));
+      try { window.dispatchEvent(new Event("notas-changed")); } catch {}
+      showToast("Nota guardada en tu Dashboard", "success");
+    } catch { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "No pude conectar. Revisa tu conexión e intenta de nuevo." }]); }
+    finally { setOcupado(false); }
+  };
+
+  const borrarNotaOti = async (i: number, nota: NotaOti) => {
+    setOcupado(true);
+    try {
+      const res = await fetch(`/api/notas?id=${nota.id}`, { method: "DELETE" });
+      if (!res.ok) { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "No pude borrar la nota. Intenta de nuevo." }]); return; }
+      setMsgs((m) => m.map((x, k) => (k === i && x.tipo === "borrarNota" ? { ...x, estado: "hecho" as const, notas: x.notas.filter((n) => n.id !== nota.id), sel: undefined } : x)).concat([{ de: "oti", tipo: "texto", texto: `Listo, borré «${nota.texto}».` }]));
+      try { window.dispatchEvent(new Event("notas-changed")); } catch {}
+      showToast("Nota borrada", "success");
     } catch { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "No pude conectar. Revisa tu conexión e intenta de nuevo." }]); }
     finally { setOcupado(false); }
   };
@@ -466,6 +521,38 @@ export function OtiWidget() {
                     )}
                   </div>
                 );
+                if (m.tipo === "nota") return (
+                  <div key={i} className="max-w-[92%] space-y-2 rounded-2xl border border-brand-blue/30 bg-white px-3 py-3 text-sm dark:bg-gray-900">
+                    <p className="font-bold text-brand-dark dark:text-gray-100">¿Dejo esta nota en tu Dashboard?</p>
+                    <p className="rounded-xl bg-brand-light/70 px-3 py-2 text-brand-dark dark:bg-gray-800 dark:text-gray-200">{m.texto}{m.dia ? <span className="block text-xs text-brand-gray">Día {m.dia} de cada mes · te la mostraré siempre, y más destacada los últimos 3 días</span> : <span className="block text-xs text-brand-gray">Se queda visible hasta que la borres</span>}</p>
+                    {m.estado === "pendiente" ? (
+                      <div className="flex gap-2">
+                        <button type="button" disabled={ocupado} onClick={() => guardarNota(i, m.texto, m.dia)} className="rounded-xl bg-brand-blue px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">Sí, dejar nota</button>
+                        <button type="button" disabled={ocupado} onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "nota" ? { ...y, estado: "cancelado" as const } : y)).concat([{ de: "oti", tipo: "texto", texto: "Listo, no dejé nada." }]))} className="rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-brand-gray dark:border-gray-700">No</button>
+                      </div>
+                    ) : <p className="text-xs text-brand-gray">{m.estado === "hecho" ? "Hecho." : "Sin cambios."}</p>}
+                  </div>
+                );
+                if (m.tipo === "borrarNota") return (
+                  <div key={i} className="max-w-[92%] space-y-2 rounded-2xl border border-brand-blue/30 bg-white px-3 py-3 text-sm dark:bg-gray-900">
+                    <p className="font-bold text-brand-dark dark:text-gray-100">{m.notas.length > 1 ? "¿Cuál nota borro?" : "¿Borro esta nota?"}</p>
+                    {m.notas.map((n) => (
+                      <div key={n.id} className="space-y-1.5 rounded-xl bg-brand-light/70 px-3 py-2 dark:bg-gray-800">
+                        <p className="text-brand-dark dark:text-gray-200">{n.texto}{n.dia ? <span className="text-xs text-brand-gray"> · día {n.dia}</span> : null}</p>
+                        {m.sel === n.id ? (
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-semibold text-brand-dark dark:text-gray-200">¿Seguro?</span>
+                            <button type="button" disabled={ocupado} onClick={() => borrarNotaOti(i, n)} className="rounded-xl bg-red-500 px-3 py-1 text-xs font-semibold text-white disabled:opacity-50">Sí, borrar</button>
+                            <button type="button" disabled={ocupado} onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "borrarNota" ? { ...y, sel: undefined } : y)))} className="rounded-xl border border-gray-200 px-3 py-1 text-xs font-semibold text-brand-gray dark:border-gray-700">No</button>
+                          </div>
+                        ) : m.estado === "pendiente" || m.notas.length > 0 ? (
+                          <button type="button" disabled={ocupado} onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "borrarNota" ? { ...y, sel: n.id } : y)))} className="rounded-xl border border-red-200 px-3 py-1 text-xs font-semibold text-red-500 disabled:opacity-50">Borrar</button>
+                        ) : null}
+                      </div>
+                    ))}
+                    {m.notas.length === 0 && <p className="text-xs text-brand-gray">Sin más notas por borrar.</p>}
+                  </div>
+                );
                 if (m.tipo === "confirmar") return (
                   <div key={i} className="max-w-[92%] space-y-2 rounded-2xl border border-brand-blue/30 bg-white px-3 py-3 text-sm dark:bg-gray-900">
                     <p className="font-bold text-brand-dark dark:text-gray-100">¿Confirmas?</p>
@@ -504,7 +591,7 @@ export function OtiWidget() {
 
             {msgs.length === 1 && (
               <div className="flex flex-wrap gap-2 px-4 pb-2">
-                {SUGERENCIAS.map((s) => <button key={s.titulo} type="button" onClick={() => { setTexto(s.frase); setTimeout(() => { const el = campo.current; if (el) { el.focus(); const n = s.frase.length; el.setSelectionRange(n, n); } }, 0); }} className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-brand-gray hover:border-brand-blue/40 dark:border-gray-700">{s.titulo}</button>)}
+                {SUGERENCIAS.filter((s) => !(s as any).soloAdmin || esAdmin).map((s) => <button key={s.titulo} type="button" onClick={() => { setTexto(s.frase); setTimeout(() => { const el = campo.current; if (el) { el.focus(); const n = s.frase.length; el.setSelectionRange(n, n); } }, 0); }} className="rounded-full border border-gray-200 px-3 py-1 text-[11px] font-semibold text-brand-gray hover:border-brand-blue/40 dark:border-gray-700">{s.titulo}</button>)}
               </div>
             )}
             {texto.trim().length >= 2 && (ideasCierre.length > 0 || ideasAyuda.length > 0) && (

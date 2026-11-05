@@ -12,6 +12,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashboard/sales-chart";
 import { VentasPorProfesional, MediosDePago, type VentaProfesional, type VentaMedio } from "@/components/dashboard/ventas-desglose";
+import { NotasCard } from "@/components/dashboard/notas-card";
 import { MetricInfo, type InfoMetrica } from "@/components/dashboard/metric-info";
 import { consejosCancelaciones, consejosConfirmadas, consejosReservas, consejosClientesNuevos, type ResumenCancelaciones, type CancelacionFila } from "@/lib/cancel-reasons";
 import { ProductCarousel, type CarouselItem } from "@/components/dashboard/product-carousel";
@@ -347,6 +348,9 @@ export default function DashboardPage() {
           </div>
         }
       />
+
+      {/* Notas del administrador: las deja Oti o se escriben aquí; siempre visibles hasta que se borran */}
+      {isAtLeast("admin") && <Sec id="notas" className="empty:hidden" {...secProps}><NotasCard /></Sec>}
 
       {/* Aviso discreto cuando los correos del mes se estan agotando (administrador y recepcionista) */}
       {isAtLeast("receptionist") && <AvisoCorreos />}
