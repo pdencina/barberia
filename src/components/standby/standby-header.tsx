@@ -1,5 +1,6 @@
 "use client";
 
+import { precioInterno } from "@/lib/precio-interno";
 import JsBarcode from "jsbarcode";
 
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -7,7 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { formatCurrency } from "@/lib/utils";
 
-interface Product { id: string; name: string; price: number; stock: number; category?: string | null }
+interface Product { id: string; name: string; price: number; internal_price?: number | null; stock: number; category?: string | null }
 interface OpenProblem { open: number; latest: { reported_by_name: string | null; note: string; created_at: string } | null }
 
 // Encabezado del Standby nuevo (sobre el Punto de Venta). Su objetivo es CONTROLAR EL EFECTIVO paso a paso:
@@ -183,7 +184,7 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
                       )}
                       <select value={productId} onChange={(e) => setProductId(e.target.value)} className="mt-3 w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm">
                         <option value="">Elige un producto…</option>
-                        {lista.map((p) => <option key={p.id} value={p.id}>{p.name} · {formatCurrency(Number(p.price))}</option>)}
+                        {lista.map((p) => <option key={p.id} value={p.id}>{p.name} · {formatCurrency(precioInterno(p))}</option>)}
                       </select>
                     </>
                   );
@@ -200,10 +201,10 @@ export function StandbyHeader({ barber, products, saleCounter, onExit, onReview 
                     {cart.map((c) => { const p = products.find((x) => x.id === c.productId); return (
                       <li key={c.productId} className="flex items-center justify-between gap-2 px-3 py-2">
                         <span className="text-gray-700">{p?.name || "Producto"} <span className="text-gray-400">x{c.qty}</span></span>
-                        <span className="flex items-center gap-2"><span className="tabular-nums text-gray-500">{formatCurrency(Number(p?.price || 0) * c.qty)}</span><button onClick={() => setCart((x) => x.filter((y) => y.productId !== c.productId))} aria-label="Quitar" className="text-gray-400 hover:text-red-500">✕</button></span>
+                        <span className="flex items-center gap-2"><span className="tabular-nums text-gray-500">{formatCurrency(p ? precioInterno(p) * c.qty : 0)}</span><button onClick={() => setCart((x) => x.filter((y) => y.productId !== c.productId))} aria-label="Quitar" className="text-gray-400 hover:text-red-500">✕</button></span>
                       </li>
                     ); })}
-                    <li className="flex justify-between px-3 py-2 font-semibold"><span>Total</span><span className="tabular-nums">{formatCurrency(cart.reduce((t, c) => t + Number(products.find((x) => x.id === c.productId)?.price || 0) * c.qty, 0))}</span></li>
+                    <li className="flex justify-between px-3 py-2 font-semibold"><span>Total</span><span className="tabular-nums">{formatCurrency(cart.reduce((t, c) => t + (() => { const q = products.find((x) => x.id === c.productId); return q ? precioInterno(q) : 0; })() * c.qty, 0))}</span></li>
                   </ul>
                 )}
                 <div className="mt-5 flex gap-2">
