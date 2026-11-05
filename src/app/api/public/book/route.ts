@@ -181,7 +181,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Dos personas pueden reservar el ultimo cupo a la vez: si nos pasamos, esta cita se deshace.
-  if (await exceededAfterInsert(supabase, barberId, tenantId, date, start, end)) {
+  if (await exceededAfterInsert(supabase, barberId, tenantId, date, start, end, appointment!.id)) {
     await supabase.from("appointments").delete().eq("id", appointment!.id);
     return NextResponse.json({ error: "Horario no disponible. Selecciona otro." }, { status: 409 });
   }

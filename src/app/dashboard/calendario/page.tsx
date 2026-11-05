@@ -377,6 +377,9 @@ export default function CalendarioPage() {
   // equivalent at all — that's the actual reason "mover la cita" didn't work on
   // tablet/celular.
   const [movingApptId, setMovingApptId] = useState<string | null>(null);
+  const [pendingMove, setPendingMove] = useState<{ apptId: string; barberId: string; y: number; name: string; time: string; notify: boolean } | null>(null);
+  // Tras cerrar un cuadro tocando fuera, durante un rato se ignoran toques sobre la grilla (evita abrir otro bloque).
+  const ignoreUntil = useRef(0);
   const moveTouchRef = useRef<{ apptId: string; startClientX: number; startClientY: number; activated: boolean } | null>(null);
   const moveLongPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   
@@ -729,7 +732,7 @@ export default function CalendarioPage() {
   // El celular dispara un "mouse" falso despues de cada toque: se ignora para que un toque corto no abra nada.
   const lastTouchAt = useRef(0);
   const handleMouseDown = (e: React.MouseEvent, barberId: string) => {
-    if (Date.now() - lastTouchAt.current < 1000) return;
+    if (Date.now() - lastTouchAt.current < 1000 || Date.now() < ignoreUntil.current) return;
     // Don't start drag-to-create if clicking on an existing appointment
     if ((e.target as HTMLElement).closest("[data-appointment]")) return;
     // Only left click
@@ -880,6 +883,7 @@ export default function CalendarioPage() {
 
   const handleTouchStart = (e: React.TouchEvent, barberId: string) => {
     lastTouchAt.current = Date.now();
+    if (Date.now() < ignoreUntil.current) return;
     if ((e.target as HTMLElement).closest("[data-appointment]")) return;
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
@@ -904,6 +908,7 @@ export default function CalendarioPage() {
   useBackToClose(showPopup, () => setShowPopup(false));
   useBackToClose(!!selectedApptId, () => setSelectedApptId(null));
   useBackToClose(!!editingBlock, () => setEditingBlock(null));
+  useBackToClose(!!pendingMove, () => setPendingMove(null));
 
   const handleTouchEnd = (e?: React.TouchEvent) => {
     lastTouchAt.current = Date.now();
@@ -1017,7 +1022,7 @@ export default function CalendarioPage() {
     return new Date(Date.UTC(y + add.y, m - 1 + add.m, d)).toISOString().slice(0, 10);
   };
 
-  const moveAppointmentTo = async (apptId: string, barberId: string, y: number) => {
+  const moveAppointmentTo = async (apptId: string, barberId: string, y: number, notifyClient = true) => {
     const appt = appointments.find((a: any) => a.id === apptId);
     const sm = appt?.start_time?.match(/(\d{2}):(\d{2})/);
     const em = appt?.end_time?.match(/(\d{2}):(\d{2})/);
@@ -1037,13 +1042,13 @@ export default function CalendarioPage() {
     const res = await fetch(`/api/appointments/${apptId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ barber_id: barberId, start_time: newStartISO, end_time: newEndISO }),
+      body: JSON.stringify({ barber_id: barberId, start_time: newStartISO, end_time: newEndISO, notify_client: notifyClient }),
     });
 
     if (res.ok) {
       showToast("Cita movida", "success");
     } else {
-      showToast("No se pudo mover la cita", "error");
+      showToast((await res.json().catch(() => ({}))).error || "No se pudo mover la cita", "error");
     }
     await fetchAppointments();
   };
@@ -1053,6 +1058,7 @@ export default function CalendarioPage() {
   // moving a cita after creating it didn't work at all on tablet/celular.
   const handleApptTouchStart = (e: React.TouchEvent, apptId: string) => {
     e.stopPropagation();
+    if (Date.now() < ignoreUntil.current) return;
     const touch = e.touches[0];
     moveTouchRef.current = { apptId, startClientX: touch.clientX, startClientY: touch.clientY, activated: false };
     moveLongPressTimer.current = setTimeout(() => {
@@ -1060,7 +1066,7 @@ export default function CalendarioPage() {
       moveTouchRef.current.activated = true;
       setMovingApptId(apptId);
       if (navigator.vibrate) navigator.vibrate(30);
-    }, 400);
+    }, 650);
   };
 
   // Cancel the long-press-to-move if the finger moves too much before it activates
@@ -1089,7 +1095,10 @@ export default function CalendarioPage() {
     const indicator = dropIndicator;
     setDropIndicator(null);
     if (!indicator) return;
-    await moveAppointmentTo(ref.apptId, indicator.barberId, indicator.y);
+    // En el celular, mover con el dedo pide confirmación: al deslizar sin querer se movían citas y al cliente
+    // le llegaba un correo de modificación.
+    const a: any = appointments.find((x: any) => x.id === ref.apptId);
+    setPendingMove({ apptId: ref.apptId, barberId: indicator.barberId, y: indicator.y, name: a?.client?.name || "esta cita", time: yToTime(Math.round(indicator.y / HOUR_HEIGHT * 4) * (HOUR_HEIGHT / 4)), notify: true });
   };
 
   // Appointment block position - parse UTC time directly (avoid timezone shift)
@@ -1972,8 +1981,8 @@ export default function CalendarioPage() {
                               const newEnd = eH * 60 + eM + addMin;
                               if (newEnd <= sH * 60 + sM || newEnd > END_HOUR * 60) { await fetchAppointments(); return; }
                               const nH = Math.floor(newEnd / 60), nM = newEnd % 60;
-                              await fetch(`/api/appointments/${appt.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ end_time: `${date}T${nH.toString().padStart(2,"0")}:${nM.toString().padStart(2,"0")}:00` }) });
-                              showToast("Duracion actualizada", "success");
+                              const rs = await fetch(`/api/appointments/${appt.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ end_time: `${date}T${nH.toString().padStart(2,"0")}:${nM.toString().padStart(2,"0")}:00` }) });
+                              if (rs.ok) showToast("Duracion actualizada", "success"); else showToast((await rs.json().catch(() => ({}))).error || "No se pudo cambiar la duración", "error");
                               await fetchAppointments();
                             };
                             document.addEventListener("mousemove", onMove);
@@ -2094,7 +2103,7 @@ export default function CalendarioPage() {
 
       {/* Google Calendar style popup - positioned beside the selection */}
       {showPopup && (
-        <div className="fixed inset-0 z-50" onClick={() => { if (Date.now() - popupOpenedAt.current > 400) setShowPopup(false); }}>
+        <div className="fixed inset-0 z-50" onClick={() => { if (Date.now() - popupOpenedAt.current > 400) { ignoreUntil.current = Date.now() + 700; setShowPopup(false); } }}>
           <div
             className={`fixed top-20 bg-white rounded-2xl shadow-2xl border border-gray-200 w-[90vw] md:w-96 animate-scale-in max-h-[80vh] overflow-y-auto ${
               popupPosition === "left" ? "left-4 md:left-16" : "right-4 md:right-8"
@@ -2366,9 +2375,27 @@ export default function CalendarioPage() {
         </div>
       )}
 
+      {/* Confirmar mover una cita con el dedo */}
+      {pendingMove && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => { ignoreUntil.current = Date.now() + 700; setPendingMove(null); }}>
+          <div className="w-full max-w-sm rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-bold text-brand-dark">¿Mover la cita?</h3>
+            <p className="mt-1 text-sm text-brand-gray">{pendingMove.name} pasará a las <b className="text-brand-dark">{pendingMove.time}</b>.</p>
+            <label className="mt-3 flex items-center gap-2 text-sm text-brand-dark">
+              <input type="checkbox" checked={pendingMove.notify} onChange={(e) => setPendingMove({ ...pendingMove, notify: e.target.checked })} />
+              Avisar al cliente por correo
+            </label>
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => { ignoreUntil.current = Date.now() + 700; setPendingMove(null); }} className="flex-1 rounded-xl border border-gray-200 py-2.5 text-sm text-brand-gray">Cancelar</button>
+              <button type="button" onClick={async () => { const m = pendingMove; setPendingMove(null); ignoreUntil.current = Date.now() + 700; await moveAppointmentTo(m.apptId, m.barberId, m.y, m.notify); }} className="flex-1 rounded-xl bg-brand-blue py-2.5 text-sm font-semibold text-white">Mover</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Appointment Detail Popup */}
       {selectedApptId && (
-        <div className="fixed inset-0 z-50 flex items-start justify-end p-4 pt-20" onClick={() => setSelectedApptId(null)}>
+        <div className="fixed inset-0 z-50 flex items-start justify-end p-4 pt-20" onClick={() => { ignoreUntil.current = Date.now() + 700; setSelectedApptId(null); }}>
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-md max-h-[80vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             {loadingDetails ? (
               <div className="p-8 text-center"><div className="w-6 h-6 border-2 border-brand-blue/20 border-t-brand-blue rounded-full animate-spin mx-auto" /></div>
@@ -2663,7 +2690,7 @@ export default function CalendarioPage() {
                             Cancelar
                           </button>
                           <button onClick={async () => {
-                            await fetch(`/api/appointments/${selectedApptId}`, {
+                            const rs = await fetch(`/api/appointments/${selectedApptId}`, {
                               method: "PATCH",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
@@ -2672,6 +2699,7 @@ export default function CalendarioPage() {
                                 end_time: `${editDate}T${editEndTime}:00`,
                               }),
                             });
+                            if (!rs.ok) { showToast((await rs.json().catch(() => ({}))).error || "No se pudo reprogramar la cita", "error"); await fetchAppointments(); return; }
                             showToast("Cita reprogramada", "success");
                             setEditingApptTime(false);
                             setSelectedApptId(null);
@@ -2713,7 +2741,7 @@ export default function CalendarioPage() {
       {/* Panel de edicion de bloqueo — reemplaza la X roja: nombre, duracion y eliminar
           en un solo lugar (punto de Pablo, 25-sep). */}
       {editingBlock && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setEditingBlock(null)}>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => { ignoreUntil.current = Date.now() + 700; setEditingBlock(null); }}>
           <div className="bg-white rounded-2xl shadow-2xl border border-gray-200 w-full max-w-sm max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-4 border-b">
               <h3 className="font-bold text-lg text-brand-dark">Bloqueo</h3>
