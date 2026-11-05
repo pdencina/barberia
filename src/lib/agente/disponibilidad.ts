@@ -162,7 +162,11 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
   const q = interpretar(t, ahora.fecha, perfiles);
   if (!q) return SIN;
   const general = datos?.negocio.linkReserva && datoSeguro(datos.negocio.linkReserva) ? datos.negocio.linkReserva.trim() : null;
-  const dia = (f: string) => (f === ahora.fecha ? "hoy" : f === sumar(ahora.fecha, 1) ? "mañana" : `el ${DIAS[diaSemana(f)]} ${Number(f.slice(8, 10))} de ${MESES[Number(f.slice(5, 7)) - 1]}`);
+  const completa = (f: string) => `${DIAS[diaSemana(f)]} ${Number(f.slice(8, 10))} de ${MESES[Number(f.slice(5, 7)) - 1]}`;
+  // "mañana" lleva la fecha: pasada la medianoche, "mañana" puede ser el mismo día para quien escribe.
+  const dia = (f: string) => (f === ahora.fecha ? "hoy" : f === sumar(ahora.fecha, 1) ? `mañana (${completa(f)})` : `el ${completa(f)}`);
+  const notaMadrugada = ahora.minutos < 6 * 60 && q.fecha === sumar(ahora.fecha, 1) ? `Si te referías a hoy, ${completa(ahora.fecha)}, escríbeme «hoy».` : null;
+  const conNota = (c: string) => (notaMadrugada ? `${notaMadrugada}\n\n${c}` : c);
   const consultar = async (p: Perfil, f: string): Promise<HorasLibres> => deps.horasLibres(p.id, f, p.duracionMin);
   const consultarTodos = (ps: Perfil[], f: string) => Promise.all(ps.map(async (p) => ({ p, r: await consultar(p, f) })));
   const hh = q.hora === null ? null : hhmm(q.hora);
@@ -174,7 +178,7 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
     const r = await consultar(P, q.fecha);
     if (r.fueraDeVentana) return { tipo: "respuesta", texto: fueraDeVentana(P.link, ` de ${P.nombre}`) };
     const propias = horasDe(r, q.franja);
-    const cierre = `¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${P.link}`;
+    const cierre = conNota(`¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${P.link}`);
     if (hh !== null && propias.includes(hh)) {
       const otras = cercanos(propias.filter((h) => h !== hh), q.hora, MAX_HORAS);
       return { tipo: "respuesta", texto: bloque(`Sí, ${N} tiene disponible ${dia(q.fecha)} a las *${hh}*.`, otras.length > 0 && `También tiene: ${horasTxt(otras)}`, cierre), oferta: { horaExacta: hh, opciones: [{ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: q.fecha, horas: propias.slice(0, MAX_HORAS_OFRECIDAS) }] } };
@@ -213,7 +217,7 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
   const dia1 = await consultarTodos(revisados, q.fecha);
   if (dia1.some(({ r }) => r.fueraDeVentana)) return { tipo: "respuesta", texto: fueraDeVentana(general, "") };
   const con = dia1.map(({ p, r }) => ({ p, horas: horasDe(r, q.franja) })).filter((x) => x.horas.length > 0);
-  const cierre = `¿Quieres que te agende? Dime con quién y a qué hora (por ejemplo: «Matías a las 19:00») y te pido tus datos.\nO reserva tú aquí: ${general}`;
+  const cierre = conNota(`¿Quieres que te agende? Dime con quién y a qué hora (por ejemplo: «Matías a las 19:00») y te pido tus datos.\nO reserva tú aquí: ${general}`);
   const filas = (xs: typeof con) => xs.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}: ${horasTxt(cercanos(x.horas, q.hora, MAX_HORAS))}`).join("\n");
   if (hh !== null) {
     const exactos = con.filter((x) => x.horas.includes(hh));
