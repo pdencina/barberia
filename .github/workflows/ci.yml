@@ -6,8 +6,14 @@ on:
   pull_request:
     branches: [agente/whatsapp, main]
 
+# Si se sube otro commit al mismo PR, se cancela la revision vieja en vez de hacerla esperar.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
 jobs:
   pruebas:
+    if: github.head_ref != 'main'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -17,18 +23,19 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Tipos (tsc)
-        run: npx tsc --noEmit
-      - name: Pruebas (scripts/test-*.ts)
+      # tsx no es dependencia del proyecto: con "npx tsx" se descargaba 85 veces (una por prueba). Se instala una sola vez.
+      - run: npm install --no-save --no-audit --no-fund tsx@4
+      - name: Tipos y pruebas (a la vez)
         env:
           RESEND_API_KEY: x
         run: |
-          fallas=0
-          for f in scripts/test-*.ts; do
-            echo "== $f"
-            npx tsx "$f" || { echo "FALLA: $f"; fallas=1; }
-          done
-          exit $fallas
+          npx tsc --noEmit & tsc_pid=$!
+          ls scripts/test-*.ts | xargs -P 4 -I{} sh -c './node_modules/.bin/tsx {} > "$(basename {}).log" 2>&1 && echo "OK {}" || { echo "FALLA: {}"; cat "$(basename {}).log"; exit 255; }'
+          pruebas=$?
+          wait $tsc_pid; tipos=$?
+          [ $tipos -eq 0 ] || echo "FALLA: tipos (tsc)"
+          [ $pruebas -eq 0 ] || echo "FALLA: pruebas"
+          [ $tipos -eq 0 ] && [ $pruebas -eq 0 ]
 
   limites-de-carpeta:
     # Solo PRs hacia agente/whatsapp: Codex solo puede tocar sus carpetas (AGENTS.md, seccion 12).
