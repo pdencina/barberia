@@ -15,7 +15,7 @@ import { ChevronLeft, ChevronRight, Plus, CalendarX, Sun, SlidersHorizontal, Ref
 import { Segmented, primaryButton } from "@/components/ui/premium";
 import { useBackToClose } from "@/lib/use-back-to-close";
 
-interface Barber { id: string; name: string; role?: string; also_attends_clients?: boolean; }
+interface Barber { id: string; name: string; role?: string; also_attends_clients?: boolean; slot_duration?: number; }
 interface Service { id: string; name: string; price: number; duration: number; }
 interface Client { id: string; name: string; phone?: string | null; email?: string | null; }
 
@@ -448,7 +448,7 @@ export default function CalendarioPage() {
           const next: Service = list[0];
           const toMin = (t: string) => { const [h, m] = t.split(":").map(Number); return h * 60 + m; };
           setPopupData((p) => (old && toMin(p.endTime) - toMin(p.startTime) === old.duration
-            ? { ...p, endTime: addMinutesToTime(p.startTime, next.duration) } : p));
+            ? { ...p, endTime: addMinutesToTime(p.startTime, durationFor(p.barberId, next.duration)) } : p));
         }
       })
       .catch(() => {});
@@ -721,6 +721,25 @@ export default function CalendarioPage() {
     return `${Math.floor(total / 60).toString().padStart(2, "0")}:${(total % 60).toString().padStart(2, "0")}`;
   };
 
+  // Tiempo base ("slot") de cada profesional (Mi equipo > profesional): sirve de regla de ayuda en la grilla y para que
+  // un toque tome ese espacio; si el servicio dura más, manda el servicio.
+  const slotOf = (barberId: string): number => {
+    const n = Number(barbers.find((b) => b.id === barberId)?.slot_duration);
+    return Number.isFinite(n) && n >= 10 && n <= 240 ? n : 0;
+  };
+  const hhmmToMin = (t: string | null | undefined) => { const m = t?.match(/(\d{2}):(\d{2})/); return m ? parseInt(m[1]) * 60 + parseInt(m[2]) : null; };
+  // Hora de inicio ajustada a la regla del profesional (parte desde que abre; si no hay horario, desde el inicio de la grilla).
+  const snapToSlot = (barberId: string, time: string): string => {
+    const slot = slotOf(barberId);
+    const t = hhmmToMin(time);
+    if (!slot || t === null) return time;
+    const anchor = hhmmToMin(schedules[barberId]?.start_time) ?? START_HOUR * 60;
+    if (t < anchor) return time;
+    const snapped = anchor + Math.floor((t - anchor) / slot) * slot;
+    return `${Math.floor(snapped / 60).toString().padStart(2, "0")}:${(snapped % 60).toString().padStart(2, "0")}`;
+  };
+  const durationFor = (barberId: string, serviceDuration: number) => Math.max(slotOf(barberId), serviceDuration);
+
   const formatTime12 = (time24: string) => {
     const [h, m] = time24.split(":").map(Number);
     const period = h >= 12 ? "PM" : "AM";
@@ -763,8 +782,8 @@ export default function CalendarioPage() {
     // Si el mouse solo salio de la columna sin soltar, no se abre nada.
     if (isClick && fromLeave) { setDragging(false); return; }
 
-    const startTime = yToTime(minY);
-    const endTime = isClick ? yToTime(minY + HOUR_HEIGHT * 0.75) : yToTime(maxY);
+    const startTime = isClick ? snapToSlot(dragBarberId, yToTime(minY)) : yToTime(minY);
+    const endTime = isClick ? addMinutesToTime(startTime, durationFor(dragBarberId, 45)) : yToTime(maxY);
     const barber = displayBarbers.find((b) => b.id === dragBarberId);
 
     // Calculate popup position: if barber is in the right half, show popup on left
@@ -785,7 +804,7 @@ export default function CalendarioPage() {
     const shortest = services.length > 0 ? services.reduce((min, s) => s.duration < min.duration ? s : min, services[0]) : null;
     setSelectedService(shortest?.id || "");
     // Un toque/clic sin arrastrar: el bloque toma la duracion real del servicio (si arrastro, se respeta lo que marco).
-    if (isClick && shortest) setPopupData((p) => ({ ...p, endTime: addMinutesToTime(p.startTime, shortest.duration) }));
+    if (isClick && shortest) setPopupData((p) => ({ ...p, endTime: addMinutesToTime(p.startTime, durationFor(p.barberId, shortest.duration)) }));
     setSelectedClient("");
     setClientSearch("");
     setEventName("");
@@ -804,7 +823,7 @@ export default function CalendarioPage() {
     setPopupTab("service");
     const shortest = services.length > 0 ? services.reduce((min, s) => s.duration < min.duration ? s : min, services[0]) : null;
     setSelectedService(shortest?.id || "");
-    if (shortest) setPopupData({ barberId, startTime, endTime: addMinutesToTime(startTime, shortest.duration), barberName: barber?.name || "" });
+    if (shortest) setPopupData({ barberId, startTime, endTime: addMinutesToTime(startTime, durationFor(barberId, shortest.duration)), barberName: barber?.name || "" });
     setSelectedClient("");
     setClientSearch("");
     setEventName("");
@@ -1594,7 +1613,7 @@ export default function CalendarioPage() {
                         const rect = e.currentTarget.getBoundingClientRect();
                         const y = Math.max(0, e.clientY - rect.top);
                         popupOpenedAt.current = Date.now();
-                        openCreatePopup(pro.id, yToTime(y), yToTime(y + HOUR_HEIGHT * 0.75), d);
+                        { const st = snapToSlot(pro.id, yToTime(y)); openCreatePopup(pro.id, st, addMinutesToTime(st, durationFor(pro.id, 45)), d); }
                       }}
                     >
                       {hours.map((h) => (
@@ -1834,6 +1853,24 @@ export default function CalendarioPage() {
                       if (open !== null) parts.push(shade(gridTopMin, open, "before"));
                       if (close !== null) parts.push(shade(close, gridBotMin, "after"));
                       return parts;
+                    })()}
+
+                    {/* Regla de ayuda: los espacios (slots) de ESTE profesional, muy tenues. */}
+                    {(() => {
+                      const slot = slotOf(barber.id);
+                      if (!slot) return null;
+                      const gridTopMin = START_HOUR * 60, gridBotMin = END_HOUR * 60;
+                      const anchor = hhmmToMin(schedules[barber.id]?.start_time) ?? gridTopMin;
+                      const first = Math.max(anchor, gridTopMin);
+                      const bands: JSX.Element[] = [];
+                      for (let m = first, i = 0; m < gridBotMin; m += slot, i++) {
+                        const end = Math.min(m + slot, gridBotMin);
+                        bands.push(
+                          <div key={m} className="absolute left-0 right-0 pointer-events-none z-0"
+                            style={{ top: `${((m - gridTopMin) / 60) * HOUR_HEIGHT}px`, height: `${((end - m) / 60) * HOUR_HEIGHT}px`, background: i % 2 === 0 ? "rgba(100,116,139,0.045)" : "transparent", borderTop: "1px solid rgba(100,116,139,0.10)" }} />
+                        );
+                      }
+                      return bands;
                     })()}
 
                     {/* Drop indicator - shows where block will land */}
@@ -2212,7 +2249,7 @@ export default function CalendarioPage() {
                       setSelectedService(id);
                       // Al elegir el servicio, la hora de termino se ajusta sola a su duracion.
                       const sv = (barberServices || services).find((x) => x.id === id);
-                      if (sv) setPopupData((p) => ({ ...p, endTime: addMinutesToTime(p.startTime, sv.duration) }));
+                      if (sv) setPopupData((p) => ({ ...p, endTime: addMinutesToTime(p.startTime, durationFor(p.barberId, sv.duration)) }));
                     }}
                       className="w-full border rounded-xl px-3 py-2.5 text-sm">
                       <option value="">Seleccione un servicio</option>
