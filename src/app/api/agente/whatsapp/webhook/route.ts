@@ -73,7 +73,9 @@ const handlers = () => crearManejadoresWebhook({
         const c = await db.from("agent_ai_context").select("contexto,ia_activa,limite_mensual").eq("tenant_id", tenantId).maybeSingle();
         if (c.error || !c.data || c.data.ia_activa !== true || typeof c.data.contexto !== "string") return null;
         const mes = ahoraChile(Date.now()).fecha.slice(0, 7);
-        const usados = await db.from("agent_whatsapp_indicadores").select("total").eq("tenant_id", tenantId).eq("campo", "respuestas_ia").gte("dia", `${mes}-01`).lte("dia", `${mes}-31`);
+        const [anio, nmes] = mes.split("-").map(Number);
+        const mesSiguiente = nmes === 12 ? `${anio + 1}-01-01` : `${anio}-${String(nmes + 1).padStart(2, "0")}-01`; // "-31" no existe en meses de 30 días y la consulta falla
+        const usados = await db.from("agent_whatsapp_indicadores").select("total").eq("tenant_id", tenantId).eq("campo", "respuestas_ia").gte("dia", `${mes}-01`).lt("dia", mesSiguiente);
         if (usados.error) return null;
         const total = (usados.data ?? []).reduce((a: number, r: any) => a + Number(r.total || 0), 0);
         if (total >= (typeof c.data.limite_mensual === "number" ? c.data.limite_mensual : TOPE_IA_POR_DEFECTO)) return null;
