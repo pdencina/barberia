@@ -13,7 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashboard/sales-chart";
 import { VentasPorProfesional, MediosDePago, type VentaProfesional, type VentaMedio } from "@/components/dashboard/ventas-desglose";
 import { MetricInfo, type InfoMetrica } from "@/components/dashboard/metric-info";
-import { consejosCancelaciones, consejosConfirmadas, consejosReservas, consejosClientesNuevos, type ResumenCancelaciones } from "@/lib/cancel-reasons";
+import { consejosCancelaciones, consejosConfirmadas, consejosReservas, consejosClientesNuevos, type ResumenCancelaciones, type CancelacionFila } from "@/lib/cancel-reasons";
 import { ProductCarousel, type CarouselItem } from "@/components/dashboard/product-carousel";
 import { Eye, EyeOff, SlidersHorizontal, PackageX, ShoppingBag, CalendarCheck, Wallet, UserPlus, RefreshCw, CalendarX, CalendarDays } from "lucide-react";
 import { PageHeader, StatCard, Panel, Segmented } from "@/components/ui/premium";
@@ -60,6 +60,7 @@ interface DashboardData {
   ventasPorProfesional?: VentaProfesional[];
   ventasPorMedio?: VentaMedio[];
   cancelDetalle?: ResumenCancelaciones;
+  cancelLista?: CancelacionFila[];
 }
 
 const HIDDEN_KEY = "dashboard_hidden_sections";
@@ -148,7 +149,7 @@ export default function DashboardPage() {
         calculo: "Cuenta las citas de " + dia + " en estado «Confirmado». No mide reagendamientos: el sistema no registra cuándo una cita se mueve de hora.", consejos: consejosConfirmadas(e) },
       cancelaciones: { titulo: "Cancelaciones", valor: String(st.cancelaciones),
         que: `Citas de ${dia} que se cancelaron, más las que quedaron como «No presentado» (el cliente no llegó). Cada una es un horario que pudo venderse.`,
-        calculo: "Cuenta las citas de " + dia + " en estado «Cancelado» o «No presentado». Abajo ves quién canceló y el motivo, cuando quedó registrado.", consejos: consejosCancelaciones(e), cancel },
+        calculo: "Cuenta las citas de " + dia + " en estado «Cancelado» o «No presentado». Abajo ves quién canceló y el motivo, cuando quedó registrado.", consejos: consejosCancelaciones(e), cancel, lista: data.cancelLista },
     };
     setMetricInfo(defs[k]);
   };

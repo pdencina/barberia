@@ -76,7 +76,7 @@ export default function PortalDashboard() {
     const res = await fetch("/api/public/cancel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId }),
+      body: JSON.stringify({ appointmentId, channel: "portal" }),
     });
     if (res.ok) {
       // Refresh data

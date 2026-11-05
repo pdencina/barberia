@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect } from "react";
-import type { Consejo, ResumenCancelaciones } from "@/lib/cancel-reasons";
+import type { CancelacionFila, Consejo, ResumenCancelaciones } from "@/lib/cancel-reasons";
 
 export interface InfoMetrica {
   titulo: string;
@@ -11,6 +11,7 @@ export interface InfoMetrica {
   calculo: string;  // cómo se calcula
   consejos: Consejo[];
   cancel?: ResumenCancelaciones; // solo en Cancelaciones: quién y por qué
+  lista?: CancelacionFila[];     // detalle de cada una (cuenta exacta, canal, motivo)
 }
 
 const Barra = ({ n, max, texto }: { n: number; max: number; texto: string }) => (
@@ -64,6 +65,21 @@ export function MetricInfo({ info, onClose }: { info: InfoMetrica | null; onClos
                   {c.sinRegistro > 0 && <p className="text-[11px] text-brand-gray">«Sin motivo registrado» son citas canceladas antes de que se guardara el motivo.</p>}
                 </>
               )}
+            </section>
+          )}
+
+          {info.lista && info.lista.length > 0 && (
+            <section>
+              <h4 className="text-[11px] font-bold uppercase tracking-wider text-brand-blue">Detalle de cada una</h4>
+              <ul className="mt-1.5 space-y-2">
+                {info.lista.map((f, i) => (
+                  <li key={i} className="rounded-2xl border border-gray-100 p-3">
+                    <p className="font-semibold text-brand-dark">{f.cliente}<span className="font-normal text-brand-gray"> · {f.hora}{f.profesional ? ` · con ${f.profesional}` : ""}</span></p>
+                    <p className="mt-0.5 text-xs text-brand-gray"><span className="font-semibold text-brand-dark">{f.estado === "no_show" ? "No llegó" : "Canceló"}:</span> {f.quien}</p>
+                    {f.motivo && <p className="text-xs text-brand-gray"><span className="font-semibold text-brand-dark">Motivo:</span> {f.motivo}</p>}
+                  </li>
+                ))}
+              </ul>
             </section>
           )}
 
