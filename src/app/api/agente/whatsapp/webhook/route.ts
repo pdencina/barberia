@@ -67,6 +67,7 @@ const handlers = () => crearManejadoresWebhook({
         contar: async (tenantId, campo, ahora) => { await db.rpc("agent_whatsapp_contar", { p_tenant: tenantId, p_dia: ahoraChile(ahora).fecha, p_campo: campo }); },
       },
       // Modo Avanzado (IA): solo si el negocio lo activó, hay llave y no se pasó del tope del mes. Falla cerrado: ante cualquier duda, null.
+      conCta: true,
       ia: async (tenantId, texto, datosNegocio) => {
         const llave = process.env.ANTHROPIC_API_KEY;
         if (!llave) return null;
