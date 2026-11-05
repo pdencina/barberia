@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabase
     .from("profiles")
-    .select("id, name, email, phone, avatar_url, role, active, also_attends_clients")
+    .select("id, name, email, phone, avatar_url, role, active, also_attends_clients, slot_duration")
     .in("role", ["barber", "receptionist", "admin"])
     .order("name");
 
