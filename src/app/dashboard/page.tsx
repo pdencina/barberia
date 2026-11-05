@@ -12,6 +12,8 @@ import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashboard/sales-chart";
 import { VentasPorProfesional, MediosDePago, type VentaProfesional, type VentaMedio } from "@/components/dashboard/ventas-desglose";
+import { MetricInfo, type InfoMetrica } from "@/components/dashboard/metric-info";
+import { consejosCancelaciones, consejosConfirmadas, consejosReservas, consejosClientesNuevos, type ResumenCancelaciones } from "@/lib/cancel-reasons";
 import { ProductCarousel, type CarouselItem } from "@/components/dashboard/product-carousel";
 import { Eye, EyeOff, SlidersHorizontal, PackageX, ShoppingBag, CalendarCheck, Wallet, UserPlus, RefreshCw, CalendarX, CalendarDays } from "lucide-react";
 import { PageHeader, StatCard, Panel, Segmented } from "@/components/ui/premium";
@@ -57,6 +59,7 @@ interface DashboardData {
   chartGrowth: number;
   ventasPorProfesional?: VentaProfesional[];
   ventasPorMedio?: VentaMedio[];
+  cancelDetalle?: ResumenCancelaciones;
 }
 
 const HIDDEN_KEY = "dashboard_hidden_sections";
@@ -102,6 +105,7 @@ export default function DashboardPage() {
   const [chartRange, setChartRange] = useState<ChartRange>("7d");
   const [chartLoading, setChartLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [metricInfo, setMetricInfo] = useState<InfoMetrica | null>(null);
   const refreshingRef = useRef(false);
   const { showToast } = useToast();
   // Personalizar: cajas ocultas + ojito del monto. Se guardan solo en este navegador.
@@ -111,6 +115,9 @@ export default function DashboardPage() {
   useEffect(() => {
     try { setHiddenSecs(new Set(JSON.parse(readLS(HIDDEN_KEY) || "[]"))); } catch { /* ignorar */ }
     setHideAmount(readLS(AMOUNT_KEY) === "1");
+    // El período del gráfico que cada persona eligió se recuerda en este navegador.
+    const r = readLS("dashboard_chart_range");
+    if (r === "7d" || r === "14d" || r === "1m" || r === "3m" || r === "12m") setChartRange(r);
   }, []);
   const toggleSec = (id: string) => setHiddenSecs((prev) => {
     const next = new Set(prev);
@@ -121,6 +128,30 @@ export default function DashboardPage() {
   const secProps = { hidden: hiddenSecs, editing: editingLayout, onToggle: toggleSec };
   const resetSecs = () => { setHiddenSecs(new Set()); writeLS(HIDDEN_KEY, "[]"); setHideAmount(false); writeLS(AMOUNT_KEY, "0"); };
   const toggleAmount = () => setHideAmount((v) => { writeLS(AMOUNT_KEY, v ? "0" : "1"); return !v; });
+
+  // Explicación de cada tarjeta (qué es, cómo se calcula y cómo mejorarla), con los números reales del día elegido.
+  const abrirInfo = (k: "reservas" | "clientes" | "confirmadas" | "cancelaciones") => {
+    if (!data) return;
+    const st = data.stats;
+    const cancel: ResumenCancelaciones = data.cancelDetalle || { total: st.cancelaciones, canceladas: st.cancelaciones, noLlegaron: 0, porQuien: [], motivos: [], sinRegistro: st.cancelaciones };
+    const e = { reservas: st.reservasHoy, confirmadas: st.reagendamientos, clientesNuevos: st.clientesNuevos, reservasCambio: st.reservasChange, clientesCambio: st.clientesChange, cancelacionesCambio: st.cancelacionesChange, cancel };
+    const dia = isToday ? "hoy" : "ese día";
+    const defs: Record<string, InfoMetrica> = {
+      reservas: { titulo: isToday ? "Reservas hoy" : "Reservas", valor: String(st.reservasHoy),
+        que: `Todas las citas que hay en la agenda ${dia}, de todos los profesionales. Incluye las que ya se atendieron, las pendientes y también las canceladas o a las que el cliente no llegó.`,
+        calculo: "Cuenta las citas con fecha de " + dia + ". El porcentaje compara con el día anterior.", consejos: consejosReservas(e) },
+      clientes: { titulo: "Clientes nuevos", valor: String(st.clientesNuevos),
+        que: `Personas que se registraron por primera vez ${dia}: reservando online o creadas por el equipo. No cuenta a los clientes que ya existían y volvieron.`,
+        calculo: "Cuenta los clientes creados " + dia + ". El porcentaje compara con el día anterior.", consejos: consejosClientesNuevos(e) },
+      confirmadas: { titulo: "Citas confirmadas", valor: String(st.reagendamientos),
+        que: `Citas de ${dia} que ya están confirmadas: el cliente confirmó que va a ir (desde el recordatorio) o el equipo la marcó como confirmada. Sirve para saber con cuántos clientes puedes contar de verdad.`,
+        calculo: "Cuenta las citas de " + dia + " en estado «Confirmado». No mide reagendamientos: el sistema no registra cuándo una cita se mueve de hora.", consejos: consejosConfirmadas(e) },
+      cancelaciones: { titulo: "Cancelaciones", valor: String(st.cancelaciones),
+        que: `Citas de ${dia} que se cancelaron, más las que quedaron como «No presentado» (el cliente no llegó). Cada una es un horario que pudo venderse.`,
+        calculo: "Cuenta las citas de " + dia + " en estado «Cancelado» o «No presentado». Abajo ves quién canceló y el motivo, cuando quedó registrado.", consejos: consejosCancelaciones(e), cancel },
+    };
+    setMetricInfo(defs[k]);
+  };
   const { user, effectiveRole, isAtLeast } = useAuth();
   const { tenant, loading: tenantLoading, isOverriding } = useTenant();
   // Super Admin (sin "Entrar" a una empresa): ve el panel de plataforma, no el de un negocio.
@@ -340,6 +371,7 @@ export default function DashboardPage() {
         </Sec>
         <Sec id="reservas" {...secProps}>
         <StatCard
+          onInfo={() => abrirInfo("reservas")}
           label={isToday ? "Reservas hoy" : "Reservas"}
           value={<AnimatedNumber value={data.stats.reservasHoy} />}
           Icon={CalendarCheck}
@@ -349,6 +381,7 @@ export default function DashboardPage() {
         </Sec>
         <Sec id="clientes" {...secProps}>
         <StatCard
+          onInfo={() => abrirInfo("clientes")}
           label="Clientes nuevos"
           value={<AnimatedNumber value={data.stats.clientesNuevos} />}
           Icon={UserPlus}
@@ -358,7 +391,8 @@ export default function DashboardPage() {
         </Sec>
         <Sec id="reagend" {...secProps}>
         <StatCard
-          label="Reagendamientos"
+          onInfo={() => abrirInfo("confirmadas")}
+          label="Citas confirmadas"
           value={<AnimatedNumber value={data.stats.reagendamientos} />}
           Icon={RefreshCw}
           tone="violet"
@@ -367,6 +401,7 @@ export default function DashboardPage() {
         </Sec>
         <Sec id="cancel" {...secProps}>
         <StatCard
+          onInfo={() => abrirInfo("cancelaciones")}
           label="Cancelaciones"
           value={<AnimatedNumber value={data.stats.cancelaciones} />}
           Icon={CalendarX}
@@ -386,7 +421,7 @@ export default function DashboardPage() {
       <SalesChart
         data={data.chartData || []}
         range={chartRange}
-        onRangeChange={setChartRange}
+        onRangeChange={(r) => { setChartRange(r); writeLS("dashboard_chart_range", r); }}
         total={data.chartTotal || 0}
         growth={data.chartGrowth || 0}
         loading={chartLoading}
@@ -522,6 +557,7 @@ export default function DashboardPage() {
       </div>
       {/* Frase de negocios (solo admin): franja discreta al final */}
       {isAtLeast("admin") && <Sec id="frase" {...secProps}><BusinessQuoteNote /></Sec>}
+      <MetricInfo info={metricInfo} onClose={() => setMetricInfo(null)} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { pedirMotivoCancelacion } from "@/lib/motivo-cancelacion-bus";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
@@ -114,20 +115,13 @@ export default function AgendaPage() {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    if (status === "cancelled") {
-      const ok = await confirm({
-        title: "Cancelar cita",
-        message: "Estas seguro de que quieres cancelar esta cita? Esta accion no se puede deshacer.",
-        confirmText: "Si, cancelar",
-        variant: "danger",
-      });
-      if (!ok) return;
-    }
+    let motivo: string | false = "";
+    if (status === "cancelled") { motivo = await pedirMotivoCancelacion(); if (motivo === false) return; }
 
     await fetch(`/api/appointments/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...(status === "cancelled" && motivo ? { cancel_reason: motivo } : {}) }),
     });
     showToast("Estado actualizado", "success");
     fetchAppointments();

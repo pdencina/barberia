@@ -13,6 +13,7 @@ import { CommandPalette } from "@/components/command-palette";
 import { QuickActions } from "@/components/quick-actions";
 import { AppLock } from "@/components/app-lock";
 import { NativePushSync } from "@/components/native-push-sync";
+import { MotivoCancelacionHost } from "@/components/appointments/motivo-cancelacion-host";
 import { SupportWidget } from "@/components/support/support-widget";
 import { OtiWidget } from "@/components/oti/oti-widget";
 
@@ -79,6 +80,7 @@ export default async function DashboardLayout({
       >
         <AppLock />
         <NativePushSync />
+        <MotivoCancelacionHost />
         <div className="flex h-screen dark:bg-gray-950">
           <Sidebar userName={profile?.name || user.email || ""} userRole={profile?.role || "barber"} tenantName={tenantName} isSoloBusiness={isSoloBusiness} />
           <main className="flex-1 overflow-y-auto bg-gray-50 dark:bg-gray-950 pt-[4.5rem] pb-[calc(4.5rem+env(safe-area-inset-bottom,0px))] lg:pt-0 lg:pb-0">

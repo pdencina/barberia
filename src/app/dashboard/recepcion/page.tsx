@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { pedirMotivoCancelacion } from "@/lib/motivo-cancelacion-bus";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
@@ -108,20 +109,13 @@ export default function RecepcionPage() {
   }, [tenantLoading, tenant?.id]);
 
   const updateStatus = async (id: string, status: string) => {
-    if (status === "cancelled") {
-      const ok = await confirm({
-        title: "Cancelar cita",
-        message: "Estas seguro de que quieres cancelar esta cita?",
-        confirmText: "Si, cancelar",
-        variant: "danger",
-      });
-      if (!ok) return;
-    }
+    let motivo: string | false = "";
+    if (status === "cancelled") { motivo = await pedirMotivoCancelacion(); if (motivo === false) return; }
 
     await fetch(`/api/appointments/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify({ status, ...(status === "cancelled" && motivo ? { cancel_reason: motivo } : {}) }),
     });
 
     // Notify barber when client arrives (status = in_progress)

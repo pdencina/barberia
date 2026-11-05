@@ -2,6 +2,7 @@ import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
+import { motivoValido } from "@/lib/cancel-reasons";
 import { getSlotCapacity, isSlotFull } from "@/lib/capacity";
 import { parseWallClock } from "@/lib/wallclock";
 import { clientVisibleChanges, emailClientAboutAppointment } from "@/lib/appointment-client-email";
@@ -101,6 +102,15 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Quién canceló y por qué (migración 136). Aparte de la actualización principal: si la migración aún no está, la cancelación igual se guarda.
+  if (update.status === "cancelled" || update.status === "no_show") {
+    const quien = session.role === "super_admin" ? "admin" : session.role || "admin";
+    const { error: regErr } = await supabase.from("appointments")
+      .update({ cancelled_by: quien, cancel_reason: update.status === "cancelled" ? motivoValido(body.cancel_reason) : null, cancelled_at: new Date().toISOString() })
+      .eq("id", params.id);
+    if (regErr && !/cancelled_by|cancel_reason|cancelled_at/.test(regErr.message)) console.error("registro de cancelación:", regErr.message);
+  }
 
   // Aviso al profesional si le cancelan o le cambian la hora de una cita (quien lo hizo no se avisa a si mismo).
   try {

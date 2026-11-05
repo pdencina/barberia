@@ -75,6 +75,7 @@ export function StatCard({
   className = "",
   labelAction,
   footnote,
+  onInfo,
 }: {
   label: string;
   value: ReactNode;
@@ -88,6 +89,8 @@ export function StatCard({
   labelAction?: ReactNode;
   /** Solo en la tarjeta destacada: linea chica y tenue bajo el monto (ej. la proyeccion del dia). */
   footnote?: ReactNode;
+  /** Si se pasa, aparece un botón «¿qué significa?» junto al título (abre la explicación de la métrica). */
+  onInfo?: () => void;
 }) {
   if (hero) {
     return (
@@ -126,7 +129,13 @@ export function StatCard({
     >
       <span className="pointer-events-none absolute -right-8 -top-8 h-24 w-24 rounded-full bg-brand-blue/10 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100" />
       <div className="relative flex items-start justify-between gap-2">
-        <p className="text-xs font-semibold text-brand-gray">{label}</p>
+        <p className="flex items-center gap-1 text-xs font-semibold text-brand-gray">
+          {label}
+          {onInfo && (
+            <button type="button" onClick={onInfo} aria-label={`¿Qué significa ${label}?`} title="¿Qué significa?"
+              className="flex h-4 w-4 items-center justify-center rounded-full border border-brand-gray/40 text-[10px] font-bold leading-none text-brand-gray transition-colors hover:border-brand-blue hover:text-brand-blue">?</button>
+          )}
+        </p>
         <IconTile Icon={Icon} tone={tone} size={30} />
       </div>
       <div className="relative mt-1.5 flex items-end justify-between gap-1.5 md:mt-2 md:block">
