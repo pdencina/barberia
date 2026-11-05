@@ -94,6 +94,9 @@ async function pruebasDisponibilidad(){
     const {f}=armar(undefined);(f.deps as any).ia=async(_t:string,texto:string)=>{llamadas.push(texto);return "Sí, hacemos degradé.";};
     await enviar(f,"hacen degrade?");
     check("ia: responde lo que nada anterior pudo",f.sent[0]==="Sí, hacemos degradé."&&f.notices.length===0&&llamadas.length===1);
+    const c=armar(undefined);(c.f.deps as any).conCta=true;(c.f.deps as any).ia=async()=>"Sí, hacemos degradé.";
+    await enviar(c.f,"hacen degrade?");
+    check("cta: la respuesta de la IA termina con la invitación a reservar",c.f.sent[0]==="Sí, hacemos degradé.\n\n¿Quieres agendar? Reserva aquí:\nhttps://synthetic.invalid/b/local-A");
     const g=armar(undefined);(g.f.deps as any).ia=async()=>null;
     await enviar(g.f,"hacen degrade?");
     check("ia: si no sabe deriva a una persona",g.f.sent[0]==="Te contactará una persona."&&g.f.notices.length===1);
