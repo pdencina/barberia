@@ -95,9 +95,19 @@ export async function isSlotFull(supabase: Admin, barberId: string, tenantId: st
 
 // Segunda verificacion despues de guardar (dos personas pueden reservar el ultimo cupo a la vez).
 // true = se paso del cupo (el que llama debe borrar la cita recien creada).
-export async function exceededAfterInsert(supabase: Admin, barberId: string, tenantId: string | null | undefined, date: string, start: Date, end: Date): Promise<boolean> {
+export async function exceededAfterInsert(supabase: Admin, barberId: string, tenantId: string | null | undefined, date: string, start: Date, end: Date, selfId?: string): Promise<boolean> {
   const cap = await getSlotCapacity(supabase, tenantId);
-  if (cap <= 1) return false;
+  if (cap <= 1) {
+    // Cupo 1: dos reservas casi a la vez pasaban la primera revision y quedaban encima. Pierde la mas nueva
+    // (si empatan, la de id mayor), asi las dos no se borran a la vez.
+    if (!selfId) return false;
+    const { data } = await supabase.from("appointments").select("id, created_at")
+      .eq("barber_id", barberId).eq("date", date).in("status", ["scheduled", "confirmed", "in_progress"])
+      .lt("start_time", end.toISOString()).gt("end_time", start.toISOString());
+    const mine = (data || []).find((r: any) => r.id === selfId);
+    if (!mine) return false;
+    return (data || []).some((r: any) => r.id !== selfId && (r.created_at < mine.created_at || (r.created_at === mine.created_at && r.id < selfId)));
+  }
   const rows = await overlapping(supabase, barberId, date, start.toISOString(), end.toISOString());
   rows.push(...(await partialBlocks(supabase, barberId, date, start.getTime(), end.getTime())));
   return peakOverlap(rows.map((r) => r.iv), start.getTime(), end.getTime()) > cap;

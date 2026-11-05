@@ -1972,8 +1972,8 @@ export default function CalendarioPage() {
                               const newEnd = eH * 60 + eM + addMin;
                               if (newEnd <= sH * 60 + sM || newEnd > END_HOUR * 60) { await fetchAppointments(); return; }
                               const nH = Math.floor(newEnd / 60), nM = newEnd % 60;
-                              await fetch(`/api/appointments/${appt.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ end_time: `${date}T${nH.toString().padStart(2,"0")}:${nM.toString().padStart(2,"0")}:00` }) });
-                              showToast("Duracion actualizada", "success");
+                              const rs = await fetch(`/api/appointments/${appt.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ end_time: `${date}T${nH.toString().padStart(2,"0")}:${nM.toString().padStart(2,"0")}:00` }) });
+                              if (rs.ok) showToast("Duracion actualizada", "success"); else showToast((await rs.json().catch(() => ({}))).error || "No se pudo cambiar la duración", "error");
                               await fetchAppointments();
                             };
                             document.addEventListener("mousemove", onMove);
@@ -2663,7 +2663,7 @@ export default function CalendarioPage() {
                             Cancelar
                           </button>
                           <button onClick={async () => {
-                            await fetch(`/api/appointments/${selectedApptId}`, {
+                            const rs = await fetch(`/api/appointments/${selectedApptId}`, {
                               method: "PATCH",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({
@@ -2672,6 +2672,7 @@ export default function CalendarioPage() {
                                 end_time: `${editDate}T${editEndTime}:00`,
                               }),
                             });
+                            if (!rs.ok) { showToast((await rs.json().catch(() => ({}))).error || "No se pudo reprogramar la cita", "error"); await fetchAppointments(); return; }
                             showToast("Cita reprogramada", "success");
                             setEditingApptTime(false);
                             setSelectedApptId(null);
