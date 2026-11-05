@@ -187,6 +187,18 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     const sin = await responderDisponibilidad("me gustaría en la tarde", datos(), deps(ag));
     assert.equal(sin.tipo, "sin_consulta", "sin oferta previa, una franja suelta no se interpreta");
   });
+  await caso("Seguimiento sin horas en lo pedido: lo más cercano, sin inventar ni mandar a otros días", async () => {
+    const solo: Agenda = { "m|2026-11-04": ["10:00", "10:45", "11:30", "12:15", "13:00", "13:45"], "m|2026-11-05": ["15:00", "16:00"] };
+    const con = (extra: Partial<ReturnType<typeof deps>> = {}) => { const d = deps(solo); d.fechaPorDefecto = "2026-11-04"; d.profesionalPorDefecto = "m"; d.horasOfrecidas = ["10:00", "10:45", "11:30", "12:15", "13:00", "13:45"]; Object.assign(d, extra); return d; };
+    const noche = await responderDisponibilidad("tienes en la noche?", datos(), con());
+    assert.ok(noche.tipo === "respuesta" && noche.texto.startsWith("*Matías Soto* no tiene horas disponibles en la noche mañana (miércoles 4 de noviembre).\nLas más cercanas son a las *13:00* y a las *13:45*.\nDime a cuál prefieres y te pido tus datos.\nO revisa sus horas aquí: "), "franja sin horas");
+    const mas = await responderDisponibilidad("Más tarde no tienen?", datos(), con());
+    assert.ok(mas.tipo === "respuesta" && mas.texto.startsWith("*Matías Soto* no tiene horas más tarde de las 13:45 mañana (miércoles 4 de noviembre).\n\nO revisa sus horas aquí: ") && !mas.texto.includes("próximos días"), "más tarde sin horas y con un 'no' en la pregunta");
+    const temprano = await responderDisponibilidad("más temprano", datos(), con());
+    assert.ok(temprano.tipo === "respuesta" && temprano.texto.includes("no tiene horas más temprano de las 10:00"), "más temprano sin horas");
+    const sinSeg = await responderDisponibilidad("Más tarde no tienen?", datos(), deps(solo));
+    assert.equal(sinSeg.tipo, "sin_consulta", "sin oferta previa, un mensaje con 'no' sigue rechazado");
+  });
   await caso("Formato: nunca dice 'ese día' y cada link va solo en su línea", async () => {
     const a: Agenda = { "m|2026-11-03": ["16:00", "17:30"], "c|2026-11-04": ["10:00"], "d|2026-11-03": ["17:00"] };
     for (const msg of ["matias tiene hora hoy a las 5", "matias tiene hora mañana", "tienen hora hoy a las 3", "camila tiene hora hoy", "tienen hora el viernes"]) {
