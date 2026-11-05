@@ -226,7 +226,11 @@ export default function CalendarioPage() {
     // Admin/reception view: only client-attending professionals who work today. This
     // removes receptionists and staff on their day off from the calendar columns.
     if (barbers.length > 0) {
-      return barbers.filter((b) => attendsClients(b) && worksToday(b));
+      // Quien tiene la sesión abierta (ej. el admin que también corta) va primero: en el celular se ve una
+      // columna a la vez y así parte en la suya.
+      const list = barbers.filter((b) => attendsClients(b) && worksToday(b));
+      const mine = user?.id ? list.findIndex((b) => b.id === user.id) : -1;
+      return mine > 0 ? [list[mine], ...list.slice(0, mine), ...list.slice(mine + 1)] : list;
     }
     const fromAppts = Array.from(
       new Map(
