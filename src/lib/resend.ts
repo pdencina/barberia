@@ -280,12 +280,14 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
   });
 
   const resend = getResendClient();
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+  const enviado = await resend.emails.send({
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
     subject: `Cita confirmada - ${serviceName} con ${barberName} | re-booking`,
     html,
   });
+  // El cliente de Resend no lanza error cuando rechaza un envío: sin esto el rechazo pasaba en silencio.
+  if (enviado?.error) console.error("Resend rechazó la confirmación de cita:", enviado.error.message);
 }
 
 
@@ -341,7 +343,7 @@ export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParam
 
   const resend = getResendClient();
   await resend.emails.send({
-    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
     subject: `Cita modificada - ${serviceName} con ${barberName} | re-booking`,
     html,
@@ -417,7 +419,7 @@ export async function sendRetentionEmail(params: SendRetentionEmailParams) {
   const { subject, html } = buildRetentionEmail(params);
   const resend = getResendClient();
   await resend.emails.send({
-    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to: params.to,
     subject,
     html,
@@ -468,7 +470,7 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
 
   const resend = getResendClient();
   await resend.emails.send({
-    from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+    from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
     subject: `Recordatorio: ${serviceName} manana a las ${timeStr} | re-booking`,
     html,
