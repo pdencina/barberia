@@ -169,6 +169,17 @@ async function pruebasDisponibilidad(){
       await enviar(w.f,"matias tiene hora hoy a las 3");await enviar(w.f,"si");await enviar(w.f,"hola quiero reservar");
       check("volver: 'hola quiero reservar' no reinicia (sigue pidiendo datos)",memoria.size===1&&!w.f.sent[2].startsWith("¡Hola!"));
     }
+    { // "Matías en la tarde" tras una oferta respeta el horario (antes mostraba las primeras horas del día)
+      const w=armar(async(_id,fecha)=>({slots:[`${fecha}T10:00:00`,`${fecha}T13:00:00`,`${fecha}T16:00:00`],cerrado:false,fueraDeVentana:false}));
+      const memoria=new Map<string,any>();
+      (w.f.deps as any).chat={
+        leerEstado:async(t:string,c:string)=>memoria.get(t+c)??null,guardarEstado:async(t:string,c:string,e:any)=>{memoria.set(t+c,e);},borrarEstado:async(t:string,c:string)=>{memoria.delete(t+c);},
+        reservasFuturas:async()=>0,crearReserva:async()=>({ok:false,motivo:"otro"}),contar:async()=>{},
+      };
+      await enviar(w.f,"matias tiene hora hoy");
+      await enviar(w.f,"matias en la tarde");
+      check("seguimiento: 'Matías en la tarde' respeta el horario pedido",w.f.sent[1].includes("en la tarde")&&w.f.sent[1].includes("13:00 · 16:00")&&!w.f.sent[1].includes("10:00")&&!w.f.sent[1].includes("tengo:"));
+    }
     const g=armar(undefined);(g.f.deps as any).ia=async()=>null;
     await enviar(g.f,"hacen degrade?");
     check("ia: si no sabe deriva a una persona",g.f.sent[0]==="Te contactará una persona."&&g.f.notices.length===1);
