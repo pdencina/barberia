@@ -10,7 +10,7 @@ import { DIAS, horariosFlojos, nivelesPorDia, nivelesPorHora, nivelCelda, type D
 const NOMBRE_DIA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
 const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
-const num = (n: number) => (n === 0 ? "0" : n < 10 ? n.toFixed(1).replace(".", ",") : String(Math.round(n)));
+const num = (n: number) => (n === 0 ? "0" : n < 1 ? n.toFixed(2).replace(".", ",") : n < 10 ? n.toFixed(1).replace(".", ",") : String(Math.round(n)));
 const lista = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} y ${xs[xs.length - 1]}`);
 
 const COLOR: Record<Nivel, { barra: string; celda: string; texto: string; etiqueta: string }> = {
@@ -78,6 +78,11 @@ export default function DemandaPage() {
 
       {mapa && mapa.totalReservas > 0 && (
         <>
+          {mapa.totalReservas / mapa.weeks < 15 && (
+            <p className="rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs text-brand-gray">
+              Hay pocas reservas en este período ({mapa.totalReservas} en {mapa.weeks} semanas), así que los números por hora son pequeños. {weeks !== "12" ? "Elige 12 semanas para ver patrones más claros." : "A medida que se agenden más citas, el mapa será más preciso."}
+            </p>
+          )}
           {/* 1. Lo importante, en palabras */}
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
