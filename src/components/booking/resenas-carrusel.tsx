@@ -21,7 +21,7 @@ const LogoGoogle = () => (
 function Tarjeta({ r }: { r: ResenaDestacada }) {
   const google = r.origen === "google";
   return (
-    <figure className="flex h-full animate-[fade-in_.5s_ease] flex-col rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm">
+    <figure className="flex h-full flex-col rounded-2xl border border-gray-100 bg-white p-4 text-left shadow-sm">
       <div className="flex items-center gap-2.5">
         {r.foto
           // eslint-disable-next-line @next/next/no-img-element
@@ -40,11 +40,12 @@ function Tarjeta({ r }: { r: ResenaDestacada }) {
   );
 }
 
-// Reseñas al pie de la página de reservas: 3 a la vez (1 en celular) que avanzan solas, con su origen y un botón para dejar la tuya.
+// Reseñas al pie de la página de reservas: desfilan solas hacia el lado (3 a la vez, 1 en celular). Se puede ir atrás, adelante y pausar.
 export default function ResenasCarrusel({ tenantId }: { tenantId: string }) {
   const [d, setD] = useState<Datos | null>(null);
   const [i, setI] = useState(0);
-  const [pausa, setPausa] = useState(false);
+  const [jugando, setJugando] = useState(true);
+  const [animar, setAnimar] = useState(true);
   const [visibles, setVisibles] = useState(3);
 
   useEffect(() => {
@@ -58,31 +59,63 @@ export default function ResenasCarrusel({ tenantId }: { tenantId: string }) {
     return () => window.removeEventListener("resize", f);
   }, []);
 
-  const n = d?.items.length || 0;
+  const items = d?.items || [];
+  const n = items.length;
+  const mueve = n > visibles;
+  // La pista lleva copias de las primeras tarjetas al final: al llegar ahí salta al inicio sin que se note.
+  const pista = mueve ? [...items, ...items.slice(0, visibles)] : items;
+
+  const ir = (delta: number) => {
+    if (!mueve) return;
+    if (delta > 0) { setAnimar(true); setI((x) => x + 1); }
+    else if (i === 0) { setAnimar(false); setI(n); setTimeout(() => { setAnimar(true); setI(n - 1); }, 30); }
+    else { setAnimar(true); setI((x) => x - 1); }
+  };
+
   useEffect(() => {
-    if (n <= visibles || pausa) return;
-    const t = setInterval(() => setI((x) => (x + 1) % n), 5000);
+    if (!mueve || !jugando) return;
+    const t = setInterval(() => { setAnimar(true); setI((x) => x + 1); }, 4000);
     return () => clearInterval(t);
-  }, [n, visibles, pausa]);
+  }, [mueve, jugando]);
+
+  // Al terminar el deslizamiento hacia las copias del final, vuelve al inicio sin animación.
+  const alTerminar = () => { if (mueve && i >= n) { setAnimar(false); setI(0); } };
 
   if (!d || (n === 0 && !d.googleUrl)) return null;
-  const mostrar = d.items.length ? Array.from({ length: Math.min(visibles, n) }, (_, k) => ({ r: d.items[(i + k) % n], k: (i + k) % n })) : [];
+  const actual = n ? i % n : 0;
+  const boton = "flex h-8 w-8 items-center justify-center rounded-full border border-gray-200 bg-white text-brand-gray shadow-sm transition-colors hover:border-brand-blue hover:text-brand-blue";
   return (
-    <section className="mx-auto max-w-4xl px-4 pb-10 text-center" onMouseEnter={() => setPausa(true)} onMouseLeave={() => setPausa(false)} aria-label="Opiniones de clientes">
+    <section className="mx-auto max-w-4xl px-4 pb-10 text-center" aria-label="Opiniones de clientes">
       <p className="text-[11px] font-semibold uppercase tracking-widest text-brand-gray">Lo que dicen nuestros clientes</p>
       {d.googleRating && (
         <p className="mt-1 flex items-center justify-center gap-1.5 text-xs text-brand-gray">
           <LogoGoogle /> <b className="text-brand-dark">{d.googleRating.toFixed(1).replace(".", ",")}</b> ★{d.googleTotal ? ` · ${d.googleTotal} reseñas en Google Maps` : ""}
         </p>
       )}
-      {mostrar.length > 0 && (
-        <div className={`mt-4 grid gap-3 ${visibles === 3 ? "grid-cols-3" : "grid-cols-1"}`}>
-          {mostrar.map(({ r, k }) => <Tarjeta key={k} r={r} />)}
+      {n > 0 && (
+        <div className="mt-4 overflow-hidden">
+          <div className="flex" onTransitionEnd={alTerminar}
+            style={{ transform: `translateX(-${(i * 100) / visibles}%)`, transition: animar ? "transform .7s ease" : "none" }}>
+            {pista.map((r, k) => (
+              <div key={k} className="flex-shrink-0 px-1.5" style={{ width: `${100 / visibles}%` }}><Tarjeta r={r} /></div>
+            ))}
+          </div>
         </div>
       )}
-      {n > visibles && (
-        <div className="mt-3 flex justify-center gap-1.5">
-          {d.items.map((_, k) => <button key={k} type="button" onClick={() => setI(k)} aria-label={`Ir a la reseña ${k + 1}`} className={`h-1.5 rounded-full transition-all ${k === i ? "w-4 bg-brand-blue" : "w-1.5 bg-gray-300"}`} />)}
+      {mueve && (
+        <div className="mt-3 flex items-center justify-center gap-3">
+          <button type="button" onClick={() => ir(-1)} aria-label="Reseña anterior" className={boton}>‹</button>
+          <button type="button" onClick={() => setJugando((v) => !v)} aria-label={jugando ? "Pausar" : "Reanudar"} className={boton}>
+            {jugando
+              ? <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor"><rect x="3" y="2" width="3.5" height="12" rx="1" /><rect x="9.5" y="2" width="3.5" height="12" rx="1" /></svg>
+              : <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor"><path d="M4 2l10 6-10 6z" /></svg>}
+          </button>
+          <button type="button" onClick={() => ir(1)} aria-label="Reseña siguiente" className={boton}>›</button>
+        </div>
+      )}
+      {mueve && (
+        <div className="mt-2.5 flex justify-center gap-1.5">
+          {items.map((_, k) => <button key={k} type="button" onClick={() => { setAnimar(true); setI(k); }} aria-label={`Ir a la reseña ${k + 1}`} className={`h-1.5 rounded-full transition-all ${k === actual ? "w-4 bg-brand-blue" : "w-1.5 bg-gray-300"}`} />)}
         </div>
       )}
       {d.googleUrl && (
