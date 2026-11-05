@@ -5,6 +5,7 @@ import { Clock, Globe, MapPin, MessageCircle, Navigation, Phone, Star } from "lu
 
 export interface BusinessHour { day_of_week: number; open_time: string | null; close_time: string | null; is_closed: boolean }
 export interface BusinessInfo {
+  id?: string;
   name: string;
   logo_url?: string | null;
   banner_url?: string | null;
