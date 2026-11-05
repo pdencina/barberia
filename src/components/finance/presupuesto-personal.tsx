@@ -108,7 +108,8 @@ export function PresupuestoPersonal() {
   const sumaTorta = Math.max(r.gastos + r.ahorro + r.saldo, 1);
   let acum = 0;
 
-  if (pendiente) return null; // sin la migración 124/137 la sección no se muestra (los gastos personales ya avisan por su cuenta)
+  // Sin la migración 124/137 no se puede guardar el sueldo: se avisa en vez de dejar la pantalla en blanco.
+  if (pendiente) return <div className="rounded-2xl border border-gray-100 bg-white p-4 text-sm text-brand-gray md:p-5">Tu sueldo y ahorro todavía no están activados en tu cuenta. Avisa al administrador de re-booking y vuelve a entrar.</div>;
 
   return (
     <div className="space-y-3 md:space-y-5">
