@@ -58,9 +58,9 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     const ag = { "m|2026-11-04": ["10:00"], "m|2026-11-05": ["10:00"] };
     const d = deps(ag); d.ahora = () => Date.UTC(2026, 10, 4, 3, 26); // 00:26 en Chile, miércoles 4
     const r = await responderDisponibilidad("matias tiene hora mañana", datos(), d);
-    assert.ok(r.tipo === "respuesta" && r.texto.includes("mañana (jueves 5 de noviembre)") && r.texto.includes("Si te referías a hoy, miércoles 4 de noviembre, escríbeme «hoy»."));
+    assert.ok(r.tipo === "respuesta" && r.texto.includes("mañana (jueves 5 de noviembre)") && r.texto.includes("¿O a qué día te refieres?"));
     const t = await texto("matias tiene hora mañana", { "m|2026-11-04": ["10:00"] });
-    assert.ok(t !== null && t.includes("mañana (miércoles 4 de noviembre)") && !t.includes("escríbeme"));
+    assert.ok(t !== null && t.includes("mañana (miércoles 4 de noviembre)") && !t.includes("a qué día te refieres"));
   });
   await caso("Día cerrado: dice que no atiende", async () => {
     const t = await texto("matias tiene hora mañana", {}, datos(), { cerrado: ["m|2026-11-04"] });
