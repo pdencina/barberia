@@ -5,7 +5,7 @@ import Link from "next/link";
 import { cn, formatCurrency } from "@/lib/utils";
 import { intensidades, marcasEje, montoCorto, resumenPeriodo, type Intensidad } from "@/lib/dashboard-format";
 
-export type ChartRange = "7d" | "1m" | "3m" | "12m";
+export type ChartRange = "7d" | "14d" | "1m" | "3m" | "12m";
 
 export interface ChartPoint {
   label: string;
@@ -25,6 +25,7 @@ interface SalesChartProps {
 
 const RANGE_OPTIONS: { value: ChartRange; label: string }[] = [
   { value: "7d", label: "7 días" },
+  { value: "14d", label: "14 días" },
   { value: "1m", label: "1 mes" },
   { value: "3m", label: "3 meses" },
   { value: "12m", label: "12 meses" },
@@ -72,7 +73,7 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
   }, [loading]);
 
   const res = useMemo(() => resumenPeriodo(data), [data]);
-  const porDia = range === "7d" || range === "1m";
+  const porDia = range === "7d" || range === "14d" || range === "1m";
   const inten = useMemo(() => intensidades(data, porDia), [data, porDia]);
   const prevTotal = useMemo(() => data.reduce((s, d) => s + (d.prev || 0), 0), [data]);
   const hayPrev = prevTotal > 0;
@@ -147,10 +148,10 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
             <span className="text-brand-gray">vs período anterior{hayPrev ? ` (${montoCorto(prevTotal)})` : ""}</span>
           </div>
         </div>
-        <div className="flex items-center gap-1 rounded-2xl border border-gray-100 bg-brand-light p-1">
+        <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border border-gray-100 bg-brand-light p-1 sm:gap-1">
           {RANGE_OPTIONS.map((opt) => (
             <button key={opt.value} type="button" onClick={() => onRangeChange(opt.value)}
-              className={cn("rounded-xl px-3 py-1.5 text-xs font-semibold transition-all duration-200", range === opt.value ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25" : "text-brand-gray hover:text-brand-dark")}>
+              className={cn("rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all duration-200 sm:px-3", range === opt.value ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25" : "text-brand-gray hover:text-brand-dark")}>
               {opt.label}
             </button>
           ))}

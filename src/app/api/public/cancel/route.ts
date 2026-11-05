@@ -2,11 +2,12 @@ import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
+import { motivoValido } from "@/lib/cancel-reasons";
 
 // POST: Cancel an appointment by ID (public, no auth needed - uses appointment ID as token)
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { appointmentId } = await req.json();
+  const { appointmentId, reason, channel } = await req.json();
 
   if (!appointmentId) {
     return NextResponse.json({ error: "appointmentId requerido" }, { status: 400 });
@@ -46,6 +47,12 @@ export async function POST(req: NextRequest) {
   if (error) {
     return NextResponse.json({ error: "Error al cancelar" }, { status: 500 });
   }
+  // Quién canceló y por qué (migración 136); si aún no está aplicada, la cancelación ya quedó guardada.
+  await supabase.from("appointments")
+    .update({ cancelled_by: "client", cancel_reason: motivoValido(reason), cancelled_at: new Date().toISOString() })
+    .eq("id", appointmentId);
+  // Por dónde entró el cliente (migración 138); aparte para que no afecte el registro de arriba si aún falta.
+  await supabase.from("appointments").update({ cancel_channel: channel === "portal" ? "portal" : "link" }).eq("id", appointmentId);
 
   // Aviso al profesional (y recepcion/admin) de que el cliente cancelo. Nunca rompe la cancelacion.
   try {

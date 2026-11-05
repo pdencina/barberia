@@ -3,8 +3,9 @@ import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest, isMan
 import { todayInChile, chileDayBoundsUtc, dateStrOffset } from "@/lib/utils";
 import { fetchAllRows } from "@/lib/accounting";
 import { ventasPorMedio } from "@/lib/dashboard-format";
+import { resumirCancelaciones, textoQuienCancelo, etiquetaMotivo, type CancelacionFila } from "@/lib/cancel-reasons";
 
-const CHART_RANGES = ["7d", "1m", "3m", "12m"] as const;
+const CHART_RANGES = ["7d", "14d", "1m", "3m", "12m"] as const;
 type ChartRange = (typeof CHART_RANGES)[number];
 
 interface ChartBucket {
@@ -69,13 +70,15 @@ function buildChartBuckets(todayStr: string, range: ChartRange): ChartBucket[] {
     });
   }
 
-  // "7d" (default): 7 baldes diarios
-  return Array.from({ length: 7 }, (_, idx) => {
-    const i = 6 - idx;
+  // "7d" (default) y "14d": un balde por día
+  const nDias = range === "14d" ? 14 : 7;
+  return Array.from({ length: nDias }, (_, idx) => {
+    const i = nDias - 1 - idx;
     const d = dateStrOffset(todayStr, -i);
     const next = dateStrOffset(d, 1);
     const weekday = new Date(`${d}T12:00:00Z`).getUTCDay();
-    return { label: dayLabelsEs[weekday], date: d, endDate: next, startUtc: dayStartUtc(d), endUtcExclusive: dayStartUtc(next) };
+    const label = nDias === 7 ? dayLabelsEs[weekday] : (idx === 0 || d.slice(8, 10) === "01") ? `${Number(d.slice(8, 10))} ${monthLabelsEs[Number(d.slice(5, 7)) - 1].toLowerCase()}` : String(Number(d.slice(8, 10)));
+    return { label, date: d, endDate: next, startUtc: dayStartUtc(d), endUtcExclusive: dayStartUtc(next) };
   });
 }
 
@@ -208,6 +211,18 @@ export async function GET(req: NextRequest) {
     .lt("created_at", prevRangeEndUtc))).catch(() => [] as any[]).then((data) => ({ data }));
   const barbersP = withTenant(supabase.from("profiles").select("id, name, role"));
 
+  // Detalle de las cancelaciones del día: quién y por qué (migración 136; sin ella solo se cuenta cuántas).
+  const cancelP = (async () => {
+    // Con las columnas nuevas (136 y 138) se sabe quién, por qué canal y por qué; sin ellas se cae a lo que haya.
+    const q = (cols: string) => withTenant(supabase.from("appointments").select(cols).eq("date", todayStr).in("status", ["cancelled", "no_show"]).order("start_time"));
+    const base = "id, start_time, status, client:clients(name), barber:profiles!barber_id(name)";
+    let r: { data: any; error: any } = await q(`${base}, cancelled_by, cancel_reason, cancel_channel, cancelled_by_user`);
+    if (r.error) r = await q(`${base}, cancelled_by, cancel_reason`);
+    if (r.error) r = await q(base);
+    if (r.error) r = await q("status");
+    return (r.data || []) as any[];
+  })().catch(() => [] as any[]);
+
   const [
     { count: todayApptCount },
     { count: yesterdayApptCount },
@@ -226,6 +241,7 @@ export async function GET(req: NextRequest) {
     { data: prevChartTx },
     { data: pendingAppts },
     { data: barberRows },
+    cancelRows,
   ] = await Promise.all([
     countAppts(todayStr),
     countAppts(yesterdayStr),
@@ -244,6 +260,7 @@ export async function GET(req: NextRequest) {
     prevChartP,
     pendingApptsQuery,
     barbersP,
+    cancelP,
   ]);
 
   const todayIncome = (todayTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
@@ -327,6 +344,22 @@ export async function GET(req: NextRequest) {
     medios = ventasPorMedio(chartTxRaw || [], partes);
   } catch { /* sin desglose: el resto del Dashboard sigue igual */ }
 
+  // Detalle de cada cancelación del día: quién (cuenta exacta o cliente y canal), con quién, a qué hora y el motivo.
+  const idsUsuario = Array.from(new Set(cancelRows.map((c: any) => c.cancelled_by_user).filter(Boolean)));
+  const nombreUsuario = new Map<string, string>();
+  if (idsUsuario.length > 0) {
+    const { data: us } = await supabase.from("profiles").select("id, name").in("id", idsUsuario as string[]);
+    for (const u of us || []) nombreUsuario.set((u as any).id, (u as any).name);
+  }
+  const cancelLista: CancelacionFila[] = cancelRows.filter((c: any) => c.id).map((c: any) => ({
+    hora: String(c.start_time || "").match(/(\d{2}:\d{2})/)?.[1] || "",
+    cliente: c.client?.name || "Cliente",
+    profesional: c.barber?.name || "",
+    estado: c.status === "no_show" ? "no_show" : "cancelled",
+    quien: c.status === "no_show" ? "El cliente no llegó" : textoQuienCancelo({ cancelled_by: c.cancelled_by, cancel_channel: c.cancel_channel, userName: c.cancelled_by_user ? nombreUsuario.get(c.cancelled_by_user) : null }),
+    motivo: c.status === "no_show" ? "" : etiquetaMotivo(c.cancel_reason),
+  }));
+
   return NextResponse.json({
     greeting: true,
     // Punto 8: el dia efectivamente usado para calcular todo lo anterior — el frontend
@@ -356,5 +389,7 @@ export async function GET(req: NextRequest) {
     chartGrowth,
     ventasPorProfesional,
     ventasPorMedio: medios,
+    cancelDetalle: resumirCancelaciones(cancelRows),
+    cancelLista: cancelLista,
   });
 }

@@ -3,11 +3,13 @@
 import { useState } from "react";
 import { useParams } from "next/navigation";
 import { EmptyIcons, SuccessMark } from "@/components/ui/empty-state";
+import { MOTIVOS_CLIENTE } from "@/lib/cancel-reasons";
 
 export default function CancelPage() {
   const params = useParams();
   const [status, setStatus] = useState<"confirm" | "loading" | "success" | "error">("confirm");
   const [errorMsg, setErrorMsg] = useState("");
+  const [motivo, setMotivo] = useState("");
 
   const handleCancel = async () => {
     setStatus("loading");
@@ -15,7 +17,7 @@ export default function CancelPage() {
     const res = await fetch("/api/public/cancel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId: params.id }),
+      body: JSON.stringify({ appointmentId: params.id, reason: motivo || undefined }),
     });
 
     const data = await res.json();
@@ -39,9 +41,16 @@ export default function CancelPage() {
               <EmptyIcons.agendaEmpty className="w-6 h-6 text-amber-600" strokeWidth={1.75} />
             </div>
             <h2 className="text-lg font-bold text-brand-dark">Cancelar cita</h2>
-            <p className="text-sm text-brand-gray mt-2 mb-6">
+            <p className="text-sm text-brand-gray mt-2 mb-4">
               Estas seguro que deseas cancelar tu cita? Esta accion no se puede deshacer.
             </p>
+            <div className="mb-5 text-left">
+              <label className="mb-1 block text-xs font-medium text-brand-gray">¿Por qué cancelas? (opcional)</label>
+              <select value={motivo} onChange={(e) => setMotivo(e.target.value)} className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-sm text-brand-dark">
+                <option value="">Prefiero no decir</option>
+                {MOTIVOS_CLIENTE.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
+              </select>
+            </div>
             <div className="flex gap-3">
               <a href="/booking" className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50 flex items-center justify-center">
                 Volver
