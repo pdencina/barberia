@@ -5,6 +5,8 @@ import { formatCurrency, todayInChile, dateStrOffset } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { GastosPersonales } from "@/components/finance/gastos-personales";
 import { AtajoVoz } from "@/components/finance/atajo-voz";
+import { PresupuestoPersonal } from "@/components/finance/presupuesto-personal";
+import { CrecimientoBilletera } from "@/components/finance/crecimiento-billetera";
 
 interface WalletMovement {
   id: string;
@@ -64,7 +66,7 @@ export default function MiBilleteraPage() {
           <h1 className="text-xl md:text-2xl font-bold text-brand-dark">Mi Billetera</h1>
           <p className="text-sm text-brand-gray">Tus gastos e ingresos personales</p>
         </div>
-        <><GastosPersonales /><AtajoVoz /></>
+        <><PresupuestoPersonal /><GastosPersonales /><AtajoVoz /></>
       </div>
     );
   }
@@ -234,6 +236,12 @@ export default function MiBilleteraPage() {
           </div>
         )}
       </div>
+
+      {/* Mi sueldo, ahorro intocable, torta del mes y reporte con porcentajes (privado) */}
+      <PresupuestoPersonal />
+
+      {/* Crecimiento: dos gráficos separados (lo que ganas y tus clientes) */}
+      <CrecimientoBilletera />
 
       {/* Gastos e ingresos personales (privados). Se llenan aqui o hablando con Oti. */}
       <><GastosPersonales /><AtajoVoz /></>
