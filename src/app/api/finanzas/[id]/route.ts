@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { METODOS_MANUALES } from "@/lib/finanzas-validar";
 import { accountingColumnsAvailable, isMonthClosed, monthLabelEs, monthStart } from "@/lib/accounting";
+import { errorFechaMovimiento, moverFecha } from "@/lib/movimiento-fecha";
+import { todayInChile, toChileDateStr } from "@/lib/utils";
 
 // Punto 5 (Pablo): editar/eliminar movimientos manuales, disponible solo para el
 // administrador (pueden existir errores de digitacion o movimientos mal ingresados).
@@ -9,8 +11,8 @@ import { accountingColumnsAvailable, isMonthClosed, monthLabelEs, monthStart } f
 // cualquier usuario autenticado pudiera llamar a este endpoint directamente.
 // Valida admin, que el movimiento sea de SU negocio (antes un admin de otro negocio podia editar o
 // anular movimientos ajenos) y que su mes no este cerrado. Devuelve el movimiento o una respuesta de error.
-async function guard(id: string, extraMonth?: string | null) {
-  const { role, tenantId } = await getCurrentUserRoleAndTenant();
+async function guard(id: string, extraMonths: Array<string | null | undefined> = []) {
+  const { role, tenantId, userId } = await getCurrentUserRoleAndTenant();
   if (role !== "admin" && role !== "super_admin") {
     return { denied: NextResponse.json({ error: "No autorizado" }, { status: 403 }) };
   }
@@ -23,12 +25,12 @@ async function guard(id: string, extraMonth?: string | null) {
   const created = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit" })
     .format(new Date(tx.created_at));
   const month = (tx.accounting_month ? monthStart(String(tx.accounting_month).slice(0, 7)) : null) || monthStart(created);
-  for (const m of [month, extraMonth]) {
+  for (const m of [month, ...extraMonths]) {
     if (m && (await isMonthClosed(supabase, tx.tenant_id, m))) {
       return { denied: NextResponse.json({ error: `El mes de ${monthLabelEs(m)} esta cerrado. Reabrelo en Cierre mensual para modificar este movimiento.` }, { status: 409 }) };
     }
   }
-  return { tx };
+  return { tx, userId };
 }
 
 const ASSIGNED_TO_VALUES = new Set(["professional", "reception", "business"]);
@@ -38,8 +40,13 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const body = await req.json();
-  const { description, amount, paymentMethod, notes, assignedTo, barberId, accountingMonth } = body;
-  const checked = await guard(params.id, monthStart(accountingMonth));
+  const { description, amount, paymentMethod, notes, assignedTo, barberId, accountingMonth, date } = body;
+  // Nueva fecha del movimiento (solo administrador): se valida y también se revisa que su mes no esté cerrado.
+  if (date !== undefined) {
+    const errFecha = errorFechaMovimiento(date, todayInChile());
+    if (errFecha) return NextResponse.json({ error: errFecha }, { status: 400 });
+  }
+  const checked = await guard(params.id, [monthStart(accountingMonth), date !== undefined ? monthStart(String(date).slice(0, 7)) : null]);
   if ("denied" in checked) return checked.denied;
 
   const supabase = createAdminSupabase();
@@ -69,6 +76,15 @@ export async function PATCH(
     updates.barber_id = updates.assigned_to === "professional" && barberId ? barberId : null;
   }
 
+  // Fecha del movimiento: cambia el día y conserva la hora. Dashboard, caja, libro y reportes leen esta fecha, así que
+  // todo se actualiza solo. Si no se indica "corresponde al mes", pasa al mes de la nueva fecha (cuando ya tenía uno asignado).
+  const fechaAntes = toChileDateStr(checked.tx.created_at);
+  const cambiaFecha = date !== undefined && date !== fechaAntes;
+  if (cambiaFecha) {
+    updates.created_at = moverFecha(checked.tx.created_at, date);
+    if (accountingMonth === undefined && checked.tx.accounting_month && (await accountingColumnsAvailable(supabase))) updates.accounting_month = monthStart(String(date).slice(0, 7));
+  }
+
   // "Corresponde al mes": solo si la columna existe (migracion 090) y el mes es valido.
   if (accountingMonth !== undefined && (await accountingColumnsAvailable(supabase))) {
     const m = monthStart(accountingMonth);
@@ -78,6 +94,18 @@ export async function PATCH(
   if (Object.keys(updates).length > 0) {
     const { error } = await supabase.from("transactions").update(updates).eq("id", params.id);
     if (error) return NextResponse.json({ error: "No se pudo actualizar el movimiento" }, { status: 500 });
+  }
+
+  // Queda registrado quién cambió la fecha y de cuál a cuál (auditoría).
+  if (cambiaFecha) {
+    try {
+      const { data: quien } = checked.userId ? await supabase.from("profiles").select("name").eq("id", checked.userId).maybeSingle() : { data: null };
+      await supabase.from("audit_log").insert({
+        action: "transaction_date_changed", entity_type: "transaction", entity_id: params.id,
+        description: `Fecha del movimiento cambiada de ${fechaAntes} a ${date} ($${Number(checked.tx.total).toLocaleString("es-CL")})`,
+        user_id: checked.userId, user_name: quien?.name || null, metadata: { desde: fechaAntes, hasta: date, total: Number(checked.tx.total) },
+      });
+    } catch (e) { console.error("auditoría del cambio de fecha:", e); }
   }
 
   if (description !== undefined) {

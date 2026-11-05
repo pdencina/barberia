@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { formatCurrency, todayInChile, chileDateOffset } from "@/lib/utils";
+import { formatCurrency, todayInChile, chileDateOffset, toChileDateStr } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { useAuth } from "@/lib/auth-context";
@@ -74,6 +74,7 @@ const emptyFormData = {
   assignedTo: "" as "" | "professional" | "reception" | "business",
   barberId: "",
   accountingMonth: "", // "" = el mes de hoy
+  date: "", // fecha del movimiento (solo al modificar)
 };
 
 // Tabla compacta: celdas mas angostas y texto un punto mas chico para que las 9 columnas entren sin scroll.
@@ -120,6 +121,7 @@ export default function FinanzasPage() {
   // Punto 5: null = creando una transaccion nueva; con id = editando una existente
   // ("Modificar" desde el menu de tres puntos).
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [fechaOriginal, setFechaOriginal] = useState("");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [formData, setFormData] = useState(emptyFormData);
@@ -266,6 +268,7 @@ export default function FinanzasPage() {
           assignedTo: formData.assignedTo || null,
           barberId: formData.assignedTo === "professional" ? formData.barberId || null : null,
           accountingMonth: formData.accountingMonth || todayInChile().slice(0, 7),
+          ...(isEditing && formData.date && formData.date !== fechaOriginal ? { date: formData.date } : {}),
           tenantId: getActiveTenantId() || undefined,
         }),
       });
@@ -299,7 +302,9 @@ export default function FinanzasPage() {
       assignedTo: t.assigned_to || "",
       barberId: t.barber_id || "",
       accountingMonth: (t.accounting_month || "").slice(0, 7) || monthOf(t.created_at),
+      date: toChileDateStr(t.created_at),
     });
+    setFechaOriginal(toChileDateStr(t.created_at));
     setOpenMenuId(null);
     setShowModal(true);
   };
@@ -620,6 +625,24 @@ export default function FinanzasPage() {
                   </select>
                 </div>
               </div>
+              {editingId && (
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold text-brand-gray">Fecha del movimiento</label>
+                  <input
+                    type="date"
+                    value={formData.date}
+                    max={todayInChile()}
+                    onChange={(e) => {
+                      const nueva = e.target.value;
+                      // Si el mes que corresponde seguía al de la fecha anterior, se pasa al de la nueva (se puede cambiar abajo).
+                      const sigue = !formData.accountingMonth || formData.accountingMonth === (formData.date || fechaOriginal).slice(0, 7);
+                      setFormData({ ...formData, date: nueva, ...(nueva && sigue ? { accountingMonth: nueva.slice(0, 7) } : {}) });
+                    }}
+                    className={inputClass}
+                  />
+                  <p className="mt-1 text-[11px] text-brand-gray">Al cambiarla, el movimiento se mueve de día en el Dashboard, la caja y todos los reportes. Queda registrado quién lo hizo.</p>
+                </div>
+              )}
               <div>
                 <label className="mb-1.5 block text-xs font-semibold text-brand-gray">Corresponde al mes</label>
                 <select
