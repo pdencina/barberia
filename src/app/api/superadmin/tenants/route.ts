@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl";
 
     await resend.emails.send({
-      from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+      from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
       to: admin_email,
       subject: `Bienvenido a re-booking — Tus datos de acceso`,
       html: `
