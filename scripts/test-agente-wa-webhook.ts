@@ -117,6 +117,19 @@ async function pruebasDisponibilidad(){
     check("menu: una consulta larga que nadie entiende la ve una persona",mu.sent[0]==="Te contactará una persona."&&mu.notices.length===1);
     mu=await (async()=>{const x=armar(undefined);await enviar(x.f,"hola");return x.f;})();
     check("menu: apagado, un saludo se deriva como antes",mu.sent[0]==="Te contactará una persona."&&mu.notices.length===1);
+    { // seguimiento: tras una oferta, "en la tarde" se entiende con el mismo profesional y la misma fecha
+      const horas=["10:00","10:45","11:30","12:15","13:00","13:45","14:30","15:15","16:00","17:30"];
+      const w=armar(async(_id,fecha)=>({slots:horas.map(h=>`${fecha}T${h}:00`),cerrado:false,fueraDeVentana:false}));
+      const memoria=new Map<string,any>();
+      (w.f.deps as any).chat={
+        leerEstado:async(t:string,c:string)=>memoria.get(t+c)??null,guardarEstado:async(t:string,c:string,e:any)=>{memoria.set(t+c,e);},borrarEstado:async(t:string,c:string)=>{memoria.delete(t+c);},
+        reservasFuturas:async()=>0,crearReserva:async()=>({ok:false,motivo:"otro"}),contar:async()=>{},
+      };
+      await enviar(w.f,"matias tiene hora mañana");
+      await enviar(w.f,"me gustaría en la tarde");
+      check("seguimiento: la oferta resume cuando hay muchas horas",w.f.sent[0].includes("10 horas disponibles mañana"));
+      check("seguimiento: 'en la tarde' usa el mismo profesional y fecha",w.f.sent[1].includes("Matías Soto")&&w.f.sent[1].includes("en la tarde")&&w.f.sent[1].includes("mañana")&&!w.f.sent[1].includes("Elige una opción")&&w.f.notices.length===0);
+    }
     const g=armar(undefined);(g.f.deps as any).ia=async()=>null;
     await enviar(g.f,"hacen degrade?");
     check("ia: si no sabe deriva a una persona",g.f.sent[0]==="Te contactará una persona."&&g.f.notices.length===1);
