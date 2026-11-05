@@ -138,7 +138,7 @@ async function main(){
  await caso("W-firma",()=>sinLogs(async()=>{const f=fixture(),r=await f.post("MARCADOR_PRIVADO_F1",{firmaValida:false});assert.equal(r.status,401);assert.equal(f.consultas.length,0);assert.equal(f.persistido.length,0);}));
  await caso("W-deduplicacion",()=>sinLogs(async()=>{const f=fixture();await Promise.all([f.post("¿Cuál es la dirección?",{id:"mismo"}),f.post("¿Cuál es la dirección?",{id:"mismo"})]);assert.equal(f.enviados.length,1);}));
  await caso("W-tercer-identico",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<3;i++)await f.post("¿Tienen estacionamiento?");assert.equal(f.enviados.length,2);}));
- await caso("W-limite-hora",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<11;i++)await f.post(i%2?"¿Cuál es la dirección?":"¿Cuál es su teléfono?");assert.equal(f.enviados.length,10);}));
+ await caso("W-limite-hora",()=>sinLogs(async()=>{const f=fixture();for(let i=0;i<21;i++)await f.post(i%2?"¿Cuál es la dirección?":"¿Cuál es su teléfono?");assert.equal(f.enviados.length,20);}));
  await caso("W-baja-entre-consultas",()=>sinLogs(async()=>{const f=fixture();await f.post("¿Cuál es la dirección?");await f.post("baja");await f.post("¿Cuál es su teléfono?");assert.equal(f.enviados.length,2);assert.equal(f.enviados[1].texto,"Tu solicitud de baja quedó registrada.");}));
  // F1-01..F1-04 corregidos en claude/faq-correcciones: los casos retirados vuelven a ejecutarse.
  await caso("W-inactivo-no-envia",()=>sinLogs(async()=>{const f=fixture();f.tablas.tenants[0].active=false;await f.post("¿Cuál es la dirección?");assert.equal(f.enviados.length,0);assert.equal(f.avisos.length,0);}));

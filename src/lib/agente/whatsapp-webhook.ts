@@ -94,7 +94,7 @@ export function crearManejadoresWebhook(config: {
             if (admitted.repetido) { totals.repetidos++; continue; }
             key = eventKey;
             const limit = evaluarLimiteDeUso({tenantId:n.tenantId,contactHash:p.remitenteHash,messageHash,ahoraMs:ahora,historial:admitted.historial,
-              reglas:{contacto:{max:10,ventanaMs:hour},negocio:{max:Number.MAX_SAFE_INTEGER,ventanaMs:hour},bucle:{max:Number.MAX_SAFE_INTEGER,ventanaMs:hour}}});
+              reglas:{contacto:{max:20,ventanaMs:hour},negocio:{max:Number.MAX_SAFE_INTEGER,ventanaMs:hour},bucle:{max:Number.MAX_SAFE_INTEGER,ventanaMs:hour}}});
             // El helper cuenta repeticiones en ventana; el RPC aporta las dos inmediatamente anteriores.
             if (!limit.permitido || admitted.consecutivos >= 2) { await deps.repo.terminar(n.tenantId,key,"limitado"); totals.limitados++; continue; }
             if (await deps.repo.baja(n.tenantId,p.remitenteHash)) { await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue; }
@@ -156,7 +156,11 @@ export function crearManejadoresWebhook(config: {
                       // 2) Consulta de disponibilidad ("¿Matías tiene hora a las 3?"); si no aplica o falla, la FAQ.
                       if (deps.horasLibres) {
                         try {
-                          const d = await conTiempoMaximo(responderDisponibilidad(text,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres}),6000);
+                          // Si ya se le ofreció algo, el seguimiento ("¿y Valentina a las 10:15?") hereda esa fecha y responde más corto.
+                          let previo: EstadoChat | null = null;
+                          if (chat) { try { previo = await chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()); } catch { /* sin memoria: respuesta normal */ } }
+                          const fechaOferta = previo?.etapa === "oferta" ? previo.datos.opciones[0]?.fecha : undefined;
+                          const d = await conTiempoMaximo(responderDisponibilidad(text,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres,...(fechaOferta ? { fechaPorDefecto: fechaOferta } : {})}),6000);
                           if (d.tipo === "respuesta") {
                             respuestaFaq = d.texto;
                             await contar("consultas_disponibilidad");

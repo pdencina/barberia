@@ -7,6 +7,8 @@ export interface HorasLibres { slots: string[]; cerrado: boolean; fueraDeVentana
 export interface DependenciasDisponibilidad {
   ahora: () => number;
   horasLibres: (profesionalId: string, fecha: string, duracionMin: number) => Promise<HorasLibres>;
+  /** Fecha de la oferta anterior: si el cliente no escribe fecha, se usa esta en vez de "hoy" y la respuesta sale más corta. */
+  fechaPorDefecto?: string;
 }
 // Lo que se le ofreció al cliente, para que su siguiente mensaje ("quiero la de las 15:15") se entienda sin que nadie intervenga.
 // No guarda texto del cliente: solo profesional, fecha y horas libres ofrecidas.
@@ -161,6 +163,8 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
   const ahora = ahoraChile(deps.ahora());
   const q = interpretar(t, ahora.fecha, perfiles);
   if (!q) return SIN;
+  const seguimiento = !!deps.fechaPorDefecto;
+  if (!q.fechaExplicita && deps.fechaPorDefecto) q.fecha = deps.fechaPorDefecto;
   const general = datos?.negocio.linkReserva && datoSeguro(datos.negocio.linkReserva) ? datos.negocio.linkReserva.trim() : null;
   const completa = (f: string) => `${DIAS[diaSemana(f)]} ${Number(f.slice(8, 10))} de ${MESES[Number(f.slice(5, 7)) - 1]}`;
   // "mañana" lleva la fecha: pasada la medianoche, "mañana" puede ser el mismo día para quien escribe.
@@ -178,7 +182,11 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
     const r = await consultar(P, q.fecha);
     if (r.fueraDeVentana) return { tipo: "respuesta", texto: fueraDeVentana(P.link, ` de ${P.nombre}`) };
     const propias = horasDe(r, q.franja);
-    const cierre = conNota(`¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${P.link}`);
+    // Con una sola hora basta un "sí"; con varias hay que decir cuál (un "sí" no sabría elegir).
+    const cierreCon = (varias: boolean) => conNota(varias
+      ? `¿Quieres que te agende? Dime a qué hora y te pido tus datos.\nO reserva tú aquí: ${P.link}`
+      : `¿Quieres que te agende? Responde *sí* y te pido tus datos.\nO reserva tú aquí: ${P.link}`);
+    const cierre = cierreCon(hh === null && propias.length > 1);
     if (hh !== null && propias.includes(hh)) {
       const otras = cercanos(propias.filter((h) => h !== hh), q.hora, MAX_HORAS);
       return { tipo: "respuesta", texto: bloque(`Sí, ${N} tiene disponible ${dia(q.fecha)} a las *${hh}*.`, otras.length > 0 && `También tiene: ${horasTxt(otras)}`, cierre), oferta: { horaExacta: hh, opciones: [{ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: q.fecha, horas: propias.slice(0, MAX_HORAS_OFRECIDAS) }] } };
@@ -188,6 +196,11 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
     }
     let cabecera: string, siguiente: string | null = null;
     const opciones: OpcionOfrecida[] = [];
+    if (propias.length && hh !== null) {
+      const cerca = cercanos(propias, q.hora, 2).map((h) => `*${h}*`).join(" y a las ");
+      const corto = `${N} no tiene a las ${hh} ${dia(q.fecha)}, pero sí a las ${cerca}.\nDime a cuál prefieres y te pido tus datos.\nO revisa sus horas aquí: ${P.link}`;
+      return { tipo: "respuesta", texto: conNota(corto), oferta: { horaExacta: null, opciones: [{ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: q.fecha, horas: propias.slice(0, MAX_HORAS_OFRECIDAS) }] } };
+    }
     if (propias.length) { cabecera = `A las ${hh} ${N} no tiene hora ${dia(q.fecha)}.\nHoras más cercanas: ${horasTxt(cercanos(propias, q.hora, MAX_HORAS))}`; opciones.push({ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: q.fecha, horas: propias.slice(0, MAX_HORAS_OFRECIDAS) }); }
     else {
       cabecera = r.cerrado ? `${N} no atiende ${dia(q.fecha)}.` : `${N} no tiene horas disponibles ${dia(q.fecha)}.`;
@@ -208,7 +221,7 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
       .slice(0, MAX_OTROS);
     const bloqueOtros = otros.length ? `Otros profesionales disponibles ${dia(q.fecha)}:\n${otros.map((x) => `• ${nombreNegrita(x.p.nombre)}: ${horasTxt(cercanos(x.horas, q.hora, MAX_HORAS))}`).join("\n")}` : null;
     for (const x of otros) opciones.push({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) });
-    return { tipo: "respuesta", texto: bloque(cabecera, siguiente, bloqueOtros, cierre, otros.length > 0 && general && `O elige a otro profesional aquí:\n${general}`), ...(opciones.length > 0 ? { oferta: { horaExacta: null, opciones } } : {}) };
+    return { tipo: "respuesta", texto: bloque(cabecera, siguiente, !seguimiento && bloqueOtros, cierreCon(opciones.reduce((a, o) => a + o.horas.length, 0) > 1), !seguimiento && otros.length > 0 && general && `O elige a otro profesional aquí:\n${general}`), ...(opciones.length > 0 ? { oferta: { horaExacta: null, opciones } } : {}) };
   }
 
   // ---- sin profesional (o varios con el mismo nombre): se revisan todos
