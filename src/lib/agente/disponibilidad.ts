@@ -165,7 +165,7 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
   const completa = (f: string) => `${DIAS[diaSemana(f)]} ${Number(f.slice(8, 10))} de ${MESES[Number(f.slice(5, 7)) - 1]}`;
   // "mañana" lleva la fecha: pasada la medianoche, "mañana" puede ser el mismo día para quien escribe.
   const dia = (f: string) => (f === ahora.fecha ? "hoy" : f === sumar(ahora.fecha, 1) ? `mañana (${completa(f)})` : `el ${completa(f)}`);
-  const notaMadrugada = ahora.minutos < 6 * 60 && q.fecha === sumar(ahora.fecha, 1) ? `Si te referías a hoy, ${completa(ahora.fecha)}, escríbeme «hoy».` : null;
+  const notaMadrugada = ahora.minutos < 6 * 60 && q.fecha === sumar(ahora.fecha, 1) ? "¿O a qué día te refieres?" : null;
   const conNota = (c: string) => (notaMadrugada ? `${notaMadrugada}\n\n${c}` : c);
   const consultar = async (p: Perfil, f: string): Promise<HorasLibres> => deps.horasLibres(p.id, f, p.duracionMin);
   const consultarTodos = (ps: Perfil[], f: string) => Promise.all(ps.map(async (p) => ({ p, r: await consultar(p, f) })));
