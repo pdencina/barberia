@@ -158,6 +158,14 @@ export const CATALOGO: EntradaOti[] = [
     ruta: "/dashboard/resenas",
   },
   {
+    id: "abonos",
+    titulo: "Abonos",
+    para: "Administrador y recepcion",
+    claves: ["abonos", "abono", "anticipo", "anticipos", "pagos de reservas", "devolver un abono", "devolver abono", "devolucion", "quien pago el abono", "abonos recibidos", "mercado pago reservas"],
+    resumen: "«Abonos» muestra lo que tus clientes pagaron al reservar con Mercado Pago (recibido, por devolver y devuelto) y permite devolver un abono, y cancelar la cita si quieres.",
+    ruta: "/dashboard/abonos",
+  },
+  {
     id: "demanda",
     titulo: "Mapa de demanda",
     para: "Administrador",

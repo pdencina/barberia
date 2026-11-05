@@ -2,10 +2,12 @@
 
 import { calcularAbono } from "@/lib/deposit-calc";
 import { useState, useEffect, useRef } from "react";
+import ResenasCarrusel from "@/components/booking/resenas-carrusel";
 import BusinessProfile, { type BusinessInfo } from "@/components/booking/business-profile";
 import TimeFirstFlow, { type TimePick } from "@/components/booking/time-first-flow";
 import { formatCurrency } from "@/lib/utils";
 import { SuccessMark } from "@/components/ui/empty-state";
+import { textoPoliticaAbono } from "@/lib/deposit-policy";
 
 interface Service {
   id: string;
@@ -77,6 +79,10 @@ export default function BookingPage() {
   const [error, setError] = useState("");
   const [clientFound, setClientFound] = useState(false);
   const [appointmentId, setAppointmentId] = useState("");
+  // Pago del abono: el horario queda reservado 3:30 mientras se paga (contador). Si no se paga a tiempo, se libera y no se toma la hora.
+  const [pago, setPago] = useState<null | { ref: string | null; url: string; expira: number; monto: number; estado: "esperando" | "vencido" | "conflicto" }>(null);
+  const [ahora, setAhora] = useState(() => Date.now());
+  const [slotsKey, setSlotsKey] = useState(0);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [waitlistSubmitted, setWaitlistSubmitted] = useState(false);
   const [businessName, setBusinessName] = useState("");
@@ -101,6 +107,7 @@ export default function BookingPage() {
   const [depositMode, setDepositMode] = useState<"percent" | "fixed">("percent");
   const [depositFixed, setDepositFixed] = useState<number | null>(null);
   const [depositMessage, setDepositMessage] = useState("");
+  const [depositPolicy, setDepositPolicy] = useState("");
 
   // Computed totals
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
@@ -119,8 +126,9 @@ export default function BookingPage() {
     const urlParams = new URLSearchParams(window.location.search);
     // Link corto /<negocio>/<profesional>: negocio y profesional vienen de la ruta.
     const pathParts = window.location.pathname.split("/").filter(Boolean);
-    const pathTenant = pathParts.length === 2 && pathParts[0] !== "booking" ? decodeURIComponent(pathParts[0]) : null;
-    const pathProf = pathTenant ? decodeURIComponent(pathParts[1]) : null;
+    // /<negocio> (1 parte) o /<negocio>/<profesional> (2 partes); /booking?tenant=… sigue funcionando.
+    const pathTenant = (pathParts.length === 1 || pathParts.length === 2) && pathParts[0] !== "booking" ? decodeURIComponent(pathParts[0]) : null;
+    const pathProf = pathTenant && pathParts.length === 2 ? decodeURIComponent(pathParts[1]) : null;
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch") || pathTenant;
     if (tenantSlug) setTenantSlugState(tenantSlug);
     const barberSlug = urlParams.get("profesional") || urlParams.get("barber");
@@ -131,6 +139,14 @@ export default function BookingPage() {
     // Fetch business info if on subdomain
     if (tenantSlug) {
       fetch(`/api/public/business-info?slug=${tenantSlug}`).then((r) => r.json()).then((data) => {
+        // El negocio cambió su link: se pasa al nuevo, conservando el profesional y los parámetros (utm, etc.).
+        if (data.movedTo) {
+          const partes = window.location.pathname.split("/").filter(Boolean);
+          const usaRuta = partes.length >= 1 && partes[0] !== "booking";
+          if (usaRuta) { partes[0] = data.movedTo; window.location.replace(`/${partes.join("/")}${window.location.search}`); }
+          else { const q = new URLSearchParams(window.location.search); q.set("tenant", data.movedTo); window.location.replace(`${window.location.pathname}?${q.toString()}`); }
+          return;
+        }
         if (data.name) {
           setBusinessName(data.name); setBusinessInfo(data);
           if (data.suspended) setBusinessSuspended(true);
@@ -147,6 +163,7 @@ export default function BookingPage() {
               setDepositMode(dep.deposit_mode === "fixed" ? "fixed" : "percent");
               setDepositFixed(dep.deposit_fixed_amount ?? null);
               setDepositMessage(dep.deposit_message || "");
+              setDepositPolicy(textoPoliticaAbono(dep.deposit_refund_policy, dep.deposit_refund_hours));
             }
           }).catch(() => {});
         }
@@ -255,7 +272,7 @@ export default function BookingPage() {
         .then((data) => { setSlots(data.slots || []); setSpots(data.spots || {}); })
         .finally(() => { setLoadingSlots(false); preselectSlot.current = ""; });
     }
-  }, [selectedBarber, selectedDate, selectedServices]);
+  }, [selectedBarber, selectedDate, selectedServices, slotsKey]);
 
   // Con cupos por bloque otras personas pueden tomar un cupo mientras miras la lista: se refresca
   // sola cada 15 s (solo cuando el negocio usa cupos) y si tu hora se llena, se te avisa.
@@ -278,6 +295,37 @@ export default function BookingPage() {
     }, 15000);
     return () => clearInterval(id);
   }, [hasSpots, step, selectedBarber, selectedDate, selectedServices, totalDuration]);
+
+  // Contador del pago: se actualiza cada segundo y se pregunta cada 3 s si ya se pagó (la cita se crea cuando Mercado Pago avisa).
+  useEffect(() => {
+    if (!pago) return;
+    const reloj = setInterval(() => setAhora(Date.now()), 1000);
+    return () => clearInterval(reloj);
+  }, [pago?.ref, pago?.url]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (!pago || !pago.ref || pago.estado === "conflicto") return;
+    const ref = pago.ref, limite = pago.expira + 60_000; // se sigue mirando un minuto despues por si pagó justo al final
+    const sondeo = setInterval(async () => {
+      if (Date.now() > limite) { clearInterval(sondeo); return; }
+      try {
+        const r = await fetch(`/api/booking/deposit-status?ref=${ref}`, { cache: "no-store" });
+        const d = await r.json();
+        if (d.estado === "pagado") { clearInterval(sondeo); setAppointmentId(d.appointmentId || ""); setPago(null); setStep("confirmed"); }
+        else if (d.estado === "conflicto") { clearInterval(sondeo); setPago((p) => (p ? { ...p, estado: "conflicto" } : p)); }
+      } catch { /* se reintenta en 3 s */ }
+    }, 3000);
+    return () => clearInterval(sondeo);
+  }, [pago?.ref]); // eslint-disable-line react-hooks/exhaustive-deps
+  const segundosRestantes = pago ? Math.max(0, Math.ceil((pago.expira - ahora) / 1000)) : 0;
+  const tiempoAgotado = !!pago && pago.estado === "esperando" && segundosRestantes === 0;
+  const volverAElegirHora = () => {
+    if (pago?.ref) fetch("/api/booking/deposit-release", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: pago.ref }) }).catch(() => {}); // libera el horario al tiro
+    setPago(null); setSelectedSlot(""); setSlotsKey((k) => k + 1); setStep("datetime"); };
+  const irAPagar = () => {
+    if (!pago) return;
+    const w = window.open(pago.url, "_blank", "noopener");
+    if (!w) window.location.href = pago.url; // si el navegador bloquea la ventana nueva, se abre aquí
+  };
 
   const handleBook = async () => {
     setError("");
@@ -305,10 +353,13 @@ export default function BookingPage() {
       setSubmitting(false);
 
       if (depositData.checkoutUrl) {
-        // Redirect to MercadoPago Checkout
-        window.location.href = depositData.checkoutUrl;
+        // El horario ya quedó reservado (3:30): se muestra el contador y el cliente paga en Mercado Pago sin perder esta pantalla.
+        const seg = Number(depositData.segundos) || 210;
+        setAhora(Date.now());
+        setPago({ ref: depositData.intentRef || null, url: depositData.checkoutUrl, expira: Date.now() + seg * 1000, monto: Number(depositData.depositAmount) || 0, estado: "esperando" });
         return;
       } else {
+        if (depositRes.status === 409) { setError(depositData.error || "Ese horario ya no está disponible. Elige otro."); setSlotsKey((k) => k + 1); return; }
         setError(depositData.error || "Error al crear link de pago");
         return;
       }
@@ -396,6 +447,35 @@ export default function BookingPage() {
 
   return (
     <div className="min-h-screen bg-brand-light text-brand-dark">
+      {pago && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 text-center shadow-2xl">
+            {pago.estado === "conflicto" ? (
+              <>
+                <h2 className="text-lg font-bold text-brand-dark">Recibimos tu pago, pero la hora se ocupó</h2>
+                <p className="text-sm text-brand-gray">Otra persona alcanzó a tomar ese horario. El negocio te devolverá el abono o te dará otra hora; te contactarán a tu correo.</p>
+                <button type="button" onClick={volverAElegirHora} className="w-full rounded-xl bg-brand-blue py-3 font-bold text-white">Entendido</button>
+              </>
+            ) : tiempoAgotado ? (
+              <>
+                <h2 className="text-lg font-bold text-brand-dark">Se acabó el tiempo</h2>
+                <p className="text-sm text-brand-gray">No alcanzaste a pagar, así que <b>liberamos tu horario</b> y no se tomó. Si ya pagaste, espera unos segundos: se confirma sola.</p>
+                <button type="button" onClick={volverAElegirHora} className="w-full rounded-xl bg-brand-blue py-3 font-bold text-white">Elegir la hora de nuevo</button>
+              </>
+            ) : (
+              <>
+                <h2 className="text-lg font-bold text-brand-dark">Tu horario está reservado</h2>
+                <p className="font-mono text-5xl font-extrabold tabular-nums text-brand-blue" aria-live="polite">{String(Math.floor(segundosRestantes / 60)).padStart(2, "0")}:{String(segundosRestantes % 60).padStart(2, "0")}</p>
+                <p className="text-sm text-brand-gray">Tienes ese tiempo para pagar el abono de <b className="text-brand-dark">{formatCurrency(pago.monto)}</b>. Si no pagas, el horario se libera y no se toma.</p>
+                <button type="button" onClick={irAPagar} className="w-full rounded-xl bg-brand-blue py-3 font-bold text-white">Pagar con Mercado Pago</button>
+                <p className="text-[11px] text-brand-gray">Se abre en otra pestaña. Cuando el pago se apruebe, esta pantalla se confirma sola.</p>
+                <button type="button" onClick={volverAElegirHora} className="text-xs text-brand-gray underline">Cancelar y elegir otra hora</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Header: logo y nombre del negocio integrados (con la presentacion visible solo dice "Agendar hora") */}
       <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/90 px-4 py-2.5 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
@@ -562,7 +642,8 @@ export default function BookingPage() {
             <h2 className="text-2xl font-bold mb-2">Elige tu profesional</h2>
             <p className="text-brand-gray mb-6">Selecciona un miembro del equipo</p>
 
-            {/* First available button */}
+            {/* «Primer profesional disponible» solo tiene sentido si hay más de uno que elegir */}
+            {barbers.length > 1 && (
             <button
               onClick={async () => {
                 // Sin fecha elegida no se manda "hoy": el servidor busca quien tenga horas libres en los proximos dias.
@@ -587,9 +668,10 @@ export default function BookingPage() {
               <p className="font-bold text-brand-blue text-lg">Primer profesional disponible</p>
               <p className="text-xs text-brand-gray">Te asignamos al profesional con mas disponibilidad</p>
             </button>
+            )}
 
             {error && <p className="mb-4 text-sm text-red-500 text-center bg-red-50 rounded-lg py-2">{error}</p>}
-            <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>
+            {barbers.length > 1 && <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
               {barbers.map((b) => (
@@ -809,12 +891,13 @@ export default function BookingPage() {
                 <span className="text-brand-blue font-bold text-lg">{formatCurrency(totalPrice)}</span>
               </div>
               {depositRequired && (
-                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-xl">
-                  <div className="flex justify-between items-center">
-                    <span className="text-sm text-yellow-800 font-medium">Abono requerido{depositMode === "percent" ? ` (${depositPercentage}%)` : ""}</span>
-                    <span className="text-yellow-800 font-bold">{formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}</span>
+                <div className="mt-3 rounded-xl border border-brand-blue/20 bg-brand-blue/5 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-semibold text-brand-dark">Abono para confirmar{depositMode === "percent" ? ` (${depositPercentage}%)` : ""}</span>
+                    <span className="text-base font-bold text-brand-blue">{formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}</span>
                   </div>
-                  <p className="text-[10px] text-yellow-700 mt-1">{depositMessage || "Se cobra al confirmar la reserva. El resto se paga en el local."}</p>
+                  <p className="mt-1 text-[11px] leading-relaxed text-brand-gray">{depositMessage || "Se cobra al confirmar la reserva. El resto se paga en el local."}</p>
+                  {depositPolicy && <p className="mt-1 text-[10px] leading-snug text-brand-gray/80">{depositPolicy}</p>}
                 </div>
               )}
             </div>
@@ -888,7 +971,7 @@ export default function BookingPage() {
               {process.env.NEXT_PUBLIC_LEGAL_PAGES_ENABLED !== "0" && (<> — <a href="/privacidad/clientes" target="_blank" rel="noopener noreferrer" className="underline">Aviso de privacidad</a></>)}.
             </p>
 
-            {error && <p className="text-red-500 text-sm mt-3 text-center bg-red-50 rounded-lg py-2">{error}</p>}
+            {error && <p className={depositRequired ? "mt-3 rounded-lg border border-brand-blue/20 bg-brand-blue/5 px-3 py-2 text-center text-sm font-medium text-brand-dark" : "text-red-500 text-sm mt-3 text-center bg-red-50 rounded-lg py-2"}>{error}</p>}
 
             <button
               onClick={handleBook}
@@ -997,6 +1080,8 @@ export default function BookingPage() {
           </div>
         )}
       </div>
+
+      {businessInfo?.id && <ResenasCarrusel tenantId={businessInfo.id} />}
 
       <div className="border-t border-gray-100 py-4 text-center text-xs text-brand-gray">
         re-booking · rebooking.cl

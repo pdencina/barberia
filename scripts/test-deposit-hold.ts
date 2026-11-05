@@ -1,6 +1,7 @@
 // Bloqueo del horario mientras se paga el abono. Uso: npx tsx scripts/test-deposit-hold.ts
 import assert from "node:assert/strict";
-import { crearHold, liberarHold, limpiarHoldsVencidos, HOLD_MINUTOS } from "../src/lib/deposit-hold";
+import { crearHold, liberarHold, limpiarHoldsVencidos, HOLD_SEGUNDOS } from "../src/lib/deposit-hold";
+import { estadoReservaEnPago } from "../src/lib/booking-intent";
 import { resolverServicios } from "../src/lib/booking-services";
 let fails = 0;
 const t = (n: string, f: () => void | Promise<void>) => Promise.resolve().then(f).then(() => console.log("OK  " + n), (e: any) => { fails++; console.log("MAL " + n + ": " + e.message); });
@@ -19,14 +20,25 @@ function fake(respuestas: Record<string, any>) {
 }
 
 (async () => {
-  await t("crea el bloqueo con la hora del servicio y un vencimiento de unos 32 minutos", async () => {
+  await t("el bloqueo dura 3 minutos (no más)", () => { assert.equal(HOLD_SEGUNDOS, 180); });
+  await t("crea el bloqueo con la hora del servicio y vence a los 3 minutos", async () => {
     const { cliente, llamadas } = fake({});
-    const ref = await crearHold(cliente, { barberId: "b1", date: "2026-11-05", start: new Date("2026-11-05T15:00:00Z"), end: new Date("2026-11-05T15:45:00Z") });
-    assert.ok(ref && /^[0-9a-f-]{36}$/.test(ref));
+    const h = await crearHold(cliente, { barberId: "b1", date: "2026-11-05", start: new Date("2026-11-05T15:00:00Z"), end: new Date("2026-11-05T15:45:00Z") });
+    assert.ok(h && /^[0-9a-f-]{36}$/.test(h.ref));
     const ins = llamadas.find((l) => l.op === "insert").datos;
-    assert.equal(ins.barber_id, "b1"); assert.equal(ins.all_day, false); assert.equal(ins.start_time, "15:00"); assert.equal(ins.end_time, "15:45"); assert.equal(ins.hold_ref, ref);
-    const minutos = (Date.parse(ins.hold_expires_at) - Date.now()) / 60000;
-    assert.ok(minutos > HOLD_MINUTOS - 1 && minutos <= HOLD_MINUTOS, String(minutos));
+    assert.equal(ins.barber_id, "b1"); assert.equal(ins.all_day, false); assert.equal(ins.start_time, "15:00"); assert.equal(ins.end_time, "15:45"); assert.equal(ins.hold_ref, h!.ref);
+    const seg = (Date.parse(ins.hold_expires_at) - Date.now()) / 1000;
+    assert.ok(seg > HOLD_SEGUNDOS - 5 && seg <= HOLD_SEGUNDOS, String(seg));
+    assert.ok(Math.abs(h!.expira.getTime() - Date.parse(ins.hold_expires_at)) < 5);
+  });
+  await t("estado del pago: esperando con tiempo restante, pagado, conflicto y vencido (con 45 s de gracia)", () => {
+    const creado = new Date("2026-11-05T12:00:00Z"), t0 = creado.getTime();
+    assert.deepEqual(estadoReservaEnPago({}, creado, t0 + 60_000, 210), { estado: "esperando", segundosRestantes: 150 });
+    assert.deepEqual(estadoReservaEnPago({ resultado: "pagado", appointmentId: "a1" }, creado, t0 + 400_000, 210), { estado: "pagado", appointmentId: "a1" });
+    assert.deepEqual(estadoReservaEnPago({ resultado: "conflicto" }, creado, t0 + 100_000, 210), { estado: "conflicto" });
+    assert.deepEqual(estadoReservaEnPago({}, creado, t0 + 230_000, 210), { estado: "esperando", segundosRestantes: 0 }); // en la gracia: aún puede llegar el aviso
+    assert.deepEqual(estadoReservaEnPago({}, creado, t0 + 300_000, 210), { estado: "vencido" });
+    assert.deepEqual(estadoReservaEnPago(null, creado, t0 + 10_000, 210), { estado: "esperando", segundosRestantes: 200 });
   });
   await t("sin la migración (la columna no existe) no bloquea pero tampoco falla", async () => {
     const { cliente } = fake({ "barber_blocks.insert": { data: null, error: { message: 'column "hold_ref" does not exist' } } });

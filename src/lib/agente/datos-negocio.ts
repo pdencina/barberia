@@ -87,9 +87,9 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
     const slug=texto(t.slug);
     if(slug&&!/[\s/\\?#\u0000-\u001f\u007f]/.test(slug)){
      // tenant-booking RESUELVE slug, no crea URL. Reutiliza fuente real src/lib/retention.ts:214-220.
-     // No aceptar su fallback genérico /booking ni otro negocio ante error/cambio concurrente.
+     // No aceptar su fallback genérico /booking ni otro negocio ante error/cambio concurrente (el link limpio es /<negocio>).
      const candidate=await enlace(db,tenantId),url=new URL(candidate);
-     if(!["https:","http:"].includes(url.protocol)||url.username||url.password||url.search||url.hash||!decodeURIComponent(url.pathname).endsWith(`/b/${slug}`))return null;
+     if(!["https:","http:"].includes(url.protocol)||url.username||url.password||url.search||url.hash||!decodeURIComponent(url.pathname).endsWith(`/${slug}`))return null; // link limpio /<negocio> (el antiguo /b/<negocio> también termina así)
      linkReserva=candidate;
     }
     // Profesionales reservables y su link personal: re-booking.cl/<negocio>/<booking_slug> (src/app/[slug]/[barber]/page.tsx).

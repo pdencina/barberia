@@ -22,7 +22,10 @@ const defaultSchedule = (barberId: string) =>
     break_end: null,
   }));
 
+import { limpiarHoldsVencidos } from "@/lib/deposit-hold";
+
 export async function GET(req: NextRequest) {
+  await limpiarHoldsVencidos(createAdminSupabase()); // los bloqueos de abono vencidos no deben verse en el calendario
   const { searchParams } = new URL(req.url);
   const ids = Array.from(
     new Set((searchParams.get("barberIds") || "").split(",").map((s) => s.trim()).filter(Boolean))

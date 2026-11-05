@@ -1,14 +1,21 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { enlaceDeVuelta } from "@/lib/volver-reserva";
 
 export default function DepositSuccessPage() {
+  const [volver, setVolver] = useState({ href: "/booking", ref: null as string | null });
+  useEffect(() => {
+    const v = enlaceDeVuelta(window.location.search);
+    setVolver(v);
+  }, []);
   return (
     <div className="min-h-screen bg-brand-light flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-sm w-full text-center">
         <img src="/logo-icon.png" alt="re-booking" className="w-16 h-16 mx-auto mb-4" />
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <div className="w-16 h-16 bg-brand-blue/10 rounded-full flex items-center justify-center mx-auto mb-4">
+          <svg className="w-8 h-8 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
           </svg>
         </div>
@@ -19,7 +26,7 @@ export default function DepositSuccessPage() {
         <p className="text-xs text-brand-gray mb-6">
           Recibiras un email de confirmacion con los detalles de tu cita.
         </p>
-        <Link href="/booking"
+        <Link href={volver.href}
           className="inline-block px-6 py-3 bg-brand-blue text-white rounded-xl font-medium hover:bg-brand-blue/90 transition-colors">
           Volver al inicio
         </Link>

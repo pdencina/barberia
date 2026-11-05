@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
+import { LinkEditor } from "@/components/settings/link-editor";
 import { compressImage } from "@/lib/image-compress";
 import { Panel, inputClass, primaryButton, ghostButton } from "@/components/ui/premium";
 
@@ -19,6 +20,8 @@ const VIEW_OPTIONS: { value: ViewMode; title: string; desc: string }[] = [
 export default function PreferenciasReservasPage() {
   const { showToast } = useToast();
   const { tenant } = useTenant();
+  const [miSlug, setMiSlug] = useState<string>(tenant?.slug || "");
+  useEffect(() => { if (tenant?.slug) setMiSlug(tenant.slug); }, [tenant?.slug]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState<"logo" | "banner" | null>(null);
@@ -130,6 +133,10 @@ export default function PreferenciasReservasPage() {
         <p className="text-sm text-brand-gray">Cómo se ve tu página de reservas para los clientes.</p>
       </div>
 
+      {tenant?.id && miSlug && (
+        <LinkEditor tipo="negocio" tenantId={tenant.id} slugActual={miSlug} titulo="Link de reservas de tu negocio" ayuda="Compártelo en Instagram, WhatsApp, Google y tus redes. Puedes dejarlo corto y fácil de recordar (el link anterior seguirá funcionando)." onGuardado={setMiSlug} />
+      )}
+
       <Panel title="Imágenes" subtitle="El logo y la imagen del negocio aparecen arriba en tu página de reservas">
         <div className="grid gap-5 sm:grid-cols-[9rem_1fr]">
           <div>
@@ -216,7 +223,7 @@ export default function PreferenciasReservasPage() {
       </Panel>
 
       <div className="flex flex-wrap justify-end gap-2">
-        {tenant?.slug && <a href={`/booking?tenant=${tenant.slug}`} target="_blank" rel="noopener noreferrer" className={ghostButton}>Ver mi página <ExternalLink className="h-4 w-4" /></a>}
+        {miSlug && <a href={`/${miSlug}`} target="_blank" rel="noopener noreferrer" className={ghostButton}>Ver mi página <ExternalLink className="h-4 w-4" /></a>}
         <button onClick={save} disabled={saving} className={primaryButton}>{saving ? "Guardando…" : "Guardar preferencias"}</button>
       </div>
     </div>

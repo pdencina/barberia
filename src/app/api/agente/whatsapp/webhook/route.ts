@@ -81,7 +81,7 @@ const handlers = () => crearManejadoresWebhook({
           llamar: async ({ modelo, sistema, usuario, maxTokens }) => {
             const res = await fetch("https://api.anthropic.com/v1/messages", {
               method: "POST", headers: { "x-api-key": llave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-              body: JSON.stringify({ model: modelo || MODELO_IA, max_tokens: maxTokens, system: sistema, messages: [{ role: "user", content: usuario }] }),
+              body: JSON.stringify({ model: modelo || MODELO_IA, max_tokens: maxTokens, thinking: { type: "disabled" }, system: sistema, messages: [{ role: "user", content: usuario }] }),
               signal: AbortSignal.timeout(8000),
             });
             if (!res.ok) return null;

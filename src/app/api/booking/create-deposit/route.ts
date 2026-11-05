@@ -3,8 +3,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { calcularAbono, cargarCredencialAbono, firmarNegocio } from "@/lib/deposit";
 import { resolverServicios } from "@/lib/booking-services";
-import { horarioDisponible, limpiarHoldsVencidos, crearHold, liberarHold } from "@/lib/deposit-hold";
+import { horarioDisponible, limpiarHoldsVencidos, crearHold, liberarHold, HOLD_SEGUNDOS } from "@/lib/deposit-hold";
 import { parseWallClock } from "@/lib/wallclock";
+import { guardarIntento } from "@/lib/booking-intent";
 
 /**
  * Creates a MercadoPago Checkout Pro preference for a booking deposit.
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
   // Get barber's tenant to find MP credentials and deposit config
   const { data: barber } = await supabase
     .from("profiles")
-    .select("tenant_id, name")
+    .select("tenant_id, name, booking_slug")
     .eq("id", barberId)
     .single();
 
@@ -82,7 +83,7 @@ export async function POST(req: NextRequest) {
   // Get tenant name for display
   const { data: tenant } = await supabase
     .from("tenants")
-    .select("name")
+    .select("name, slug")
     .eq("id", barber.tenant_id)
     .single();
 
@@ -90,7 +91,29 @@ export async function POST(req: NextRequest) {
   // Direccion canonica CON www: re-booking.cl redirige (307) y Mercado Pago no sigue redirecciones al avisar el pago.
   const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl").replace(/\/$/, "");
 
-  const holdRef = await crearHold(supabase, { barberId, date, start, end });
+  const hold = await crearHold(supabase, { barberId, date, start, end });
+  const holdRef = hold?.ref ?? null;
+  const expiraEn = hold?.expira ?? new Date(Date.now() + HOLD_SEGUNDOS * 1000);
+
+  // Los datos de la reserva se guardan aqui; a Mercado Pago solo va una referencia corta (acepta maximo 256 caracteres y estos datos ocupan mas de 400).
+  let referenciaPago: string;
+  try {
+    referenciaPago = await guardarIntento(supabase, barber.tenant_id, {
+      barberId, clientName, clientEmail, clientPhone, serviceIds, date, startTime, notes, totalPrice, depositAmount, tenantId: barber.tenant_id, holdRef,
+    });
+  } catch (e: any) {
+    await liberarHold(supabase, holdRef);
+    console.error("create-deposit:", e?.message);
+    return NextResponse.json({ error: "No se pudo preparar el pago. Intenta de nuevo en unos minutos." }, { status: 500 });
+  }
+
+  // Al volver de Mercado Pago (pago no completado, pendiente o confirmado) se regresa al link del NEGOCIO, no a una pantalla genérica;
+  // y con la referencia de la reserva se libera el horario si el pago falló (así puede reintentar al tiro).
+  const volverParams = new URLSearchParams();
+  if (tenant?.slug) volverParams.set("n", tenant.slug);
+  if ((barber as any).booking_slug) volverParams.set("p", (barber as any).booking_slug);
+  if (/^[0-9a-f-]{36}$/i.test(referenciaPago)) volverParams.set("r", referenciaPago);
+  const volver = volverParams.toString();
 
   // Create MP Checkout Pro preference
   const preferenceRes = await fetch("https://api.mercadopago.com/checkout/preferences", {
@@ -112,30 +135,17 @@ export async function POST(req: NextRequest) {
         email: clientEmail || undefined,
       },
       back_urls: {
-        success: `${baseUrl}/booking/deposit-success`,
-        failure: `${baseUrl}/booking/deposit-failure`,
-        pending: `${baseUrl}/booking/deposit-pending`,
+        success: `${baseUrl}/booking/deposit-success?${volver}`,
+        failure: `${baseUrl}/booking/deposit-failure?${volver}`,
+        pending: `${baseUrl}/booking/deposit-pending?${volver}`,
       },
       auto_return: "approved",
-      external_reference: JSON.stringify({
-        barberId,
-        clientName,
-        clientEmail,
-        clientPhone,
-        serviceIds,
-        date,
-        startTime,
-        notes,
-        totalPrice,
-        depositAmount,
-        tenantId: barber.tenant_id,
-        holdRef,
-      }),
+      external_reference: referenciaPago,
       notification_url: `${baseUrl}/api/webhooks/deposit?t=${barber.tenant_id}&s=${firmarNegocio(barber.tenant_id)}`,
       statement_descriptor: tenant?.name || "RE-BOOKING",
       expires: true,
       expiration_date_from: new Date().toISOString(),
-      expiration_date_to: new Date(Date.now() + 30 * 60 * 1000).toISOString(), // 30 min to pay
+      expiration_date_to: new Date(expiraEn.getTime() + 15_000).toISOString(), // el link vence junto con el bloqueo del horario (3:30): si no paga a tiempo, no queda ni el link ni el horario
     }),
   });
 
@@ -153,5 +163,8 @@ export async function POST(req: NextRequest) {
     depositAmount,
     depositPercentage,
     preferenceId: preferenceData.id,
+    intentRef: /^[0-9a-f-]{36}$/i.test(referenciaPago) ? referenciaPago : null,
+    segundos: HOLD_SEGUNDOS,
+    expiraEn: expiraEn.toISOString(),
   });
 }
