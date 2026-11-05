@@ -86,6 +86,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       // Solo dijo con quién ("con Matías"): si la consulta era por una hora exacta, es esa; si no, se le piden las horas de esa persona.
       const quien = op.filter((o) => nombreMencionado(t, o.nombre));
       const exacta = estado.datos.horaExacta;
+      // "Matías en la tarde" / "más tarde": pide un horario, no solo la persona. Lo resuelve la consulta de disponibilidad.
+      if (!exacta && /\b(?:en|por|de) la (?:manana|mañana|tarde|noche)\b|\btemprano\b|\bm[aá]s tarde\b/.test(t)) return null;
       for (const o of quien) if (exacta && o.horas.includes(exacta)) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: exacta });
       if (elegidas.length === 0) {
         const o = quien[0];
