@@ -57,7 +57,7 @@ export async function GET(req: NextRequest) {
       const resend = getResendClient();
       const fecha = end.toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" });
       await resend.emails.send({
-        from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+        from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
         to: link.adminEmail,
         subject: daysLeft <= 1 ? "Tu plan re-booking vence manana" : `Tu plan re-booking vence en ${daysLeft} dias`,
         html: `

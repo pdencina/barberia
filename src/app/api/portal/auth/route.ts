@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
         const { getResendClient } = await import("@/lib/resend-client");
         const resend = getResendClient();
         await resend.emails.send({
-          from: process.env.EMAIL_FROM || "re-booking <no-reply@rebooking.cl>",
+          from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
           to: client.email,
           subject: `Tu codigo de acceso: ${verificationCode}`,
           html: `
