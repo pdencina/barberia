@@ -129,7 +129,7 @@ export async function PATCH(
       before: { start_time: b.start_time, barber_id: b.barber_id, serviceIds: (b.services || []).map((s: any) => s.service_id) },
       after: { start_time: update.start_time, barber_id: update.barber_id, serviceIds: Array.isArray(body.service_ids) ? body.service_ids : null },
     });
-    if (stillActive && reasons.length > 0) await emailClientAboutAppointment(supabase, params.id, "updated");
+    if (stillActive && reasons.length > 0 && body.notify_client !== false) await emailClientAboutAppointment(supabase, params.id, "updated");
   } catch (e) {
     console.error("aviso al cliente por cambio de cita:", e);
   }
