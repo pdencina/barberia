@@ -30,7 +30,7 @@ function buildChartBuckets(todayStr: string, range: ChartRange): ChartBucket[] {
       const i = 29 - idx;
       const d = dateStrOffset(todayStr, -i);
       const next = dateStrOffset(d, 1);
-      return { label: String(Number(d.slice(8, 10))), date: d, endDate: next, startUtc: dayStartUtc(d), endUtcExclusive: dayStartUtc(next) };
+      return { label: (idx === 0 || d.slice(8, 10) === "01") ? `${Number(d.slice(8, 10))} ${monthLabelsEs[Number(d.slice(5, 7)) - 1].toLowerCase()}` : String(Number(d.slice(8, 10))), date: d, endDate: next, startUtc: dayStartUtc(d), endUtcExclusive: dayStartUtc(next) };
     });
   }
 
@@ -206,7 +206,7 @@ export async function GET(req: NextRequest) {
     .eq("status", "completed")
     .gte("created_at", prevRangeStartUtc)
     .lt("created_at", prevRangeEndUtc))).catch(() => [] as any[]).then((data) => ({ data }));
-  const barbersP = withTenant(supabase.from("profiles").select("id, name"));
+  const barbersP = withTenant(supabase.from("profiles").select("id, name, role"));
 
   const [
     { count: todayApptCount },
@@ -303,23 +303,27 @@ export async function GET(req: NextRequest) {
 
   // Ventas del período por profesional y por medio de pago (gráficos del Dashboard).
   const nombreDe = new Map<string, string>((barberRows || []).map((b: any) => [b.id, b.name]));
+  const esRecepcion = new Set<string>((barberRows || []).filter((b: any) => b.role === "receptionist").map((b: any) => b.id));
   const porBarbero = new Map<string, { total: number; ventas: number }>();
+  let sinProfesional = { total: 0, ventas: 0 };
   for (const t of chartTxRaw || []) {
-    if (!t.barber_id) continue;
+    // Ventas hechas por recepción (o sin profesional) no son de ningún profesional: van aparte para que todo sume 100 %.
+    if (!t.barber_id || esRecepcion.has(t.barber_id)) { sinProfesional = { total: sinProfesional.total + (Number(t.total) || 0), ventas: sinProfesional.ventas + 1 }; continue; }
     const c = porBarbero.get(t.barber_id) || { total: 0, ventas: 0 };
     c.total += Number(t.total) || 0; c.ventas += 1; porBarbero.set(t.barber_id, c);
   }
-  const ventasPorProfesional = Array.from(porBarbero.entries())
-    .map(([id, c]) => ({ id, name: nombreDe.get(id) || "Profesional", total: c.total, ventas: c.ventas }))
-    .sort((a, b) => b.total - a.total).slice(0, 8);
+  const ventasPorProfesional = [
+    ...Array.from(porBarbero.entries()).map(([id, c]) => ({ id, name: nombreDe.get(id) || "Profesional", total: c.total, ventas: c.ventas })).sort((a, b) => b.total - a.total).slice(0, 12),
+    ...(sinProfesional.total > 0 ? [{ id: "sin-profesional", name: "Recepción / sin profesional", total: sinProfesional.total, ventas: sinProfesional.ventas }] : []),
+  ];
   let medios: { medio: string; nombre: string; total: number }[] = [];
   try {
     const mixtos = (chartTxRaw || []).filter((t: any) => t.payment_method === "mixed").map((t: any) => t.id);
-    const partes: any[] = [];
-    for (let i = 0; i < mixtos.length; i += 200) {
-      const { data } = await supabase.from("transaction_payments").select("transaction_id, payment_method, amount").in("transaction_id", mixtos.slice(i, i + 200));
-      partes.push(...(data || []));
-    }
+    const trozos: string[][] = [];
+    for (let i = 0; i < mixtos.length; i += 200) trozos.push(mixtos.slice(i, i + 200));
+    const partes: any[] = (await Promise.all(trozos.map((c) =>
+      supabase.from("transaction_payments").select("transaction_id, payment_method, amount").in("transaction_id", c).then((r: any) => r.data || [])
+    ))).flat();
     medios = ventasPorMedio(chartTxRaw || [], partes);
   } catch { /* sin desglose: el resto del Dashboard sigue igual */ }
 

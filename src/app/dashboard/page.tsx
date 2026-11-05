@@ -397,7 +397,7 @@ export default function DashboardPage() {
       {((data.ventasPorProfesional?.length || 0) > 1 || (data.ventasPorMedio?.length || 0) > 0) && (
         <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
           {(data.ventasPorProfesional?.length || 0) > 1 && (
-            <Sec id="porProfesional" {...secProps}><VentasPorProfesional data={data.ventasPorProfesional!} /></Sec>
+            <Sec id="porProfesional" {...secProps}><VentasPorProfesional data={data.ventasPorProfesional!} total={data.chartTotal} /></Sec>
           )}
           {(data.ventasPorMedio?.length || 0) > 0 && (
             <Sec id="mediosPago" {...secProps}><MediosDePago data={data.ventasPorMedio!} /></Sec>

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { cn, formatCurrency } from "@/lib/utils";
-import { marcasEje, montoCorto, resumenPeriodo } from "@/lib/dashboard-format";
+import { intensidades, marcasEje, montoCorto, resumenPeriodo, type Intensidad } from "@/lib/dashboard-format";
 
 export type ChartRange = "7d" | "1m" | "3m" | "12m";
 
@@ -46,6 +46,14 @@ function nombrePunto(date: string, range: ChartRange): string {
 
 const AZUL = "hsl(var(--brand-blue))";
 
+// Color de cada día según su fuerza: azul de la marca (más opacidad = más fuerte) o rojo suave (más opacidad = más lento).
+const colorTono = (i: Intensidad) =>
+  i.tono === "fuerte" ? `hsl(var(--brand-blue) / ${i.opacidad})`
+  : i.tono === "lento" ? `rgb(220 60 60 / ${i.opacidad})`
+  : i.tono === "normal" ? "rgb(148 163 184 / 0.22)" : "rgb(148 163 184 / 0.10)";
+const ETIQUETA_NIVEL: Record<number, string> = { [-3]: "Muy lento", [-2]: "Lento", [-1]: "Algo lento", 0: "Normal", 1: "Bueno", 2: "Fuerte", 3: "Muy fuerte" };
+const NOMBRE_DIA_LARGO = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+
 // Gráfico de ventas de área: eje con montos legibles, comparación con el período anterior (línea punteada),
 // resumen arriba (total, variación, promedio y mejor día) y cuadro flotante al pasar el mouse o tocar.
 export function SalesChart({ data, range, onRangeChange, total, growth, loading }: SalesChartProps) {
@@ -64,12 +72,14 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
   }, [loading]);
 
   const res = useMemo(() => resumenPeriodo(data), [data]);
+  const porDia = range === "7d" || range === "1m";
+  const inten = useMemo(() => intensidades(data, porDia), [data, porDia]);
   const prevTotal = useMemo(() => data.reduce((s, d) => s + (d.prev || 0), 0), [data]);
   const hayPrev = prevTotal > 0;
   const positivo = growth >= 0;
   const vacio = data.length === 0 || data.every((d) => d.total === 0);
 
-  const alto = ancho < 420 ? 190 : 240;
+  const alto = ancho < 420 ? 200 : 250;
   const m = { l: 58, r: 12, t: 12, b: 26 };
   const w = ancho - m.l - m.r, h = alto - m.t - m.b;
   const maxDato = Math.max(...data.map((d) => Math.max(d.total, d.prev || 0)), 1);
@@ -78,17 +88,24 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
   const x = (i: number) => m.l + (data.length <= 1 ? w / 2 : (i / (data.length - 1)) * w);
   const y = (v: number) => m.t + h - (v / tope) * h;
 
-  // Curva suave (Catmull-Rom → Bézier) para que se lea como tendencia y no como una quebrada.
+  // Curva suave que NO se pasa de los datos (interpolación monótona): una caída de domingo no se convierte en una ola falsa.
   const trazo = (vals: number[]) => {
-    if (vals.length === 0) return "";
-    const pts = vals.map((v, i) => [x(i), y(v)] as const);
-    let d = `M${pts[0][0]},${pts[0][1]}`;
-    for (let i = 0; i < pts.length - 1; i++) {
-      const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || p2;
-      const c1x = p1[0] + (p2[0] - p0[0]) / 6, c2x = p2[0] - (p3[0] - p1[0]) / 6;
-      const clamp = (v: number) => Math.min(Math.max(v, m.t), m.t + h);
-      d += ` C${c1x},${clamp(p1[1] + (p2[1] - p0[1]) / 6)} ${c2x},${clamp(p2[1] - (p3[1] - p1[1]) / 6)} ${p2[0]},${p2[1]}`;
+    const n = vals.length;
+    if (n === 0) return "";
+    const px = vals.map((_, i) => x(i)), py = vals.map((v) => y(v));
+    if (n === 1) return `M${px[0]},${py[0]}`;
+    const dx = px.slice(1).map((v, i) => v - px[i]);
+    const sl = py.slice(1).map((v, i) => (v - py[i]) / dx[i]);
+    const t = [sl[0]];
+    for (let i = 1; i < n - 1; i++) t.push(sl[i - 1] * sl[i] <= 0 ? 0 : (sl[i - 1] + sl[i]) / 2);
+    t.push(sl[n - 2]);
+    for (let i = 0; i < n - 1; i++) {
+      if (sl[i] === 0) { t[i] = 0; t[i + 1] = 0; continue; }
+      const a = t[i] / sl[i], b = t[i + 1] / sl[i], h = Math.hypot(a, b);
+      if (h > 3) { t[i] = (3 * a * sl[i]) / h; t[i + 1] = (3 * b * sl[i]) / h; }
     }
+    let d = `M${px[0]},${py[0]}`;
+    for (let i = 0; i < n - 1; i++) d += ` C${px[i] + dx[i] / 3},${py[i] + (t[i] * dx[i]) / 3} ${px[i + 1] - dx[i] / 3},${py[i + 1] - (t[i + 1] * dx[i]) / 3} ${px[i + 1]},${py[i + 1]}`;
     return d;
   };
   const lineaVentas = trazo(data.map((d) => d.total));
@@ -96,6 +113,8 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
   const area = data.length > 1 ? `${lineaVentas} L${x(data.length - 1)},${m.t + h} L${x(0)},${m.t + h} Z` : "";
   const pasoEtiqueta = Math.max(1, Math.ceil(data.length / (ancho < 420 ? 5 : 9)));
   const conPuntos = data.length <= 14;
+  const ultimo = data.length - 1;
+  const etiquetaVisible = (i: number) => (ultimo - i) % pasoEtiqueta === 0; // desde el final: el último punto (hoy) siempre lleva etiqueta
 
   const mover = (e: React.PointerEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
@@ -142,8 +161,8 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
           </div>
           <div className="rounded-xl bg-brand-light/70 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-gray">Mejor {range === "12m" ? "mes" : range === "3m" ? "semana" : "día"}</p>
-            <p className="truncate text-sm font-bold text-brand-dark tabular-nums md:text-base">{res.mejor ? formatCurrency(res.mejor.total) : "—"}
-              {res.mejor && <span className="ml-1.5 text-[11px] font-medium text-brand-gray">{nombrePunto(res.mejor.date, range)}</span>}</p>
+            <p className="text-sm font-bold text-brand-dark tabular-nums md:text-base">{res.mejor ? formatCurrency(res.mejor.total) : "—"}</p>
+            {res.mejor && <p className="text-[11px] text-brand-gray">{nombrePunto(res.mejor.date, range)}</p>}
           </div>
         </div>
       )}
@@ -172,15 +191,21 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
                 </g>
               ))}
               {/* Etiquetas del eje horizontal */}
-              {data.map((d, i) => (i % pasoEtiqueta === 0 || i === data.length - 1) && (
-                <text key={d.date} x={x(i)} y={alto - 8} textAnchor={i === 0 && data.length > 1 ? "start" : i === data.length - 1 && data.length > 1 ? "end" : "middle"}
+              {data.map((d, i) => etiquetaVisible(i) && (
+                <text key={d.date} x={x(i)} y={m.t + h + 15} textAnchor={i === 0 && data.length > 1 ? "start" : i === data.length - 1 && data.length > 1 ? "end" : "middle"}
                   className={hover === i ? "fill-brand-blue" : "fill-brand-gray"} style={{ fontSize: 10.5, fontWeight: hover === i ? 700 : 500 }}>{d.label}</text>
+              ))}
+              {/* Fondo por día: rojo suave = día lento, azul = día fuerte (más opacidad = más extremo) */}
+              {data.map((d, i) => inten[i] && (inten[i].tono === "lento" || inten[i].tono === "fuerte") && (
+                <rect key={`b-${d.date}`} x={Math.max(m.l, x(i) - (w / data.length) / 2)} y={m.t}
+                  width={Math.min(w / data.length, ancho - m.r - Math.max(m.l, x(i) - (w / data.length) / 2))} height={h}
+                  style={{ fill: colorTono({ ...inten[i], opacidad: inten[i].opacidad * 0.45 }) }} />
               ))}
               {area && <path d={area} fill="url(#ventas-area)" />}
               {lineaPrev && <path d={lineaPrev} fill="none" stroke="currentColor" className="text-brand-gray" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" strokeLinecap="round" />}
               <path d={lineaVentas} fill="none" style={{ stroke: AZUL }} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
               {conPuntos && data.map((d, i) => (
-                <circle key={d.date} cx={x(i)} cy={y(d.total)} r={hover === i ? 5 : 3} style={{ stroke: AZUL }} className="fill-white" strokeWidth={2} />
+                <circle key={d.date} cx={x(i)} cy={y(d.total)} r={hover === i ? 5 : 3} style={{ stroke: inten[i]?.tono === "lento" ? "rgb(220 60 60 / 0.85)" : AZUL }} className="fill-white" strokeWidth={2} />
               ))}
               {/* Punto marcado: línea vertical y círculo */}
               {punto && (
@@ -196,11 +221,29 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
                 style={{ left: Math.min(Math.max(x(hover!), 70), ancho - 70), top: 0 }}>
                 <p className="font-semibold text-brand-dark first-letter:uppercase">{nombrePunto(punto.date, range)}</p>
                 <p className="mt-0.5 text-sm font-extrabold tabular-nums text-brand-blue">{formatCurrency(punto.total)}</p>
+                {inten[hover!] && inten[hover!].tono !== "sin" && (
+                  <p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-brand-dark">
+                    <span className="h-2 w-2 rounded-sm" style={{ background: colorTono(inten[hover!]), outline: "1px solid rgb(148 163 184 / .4)" }} />
+                    {ETIQUETA_NIVEL[inten[hover!].nivel]}
+                    <span className="font-normal text-brand-gray">· normal {formatCurrency(Math.round(inten[hover!].referencia))}</span>
+                  </p>
+                )}
                 {hayPrev && (
                   <p className="mt-0.5 text-[11px] text-brand-gray tabular-nums">
                     Antes: {formatCurrency(punto.prev || 0)}{difHover !== null && <span className={difHover >= 0 ? " text-emerald-600" : " text-red-500"}> ({difHover >= 0 ? "+" : ""}{difHover}%)</span>}
                   </p>
                 )}
+              </div>
+            )}
+            {!loading && !vacio && (
+              <div className="mt-2 flex items-center justify-center gap-2 text-[10px] text-brand-gray">
+                <span>Más lento</span>
+                <span className="flex gap-0.5">
+                  {[0.55, 0.35, 0.18].map((o) => <span key={o} className="h-2 w-4 rounded-sm" style={{ background: `rgb(220 60 60 / ${o})` }} />)}
+                  <span className="h-2 w-4 rounded-sm" style={{ background: "rgb(148 163 184 / 0.22)" }} />
+                  {[0.3, 0.55, 0.85].map((o) => <span key={o} className="h-2 w-4 rounded-sm" style={{ background: `hsl(var(--brand-blue) / ${o})` }} />)}
+                </span>
+                <span>Más fuerte</span>
               </div>
             )}
             {hayPrev && (

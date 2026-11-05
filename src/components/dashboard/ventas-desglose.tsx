@@ -9,9 +9,9 @@ export interface VentaMedio { medio: string; nombre: string; total: number }
 // Colores de la paleta de re-booking (azul de marca y sus vecinos), sin amarillos ni rojos.
 const COLORES = ["hsl(var(--brand-blue))", "#10b981", "#8b5cf6", "#38bdf8", "#94a3b8", "#14b8a6"];
 
-export function VentasPorProfesional({ data }: { data: VentaProfesional[] }) {
+export function VentasPorProfesional({ data, total }: { data: VentaProfesional[]; total?: number }) {
   const max = Math.max(...data.map((d) => d.total), 1);
-  const suma = data.reduce((s, d) => s + d.total, 0) || 1;
+  const suma = total || data.reduce((s, d) => s + d.total, 0) || 1;
   return (
     <Panel title="Ventas por profesional" subtitle="Del período del gráfico">
       <div className="space-y-3.5 px-4 pb-4 md:px-5 md:pb-5">
@@ -53,14 +53,13 @@ export function MediosDePago({ data }: { data: VentaMedio[] }) {
         </svg>
         <ul className="w-full min-w-0 flex-1 space-y-2">
           {data.map((d, i) => (
-            <li key={d.medio} className="flex items-center justify-between gap-3 text-sm">
-              <span className="flex min-w-0 flex-1 items-center gap-2">
-                <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: COLORES[i % COLORES.length] }} />
-                <span className="truncate text-brand-dark">{d.nombre}</span>
-              </span>
-              <span className="flex-shrink-0 tabular-nums text-brand-gray">
-                <b className="text-brand-dark">{formatCurrency(d.total)}</b> · {Math.round((d.total / suma) * 100)}%
-              </span>
+            <li key={d.medio} className="flex items-center gap-2.5 text-sm">
+              <span className="h-2.5 w-2.5 flex-shrink-0 rounded-full" style={{ background: COLORES[i % COLORES.length] }} />
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-brand-dark">{d.nombre}</p>
+                <p className="text-[11px] tabular-nums text-brand-gray">{formatCurrency(d.total)}</p>
+              </div>
+              <span className="flex-shrink-0 text-sm font-bold tabular-nums text-brand-dark">{Math.round((d.total / suma) * 100)}%</span>
             </li>
           ))}
         </ul>

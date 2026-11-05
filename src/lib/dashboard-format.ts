@@ -57,3 +57,37 @@ export function ventasPorMedio(
     .map(([medio, total]) => ({ medio, nombre: nombreMedio(medio), total }))
     .sort((a, b) => b.total - a.total);
 }
+
+// ---- Intensidad de cada día/semana/mes (azul = más fuerte, rojo = más lento; más opacidad = más extremo) ----
+
+export type Tono = "fuerte" | "lento" | "normal" | "sin";
+export interface Intensidad { tono: Tono; nivel: number; opacidad: number; ratio: number | null; referencia: number }
+
+const mediana = (v: number[]) => {
+  if (!v.length) return 0;
+  const s = [...v].sort((a, b) => a - b), m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
+};
+const diaSemana = (date: string) => { const [y, m, d] = date.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d, 12)).getUTCDay(); };
+
+// Escalones de la razón «venta / lo normal»: cuanto más lejos de 1, más opacidad. Dentro de ±10 % queda neutro.
+const ESCALA_LENTO: [number, number, number][] = [[0.35, -3, 0.55], [0.65, -2, 0.35], [0.9, -1, 0.18]];
+const ESCALA_FUERTE: [number, number, number][] = [[1.35, 1, 0.3], [1.8, 2, 0.55], [Infinity, 3, 0.85]];
+
+// «Lo normal» de cada punto: en días, la mediana de ese mismo día de la semana dentro del período (un domingo se compara con los
+// domingos, no con un viernes); si hay menos de 3 del mismo día, o son semanas/meses, la mediana de los puntos con ventas.
+export function intensidades(data: PuntoVentas[], porDiaSemana: boolean): Intensidad[] {
+  const conVenta = data.filter((d) => d.total > 0).map((d) => d.total);
+  const global = mediana(conVenta);
+  const porDia = new Map<number, number[]>();
+  if (porDiaSemana) for (const d of data) if (d.total > 0) porDia.set(diaSemana(d.date), [...(porDia.get(diaSemana(d.date)) || []), d.total]);
+  return data.map((d) => {
+    const mismos = porDiaSemana ? porDia.get(diaSemana(d.date)) || [] : [];
+    const referencia = mismos.length >= 3 ? mediana(mismos) : global;
+    if (!(d.total > 0) || !(referencia > 0)) return { tono: "sin", nivel: 0, opacidad: 0, ratio: null, referencia };
+    const ratio = d.total / referencia;
+    if (ratio < 0.9) { const [, nivel, opacidad] = ESCALA_LENTO.find(([lim]) => ratio <= lim)!; return { tono: "lento", nivel, opacidad, ratio, referencia }; }
+    if (ratio > 1.1) { const [, nivel, opacidad] = ESCALA_FUERTE.find(([lim]) => ratio <= lim)!; return { tono: "fuerte", nivel, opacidad, ratio, referencia }; }
+    return { tono: "normal", nivel: 0, opacidad: 0, ratio, referencia };
+  });
+}

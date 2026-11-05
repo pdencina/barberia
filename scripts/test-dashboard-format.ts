@@ -1,6 +1,6 @@
 // Formatos de los gráficos del Dashboard. Uso: npx tsx scripts/test-dashboard-format.ts
 import assert from "node:assert/strict";
-import { montoCorto, marcasEje, resumenPeriodo, ventasPorMedio } from "../src/lib/dashboard-format";
+import { montoCorto, marcasEje, resumenPeriodo, ventasPorMedio, intensidades } from "../src/lib/dashboard-format";
 let fails = 0;
 const t = (n: string, f: () => void) => { try { f(); console.log("OK  " + n); } catch (e: any) { fails++; console.log("MAL " + n + ": " + e.message); } };
 t("montos cortos", () => {
@@ -34,5 +34,26 @@ t("medios de pago: el mixto se reparte por partes", () => {
   );
   const m = Object.fromEntries(r.map((x) => [x.medio, x.total]));
   assert.deepEqual(m, { cash: 15000, transfer: 15000, debit_card: 5000 });
+});
+t("intensidad: un domingo se compara con los domingos y un día flojo sale rojo", () => {
+  // 4 semanas: jueves ~400k, domingo ~50k; un jueves de 20k es muy lento, un domingo de 55k es normal
+  const mk = (date: string, total: number) => ({ label: date, date, total });
+  const data = [
+    mk("2026-10-01", 400000), mk("2026-10-04", 50000), mk("2026-10-08", 420000), mk("2026-10-11", 52000),
+    mk("2026-10-15", 380000), mk("2026-10-18", 48000), mk("2026-10-22", 20000), mk("2026-10-25", 55000), mk("2026-10-29", 900000),
+  ];
+  const r = intensidades(data, true);
+  assert.equal(r[6].tono, "lento"); assert.equal(r[6].nivel, -3);
+  assert.equal(r[7].tono, "normal");
+  assert.equal(r[8].tono, "fuerte"); assert.equal(r[8].nivel, 3);
+  assert.equal(r[0].tono, "normal");
+});
+t("intensidad: sin ventas queda neutro y la opacidad crece con la distancia", () => {
+  const data = [100, 100, 100, 0, 60, 30, 150, 200].map((total, i) => ({ label: String(i), date: `2026-11-0${i + 1}`, total }));
+  const r = intensidades(data, false);
+  assert.equal(r[3].tono, "sin");
+  assert.ok(r[5].opacidad > r[4].opacidad);
+  assert.ok(r[7].opacidad > r[6].opacidad);
+  assert.ok(r[6].tono === "fuerte" && r[4].tono === "lento");
 });
 process.exit(fails ? 1 : 0);
