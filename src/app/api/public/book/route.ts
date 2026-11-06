@@ -1,3 +1,4 @@
+import { getPlazoCambios } from "@/lib/cambio-cliente";
 import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { isTenantSuspended, isBarberTenantSuspended, TENANT_SUSPENDED_MESSAGE } from "@/lib/tenant-suspension";
@@ -236,6 +237,7 @@ export async function POST(req: NextRequest) {
           price: totalPrice,
           appointmentId: appointment!.id,
           businessLogoUrl,
+          changeHours: await getPlazoCambios(supabase, tenantId),
         });
       } else {
         console.warn(`Cupo de correos agotado para tenant ${tenantId}, no se envia confirmacion a ${clientEmail}`);

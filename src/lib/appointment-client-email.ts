@@ -1,3 +1,4 @@
+import { getPlazoCambios } from "@/lib/cambio-cliente";
 import { parseWallClock } from "@/lib/wallclock";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { cleanClientName } from "@/lib/client-name";
@@ -65,6 +66,7 @@ export async function emailClientAboutAppointment(supabase: any, appointmentId: 
   }
 
   const { data: tenant } = a.tenant_id ? await supabase.from("tenants").select("logo_url").eq("id", a.tenant_id).maybeSingle() : { data: null };
+  const changeHours = await getPlazoCambios(supabase, a.tenant_id);
   const params = {
     to: a.client.email.trim(),
     clientName: cleanClientName(a.client.name) || "Cliente",
@@ -75,6 +77,7 @@ export async function emailClientAboutAppointment(supabase: any, appointmentId: 
     price,
     appointmentId,
     businessLogoUrl: tenant?.logo_url || null,
+    changeHours,
   };
   const { sendBookingConfirmation, sendAppointmentUpdated } = await import("@/lib/resend");
   if (kind === "created") await sendBookingConfirmation(params);

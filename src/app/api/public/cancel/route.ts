@@ -2,7 +2,8 @@ import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
-import { motivoValido, limpiarNota, NOTA_MINIMA } from "@/lib/cancel-reasons";
+import { motivoValido, limpiarNota, NOTA_MINIMA, aHoraPared } from "@/lib/cancel-reasons";
+import { getPlazoCambios, aunSePuedeCambiar, textoPlazo } from "@/lib/cambio-cliente";
 
 // POST: Cancel an appointment by ID (public, no auth needed - uses appointment ID as token)
 export async function POST(req: NextRequest) {
@@ -34,13 +35,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Esta cita ya no puede ser cancelada" }, { status: 400 });
   }
 
-  // Check if it's not too late (at least 2 hours before)
-  const apptTime = new Date(appt.start_time);
-  const now = new Date();
-  const hoursUntil = (apptTime.getTime() - now.getTime()) / (1000 * 60 * 60);
-
-  if (hoursUntil < 2) {
-    return NextResponse.json({ error: "No se puede cancelar con menos de 2 horas de anticipacion" }, { status: 400 });
+  // Plazo que definió el negocio (por defecto 2 horas). La hora de la cita está guardada como hora de pared de Chile,
+  // así que «ahora» también se pasa a hora de pared antes de comparar.
+  const plazo = await getPlazoCambios(supabase, appt.tenant_id);
+  if (!aunSePuedeCambiar(String(appt.start_time), aHoraPared(new Date()), plazo)) {
+    return NextResponse.json({ error: `Ya no se puede cancelar: el plazo es hasta ${textoPlazo(plazo)} antes de la hora. Escríbenos y te ayudamos.` }, { status: 400 });
   }
 
   // Cancel the appointment

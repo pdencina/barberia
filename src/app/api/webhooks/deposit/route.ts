@@ -282,6 +282,7 @@ export async function POST(req: NextRequest) {
             duration: totalDuration,
             price: totalPrice,
             appointmentId: appointment?.id || "",
+            changeHours: (await import("@/lib/cambio-cliente")).plazoValido((await supabase.from("tenants").select("client_change_hours").eq("id", tenantId).maybeSingle()).data?.client_change_hours) ?? 2,
           });
         } else {
           console.warn(`Cupo de correos agotado para tenant ${tenantId}, no se envia confirmacion (deposito) a ${clientEmail}`);

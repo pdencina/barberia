@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { BookingRuleCard } from "@/components/settings/booking-rule-card";
+import { PlazoCambiosCard } from "@/components/settings/plazo-cambios-card";
 import { NotificationsCard } from "@/components/settings/notifications-card";
 import { TeamTabBarCard } from "@/components/settings/tab-bar-cards";
 
@@ -1104,6 +1105,7 @@ export default function ConfiguracionPage() {
       <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Preferencias de reserva (Fase 6): regla de "Primer profesional disponible". Solo administrador. */}
       {isAdmin && <BookingRuleCard />}
+      {isAdmin && <PlazoCambiosCard />}
 
       </div>
 
