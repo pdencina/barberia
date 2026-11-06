@@ -1,5 +1,6 @@
 "use client";
 
+import { ComparativaChart } from "@/components/dashboard/comparativa-chart";
 import { useState, useEffect, useRef } from "react";
 import { formatCurrency, todayInChile } from "@/lib/utils";
 import { Spinner } from "@/components/ui/spinner";
@@ -113,7 +114,6 @@ export default function ReportesPage() {
     );
   }
 
-  const chartMax = Math.max(...comparison.map((c) => Math.max(c.income, c.expenses)), 1);
 
   return (
     <div className="mx-auto max-w-7xl space-y-3 md:space-y-6 p-3 md:p-8 animate-fade-in">
@@ -191,41 +191,10 @@ export default function ReportesPage() {
         <StatCard label="Clientes nuevos" value={<AnimatedNumber value={data.summary.newClients} />} Icon={UserPlus} tone="green" />
       </div>
 
-      {/* Monthly Comparison Chart */}
+      {/* Comparativa mensual: mismo estilo de gráfico que el Dashboard */}
       {comparison.length > 0 && (
-        <Panel
-          title="Comparativa mensual"
-          subtitle="Últimos 6 meses"
-          action={
-            <div className="flex items-center gap-4 text-xs text-brand-gray">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-gradient-to-t from-brand-blue to-emerald-400" /> Ingresos</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-red-400/70" /> Egresos</span>
-            </div>
-          }
-        >
-          <div className="flex h-52 items-end justify-between gap-3">
-            {comparison.map((m) => {
-              const incomeHeight = (m.income / chartMax) * 100;
-              const expenseHeight = (m.expenses / chartMax) * 100;
-              return (
-                <div key={m.label} className="group flex flex-1 flex-col items-center gap-2">
-                  <div className="flex h-40 w-full items-end justify-center gap-1">
-                    <div
-                      className="w-4 rounded-full bg-gradient-to-t from-brand-blue to-emerald-400 opacity-80 transition-all duration-300 group-hover:opacity-100 md:w-6"
-                      style={{ height: `${Math.max(incomeHeight, 2)}%` }}
-                      title={`Ingresos: ${formatCurrency(m.income)}`}
-                    />
-                    <div
-                      className="w-4 rounded-full bg-red-400/60 transition-all duration-300 group-hover:bg-red-400 md:w-6"
-                      style={{ height: `${Math.max(expenseHeight, 2)}%` }}
-                      title={`Egresos: ${formatCurrency(m.expenses)}`}
-                    />
-                  </div>
-                  <span className="text-[11px] font-medium text-brand-gray">{m.label}</span>
-                </div>
-              );
-            })}
-          </div>
+        <Panel title="Comparativa mensual" subtitle="Últimos 6 meses">
+          <ComparativaChart data={comparison} />
         </Panel>
       )}
 
