@@ -6,7 +6,7 @@ import { AVISO_VOLVER } from "./menu";
 
 export const TEXTO_CTA = "¿Quieres agendar? Reserva aquí:";
 
-const DEL_CURSO = /\b(curso|cursos|malla|temario|clases|alumnos?|certificad\w*|academia)\b/i;
+export const DEL_CURSO = /\b(curso|cursos|malla|temario|clases|alumnos?|certificad\w*|academia)\b/i;
 
 export function conLlamadaAReservar(texto: string, linkReserva: string | null | undefined, consulta?: string): string {
   // Si se habla del curso, ofrecer "agendar una hora" no calza: se ofrece volver al menú.
