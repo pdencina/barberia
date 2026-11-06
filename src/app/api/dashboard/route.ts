@@ -3,7 +3,8 @@ import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest, isMan
 import { todayInChile, chileDayBoundsUtc, dateStrOffset } from "@/lib/utils";
 import { fetchAllRows } from "@/lib/accounting";
 import { ventasPorMedio } from "@/lib/dashboard-format";
-import { resumirCancelaciones, textoQuienCancelo, etiquetaMotivo, type CancelacionFila } from "@/lib/cancel-reasons";
+import { resumirCancelaciones, textoQuienCancelo, etiquetaMotivo, textoMomento, type CancelacionFila } from "@/lib/cancel-reasons";
+import { parseWallClock } from "@/lib/wallclock";
 
 const CHART_RANGES = ["7d", "14d", "1m", "3m", "12m"] as const;
 type ChartRange = (typeof CHART_RANGES)[number];
@@ -216,7 +217,9 @@ export async function GET(req: NextRequest) {
     // Con las columnas nuevas (136 y 138) se sabe quién, por qué canal y por qué; sin ellas se cae a lo que haya.
     const q = (cols: string) => withTenant(supabase.from("appointments").select(cols).eq("date", todayStr).in("status", ["cancelled", "no_show"]).order("start_time"));
     const base = "id, start_time, status, client:clients(name), barber:profiles!barber_id(name)";
-    let r: { data: any; error: any } = await q(`${base}, cancelled_by, cancel_reason, cancel_channel, cancelled_by_user`);
+    let r: { data: any; error: any } = await q(`${base}, cancelled_by, cancel_reason, cancel_channel, cancelled_by_user, cancelled_at, cancel_note`);
+    if (r.error) r = await q(`${base}, cancelled_by, cancel_reason, cancel_channel, cancelled_by_user, cancelled_at`);
+    if (r.error) r = await q(`${base}, cancelled_by, cancel_reason, cancel_channel, cancelled_by_user`);
     if (r.error) r = await q(`${base}, cancelled_by, cancel_reason`);
     if (r.error) r = await q(base);
     if (r.error) r = await q("status");
@@ -351,14 +354,25 @@ export async function GET(req: NextRequest) {
     const { data: us } = await supabase.from("profiles").select("id, name").in("id", idsUsuario as string[]);
     for (const u of us || []) nombreUsuario.set((u as any).id, (u as any).name);
   }
-  const cancelLista: CancelacionFila[] = cancelRows.filter((c: any) => c.id).map((c: any) => ({
-    hora: String(c.start_time || "").match(/(\d{2}:\d{2})/)?.[1] || "",
-    cliente: c.client?.name || "Cliente",
-    profesional: c.barber?.name || "",
-    estado: c.status === "no_show" ? "no_show" : "cancelled",
-    quien: c.status === "no_show" ? "El cliente no llegó" : textoQuienCancelo({ cancelled_by: c.cancelled_by, cancel_channel: c.cancel_channel, userName: c.cancelled_by_user ? nombreUsuario.get(c.cancelled_by_user) : null }),
-    motivo: c.status === "no_show" ? "" : etiquetaMotivo(c.cancel_reason),
-  }));
+  const cancelLista: CancelacionFila[] = cancelRows.filter((c: any) => c.id).map((c: any) => {
+    const noLlego = c.status === "no_show";
+    const momento = textoMomento(c.cancelled_at ? new Date(c.cancelled_at) : null, c.start_time ? parseWallClock(String(c.start_time)) : null);
+    const quien = textoQuienCancelo({ cancelled_by: c.cancelled_by, cancel_channel: c.cancel_channel, userName: c.cancelled_by_user ? nombreUsuario.get(c.cancelled_by_user) : null });
+    // Marcar «No llegó» antes de la hora de la cita es sospechoso (el cliente aún podía llegar): se destaca.
+    const sospechosa = noLlego && !!c.cancelled_at && !!c.start_time && new Date(c.cancelled_at).getTime() < parseWallClock(String(c.start_time)).getTime() + 3 * 3600 * 1000 && momento.aviso?.includes("antes") === true;
+    return {
+      hora: String(c.start_time || "").match(/(\d{2}:\d{2})/)?.[1] || "",
+      cliente: c.client?.name || "Cliente",
+      profesional: c.barber?.name || "",
+      estado: noLlego ? "no_show" : "cancelled",
+      quien: noLlego ? `${c.cancelled_by ? quien.replace(/^El cliente /, "") : "Sin registrar (se marcó antes de guardar este dato)"}` : quien,
+      motivo: noLlego ? "" : etiquetaMotivo(c.cancel_reason),
+      nota: c.cancel_note || null,
+      cuando: momento.cuando,
+      aviso: momento.aviso,
+      sospechosa,
+    };
+  });
 
   return NextResponse.json({
     greeting: true,

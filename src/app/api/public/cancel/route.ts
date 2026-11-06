@@ -2,15 +2,20 @@ import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
-import { motivoValido } from "@/lib/cancel-reasons";
+import { motivoValido, limpiarNota, NOTA_MINIMA } from "@/lib/cancel-reasons";
 
 // POST: Cancel an appointment by ID (public, no auth needed - uses appointment ID as token)
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const { appointmentId, reason, channel } = await req.json();
+  const { appointmentId, reason, channel, note } = await req.json();
 
   if (!appointmentId) {
     return NextResponse.json({ error: "appointmentId requerido" }, { status: 400 });
+  }
+
+  // Si el cliente elige «Otro motivo», debe contar cuál (el motivo en sí es opcional).
+  if (motivoValido(reason) === "otro" && (limpiarNota(note) || "").length < NOTA_MINIMA) {
+    return NextResponse.json({ error: `Cuéntanos brevemente cuál fue el motivo (al menos ${NOTA_MINIMA} letras) o elige otra opción.` }, { status: 400 });
   }
 
   // Get appointment
@@ -51,6 +56,7 @@ export async function POST(req: NextRequest) {
   await supabase.from("appointments")
     .update({ cancelled_by: "client", cancel_reason: motivoValido(reason), cancelled_at: new Date().toISOString() })
     .eq("id", appointmentId);
+  if (motivoValido(reason) === "otro" && limpiarNota(note)) await supabase.from("appointments").update({ cancel_note: limpiarNota(note) }).eq("id", appointmentId);
   // Por dónde entró el cliente (migración 138); aparte para que no afecte el registro de arriba si aún falta.
   await supabase.from("appointments").update({ cancel_channel: channel === "portal" ? "portal" : "link" }).eq("id", appointmentId);
 

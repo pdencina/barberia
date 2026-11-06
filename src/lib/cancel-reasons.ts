@@ -117,4 +117,49 @@ export function textoQuienCancelo(f: { cancelled_by?: string | null; cancel_chan
   return "Sin registrar (se canceló antes de guardar este dato)";
 }
 
-export interface CancelacionFila { hora: string; cliente: string; profesional: string; estado: "cancelled" | "no_show"; quien: string; motivo: string }
+export interface CancelacionFila { hora: string; cliente: string; profesional: string; estado: "cancelled" | "no_show"; quien: string; motivo: string; nota?: string | null; cuando?: string; aviso?: string | null; sospechosa?: boolean }
+
+// ---- reglas de la cancelación hecha por el equipo ----
+export const NOTA_MINIMA = 5;
+
+// Sin motivo no se cancela; y «Otro motivo» exige escribir cuál fue (para poder analizarlo después).
+export function errorMotivoEquipo(reason: unknown, note: unknown): string | null {
+  const m = motivoValido(reason);
+  if (!m) return "Elige el motivo de la cancelación.";
+  if (m === "otro" && (limpiarNota(note) || "").length < NOTA_MINIMA) return `Escribe cuál fue el motivo (al menos ${NOTA_MINIMA} letras).`;
+  return null;
+}
+export const limpiarNota = (n: unknown): string | null => {
+  const t = String(n ?? "").replace(/\s+/g, " ").trim().slice(0, 300);
+  return t || null;
+};
+
+// Cancelaciones causadas por el equipo (no por el cliente): no deben bajar la asistencia del cliente en su ficha.
+export const CAUSAS_DEL_EQUIPO = new Set(["profesional", "error", "cambio_hora"]);
+export function afectaAsistencia(a: { status: string; cancel_reason?: string | null }): boolean {
+  if (a.status === "no_show") return true;
+  if (a.status === "cancelled") return !CAUSAS_DEL_EQUIPO.has(String(a.cancel_reason || ""));
+  return false;
+}
+
+// «No llegó» solo se puede marcar cuando la cita ya empezó (ambas horas en hora de pared de Chile, como se guardan las citas).
+export function puedeMarcarNoLlego(inicioPared: Date, ahoraPared: Date): boolean {
+  return ahoraPared.getTime() >= inicioPared.getTime();
+}
+// Convierte un instante real a la hora de pared de Chile escrita como UTC (el formato de las citas).
+export function aHoraPared(d: Date): Date {
+  const p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hourCycle: "h23" }).formatToParts(d);
+  const g = (t: string) => Number(p.find((x) => x.type === t)?.value);
+  return new Date(Date.UTC(g("year"), g("month") - 1, g("day"), g("hour"), g("minute"), g("second")));
+}
+
+const hhmm = (d: Date) => `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+// «Se registró a las 14:05 (2 h 25 min antes de la cita)» o «… 5 min después de la hora de la cita».
+export function textoMomento(registroInstante: Date | null, inicioPared: Date | null): { cuando: string; aviso: string | null } {
+  if (!registroInstante || !inicioPared) return { cuando: "", aviso: null };
+  const reg = aHoraPared(registroInstante);
+  const dif = Math.round((inicioPared.getTime() - reg.getTime()) / 60000); // + = antes de la cita
+  const dur = (m: number) => { const a = Math.abs(m); return a >= 60 ? `${Math.floor(a / 60)} h${a % 60 ? ` ${a % 60} min` : ""}` : `${a} min`; };
+  const aviso = dif > 0 ? `${dur(dif)} antes de la hora de la cita` : dif < 0 ? `${dur(dif)} después de la hora de la cita` : "justo a la hora de la cita";
+  return { cuando: hhmm(reg), aviso };
+}
