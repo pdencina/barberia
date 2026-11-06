@@ -113,6 +113,9 @@ async function pruebasDisponibilidad(){
     check("menu: 'opcion 2' también abre el submenú del curso",/^Sobre el curso de barbería/.test(mu.sent[0])&&mu.notices.length===0);
     mu=await menu("quiero la malla del curso de barbería",(f)=>{f.deps.ia=async(_t:string,txt:string)=>{consultaIA=txt;return "El programa incluye las bases del corte.";};});
     check("menu: una pregunta concreta del curso va a la IA (no abre el submenú)",consultaIA==="quiero la malla del curso de barbería"&&mu.sent[0]==="El programa incluye las bases del corte.");
+    { let env=0,iaLlamada=false;
+      mu=await menu("quiero la malla del curso de barbería",(f)=>{f.deps.ia=async()=>{iaLlamada=true;return "x";};f.deps.archivos={pedidos:()=>[{caption:"Aquí tienes la malla."}],enviar:async()=>{env++;}};});
+      check("archivos: pide la malla → texto corto, archivo enviado y sin IA",mu.sent[0]==="Aquí tienes la malla."&&env===1&&!iaLlamada); }
     mu=await menu("1",()=>{},async(_id:string,fecha:string)=>({slots:[`${fecha}T15:00:00`,`${fecha}T17:00:00`],cerrado:false,fueraDeVentana:false}));
     check("menu: la opción 1 muestra la disponibilidad",/disponib/i.test(mu.sent[0])&&!mu.sent[0].includes("Elige una opción")&&mu.notices.length===0);
     mu=await menu("hola buenas tardes quisiera saber si hacen peinados para novias");

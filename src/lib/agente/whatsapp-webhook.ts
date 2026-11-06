@@ -197,6 +197,11 @@ export function crearManejadoresWebhook(config: {
                       else if (op === 2 || (op === null && pideInfoCursoGeneral(text))) { respuestaFaq = textoCurso(); await contar("respuestas_automaticas"); }
                       else if (op !== null) { consulta = CONSULTA_POR_OPCION[op]; desdeMenu = true; }
                     }
+                    // Pide un archivo ("la malla del curso"): se responde corto y el archivo sale después, sin pasar por la IA.
+                    if (respuestaFaq === null && tipo === "desconocido" && deps.archivos && text.split(/\s+/).filter(Boolean).length <= 10) {
+                      const pedidos = deps.archivos.pedidos(consulta,datosNegocio?.negocio.linkReserva) as any[];
+                      if (pedidos.length > 0 && typeof pedidos[0]?.caption === "string") { respuestaFaq = pedidos[0].caption; await contar("respuestas_automaticas"); }
+                    }
                     if (respuestaFaq === null && tipo === "desconocido") {
                       // 2) Consulta de disponibilidad ("¿Matías tiene hora a las 3?"); si no aplica o falla, la FAQ.
                       if (deps.horasLibres) {
@@ -245,7 +250,7 @@ export function crearManejadoresWebhook(config: {
                 }
                 if (respuestaFaq !== null) {
                   await responder(respuestaFaq);
-                  if (deps.archivos && !derivarChat && p.tipo === "text") {
+                  if (deps.archivos && !derivarChat && entradaTexto) {
                     try { for (const a of deps.archivos.pedidos(typeof text === "string" ? text : "", datosMenu?.negocio.linkReserva)) await deps.archivos.enviar(n,para,a); } catch { /* el texto ya salió; el archivo es un extra */ }
                   }
                   // Tras una respuesta del curso, la lista de lo que suele querer ver el cliente: camino directo, sin preguntas abiertas.
