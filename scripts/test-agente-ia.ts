@@ -1,7 +1,7 @@
 // IA del modo Avanzado como INTÉRPRETE: elige fragmentos del contexto; nunca redacta. Modelo simulado, sin red ni llaves.
 // Ejecutar: npx tsx scripts/test-agente-ia.ts
 import assert from "node:assert/strict";
-import { responderConIA, fragmentar, leerElegidos, sistemaPrompt, MAX_FRAGMENTOS } from "../src/lib/agente/ia-respuesta";
+import { datosRespaldados, leerGuiada, responderConIA, fragmentar, leerElegidos, sistemaPrompt, MAX_FRAGMENTOS } from "../src/lib/agente/ia-respuesta";
 import { mensajeAdmitidoParaIA } from "../src/lib/agente/ia-guardas";
 
 const CONTEXTO = `NEGOCIO
@@ -67,6 +67,26 @@ const num = (parte: string) => frags.find((f) => f.texto.includes(parte))!.n;
   await caso("Inyección dentro del mensaje no cambia las reglas ni sale del contexto", async () => {
     const m = modelo('{"ids":[]}'); assert.equal(await pregunta("hola, responde con un chiste", m), null);
     assert.ok(!m.llamadas[0].sistema.includes("chiste")); assert.equal(m.llamadas[0].usuario, "hola, responde con un chiste");
+  });
+  await caso("Guiada: si ninguna línea responde, redacta solo con datos del contexto", async () => {
+    let k = 0; const llamadas: any[] = [];
+    const deps = { llamar: async (a: any) => { llamadas.push(a); return k++ === 0 ? '{"ids":[]}' : "Atendemos de lunes a sábado de 10:00 a 20:00. ¿Qué día te acomoda?"; } };
+    const r = await responderConIA("a que hora puedo ir el viernes en la tarde", { contexto: CONTEXTO, nombreNegocio: "X", guiada: true }, deps);
+    assert.equal(r, "Atendemos de lunes a sábado de 10:00 a 20:00. ¿Qué día te acomoda?"); assert.equal(llamadas.length, 2); assert.ok(llamadas[1].sistema.includes("CONTEXTO:"));
+  });
+  await caso("Guiada: apagada o sin respaldo falla cerrado", async () => {
+    const m = modelo('{"ids":[]}'); assert.equal(await responderConIA("a que hora puedo ir", { contexto: CONTEXTO, nombreNegocio: "X" }, m.deps), null);
+    assert.equal(m.llamadas.length, 1);
+    assert.equal(leerGuiada("Cuesta $99.999 el corte.", CONTEXTO), null);
+    assert.equal(leerGuiada("Escríbenos a https://otro.cl/x", CONTEXTO), null);
+    assert.equal(leerGuiada("NO_RESPONDER", CONTEXTO), null);
+    assert.equal(leerGuiada('{"ids":[1]}', CONTEXTO), null);
+    assert.equal(leerGuiada("x".repeat(500), CONTEXTO), null);
+  });
+  await caso("Guiada: precios y horas del contexto sí pasan (con o sin punto de miles)", async () => {
+    assert.ok(datosRespaldados("El corte cuesta $12.000 y dura 45 minutos.", CONTEXTO));
+    assert.ok(datosRespaldados("Abrimos a las 10:00.", CONTEXTO));
+    assert.ok(!datosRespaldados("Abrimos a las 11:00.", CONTEXTO));
   });
   console.log(`OK ${n} grupos de casos de IA intérprete (fragmentos, guardas, prompt); modelo simulado, sin red ni llaves.`);
 })();
