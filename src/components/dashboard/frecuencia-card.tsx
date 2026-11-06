@@ -11,12 +11,13 @@ const num = (n: number) => n.toFixed(2).replace(".", ",");
 
 // «Veces que viene cada cliente al mes»: cuadro chico como los otros del Dashboard (el promedio del mes y cómo va contra el mes anterior);
 // al tocarlo se abre el detalle con la meta de 1,5 y 2, lo que falta y el historial. Solo cuenta desde el primer mes con flujo real.
-export function FrecuenciaCard() {
+export function FrecuenciaCard({ fecha }: { fecha?: string }) {
   const [meses, setMeses] = useState<MesFrecuencia[] | null>(null);
+  const [comparable, setComparable] = useState<{ mes: string; hastaDia: number; promedio: number; clientes: number } | null>(null);
   const [abierto, setAbierto] = useState(false);
   useEffect(() => {
-    fetch("/api/dashboard/frecuencia", { cache: "no-store" }).then((r) => r.json()).then((d) => setMeses(Array.isArray(d?.meses) ? d.meses : [])).catch(() => setMeses([]));
-  }, []);
+    fetch(`/api/dashboard/frecuencia${fecha ? `?fecha=${encodeURIComponent(fecha)}` : ""}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { setMeses(Array.isArray(d?.meses) ? d.meses : []); setComparable(d?.comparable || null); }).catch(() => setMeses([]));
+  }, [fecha]);
   useEffect(() => {
     if (!abierto) return;
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") setAbierto(false); };
@@ -31,19 +32,23 @@ export function FrecuenciaCard() {
   const falta15 = visitasParaMeta(actual, META_INTERMEDIA);
   const falta2 = visitasParaMeta(actual, META_FRECUENCIA);
   const dif = anterior ? Math.round((actual.promedio - anterior.promedio) * 100) / 100 : null;
-  const cambioPct = anterior && anterior.promedio > 0 ? Math.round(((actual.promedio - anterior.promedio) / anterior.promedio) * 100) : null;
+  // Mes en curso: se compara con el mes anterior hasta el mismo día; mes cerrado: contra el mes anterior completo.
+  const base = actual.parcial && comparable && comparable.clientes > 0 ? comparable.promedio : anterior ? anterior.promedio : 0;
+  const cambioPct = base > 0 ? Math.round(((actual.promedio - base) / base) * 100) : null;
 
   return (
     <>
       <div role="button" tabIndex={0} onClick={() => setAbierto(true)} onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setAbierto(true); } }}
         className="h-full cursor-pointer rounded-2xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue/40" title="Ver el detalle">
         <StatCard
-          label="Veces al mes por cliente"
+          label="Visitas por cliente"
           value={num(actual.promedio)}
           Icon={Repeat}
           tone="teal"
+          compact
+          onInfo={() => setAbierto(true)}
           hint={`${nombreMes(actual.mes)}${actual.parcial ? " · en curso" : ""} · meta 2`}
-          delta={cambioPct !== null ? { value: cambioPct, suffix: "vs mes anterior" } : undefined}
+          delta={cambioPct !== null ? { value: cambioPct } : undefined}
         />
       </div>
 
@@ -56,7 +61,9 @@ export function FrecuenciaCard() {
                 <p className="mt-0.5 text-3xl font-extrabold tabular-nums text-brand-dark">{num(actual.promedio)}</p>
                 <p className="mt-0.5 text-xs text-brand-gray">
                   {actual.parcial ? `${nombreMes(actual.mes)} (mes en curso)` : nombreMes(actual.mes)} · {actual.visitas} visitas de {actual.clientes} clientes
-                  {anterior && dif !== null && <> · {dif === 0 ? "igual que" : dif > 0 ? `+${num(dif)} vs` : `${num(dif)} vs`} {nombreMes(anterior.mes)} ({num(anterior.promedio)})</>}
+                  {actual.parcial && comparable && comparable.clientes > 0
+                    ? <> · {nombreMes(comparable.mes)} hasta el día {comparable.hastaDia}: {num(comparable.promedio)}</>
+                    : anterior && dif !== null && <> · {dif === 0 ? "igual que" : dif > 0 ? `+${num(dif)} vs` : `${num(dif)} vs`} {nombreMes(anterior.mes)} ({num(anterior.promedio)})</>}
                 </p>
               </div>
               <button type="button" onClick={() => setAbierto(false)} aria-label="Cerrar" className="text-2xl leading-none text-gray-400 hover:text-gray-600">×</button>
@@ -95,9 +102,9 @@ export function FrecuenciaCard() {
                 </section>
               )}
               <section>
-                <h4 className="text-[11px] font-bold uppercase tracking-wider text-brand-blue">Cómo se calcula</h4>
+                <h4 className="text-[11px] font-bold uppercase tracking-wider text-brand-blue">Cómo se evalúa</h4>
                 <p className="mt-1 leading-relaxed text-brand-gray">
-                  Visitas del mes dividido por los clientes distintos que vinieron ese mes (citas completadas con cliente). Cuenta desde que el equipo empezó a cerrar las ventas en re-booking. Una venta sin cita no suma.
+                  Se mide mes a mes: visitas del mes divididas por los clientes distintos que vinieron ese mes (citas completadas con cliente). El desafío es subir ese número, idealmente a 2 por mes. Mientras el mes está en curso se compara con el mes anterior hasta el mismo día, no con el mes completo. Cuenta desde que el equipo empezó a cerrar las ventas en re-booking. Una venta sin cita no suma.
                 </p>
               </section>
             </div>

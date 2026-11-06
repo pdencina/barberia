@@ -1,6 +1,6 @@
 // Frecuencia de visita por cliente. Uso: npx tsx scripts/test-frecuencia.ts
 import assert from "node:assert/strict";
-import { calcularFrecuencia, visitasParaMeta } from "../src/lib/frecuencia";
+import { calcularFrecuencia, visitasParaMeta, promedioHastaDia, mesAnteriorDe, diasDelMes } from "../src/lib/frecuencia";
 let fails = 0;
 const t = (n: string, f: () => void) => { try { f(); console.log("OK  " + n); } catch (e: any) { fails++; console.log("MAL " + n + ": " + e.message); } };
 
@@ -25,5 +25,19 @@ t("sin ningún mes con flujo real devuelve vacío", () => assert.deepEqual(calcu
 t("visitas que faltan para la meta", () => {
   const f = calcularFrecuencia(citas("2026-10", { a: 1, b: 1, c: 1, d: 1 }), "2026-11", 1)[0];
   assert.equal(visitasParaMeta(f, 2), 4); assert.equal(visitasParaMeta(f, 1.5), 2); assert.equal(visitasParaMeta(f, 1), 0);
+});
+t("comparar con el mes anterior solo hasta el mismo día", () => {
+  const cs = [
+    { client_id: "a", date: "2026-10-03" }, { client_id: "a", date: "2026-10-20" }, { client_id: "b", date: "2026-10-05" }, { client_id: "c", date: "2026-10-28" },
+  ];
+  const r = promedioHastaDia(cs, "2026-10", 6);                 // hasta el 6: a(1) y b(1)
+  assert.deepEqual([r.visitas, r.clientes, r.promedio], [2, 2, 1]);
+  const t2 = promedioHastaDia(cs, "2026-10", 31);               // mes completo: a(2), b, c
+  assert.deepEqual([t2.visitas, t2.clientes, t2.promedio], [4, 3, 1.33]);
+  assert.equal(promedioHastaDia([], "2026-10", 6).promedio, 0);
+});
+t("mes anterior y días del mes", () => {
+  assert.equal(mesAnteriorDe("2026-11"), "2026-10"); assert.equal(mesAnteriorDe("2026-01"), "2025-12");
+  assert.equal(diasDelMes("2026-02"), 28); assert.equal(diasDelMes("2026-10"), 31);
 });
 process.exit(fails ? 1 : 0);

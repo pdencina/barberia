@@ -53,15 +53,16 @@ export function NotasCard() {
   const hoy = todayInChile();
   const lista = ordenarNotas(notas, hoy);
   if (lista.length === 0 && !abierto) {
+    // Sin notas no se ocupa espacio: solo un botoncito «+ Nota» (Oti también las deja: «recuérdame pagar la luz el 5»).
     return (
-      <div className="flex items-center justify-between gap-3 rounded-2xl border border-dashed border-gray-200 px-4 py-3">
-        <p className="flex items-center gap-2 text-xs text-brand-gray"><StickyNote className="h-4 w-4" strokeWidth={1.75} /> Sin notas. Pídele a Oti: «recuérdame pagar la luz el 5».</p>
-        <button type="button" onClick={() => setAbierto(true)} className="text-xs font-semibold text-brand-blue hover:underline">Agregar</button>
-      </div>
+      <button type="button" onClick={() => setAbierto(true)} title="Agregar una nota (también puedes pedírsela a Oti)"
+        className="ml-auto inline-flex items-center gap-1.5 rounded-full border border-dashed border-gray-300 px-3 py-1 text-xs font-semibold text-brand-gray transition-colors hover:border-brand-blue hover:text-brand-blue">
+        <StickyNote className="h-3.5 w-3.5" strokeWidth={1.75} /> <Plus className="-ml-1 h-3 w-3" /> Nota
+      </button>
     );
   }
   return (
-    <div className="rounded-2xl border border-gray-100 bg-white p-4 md:p-5">
+    <div className="order-last w-full basis-full rounded-2xl border border-gray-100 bg-white p-4 md:p-5">
       <div className="flex items-center justify-between gap-2">
         <h3 className="flex items-center gap-2.5"><span className="h-1.5 w-1.5 rounded-full bg-brand-blue" /><span className="text-[13px] font-bold uppercase tracking-[0.12em] text-brand-dark">Mis notas</span></h3>
         <button type="button" onClick={() => setAbierto((v) => !v)} className="inline-flex items-center gap-1 text-xs font-semibold text-brand-blue hover:underline"><Plus className="h-3.5 w-3.5" /> Agregar</button>
