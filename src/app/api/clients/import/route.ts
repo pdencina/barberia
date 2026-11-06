@@ -70,7 +70,14 @@ export async function POST(req: NextRequest) {
   let failed = 0;
   let lastError = "";
   if (toInsert.length > 0) {
+    // imported_at (migración 143): marca a los clientes cargados desde un archivo para separarlos de los que nacen en re-booking.
+    const marca = new Date().toISOString();
+    toInsert = toInsert.map((r: any) => ({ ...r, imported_at: marca }));
     let bulkErr = (await supabase.from("clients").insert(toInsert)).error;
+    if (bulkErr && /imported_at/i.test(bulkErr.message || "")) {
+      toInsert = toInsert.map(({ imported_at: _i, ...rest }: any) => rest);
+      bulkErr = (await supabase.from("clients").insert(toInsert)).error;
+    }
     // Tolera que falte la columna rut (migracion 035): reintenta sin ella.
     if (bulkErr && /\brut\b/i.test(bulkErr.message || "")) {
       console.error("[clients/import] falta la columna rut; importando sin RUT");

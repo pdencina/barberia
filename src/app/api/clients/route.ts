@@ -1,6 +1,8 @@
 import { cleanClientName } from "@/lib/client-name";
 import { BUILTIN_SOURCES, loadCustomSources } from "@/lib/client-sources";
 import { NextRequest, NextResponse } from "next/server";
+import { fetchAllRows } from "@/lib/accounting";
+import { esGrupo, resumirGrupos } from "@/lib/clientes-grupos";
 import { createAdminSupabase, getCurrentTenantId, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
@@ -18,6 +20,39 @@ export async function GET(req: NextRequest) {
   // EXCEPT: super_admin ("ALL") can see everything
   if (!tenantId) {
     return NextResponse.json({ clients: [], total: 0, page: 1, totalPages: 0 });
+  }
+
+  // Clientes que ya usan re-booking: tienen al menos una cita que no fue cancelada. Requiere la migración 143 (imported_at); sin ella no hay grupos.
+  const conActividad = async (): Promise<Set<string>> => {
+    const filas = await fetchAllRows<any>(() => supabase.from("appointments").select("id, client_id").eq("tenant_id", tenantId).not("client_id", "is", null).neq("status", "cancelled"));
+    return new Set(filas.map((r: any) => r.client_id));
+  };
+  const todosLosClientes = () => fetchAllRows<any>(() => supabase.from("clients").select("*").eq("tenant_id", tenantId));
+
+  if (tenantId !== "ALL" && searchParams.get("resumen") === "1") {
+    try {
+      const { data: prueba, error: errCol } = await supabase.from("clients").select("imported_at").eq("tenant_id", tenantId).limit(1);
+      if (errCol || !prueba) return NextResponse.json({ grupos: null });
+      const [cl, act] = await Promise.all([
+        fetchAllRows<any>(() => supabase.from("clients").select("id, imported_at, created_at").eq("tenant_id", tenantId)), conActividad(),
+      ]);
+      return NextResponse.json({ grupos: resumirGrupos(cl, act) });
+    } catch { return NextResponse.json({ grupos: null }); }
+  }
+
+  const grupo = searchParams.get("grupo");
+  if (tenantId !== "ALL" && esGrupo(grupo)) {
+    try {
+      const act = await conActividad();
+      const q = (search || "").toLowerCase();
+      const lista = (await todosLosClientes())
+        .filter((c: any) => (grupo === "nuevo" ? !c.imported_at : !!c.imported_at && (grupo === "activo") === act.has(c.id)))
+        .filter((c: any) => !q || [c.name, c.email, c.phone].some((v) => String(v || "").toLowerCase().includes(q)))
+        .sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
+      return NextResponse.json({ clients: lista.slice(offset, offset + limit), total: lista.length, page, limit, totalPages: Math.ceil(lista.length / limit) });
+    } catch {
+      return NextResponse.json({ clients: [], total: 0, page, totalPages: 0 });
+    }
   }
 
   // Build query
