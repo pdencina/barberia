@@ -11,6 +11,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { EmptyIcons } from "@/components/ui/empty-state";
 import { parseCsvText, rowsToClients } from "@/lib/client-import";
 import SourceSelect from "@/components/clients/source-select";
+import type { GrupoCliente, ResumenGrupos } from "@/lib/clientes-grupos";
 
 interface Client {
   id: string;
@@ -40,6 +41,9 @@ export default function ClientesPage() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalClients, setTotalClients] = useState(0);
+  // Grupos (migración 143): nacidos en re-booking / cargados que ya usan / solo cargados. "" = todos.
+  const [grupo, setGrupo] = useState<"" | GrupoCliente>("");
+  const [resumen, setResumen] = useState<ResumenGrupos | null>(null);
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
@@ -57,14 +61,15 @@ export default function ClientesPage() {
   // Cache de lectura en memoria (por usuario, negocio, busqueda y pagina; nada queda escrito en el navegador). Solo la carga
   // automatica al abrir la pantalla la usa (skipSpinnerRef); buscar, paginar y las acciones piden todo como siempre.
   const skipSpinnerRef = useRef(false);
-  const clientsKey = (query: string, p: number) => cacheKey(["clientes", user?.id, tenant?.id, query, String(p)]);
-  const fetchClients = async (query: string, p: number = page) => {
+  const clientsKey = (query: string, p: number, g: string = grupo) => cacheKey(["clientes", user?.id, tenant?.id, query, String(p), g]);
+  const fetchClients = async (query: string, p: number = page, g: "" | GrupoCliente = grupo) => {
     if (!skipSpinnerRef.current) setLoading(true);
     skipSpinnerRef.current = false;
     try {
       const params = new URLSearchParams();
       if (query) params.set("search", query);
       if (tenant?.id) params.set("tenantId", tenant.id);
+      if (g) params.set("grupo", g);
       params.set("page", String(p));
       params.set("limit", "50");
       const res = await fetch(`/api/clients?${params.toString()}`);
@@ -74,7 +79,7 @@ export default function ClientesPage() {
       setTotalClients(data.total || 0);
       setPage(data.page || 1);
       // La ruta responde 200 con lista vacia cuando falla la base: una lista vacia no se guarda como dato bueno.
-      if (res.ok && Array.isArray(data.clients) && data.clients.length > 0) writeCache(clientsKey(query, p), data, "memory");
+      if (res.ok && Array.isArray(data.clients) && data.clients.length > 0) writeCache(clientsKey(query, p, g), data, "memory");
     } catch (err) {
       console.error("Error fetching clients:", err);
     } finally {
@@ -94,8 +99,13 @@ export default function ClientesPage() {
       skipSpinnerRef.current = true;
     }
     fetchClients("");
+    if (canSeeMetrics && tenant?.id) {
+      fetch(`/api/clients?resumen=1&tenantId=${tenant.id}`).then((r) => r.json()).then((d) => setResumen(d?.grupos || null)).catch(() => setResumen(null));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant?.id, tenantLoading, user?.id]);
+
+  const elegirGrupo = (g: "" | GrupoCliente) => { setGrupo(g); setPage(1); setSelectedIds(new Set()); fetchClients(search, 1, g); };
 
   const handleSearch = (value: string) => {
     setSearch(value);
@@ -310,6 +320,28 @@ export default function ClientesPage() {
           )}
         </div>
       </div>
+
+      {resumen && (
+        <div className="rounded-2xl border border-gray-100 bg-white p-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {([
+              ["", "Todos", resumen.total],
+              ["nuevo", "Nacieron en re-booking", resumen.nuevos],
+              ["activo", "Cargados que ya usan re-booking", resumen.activos],
+              ["cargado", "Solo cargados (marketing)", resumen.cargados],
+            ] as const).map(([g, nombre, n]) => (
+              <button key={g || "todos"} type="button" onClick={() => elegirGrupo(g as "" | GrupoCliente)}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${grupo === g ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 text-brand-dark hover:bg-gray-50"}`}>
+                {nombre} · {n.toLocaleString("es-CL")}
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-brand-dark">
+            Crecimiento real con re-booking: <b>{(resumen.nuevos + resumen.activos).toLocaleString("es-CL")}</b> clientes ({resumen.nuevos.toLocaleString("es-CL")} nuevos + {resumen.activos.toLocaleString("es-CL")} cargados que ya agendaron).
+            {resumen.nuevosPorMes.length > 0 && <> Nuevos por mes: {resumen.nuevosPorMes.map((m) => `${m.mes.slice(5)}/${m.mes.slice(2, 4)}: ${m.n}`).join(" · ")}.</>}
+          </p>
+        </div>
+      )}
 
       <input type="text" placeholder="Buscar por nombre, email o telefono..."
         value={search} onChange={(e) => handleSearch(e.target.value)}
