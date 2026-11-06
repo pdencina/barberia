@@ -5,7 +5,7 @@ import { mensajeAdmitidoParaIA } from "./ia-guardas";
 
 export const MODELO_IA = "claude-haiku-5-5";
 export const MAX_RESPUESTA_IA = 700;
-export const MAX_FRAGMENTOS = 120;
+export const MAX_FRAGMENTOS = 250;
 export const MAX_ELEGIDOS = 3;
 export const TOPE_IA_POR_DEFECTO = 300; // interpretaciones con IA por mes y negocio
 
