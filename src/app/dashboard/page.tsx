@@ -162,6 +162,8 @@ export default function DashboardPage() {
   const { branches: sucursales, activeBranch, loading: sucursalesCargando } = useBranch();
   // Con más de una sucursal, el Dashboard se filtra por la sucursal activa (la principal incluye lo que aún no tiene sucursal).
   const ramaActiva = sucursales.length > 1 ? activeBranch : null;
+  // El cuadro «Veces al mes por cliente» es del negocio completo: solo administración y en la sucursal principal.
+  const conFrecuencia = isAtLeast("admin") && (!ramaActiva || ramaActiva.principal);
   const { tenant, loading: tenantLoading, isOverriding } = useTenant();
   // Super Admin (sin "Entrar" a una empresa): ve el panel de plataforma, no el de un negocio.
   const isSuperView = effectiveRole === "super_admin" && !isOverriding;
@@ -367,7 +369,7 @@ export default function DashboardPage() {
       {isAtLeast("receptionist") && <AvisoCorreos />}
 
       {/* Stat Cards: Ventas destacada + 4 metricas */}
-      <div className="grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4 lg:grid-cols-6">
+      <div className={`grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4 ${conFrecuencia ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}>
         <Sec id="ventas" className="col-span-2" {...secProps}>
         <StatCard
           hero
@@ -425,10 +427,10 @@ export default function DashboardPage() {
           delta={{ value: data.stats.cancelacionesChange, invert: true }}
         />
         </Sec>
+        {conFrecuencia && <Sec id="frecuencia" className="empty:hidden" {...secProps}><FrecuenciaCard /></Sec>}
       </div>
 
       {/* Novedades de la semana: qué funcionó, qué empeoró y alertas (solo admin; si no hay nada que decir, no aparece) */}
-      {isAtLeast("admin") && (!ramaActiva || ramaActiva.principal) && <Sec id="frecuencia" className="empty:hidden" {...secProps}><FrecuenciaCard /></Sec>}
       {isAtLeast("admin") && (!ramaActiva || ramaActiva.principal) && <Sec id="novedades" className="empty:hidden" {...secProps}><NovedadesCard /></Sec>}
 
       {/* Cumpleanos del mes (solo admin; no se muestra si no hay) */}
