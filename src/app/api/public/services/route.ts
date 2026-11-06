@@ -1,3 +1,4 @@
+import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
@@ -21,15 +22,16 @@ export async function GET(req: NextRequest) {
     return NextResponse.json([]);
   }
 
-  const { data } = await supabase
+  // Los servicios internos (extras que solo se cobran en el POS) no se ofrecen en la reserva.
+  const { data } = await leerServiciosPublicos((cols) => supabase
     .from("services")
-    .select("id, name, description, price, duration, sort_order")
+    .select(cols)
     .eq("active", true)
     .eq("tenant_id", tenant.id)
     // Mismo orden que el admin definio arrastrando en Servicios (sort_order); el precio solo
     // desempata entre servicios que aun no tienen un orden propio.
     .order("sort_order", { ascending: true })
-    .order("price", { ascending: true });
+    .order("price", { ascending: true }) as any, "id, name, description, price, duration, sort_order");
 
   return NextResponse.json(data || []);
 }

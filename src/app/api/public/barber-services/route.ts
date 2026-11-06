@@ -1,3 +1,4 @@
+import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
@@ -19,17 +20,12 @@ export async function GET(req: NextRequest) {
     .single();
 
   // Get active services filtered by tenant
-  let servicesQuery = supabase
-    .from("services")
-    .select("id, name, description, price, duration, sort_order, image_url")
-    .eq("active", true)
-    .order("sort_order");
-
-  if (barberProfile?.tenant_id) {
-    servicesQuery = servicesQuery.eq("tenant_id", barberProfile.tenant_id);
-  }
-
-  const { data: services } = await servicesQuery;
+  // (sin los servicios internos: extras que solo se cobran en el POS)
+  const { data: services } = await leerServiciosPublicos((cols) => {
+    let q: any = supabase.from("services").select(cols).eq("active", true).order("sort_order");
+    if (barberProfile?.tenant_id) q = q.eq("tenant_id", barberProfile.tenant_id);
+    return q;
+  }, "id, name, description, price, duration, sort_order, image_url");
 
   // Get custom prices for this barber
   const { data: customPrices } = await supabase

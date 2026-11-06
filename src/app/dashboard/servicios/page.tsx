@@ -19,6 +19,7 @@ interface Service {
   sort_order: number;
   image_url?: string | null;
   category?: string | null;
+  internal_only?: boolean | null;
 }
 
 // Punto 2 (Nico, 27-sep): "agrupar por carpetas las categorias para que se vea mas
@@ -44,7 +45,7 @@ export default function ServiciosPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", price: "", duration: "", category: "" });
+  const [form, setForm] = useState({ name: "", description: "", price: "", duration: "", category: "", internal: false });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
@@ -122,7 +123,7 @@ export default function ServiciosPage() {
 
   const openNew = () => {
     setEditingService(null);
-    setForm({ name: "", description: "", price: "", duration: "", category: "" });
+    setForm({ name: "", description: "", price: "", duration: "", category: "", internal: false });
     setCreatingCategory(false);
     setNewCategoryName("");
     setShowModal(true);
@@ -136,6 +137,7 @@ export default function ServiciosPage() {
       price: String(s.price),
       duration: String(s.duration),
       category: s.category || "",
+      internal: !!s.internal_only,
     });
     setShowModal(true);
   };
@@ -205,6 +207,7 @@ export default function ServiciosPage() {
           price: parseInt(form.price),
           duration: parseInt(form.duration),
           category: categoryToSave,
+          internal_only: form.internal,
         }),
       });
       if (!res.ok) {
@@ -223,6 +226,7 @@ export default function ServiciosPage() {
           price: parseInt(form.price),
           duration: parseInt(form.duration),
           category: categoryToSave,
+          internal_only: form.internal,
           sort_order: activeServices.length,
           tenantId: tenant?.id || undefined, // el super admin crea en el negocio que esta viendo
         }),
@@ -560,6 +564,7 @@ export default function ServiciosPage() {
                               <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] md:text-xs font-medium flex-shrink-0">
                                 {s.duration} min
                               </span>
+                              {s.internal_only && <span className="px-2 py-0.5 bg-brand-light text-brand-gray rounded text-[10px] md:text-xs font-semibold flex-shrink-0" title="Solo se cobra en el Punto de Venta">Interno</span>}
                             </div>
                             {s.description && (
                               <p className="text-xs text-brand-gray mt-0.5 truncate hidden md:block">{s.description}</p>
@@ -736,6 +741,20 @@ export default function ServiciosPage() {
                 <p className="text-xs text-brand-gray italic">Podras agregar una foto de referencia despues de crear el servicio.</p>
               )}
 
+              <div>
+                <label className="block text-xs font-medium text-brand-gray mb-1">¿Quién lo puede elegir?</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button type="button" onClick={() => setForm({ ...form, internal: false })}
+                    className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${!form.internal ? "border-brand-blue bg-brand-blue/5 text-brand-dark" : "border-gray-200 text-brand-gray"}`}>
+                    <b className="block">Público</b><span className="text-xs">Los clientes lo reservan online y aparece en la agenda.</span>
+                  </button>
+                  <button type="button" onClick={() => setForm({ ...form, internal: true, duration: form.duration === "" ? "0" : form.duration })}
+                    className={`rounded-xl border px-3 py-2.5 text-left text-sm transition-colors ${form.internal ? "border-brand-blue bg-brand-blue/5 text-brand-dark" : "border-gray-200 text-brand-gray"}`}>
+                    <b className="block">Interno</b><span className="text-xs">Solo se cobra en el Punto de Venta (extras como «Diseño de uña»). No se reserva.</span>
+                  </button>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-brand-gray mb-1">Precio ($)</label>
@@ -745,10 +764,10 @@ export default function ServiciosPage() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-brand-gray mb-1">Duracion (min)</label>
-                  <input type="number" required min="5" step="5" value={form.duration}
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Duracion (min){form.internal ? <span className="font-normal text-gray-400"> · 0 si no ocupa tiempo</span> : null}</label>
+                  <input type="number" required min={form.internal ? 0 : 5} step={form.internal ? 1 : 5} value={form.duration}
                     onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                    placeholder="30"
+                    placeholder={form.internal ? "0" : "30"}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
               </div>
@@ -756,7 +775,7 @@ export default function ServiciosPage() {
                 <button type="button" onClick={() => setShowModal(false)}
                   className="px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-sm">Cancelar</button>
                 <button type="submit"
-                  disabled={!form.name || !form.price || !form.duration}
+                  disabled={!form.name || !form.price || form.duration === ""}
                   className="px-5 py-2.5 bg-brand-blue text-white rounded-xl hover:bg-brand-blue/90 disabled:opacity-50 disabled:cursor-not-allowed text-sm font-medium transition-colors">
                   {editingService ? "Guardar" : "Crear"}
                 </button>

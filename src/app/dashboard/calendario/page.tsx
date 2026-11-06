@@ -433,7 +433,7 @@ export default function CalendarioPage() {
     // La lista completa de clientes ya no se descarga al abrir la agenda (nada la leia: el buscador de clientes de la cita
     // consulta /api/clients?search=... al escribir).
     fetch(`/api/services${params}`).then((r) => r.json())
-      .then((s) => { setServices(Array.isArray(s) ? s : []); })
+      .then((s) => { setServices(Array.isArray(s) ? s.filter((x: any) => !x.internal_only) : []); })
       .catch(() => { setServices([]); });
   }, [tenant?.id, tenantLoading]);
 
