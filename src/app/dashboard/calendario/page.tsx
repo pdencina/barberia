@@ -14,7 +14,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { ChevronLeft, ChevronRight, Plus, CalendarX, Sun, SlidersHorizontal, RefreshCw } from "lucide-react";
 import { Segmented, primaryButton } from "@/components/ui/premium";
 import { useBackToClose } from "@/lib/use-back-to-close";
-import { pedirMotivoCancelacion } from "@/lib/motivo-cancelacion-bus";
+import { pedirMotivoCancelacion, camposMotivo, type MotivoElegido } from "@/lib/motivo-cancelacion-bus";
 
 interface Barber { id: string; name: string; role?: string; also_attends_clients?: boolean; slot_duration?: number; }
 interface Service { id: string; name: string; price: number; duration: number; }
@@ -334,13 +334,13 @@ export default function CalendarioPage() {
     // immediately, so the user sees it took effect instead of the popup vanishing.
     const isCancel = status === "cancelled";
     // Al cancelar se pide el motivo (también sirve de confirmación) para el Dashboard.
-    let motivo: string | false = "";
+    let motivo: MotivoElegido | false = false;
     if (isCancel) { motivo = await pedirMotivoCancelacion(); if (motivo === false) return; }
     try {
       const res = await fetch(`/api/appointments/${selectedApptId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, ...(isCancel && motivo ? { cancel_reason: motivo } : {}) }),
+        body: JSON.stringify({ status, ...(isCancel && motivo ? camposMotivo(motivo) : {}) }),
       });
       // Don't lie with a success toast when the server rejected the change (this was the
       // bug: it said "Estado actualizado" but nothing saved, so reopening showed the old
@@ -1187,12 +1187,12 @@ export default function CalendarioPage() {
   // Cambiar estado desde la vista Lista — misma logica que tenia la pagina Agenda antes
   // de fusionarse aca (punto 20).
   const updateListStatus = async (id: string, status: string) => {
-    let motivo: string | false = "";
+    let motivo: MotivoElegido | false = false;
     if (status === "cancelled") { motivo = await pedirMotivoCancelacion(); if (motivo === false) return; }
     await fetch(`/api/appointments/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, ...(status === "cancelled" && motivo ? { cancel_reason: motivo } : {}) }),
+      body: JSON.stringify({ status, ...(status === "cancelled" && motivo ? camposMotivo(motivo) : {}) }),
     });
     showToast("Estado actualizado", "success");
     fetchAppointments();

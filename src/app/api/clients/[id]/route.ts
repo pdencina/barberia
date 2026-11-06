@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { afectaAsistencia } from "@/lib/cancel-reasons";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { BUILTIN_SOURCES, loadCustomSources } from "@/lib/client-sources";
 
@@ -25,10 +26,11 @@ export async function GET(
   }
 
   // Get all appointments for this client
-  const { data: appointments } = await supabase
+  // cancel_reason (migración 136) permite no castigar al cliente por cancelaciones que causó el equipo; sin ella se cuenta todo como antes.
+  const pedirCitas = (extra: string) => supabase
     .from("appointments")
     .select(`
-      id, date, start_time, status,
+      id, date, start_time, status${extra},
       barber:profiles(name),
       services:appointment_services(
         price,
@@ -37,6 +39,9 @@ export async function GET(
     `)
     .eq("client_id", clientId)
     .order("date", { ascending: false });
+  let citasRes: any = await pedirCitas(", cancel_reason");
+  if (citasRes.error) citasRes = await pedirCitas("");
+  const appointments: any[] | null = citasRes.data;
 
   // Get all transactions for this client
   const { data: transactions } = await supabase
@@ -56,7 +61,10 @@ export async function GET(
   const totalNoShows = (appointments || []).filter((a) => a.status === "no_show").length;
   const totalCancelled = (appointments || []).filter((a) => a.status === "cancelled").length;
   const totalBooked = (appointments || []).length;
-  const attendanceRate = totalBooked > 0 ? Math.round(((totalBooked - totalNoShows - totalCancelled) / totalBooked) * 100) : 100;
+  // La asistencia baja con las inasistencias y con las cancelaciones del cliente; las que causó el equipo (profesional no podía,
+  // error al agendar, cambio de hora) no cuentan en su contra.
+  const malaAsistencia = (appointments || []).filter((a: any) => afectaAsistencia({ status: a.status, cancel_reason: a.cancel_reason })).length;
+  const attendanceRate = totalBooked > 0 ? Math.round(((totalBooked - malaAsistencia) / totalBooked) * 100) : 100;
   const lastVisit = appointments?.find((a) => a.status === "completed")?.date || null;
 
   // Most used services

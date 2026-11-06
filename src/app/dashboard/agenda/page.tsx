@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { pedirMotivoCancelacion } from "@/lib/motivo-cancelacion-bus";
+import { pedirMotivoCancelacion, camposMotivo, type MotivoElegido } from "@/lib/motivo-cancelacion-bus";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
@@ -115,13 +115,13 @@ export default function AgendaPage() {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    let motivo: string | false = "";
+    let motivo: MotivoElegido | false = false;
     if (status === "cancelled") { motivo = await pedirMotivoCancelacion(); if (motivo === false) return; }
 
     await fetch(`/api/appointments/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, ...(status === "cancelled" && motivo ? { cancel_reason: motivo } : {}) }),
+      body: JSON.stringify({ status, ...(status === "cancelled" && motivo ? camposMotivo(motivo) : {}) }),
     });
     showToast("Estado actualizado", "success");
     fetchAppointments();

@@ -75,8 +75,10 @@ export function MetricInfo({ info, onClose }: { info: InfoMetrica | null; onClos
                 {info.lista.map((f, i) => (
                   <li key={i} className="rounded-2xl border border-gray-100 p-3">
                     <p className="font-semibold text-brand-dark">{f.cliente}<span className="font-normal text-brand-gray"> · {f.hora}{f.profesional ? ` · con ${f.profesional}` : ""}</span></p>
-                    <p className="mt-0.5 text-xs text-brand-gray"><span className="font-semibold text-brand-dark">{f.estado === "no_show" ? "No llegó" : "Canceló"}:</span> {f.quien}</p>
-                    {f.motivo && <p className="text-xs text-brand-gray"><span className="font-semibold text-brand-dark">Motivo:</span> {f.motivo}</p>}
+                    <p className="mt-0.5 text-xs text-brand-gray"><span className="font-semibold text-brand-dark">{f.estado === "no_show" ? "Marcó «No llegó»" : "Canceló"}:</span> {f.quien}</p>
+                    {f.motivo && <p className="text-xs text-brand-gray"><span className="font-semibold text-brand-dark">Motivo:</span> {f.motivo}{f.nota ? <>: <i>«{f.nota}»</i></> : null}</p>}
+                    {f.cuando && <p className="text-xs text-brand-gray"><span className="font-semibold text-brand-dark">Registrado a las {f.cuando}</span>{f.aviso ? ` · ${f.aviso}` : ""}</p>}
+                    {f.sospechosa && <p className="mt-1 rounded-lg bg-red-50 px-2 py-1 text-[11px] font-medium text-red-600">Se marcó «No llegó» antes de la hora de la cita. Conviene revisar si el cliente realmente no llegó.</p>}
                   </li>
                 ))}
               </ul>

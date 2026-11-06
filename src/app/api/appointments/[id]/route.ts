@@ -2,7 +2,7 @@ import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
-import { motivoValido } from "@/lib/cancel-reasons";
+import { motivoValido, errorMotivoEquipo, limpiarNota, puedeMarcarNoLlego, aHoraPared } from "@/lib/cancel-reasons";
 import { getSlotCapacity, isSlotFull } from "@/lib/capacity";
 import { parseWallClock } from "@/lib/wallclock";
 import { clientVisibleChanges, emailClientAboutAppointment } from "@/lib/appointment-client-email";
@@ -22,6 +22,17 @@ export async function PATCH(
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   const body = await req.json();
+  // Cancelar exige motivo (y «Otro motivo» exige escribir cuál). Marcar «No llegó» solo se puede cuando la cita ya empezó.
+  if (body.status === "cancelled" && (before as any).status !== "cancelled") {
+    const err = errorMotivoEquipo(body.cancel_reason, body.cancel_note);
+    if (err) return NextResponse.json({ error: err }, { status: 400 });
+  }
+  if (body.status === "no_show" && (before as any).status !== "no_show") {
+    const inicio = parseWallClock(String((before as any).start_time));
+    if (!puedeMarcarNoLlego(inicio, aHoraPared(new Date()))) {
+      return NextResponse.json({ error: "Todavía no es la hora de esta cita: no se puede marcar «No llegó» antes de que empiece. Si el cliente avisó que no viene, cancélala con el motivo." }, { status: 400 });
+    }
+  }
   // Si cambia de profesional, el nuevo debe ser del mismo negocio.
   if (body.barber_id && body.barber_id !== (before as any).barber_id && session.role !== "super_admin") {
     const { data: nb } = await supabase.from("profiles").select("tenant_id").eq("id", body.barber_id).maybeSingle();
@@ -110,6 +121,8 @@ export async function PATCH(
       .update({ cancelled_by: quien, cancel_reason: update.status === "cancelled" ? motivoValido(body.cancel_reason) : null, cancelled_at: new Date().toISOString() })
       .eq("id", params.id);
     if (regErr && !/cancelled_by|cancel_reason|cancelled_at/.test(regErr.message)) console.error("registro de cancelación:", regErr.message);
+    // Texto del motivo cuando es «Otro motivo» (migración 142), aparte para no perder lo anterior si aún falta.
+    if (update.status === "cancelled" && limpiarNota(body.cancel_note)) await supabase.from("appointments").update({ cancel_note: limpiarNota(body.cancel_note) }).eq("id", params.id);
     // La cuenta exacta y el canal (migración 138), en un paso aparte para no perder lo anterior si aún falta.
     await supabase.from("appointments").update({ cancelled_by_user: session.userId, cancel_channel: "panel" }).eq("id", params.id);
   }

@@ -10,6 +10,7 @@ export default function CancelPage() {
   const [status, setStatus] = useState<"confirm" | "loading" | "success" | "error">("confirm");
   const [errorMsg, setErrorMsg] = useState("");
   const [motivo, setMotivo] = useState("");
+  const [nota, setNota] = useState("");
 
   const handleCancel = async () => {
     setStatus("loading");
@@ -17,7 +18,7 @@ export default function CancelPage() {
     const res = await fetch("/api/public/cancel", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ appointmentId: params.id, reason: motivo || undefined }),
+      body: JSON.stringify({ appointmentId: params.id, reason: motivo || undefined, note: motivo === "otro" ? nota : undefined }),
     });
 
     const data = await res.json();
@@ -50,6 +51,10 @@ export default function CancelPage() {
                 <option value="">Prefiero no decir</option>
                 {MOTIVOS_CLIENTE.map((o) => <option key={o.v} value={o.v}>{o.l}</option>)}
               </select>
+              {motivo === "otro" && (
+                <textarea value={nota} onChange={(e) => setNota(e.target.value)} maxLength={300} rows={2} placeholder="Cuéntanos brevemente cuál fue el motivo"
+                  className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-brand-dark" />
+              )}
             </div>
             <div className="flex gap-3">
               <a href="/booking" className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50 flex items-center justify-center">
