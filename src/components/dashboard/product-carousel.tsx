@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect } from "react";
+import { useSnapCarousel } from "@/lib/use-snap-carousel";
 import { cn } from "@/lib/utils";
 
 export interface CarouselItem {
@@ -26,37 +27,21 @@ const TONE_CLASSES: Record<NonNullable<CarouselItem["tone"]>, string> = {
 };
 
 const ITEMS_PER_PAGE = 3;
-const AUTOPLAY_MS = 4500;
+const AUTOPLAY_MS = 3000;
 
 // Punto (Nico, 25-sep): tarjetas tipo carrusel para el Dashboard — stock bajo y
 // productos mas vendidos — 3 productos por vista, avanzan solas (pausan al pasar el
 // mouse) y con puntos de navegacion. Maximo 9 productos por carrusel (3 vistas).
 export function ProductCarousel({ title, icon, items, emptyMessage, loading }: ProductCarouselProps) {
-  const [page, setPage] = useState(0);
-  const [paused, setPaused] = useState(false);
   const pageCount = Math.max(1, Math.ceil(items.length / ITEMS_PER_PAGE));
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    setPage(0);
-  }, [items.length]);
-
-  useEffect(() => {
-    if (paused || pageCount <= 1) return;
-    timerRef.current = setInterval(() => {
-      setPage((p) => (p + 1) % pageCount);
-    }, AUTOPLAY_MS);
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [paused, pageCount]);
+  const { props: carrusel, page, irA, arrastrando } = useSnapCarousel(pageCount, AUTOPLAY_MS);
+  // Al cambiar la lista, vuelve a la primera página.
+  useEffect(() => { irA(0); }, [items.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pages = Array.from({ length: pageCount }, (_, i) => items.slice(i * ITEMS_PER_PAGE, i * ITEMS_PER_PAGE + ITEMS_PER_PAGE));
 
   return (
     <div
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
       className="bg-white dark:bg-brand-white rounded-2xl border border-gray-100 dark:border-white/10 p-3.5 md:p-5 transition-all duration-500 hover:border-brand-blue/20 hover:shadow-lg hover:shadow-brand-blue/5"
     >
       <div className="flex items-center justify-between mb-2 md:mb-4">
@@ -71,7 +56,7 @@ export function ProductCarousel({ title, icon, items, emptyMessage, loading }: P
                 key={i}
                 type="button"
                 aria-label={`Ver pagina ${i + 1}`}
-                onClick={() => setPage(i)}
+                onClick={() => irA(i)}
                 className={cn(
                   "h-1.5 rounded-full transition-all duration-300",
                   i === page ? "w-4 bg-brand-blue" : "w-1.5 bg-gray-200 dark:bg-white/10 hover:bg-gray-300 dark:hover:bg-white/20"
@@ -87,32 +72,31 @@ export function ProductCarousel({ title, icon, items, emptyMessage, loading }: P
       ) : items.length === 0 ? (
         <div className="h-12 md:h-[104px] flex items-center justify-center text-sm text-brand-gray text-center px-4">{emptyMessage}</div>
       ) : (
-        <div className="overflow-hidden">
-          <div
-            className="flex transition-transform duration-500 ease-out"
-            style={{ transform: `translateX(-${page * 100}%)` }}
-          >
-            {pages.map((pageItems, pageIdx) => (
-              <div key={pageIdx} className="w-full flex-shrink-0 grid grid-cols-1 gap-2 md:gap-3 sm:grid-cols-3">
-                {pageItems.map((item) => (
-                  <div
-                    key={item.id}
-                    className="rounded-2xl border border-gray-100 dark:border-white/10 bg-brand-light/40 p-3.5 flex flex-col gap-1.5 md:min-h-[96px] transition-all hover:-translate-y-0.5 hover:border-brand-blue/30"
+        <div
+          {...carrusel}
+          className={cn("flex overflow-x-auto overscroll-x-contain [&::-webkit-scrollbar]:hidden", arrastrando ? "cursor-grabbing select-none snap-none" : "cursor-grab snap-x snap-mandatory")}
+          style={{ scrollbarWidth: "none", touchAction: "pan-x pan-y" }}
+        >
+          {pages.map((pageItems, pageIdx) => (
+            <div key={pageIdx} className="w-full flex-shrink-0 snap-start grid grid-cols-1 gap-2 md:gap-3 sm:grid-cols-3">
+              {pageItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="rounded-2xl border border-gray-100 dark:border-white/10 bg-brand-light/40 p-3.5 flex flex-col gap-1.5 md:min-h-[96px]"
+                >
+                  <p className="text-xs font-semibold text-brand-dark leading-tight line-clamp-2">{item.primary}</p>
+                  <span
+                    className={cn(
+                      "inline-flex w-fit items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-auto",
+                      TONE_CLASSES[item.tone || "neutral"]
+                    )}
                   >
-                    <p className="text-xs font-semibold text-brand-dark leading-tight line-clamp-2">{item.primary}</p>
-                    <span
-                      className={cn(
-                        "inline-flex w-fit items-center text-[10px] font-semibold px-1.5 py-0.5 rounded-full mt-auto",
-                        TONE_CLASSES[item.tone || "neutral"]
-                      )}
-                    >
-                      {item.secondary}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            ))}
-          </div>
+                    {item.secondary}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       )}
     </div>

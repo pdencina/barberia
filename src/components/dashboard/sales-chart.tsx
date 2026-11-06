@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
+import { Eye, EyeOff } from "lucide-react";
 import { cn, formatCurrency } from "@/lib/utils";
 import { intensidades, marcasEje, montoCorto, resumenPeriodo, type Intensidad } from "@/lib/dashboard-format";
 
@@ -21,6 +22,8 @@ interface SalesChartProps {
   total: number;
   growth: number;
   loading?: boolean;
+  hideAmount?: boolean;          // oculta los montos (ojito)
+  onToggleHide?: () => void;
 }
 
 const RANGE_OPTIONS: { value: ChartRange; label: string }[] = [
@@ -57,10 +60,14 @@ const NOMBRE_DIA_LARGO = ["domingo", "lunes", "martes", "miércoles", "jueves", 
 
 // Gráfico de ventas de área: eje con montos legibles, comparación con el período anterior (línea punteada),
 // resumen arriba (total, variación, promedio y mejor día) y cuadro flotante al pasar el mouse o tocar.
-export function SalesChart({ data, range, onRangeChange, total, growth, loading }: SalesChartProps) {
+export function SalesChart({ data, range, onRangeChange, total, growth, loading, hideAmount = false, onToggleHide }: SalesChartProps) {
   const cajaRef = useRef<HTMLDivElement>(null);
   const [ancho, setAncho] = useState(640);
   const [hover, setHover] = useState<number | null>(null);
+  // Qué se ve: el período actual, el anterior o los dos (siempre al menos uno).
+  const [verActual, setVerActual] = useState(true);
+  const [verPrev, setVerPrev] = useState(true);
+  const $ = (texto: string) => (hideAmount ? "$ ••••••" : texto);
 
   useEffect(() => {
     const el = cajaRef.current;
@@ -77,13 +84,16 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
   const inten = useMemo(() => intensidades(data, porDia), [data, porDia]);
   const prevTotal = useMemo(() => data.reduce((s, d) => s + (d.prev || 0), 0), [data]);
   const hayPrev = prevTotal > 0;
+  const mostrarActual = verActual || !hayPrev;
+  const mostrarPrev = hayPrev && verPrev;
+  const etiquetaPrev = range === "1m" ? "Mes anterior" : range === "12m" ? "Año anterior" : range === "3m" ? "3 meses anteriores" : range === "14d" ? "14 días anteriores" : "7 días anteriores";
   const positivo = growth >= 0;
   const vacio = data.length === 0 || data.every((d) => d.total === 0);
 
   const alto = ancho < 420 ? 200 : 250;
   const m = { l: 58, r: 12, t: 12, b: 26 };
   const w = ancho - m.l - m.r, h = alto - m.t - m.b;
-  const maxDato = Math.max(...data.map((d) => Math.max(d.total, d.prev || 0)), 1);
+  const maxDato = Math.max(...data.map((d) => Math.max(mostrarActual ? d.total : 0, mostrarPrev ? d.prev || 0 : 0)), 1);
   const marcas = marcasEje(maxDato, ancho < 420 ? 3 : 4);
   const tope = marcas[marcas.length - 1] || 1;
   const x = (i: number) => m.l + (data.length <= 1 ? w / 2 : (i / (data.length - 1)) * w);
@@ -139,13 +149,19 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
           <div className="flex items-center gap-2.5">
             <span className="h-1.5 w-1.5 rounded-full bg-brand-blue" />
             <h3 className="text-[13px] font-bold uppercase tracking-[0.12em] text-brand-dark">Ventas</h3>
+            {onToggleHide && (
+              <button type="button" onClick={onToggleHide} title={hideAmount ? "Mostrar montos" : "Ocultar montos"} aria-label={hideAmount ? "Mostrar montos" : "Ocultar montos"}
+                className="rounded-full p-1 text-brand-gray transition-colors hover:bg-brand-light hover:text-brand-dark">
+                {hideAmount ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            )}
           </div>
-          <p className="mt-2 text-2xl font-extrabold tracking-tight text-brand-dark tabular-nums md:text-3xl">{formatCurrency(total)}</p>
+          <p className="mt-2 text-2xl font-extrabold tracking-tight text-brand-dark tabular-nums md:text-3xl">{$(formatCurrency(total))}</p>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs">
             <span className={cn("rounded-full px-2 py-0.5 font-semibold tabular-nums", positivo ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400" : "bg-red-50 text-red-500 dark:bg-red-500/10 dark:text-red-400")}>
               {positivo ? "▲" : "▼"} {Math.abs(growth)}%
             </span>
-            <span className="text-brand-gray">vs período anterior{hayPrev ? ` (${montoCorto(prevTotal)})` : ""}</span>
+            <span className="text-brand-gray">vs período anterior{hayPrev ? ` (${hideAmount ? "••••" : montoCorto(prevTotal)})` : ""}</span>
           </div>
         </div>
         <div className="flex max-w-full items-center gap-0.5 overflow-x-auto rounded-2xl border border-gray-100 bg-brand-light p-1 sm:gap-1">
@@ -163,11 +179,11 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
         <div className="mt-4 grid grid-cols-2 gap-2 md:gap-3">
           <div className="rounded-xl bg-brand-light/70 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-gray">Promedio {range === "12m" ? "por mes" : range === "3m" ? "por semana" : "por día"}</p>
-            <p className="text-sm font-bold text-brand-dark tabular-nums md:text-base">{formatCurrency(res.promedio)}</p>
+            <p className="text-sm font-bold text-brand-dark tabular-nums md:text-base">{$(formatCurrency(res.promedio))}</p>
           </div>
           <div className="rounded-xl bg-brand-light/70 px-3 py-2">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-brand-gray">Mejor {range === "12m" ? "mes" : range === "3m" ? "semana" : "día"}</p>
-            <p className="text-sm font-bold text-brand-dark tabular-nums md:text-base">{res.mejor ? formatCurrency(res.mejor.total) : "—"}</p>
+            <p className="text-sm font-bold text-brand-dark tabular-nums md:text-base">{res.mejor ? $(formatCurrency(res.mejor.total)) : "—"}</p>
             {res.mejor && <p className="text-[11px] text-brand-gray">{nombrePunto(res.mejor.date, range)}</p>}
           </div>
         </div>
@@ -200,7 +216,7 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
               {marcas.map((v) => (
                 <g key={v}>
                   <line x1={m.l} x2={ancho - m.r} y1={y(v)} y2={y(v)} stroke="currentColor" className="text-brand-gray" strokeOpacity={v === 0 ? 0.25 : 0.12} strokeDasharray={v === 0 ? undefined : "3 4"} />
-                  <text x={m.l - 8} y={y(v) + 3.5} textAnchor="end" className="fill-brand-gray" style={{ fontSize: 10.5 }}>{montoCorto(v)}</text>
+                  <text x={m.l - 8} y={y(v) + 3.5} textAnchor="end" className="fill-brand-gray" style={{ fontSize: 10.5 }}>{hideAmount ? (v === 0 ? "$0" : "••") : montoCorto(v)}</text>
                 </g>
               ))}
               {/* Etiquetas del eje horizontal */}
@@ -209,20 +225,20 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
                   className={hover === i ? "fill-brand-blue" : "fill-brand-gray"} style={{ fontSize: 10.5, fontWeight: hover === i ? 700 : 500 }}>{d.label}</text>
               ))}
               {/* Relleno por fuerza (como la referencia): azul más intenso cuanto más alto sobre lo normal, rojo suave cuando se queda por debajo */}
-              {area && (
+              {mostrarActual && area && (
                 <g>
                   <path d={area} clipPath="url(#vc-base)" style={{ fill: AZUL }} fillOpacity={0.07} />
                   <path d={entreLinea} clipPath="url(#vc-sobre)" fill="url(#vc-grad)" />
                   <path d={entreLinea} clipPath="url(#vc-bajo)" fill="url(#vc-rojo)" />
                 </g>
               )}
-              {lineaPrev && <path d={lineaPrev} fill="none" stroke="currentColor" className="text-brand-gray" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" strokeLinecap="round" />}
-              <path d={lineaVentas} fill="none" style={{ stroke: AZUL }} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
-              {conPuntos && data.map((d, i) => (
+              {mostrarPrev && lineaPrev && <path d={lineaPrev} fill="none" stroke="currentColor" className="text-brand-gray" strokeOpacity={0.55} strokeWidth={1.5} strokeDasharray="4 4" strokeLinecap="round" />}
+              {mostrarActual && <path d={lineaVentas} fill="none" style={{ stroke: AZUL }} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />}
+              {mostrarActual && conPuntos && data.map((d, i) => (
                 <circle key={d.date} cx={x(i)} cy={y(d.total)} r={hover === i ? 5 : 3} style={{ stroke: AZUL }} className="fill-white" strokeWidth={2} />
               ))}
               {/* Punto marcado: línea vertical y círculo */}
-              {punto && (
+              {punto && mostrarActual && (
                 <g>
                   <line x1={x(hover!)} x2={x(hover!)} y1={m.t} y2={m.t + h} style={{ stroke: AZUL }} strokeOpacity={0.35} strokeWidth={1} />
                   <circle cx={x(hover!)} cy={y(punto.total)} r={5.5} style={{ stroke: AZUL, fill: AZUL }} strokeWidth={2} fillOpacity={0.15} />
@@ -234,25 +250,31 @@ export function SalesChart({ data, range, onRangeChange, total, growth, loading 
               <div className="pointer-events-none absolute z-10 w-max max-w-[200px] -translate-x-1/2 rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs shadow-lg dark:border-white/10"
                 style={{ left: Math.min(Math.max(x(hover!), 70), ancho - 70), top: 0 }}>
                 <p className="font-semibold text-brand-dark first-letter:uppercase">{nombrePunto(punto.date, range)}</p>
-                <p className="mt-0.5 text-sm font-extrabold tabular-nums text-brand-blue">{formatCurrency(punto.total)}</p>
+                <p className="mt-0.5 text-sm font-extrabold tabular-nums text-brand-blue">{$(formatCurrency(punto.total))}</p>
                 {inten[hover!] && inten[hover!].tono !== "sin" && (
                   <p className="mt-0.5 flex items-center gap-1.5 text-[11px] font-medium text-brand-dark">
                     <span className="h-2 w-2 rounded-sm" style={{ background: colorTono(inten[hover!]), outline: "1px solid rgb(148 163 184 / .4)" }} />
                     {ETIQUETA_NIVEL[inten[hover!].nivel]}
-                    <span className="font-normal text-brand-gray">· normal {formatCurrency(Math.round(inten[hover!].referencia))}</span>
+                    <span className="font-normal text-brand-gray">· normal {$(formatCurrency(Math.round(inten[hover!].referencia)))}</span>
                   </p>
                 )}
                 {hayPrev && (
                   <p className="mt-0.5 text-[11px] text-brand-gray tabular-nums">
-                    Antes: {formatCurrency(punto.prev || 0)}{difHover !== null && <span className={difHover >= 0 ? " text-emerald-600" : " text-red-500"}> ({difHover >= 0 ? "+" : ""}{difHover}%)</span>}
+                    Antes: {$(formatCurrency(punto.prev || 0))}{difHover !== null && <span className={difHover >= 0 ? " text-emerald-600" : " text-red-500"}> ({difHover >= 0 ? "+" : ""}{difHover}%)</span>}
                   </p>
                 )}
               </div>
             )}
             {hayPrev && (
-              <div className="mt-1 flex items-center justify-center gap-4 text-[11px] text-brand-gray">
-                <span className="flex items-center gap-1.5"><span className="h-0.5 w-4 rounded" style={{ background: AZUL }} /> Este período</span>
-                <span className="flex items-center gap-1.5"><span className="h-0 w-4 border-t-2 border-dashed border-brand-gray/60" /> Período anterior</span>
+              <div className="mt-1 flex flex-wrap items-center justify-center gap-2 text-[11px]">
+                <button type="button" aria-pressed={mostrarActual} onClick={() => { if (mostrarActual && !mostrarPrev) return; setVerActual((v) => !v); }}
+                  className={cn("flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-all", mostrarActual ? "border-brand-blue/40 bg-brand-blue/5 text-brand-dark" : "border-gray-200 text-brand-gray line-through opacity-60")}>
+                  <span className="h-0.5 w-4 rounded" style={{ background: AZUL }} /> Este período
+                </button>
+                <button type="button" aria-pressed={mostrarPrev} onClick={() => { if (mostrarPrev && !mostrarActual) return; setVerPrev((v) => !v); }}
+                  className={cn("flex items-center gap-1.5 rounded-full border px-3 py-1 font-medium transition-all", mostrarPrev ? "border-gray-300 bg-gray-50 text-brand-dark" : "border-gray-200 text-brand-gray line-through opacity-60")}>
+                  <span className="h-0 w-4 border-t-2 border-dashed border-brand-gray/60" /> {etiquetaPrev}
+                </button>
               </div>
             )}
           </>
