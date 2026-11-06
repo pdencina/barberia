@@ -430,40 +430,36 @@ export default function DashboardPage() {
         total={data.chartTotal || 0}
         growth={data.chartGrowth || 0}
         loading={chartLoading}
+        hideAmount={hideAmount}
+        onToggleHide={toggleAmount}
       />
       </Sec>
 
-      {/* Desglose de las ventas del período: por profesional (si hay más de uno) y por medio de pago */}
-      {((data.ventasPorProfesional?.length || 0) > 1 || (data.ventasPorMedio?.length || 0) > 0) && (
-        <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
-          {(data.ventasPorProfesional?.length || 0) > 1 && (
-            <Sec id="porProfesional" {...secProps}><VentasPorProfesional data={data.ventasPorProfesional!} total={data.chartTotal} /></Sec>
-          )}
-          {(data.ventasPorMedio?.length || 0) > 0 && (
-            <Sec id="mediosPago" {...secProps}><MediosDePago data={data.ventasPorMedio!} /></Sec>
-          )}
-        </div>
-      )}
-
-      {/* Aviso de stock bajo + Productos mas vendidos — carruseles de 3 por vista */}
-      <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">
-        <Sec id="stockBajo" {...secProps}>
-        <ProductCarousel
-          title="Stock bajo"
-          icon={<PackageX className="h-4 w-4" />}
-          emptyMessage="Todo el inventario esta dentro de su stock minimo."
-          items={lowStockItems}
-        />
-        </Sec>
-        <Sec id="masVendidos" {...secProps}>
-        <ProductCarousel
-          title="Mas vendidos (ultimos 30 dias)"
-          icon={<ShoppingBag className="h-4 w-4" />}
-          emptyMessage="Sin ventas de productos en este periodo."
-          items={topProductItems}
-        />
-        </Sec>
-      </div>
+      {/* Desglose del período. En computador: a la izquierda «Ventas por profesional»; a la derecha, bajo «Medios de pago», el
+          stock bajo y lo más vendido (llenan el espacio que antes quedaba vacío). En el celular todo va en una sola columna, en el mismo orden. */}
+      {(() => {
+        const hayPro = (data.ventasPorProfesional?.length || 0) > 1;
+        const hayMedios = (data.ventasPorMedio?.length || 0) > 0;
+        const tarjetas = (
+          <>
+            <Sec id="stockBajo" {...secProps}>
+              <ProductCarousel title="Stock bajo" icon={<PackageX className="h-4 w-4" />} emptyMessage="Todo el inventario esta dentro de su stock minimo." items={lowStockItems} />
+            </Sec>
+            <Sec id="masVendidos" {...secProps}>
+              <ProductCarousel title="Mas vendidos (ultimos 30 dias)" icon={<ShoppingBag className="h-4 w-4" />} emptyMessage="Sin ventas de productos en este periodo." items={topProductItems} />
+            </Sec>
+          </>
+        );
+        return (
+          <div className={`grid grid-cols-1 gap-3 md:gap-6 lg:items-start ${hayPro ? "lg:grid-cols-2" : "lg:grid-cols-1"}`}>
+            {hayPro && <Sec id="porProfesional" {...secProps}><VentasPorProfesional data={data.ventasPorProfesional!} total={data.chartTotal} /></Sec>}
+            <div className="space-y-3 md:space-y-6">
+              {hayMedios && <Sec id="mediosPago" {...secProps}><MediosDePago data={data.ventasPorMedio!} /></Sec>}
+              {hayPro ? tarjetas : <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-2">{tarjetas}</div>}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Main content: Agenda + Top Services */}
       <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-5">

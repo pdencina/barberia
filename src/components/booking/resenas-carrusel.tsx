@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ResenaDestacada } from "@/lib/resenas-destacadas";
 
 interface Datos { items: ResenaDestacada[]; googleUrl: string | null; googleRating: number | null; googleTotal: number | null }
@@ -47,6 +47,7 @@ export default function ResenasCarrusel({ tenantId }: { tenantId: string }) {
   const [jugando, setJugando] = useState(true);
   const [animar, setAnimar] = useState(true);
   const [visibles, setVisibles] = useState(3);
+  const deslizar = useRef<number | null>(null); // dónde empezó el dedo o el mouse (para deslizar)
 
   useEffect(() => {
     if (!tenantId) return;
@@ -74,7 +75,7 @@ export default function ResenasCarrusel({ tenantId }: { tenantId: string }) {
 
   useEffect(() => {
     if (!mueve || !jugando) return;
-    const t = setInterval(() => { setAnimar(true); setI((x) => x + 1); }, 4000);
+    const t = setInterval(() => { setAnimar(true); setI((x) => x + 1); }, 3000);
     return () => clearInterval(t);
   }, [mueve, jugando]);
 
@@ -93,7 +94,10 @@ export default function ResenasCarrusel({ tenantId }: { tenantId: string }) {
         </p>
       )}
       {n > 0 && (
-        <div className="mt-4 overflow-hidden">
+        <div className="mt-4 overflow-hidden touch-pan-y"
+          onPointerDown={(e) => { deslizar.current = e.clientX; }}
+          onPointerUp={(e) => { if (deslizar.current === null) return; const dx = e.clientX - deslizar.current; deslizar.current = null; if (Math.abs(dx) > 40) ir(dx < 0 ? 1 : -1); }}
+          onPointerCancel={() => { deslizar.current = null; }}>
           <div className="flex" onTransitionEnd={alTerminar}
             style={{ transform: `translateX(-${(i * 100) / visibles}%)`, transition: animar ? "transform .7s ease" : "none" }}>
             {pista.map((r, k) => (
