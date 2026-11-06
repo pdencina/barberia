@@ -19,7 +19,9 @@ export async function POST(req: NextRequest) {
   // If not provided, falls back to single paymentMethod for full total
 
   // Negocio del profesional (se valida ANTES de usar cupones o crear nada).
-  const { data: barberProfile } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
+  // branch_id: la sucursal del profesional (si tiene una asignada) queda en la venta, para el Dashboard por sucursal.
+  let { data: barberProfile } = await supabase.from("profiles").select("tenant_id, branch_id").eq("id", barberId).single();
+  if (!barberProfile) ({ data: barberProfile } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single());
   const tenantId = barberProfile?.tenant_id || null;
   if (!barberProfile) return NextResponse.json({ error: "Profesional no encontrado" }, { status: 400 });
   if (callerRole !== "super_admin" && tenantId !== callerTenant) {
@@ -78,12 +80,13 @@ export async function POST(req: NextRequest) {
     tenant_id: tenantId,
     created_by: issuedBy,
     origin,
+    ...((barberProfile as any)?.branch_id ? { branch_id: (barberProfile as any).branch_id } : {}),
     ...(abono > 0 ? { prepaid_amount: abono } : {}),
   };
   let { data: tx, error } = await supabase.from("transactions").insert(txRow).select().single();
   if (error && /origin|created_by|prepaid_amount/i.test(error.message)) {
     // Migraciones 090/097 aun no aplicadas: se guarda la venta igual, sin esos datos.
-    const { origin: _o, created_by: _c, prepaid_amount: _p, ...legacy } = txRow;
+    const { origin: _o, created_by: _c, prepaid_amount: _p, branch_id: _b, ...legacy } = txRow;
     ({ data: tx, error } = await supabase.from("transactions").insert(legacy).select().single());
   }
   if (error || !tx) return NextResponse.json({ error: error?.message || "No se pudo registrar la venta" }, { status: 500 });

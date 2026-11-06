@@ -63,6 +63,9 @@ export default function EditProfessionalPage() {
   // else on this screen (personal data, work mode, PIN, services, presentation) is
   // hidden.
   const scheduleOnly = effectiveRole === "receptionist";
+  // Sucursales del negocio: si hay más de una, el administrador puede asignar a cada profesional a una (el Dashboard por sucursal las usa).
+  const [sucursales, setSucursales] = useState<Array<{ id: string; name: string; principal?: boolean }>>([]);
+  useEffect(() => { fetch("/api/branches").then((r) => r.json()).then((d) => setSucursales(Array.isArray(d) ? d : [])).catch(() => {}); }, []);
 
   useEffect(() => {
     fetch(`/api/barberos/${params.id}`)
@@ -91,6 +94,7 @@ export default function EditProfessionalPage() {
         rental_notes: data.rental_notes,
         personal_pin: data.personal_pin,
         slot_duration: (data as any).slot_duration,
+        ...(sucursales.length > 1 ? { branch_id: (data as any).branch_id || null } : {}),
         bio: (data as any).bio,
         specialties: (data as any).specialties,
         intro_video_url: (data as any).intro_video_url,
@@ -378,6 +382,18 @@ export default function EditProfessionalPage() {
               onChange={(e) => setData({ ...data, personal_pin: e.target.value.replace(/\D/g, "").slice(0, 4) })}
               className="w-full border rounded-xl px-3 py-2.5 text-sm font-mono tracking-widest" />
           </div>
+          {sucursales.length > 1 && (
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Sucursal</label>
+            <select value={(data as any).branch_id || ""}
+              onChange={(e) => setData({ ...data, branch_id: e.target.value || null } as any)}
+              className="w-full border rounded-xl px-3 py-2.5 text-sm">
+              <option value="">Sin asignar (cuenta en la sucursal principal)</option>
+              {sucursales.map((b) => <option key={b.id} value={b.id}>{b.name}{b.principal ? " (principal)" : ""}</option>)}
+            </select>
+            <p className="mt-1 text-[11px] text-gray-400">Las ventas y citas de este profesional se cuentan en su sucursal en el Dashboard.</p>
+          </div>
+          )}
           {!isReceptionistProfile && (
           <div>
             <label className="block text-xs text-gray-500 mb-1">Duración de slot (minutos)</label>

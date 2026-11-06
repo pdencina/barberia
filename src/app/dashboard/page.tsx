@@ -13,6 +13,8 @@ import { useToast } from "@/components/ui/toast";
 import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashboard/sales-chart";
 import { VentasPorProfesional, MediosDePago, type VentaProfesional, type VentaMedio } from "@/components/dashboard/ventas-desglose";
 import { NotasCard } from "@/components/dashboard/notas-card";
+import { BranchBar } from "@/components/dashboard/branch-bar";
+import { useBranch } from "@/lib/branch-context";
 import { NovedadesCard } from "@/components/dashboard/novedades-card";
 import { MetricInfo, type InfoMetrica } from "@/components/dashboard/metric-info";
 import { consejosCancelaciones, consejosConfirmadas, consejosReservas, consejosClientesNuevos, type ResumenCancelaciones, type CancelacionFila } from "@/lib/cancel-reasons";
@@ -156,6 +158,9 @@ export default function DashboardPage() {
     setMetricInfo(defs[k]);
   };
   const { user, effectiveRole, isAtLeast } = useAuth();
+  const { branches: sucursales, activeBranch, loading: sucursalesCargando } = useBranch();
+  // Con más de una sucursal, el Dashboard se filtra por la sucursal activa (la principal incluye lo que aún no tiene sucursal).
+  const ramaActiva = sucursales.length > 1 ? activeBranch : null;
   const { tenant, loading: tenantLoading, isOverriding } = useTenant();
   // Super Admin (sin "Entrar" a una empresa): ve el panel de plataforma, no el de un negocio.
   const isSuperView = effectiveRole === "super_admin" && !isOverriding;
@@ -182,9 +187,10 @@ export default function DashboardPage() {
   const loadDashboard = useCallback(async (opts?: { silent?: boolean; strict?: boolean }): Promise<boolean> => {
     const params = new URLSearchParams({ date: selectedDate, range: chartRange });
     if (tenant?.id) params.set("tenantId", tenant.id);
+    if (ramaActiva?.id) params.set("branchId", ramaActiva.id);
     // Cache de lectura (por usuario, negocio, dia y rango): si hay algo reciente se muestra al tiro y los numeros
     // se animan cuando llega lo actualizado. Solo en cargas normales; el refresco silencioso de 30 s y "Actualizar" no la usan.
-    const ckey = cacheKey(["dashboard", user?.id, tenant?.id, selectedDate, chartRange]);
+    const ckey = cacheKey(["dashboard", user?.id, tenant?.id, ramaActiva?.id || "", selectedDate, chartRange]);
     if (!opts?.silent) {
       const cached = readCache<DashboardData>(ckey);
       if (cached?.stats) {
@@ -210,10 +216,10 @@ export default function DashboardPage() {
       setLoading(false);
       setChartLoading(false);
     }
-  }, [selectedDate, chartRange, tenant?.id, user?.id]);
+  }, [selectedDate, chartRange, tenant?.id, user?.id, ramaActiva?.id]);
 
   useEffect(() => {
-    if (tenantLoading) return;
+    if (tenantLoading || sucursalesCargando) return;
     if (isSuperView) { setLoading(false); return; }
 
     loadDashboard();
@@ -223,7 +229,7 @@ export default function DashboardPage() {
     if (!isToday) return;
     const interval = setInterval(() => { if (!refreshingRef.current) loadDashboard({ silent: true }); }, 30000);
     return () => clearInterval(interval);
-  }, [loadDashboard, tenantLoading, isToday, isSuperView]);
+  }, [loadDashboard, tenantLoading, sucursalesCargando, isToday, isSuperView]);
 
   // Boton Actualizar: vuelve a pedir los datos de lo que se esta viendo (mismo dia y rango del grafico), sin recargar.
   const handleRefresh = async () => {
@@ -350,6 +356,9 @@ export default function DashboardPage() {
         }
       />
 
+      {/* Sucursal: «Estás en X · Ir a Y» (solo con más de una sucursal) */}
+      {isAtLeast("admin") && <BranchBar />}
+
       {/* Notas del administrador: las deja Oti o se escriben aquí; siempre visibles hasta que se borran */}
       {isAtLeast("admin") && <Sec id="notas" className="empty:hidden" {...secProps}><NotasCard /></Sec>}
 
@@ -418,7 +427,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Novedades de la semana: qué funcionó, qué empeoró y alertas (solo admin; si no hay nada que decir, no aparece) */}
-      {isAtLeast("admin") && <Sec id="novedades" className="empty:hidden" {...secProps}><NovedadesCard /></Sec>}
+      {isAtLeast("admin") && (!ramaActiva || ramaActiva.principal) && <Sec id="novedades" className="empty:hidden" {...secProps}><NovedadesCard /></Sec>}
 
       {/* Cumpleanos del mes (solo admin; no se muestra si no hay) */}
       {isAtLeast("admin") && <Sec id="problemas" className="empty:hidden" {...secProps}><ProblemReportsCard /></Sec>}

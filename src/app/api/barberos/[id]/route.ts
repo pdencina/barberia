@@ -87,12 +87,21 @@ export async function PATCH(
     "personal_pin", "avatar_url", "bio", "specialties",
     "intro_video_url", "years_experience", "slot_duration",
     "also_attends_clients", "instagram", "rental_cash_to_barber", "birth_date",
-    "manager_name", "sii_enabled", "tax_rate", "rental_cash_settle_from", "rental_transfer_to_barber",
+    "manager_name", "sii_enabled", "tax_rate", "rental_cash_settle_from", "rental_transfer_to_barber", "branch_id",
   ];
 
   const update: Record<string, any> = {};
   for (const key of auth.self ? selfEditableFields : allowedFields) {
     if (body[key] !== undefined) update[key] = body[key];
+  }
+  // Sucursal del profesional: solo administración, y debe ser una sucursal de este mismo negocio (o vacío = sin sucursal asignada).
+  if ("branch_id" in update) {
+    if (auth.role !== "admin" && auth.role !== "super_admin") delete update.branch_id;
+    else if (update.branch_id) {
+      const { data: rama } = await supabase.from("branches").select("id, tenant_id").eq("id", String(update.branch_id)).maybeSingle();
+      const { data: prof } = await supabase.from("profiles").select("tenant_id").eq("id", params.id).maybeSingle();
+      if (!rama || !prof || rama.tenant_id !== prof.tenant_id) return NextResponse.json({ error: "Esa sucursal no es de este negocio" }, { status: 400 });
+    } else update.branch_id = null;
   }
   // Impuesto/SII por profesional: solo el administrador (no el propio profesional ni recepcion).
   // Mes desde el que se descuenta el efectivo de caja del arriendo: solo administrador; null o el primer dia de un mes.

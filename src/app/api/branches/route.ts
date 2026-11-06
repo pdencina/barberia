@@ -22,7 +22,14 @@ export async function GET(req: NextRequest) {
   }
 
   const { data } = await query;
-  return NextResponse.json(data || []);
+  // La sucursal principal de cada negocio es la más antigua: incluye todo lo que aún no tiene sucursal asignada.
+  const lista = data || [];
+  const principalPorNegocio = new Map<string, any>();
+  for (const br of lista as any[]) {
+    const actual = principalPorNegocio.get(br.tenant_id);
+    if (!actual || String(br.created_at || "") < String(actual.created_at || "")) principalPorNegocio.set(br.tenant_id, br);
+  }
+  return NextResponse.json((lista as any[]).map((br) => ({ ...br, principal: principalPorNegocio.get(br.tenant_id)?.id === br.id })));
 }
 
 export async function POST(req: NextRequest) {
