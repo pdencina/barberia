@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy, Save } from "lucide-react";
 import { Panel } from "@/components/ui/premium";
 
-const MAX = 12000;
+const MAX = 30000;
 // Prompt para que el dueño lo use en la IA que ya conoce (ChatGPT, Gemini, Claude, Meta AI...) y obtenga el contexto de su negocio.
 export const PROMPT_CONTEXTO = `Actúa como un asistente que documenta negocios de servicios (barberías, peluquerías, kinesiología, estética, etc.) para que un asistente de WhatsApp responda a sus clientes.
 
