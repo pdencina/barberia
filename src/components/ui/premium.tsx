@@ -34,16 +34,19 @@ export function PageHeader({
   title,
   subtitle,
   actions,
+  inline = false,
 }: {
   title: string;
   subtitle?: string;
   actions?: ReactNode;
+  /** Título y subtítulo en una sola línea (encabezado compacto del Dashboard). */
+  inline?: boolean;
 }) {
   return (
     <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between md:gap-3">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-brand-dark md:text-3xl">{title}</h1>
-        {subtitle && <p className="mt-0.5 text-xs text-brand-gray md:text-sm">{subtitle}</p>}
+      <div className={inline ? "flex flex-wrap items-baseline gap-x-3 gap-y-0.5" : undefined}>
+        <h1 className={`font-bold tracking-tight text-brand-dark ${inline ? "text-xl md:text-[22px]" : "text-xl md:text-3xl"}`}>{title}</h1>
+        {subtitle && <p className={`text-xs text-brand-gray ${inline ? "md:text-[13px]" : "mt-0.5 md:text-sm"}`}>{subtitle}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
     </div>
@@ -76,6 +79,7 @@ export function StatCard({
   labelAction,
   footnote,
   onInfo,
+  compact = false,
 }: {
   label: string;
   value: ReactNode;
@@ -91,7 +95,52 @@ export function StatCard({
   footnote?: ReactNode;
   /** Si se pasa, aparece un botón «¿qué significa?» junto al título (abre la explicación de la métrica). */
   onInfo?: () => void;
+  /** Versión compacta del Dashboard: todas del mismo alto, ícono arriba, título en una línea, número y variación abajo. */
+  compact?: boolean;
 }) {
+  if (compact && hero) {
+    return (
+      <div className={`relative flex h-[124px] flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-brand-blue to-emerald-500 p-3.5 text-white shadow-lg shadow-brand-blue/25 md:h-[140px] md:p-4 ${className}`}>
+        <span className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/15 blur-2xl" />
+        <div className="relative flex items-start justify-between gap-2">
+          <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.1em] text-white/85">{label}{labelAction}</p>
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/20 ring-1 ring-white/25 md:h-8 md:w-8">
+            <Icon className="h-4 w-4" strokeWidth={1.75} />
+          </div>
+        </div>
+        <p className="relative mt-1 text-[28px] font-black leading-none tracking-tight tabular-nums md:mt-2 md:text-[34px]">{value}</p>
+        <div className="relative mt-auto flex flex-wrap items-center gap-x-2 gap-y-1">
+          {delta && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10.5px] font-bold">
+              {delta.value >= 0 ? "▲" : "▼"} {Math.abs(delta.value)}%
+              {delta.suffix && <span className="font-medium opacity-80">{delta.suffix}</span>}
+            </span>
+          )}
+          {footnote && <span className="text-[10.5px] text-white/75">{footnote}</span>}
+          {hint && <span className="text-[10.5px] text-white/75">{hint}</span>}
+        </div>
+      </div>
+    );
+  }
+  if (compact) {
+    return (
+      <div className={`group relative flex h-[124px] flex-col overflow-hidden rounded-2xl border border-gray-100 bg-white p-3 transition-all duration-300 hover:-translate-y-0.5 hover:border-brand-blue/30 hover:shadow-lg hover:shadow-black/5 md:h-[140px] md:p-4 ${className}`}>
+        <div className="flex items-start justify-between gap-2">
+          <IconTile Icon={Icon} tone={tone} size={28} />
+          {onInfo && (
+            <button type="button" onClick={(e) => { e.stopPropagation(); onInfo(); }} aria-label={`¿Qué significa ${label}?`} title="¿Qué significa?"
+              className="flex h-4 w-4 items-center justify-center rounded-full border border-brand-gray/40 text-[10px] font-bold leading-none text-brand-gray transition-colors hover:border-brand-blue hover:text-brand-blue">?</button>
+          )}
+        </div>
+        <p className="mt-2 truncate text-xs font-semibold text-brand-gray">{label}</p>
+        <p className="mt-0.5 text-[26px] font-extrabold leading-none tracking-tight text-brand-dark tabular-nums md:text-[28px]">{value}</p>
+        <div className="mt-auto flex items-center gap-1.5 whitespace-nowrap">
+          {delta && <Delta {...delta} />}
+          {hint && <span className="truncate text-[10.5px] text-brand-gray">{hint}</span>}
+        </div>
+      </div>
+    );
+  }
   if (hero) {
     return (
       <div

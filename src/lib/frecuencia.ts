@@ -46,3 +46,23 @@ export function calcularFrecuencia(citas: CitaVisita[], mesActual: string, minVi
 export function visitasParaMeta(f: MesFrecuencia, meta = META_FRECUENCIA): number {
   return Math.max(0, Math.ceil(f.clientes * meta - f.visitas));
 }
+
+// Promedio de un mes mirando solo hasta cierto día (para comparar un mes en curso con el anterior «a la misma fecha»,
+// y no un mes a medias contra uno completo, que siempre saldría peor).
+export function promedioHastaDia(citas: CitaVisita[], mes: string, hastaDia: number): { visitas: number; clientes: number; promedio: number } {
+  const por = new Map<string, number>();
+  for (const c of citas) {
+    if (!c.client_id || !c.date || c.date.slice(0, 7) !== mes || Number(c.date.slice(8, 10)) > hastaDia) continue;
+    por.set(c.client_id, (por.get(c.client_id) || 0) + 1);
+  }
+  const clientes = por.size;
+  const visitas = Array.from(por.values()).reduce((s, n) => s + n, 0);
+  return { visitas, clientes, promedio: clientes ? r2(visitas / clientes) : 0 };
+}
+
+export const mesAnteriorDe = (mes: string): string => {
+  const [y, m] = mes.split("-").map(Number);
+  return m === 1 ? `${y - 1}-12` : `${y}-${String(m - 1).padStart(2, "0")}`;
+};
+export const diasDelMes = (mes: string): number => { const [y, m] = mes.split("-").map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); };
+

@@ -306,7 +306,8 @@ export default function DashboardPage() {
       {/* Header */}
       <PageHeader
         title={`Hola, ${firstName}`}
-        subtitle={isToday ? "Aquí tienes el resumen de tu negocio hoy." : `Resumen de tu negocio del ${selectedDateLabel}.`}
+        inline
+        subtitle={isToday ? "Resumen de hoy" : `Resumen del ${selectedDateLabel}`}
         actions={
           // Una sola fila en el celular: [Hoy|Ayer] [fecha] y el icono de Personalizar al final.
           <div className="flex w-full items-center gap-2 md:w-auto">
@@ -359,19 +360,22 @@ export default function DashboardPage() {
         }
       />
 
-      {/* Sucursal: «Estás en X · Ir a Y» (solo con más de una sucursal) */}
-      {isAtLeast("admin") && <BranchBar />}
-
-      {/* Notas del administrador: las deja Oti o se escriben aquí; siempre visibles hasta que se borran */}
-      {isAtLeast("admin") && <Sec id="notas" className="empty:hidden" {...secProps}><NotasCard /></Sec>}
+      {/* Sucursal («Ir a Y →») y notas en una sola fila; sin notas solo queda el botoncito «+ Nota» */}
+      {isAtLeast("admin") && (
+        <div className="flex flex-wrap items-center gap-2">
+          <BranchBar />
+          <Sec id="notas" className="contents" {...secProps}><NotasCard /></Sec>
+        </div>
+      )}
 
       {/* Aviso discreto cuando los correos del mes se estan agotando (administrador y recepcionista) */}
       {isAtLeast("receptionist") && <AvisoCorreos />}
 
       {/* Stat Cards: Ventas destacada + 4 metricas */}
-      <div className={`grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-4 ${conFrecuencia ? "lg:grid-cols-7" : "lg:grid-cols-6"}`}>
-        <Sec id="ventas" className="col-span-2" {...secProps}>
+      <div className={`grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3 ${conFrecuencia ? "lg:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))]" : "lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]"}`}>
+        <Sec id="ventas" className="col-span-2 lg:col-span-1" {...secProps}>
         <StatCard
+          compact
           hero
           labelAction={
             <button type="button" onClick={toggleAmount} title={hideAmount ? "Mostrar monto" : "Ocultar monto"} className="rounded-full p-1 text-white/80 hover:bg-white/20 hover:text-white">
@@ -389,6 +393,7 @@ export default function DashboardPage() {
         </Sec>
         <Sec id="reservas" {...secProps}>
         <StatCard
+          compact
           onInfo={() => abrirInfo("reservas")}
           label={isToday ? "Reservas hoy" : "Reservas"}
           value={<AnimatedNumber value={data.stats.reservasHoy} />}
@@ -399,6 +404,7 @@ export default function DashboardPage() {
         </Sec>
         <Sec id="clientes" {...secProps}>
         <StatCard
+          compact
           onInfo={() => abrirInfo("clientes")}
           label="Clientes nuevos"
           value={<AnimatedNumber value={data.stats.clientesNuevos} />}
@@ -409,8 +415,9 @@ export default function DashboardPage() {
         </Sec>
         <Sec id="reagend" {...secProps}>
         <StatCard
+          compact
           onInfo={() => abrirInfo("confirmadas")}
-          label="Citas confirmadas"
+          label="Confirmadas"
           value={<AnimatedNumber value={data.stats.reagendamientos} />}
           Icon={RefreshCw}
           tone="violet"
@@ -419,6 +426,7 @@ export default function DashboardPage() {
         </Sec>
         <Sec id="cancel" {...secProps}>
         <StatCard
+          compact
           onInfo={() => abrirInfo("cancelaciones")}
           label="Cancelaciones"
           value={<AnimatedNumber value={data.stats.cancelaciones} />}
@@ -427,7 +435,7 @@ export default function DashboardPage() {
           delta={{ value: data.stats.cancelacionesChange, invert: true }}
         />
         </Sec>
-        {conFrecuencia && <Sec id="frecuencia" className="empty:hidden" {...secProps}><FrecuenciaCard /></Sec>}
+        {conFrecuencia && <Sec id="frecuencia" className="empty:hidden" {...secProps}><FrecuenciaCard fecha={selectedDate} /></Sec>}
       </div>
 
       {/* Novedades de la semana: qué funcionó, qué empeoró y alertas (solo admin; si no hay nada que decir, no aparece) */}
