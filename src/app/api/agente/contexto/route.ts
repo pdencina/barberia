@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest, isManagerLevel } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
-const MAX = 12000;
+const MAX = 30000;
 const MIN_PARA_ACTIVAR = 200;
 const FORMATO = /[\u0000-\u0008\u000b-\u001f\u007f​-‏‪-‮⁠-⁯﻿]/;
 const falta = (e: any) => !!e && ["42P01", "PGRST205"].includes(e.code);
