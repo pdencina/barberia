@@ -51,6 +51,15 @@ const handlers = () => crearManejadoresWebhook({
           if (ap.error) throw new Error("Reservas no disponibles");
           return ap.count ?? 0;
         },
+        detalleFuturas: async (tenantId, telefono, ahora) => {
+          const largo = formatPhoneCL(telefono), corto = largo.replace(/^\+56/, "");
+          const cl = await db.from("clients").select("id").eq("tenant_id", tenantId).in("phone", Array.from(new Set([largo, largo.replace("+", ""), corto, telefono]))).limit(20);
+          const ids = (cl.data ?? []).map((c: any) => c.id);
+          if (ids.length === 0) return [];
+          const ap = await db.from("appointments").select("date,start_time,barber:profiles!barber_id(name)").eq("tenant_id", tenantId).in("client_id", ids).in("status", ["scheduled", "confirmed"]).gte("date", ahoraChile(ahora).fecha).order("start_time", { ascending: true }).limit(5);
+          if (ap.error) throw new Error("Reservas no disponibles");
+          return (ap.data ?? []).map((a: any) => ({ profesional: String(a.barber?.name ?? "Tu profesional"), fecha: String(a.date), hora: String(a.start_time).slice(11, 16) }));
+        },
         crearReserva: async (tenantId, a) => {
           const res = await reservaPublica(new Request("https://interno.invalid/api/public/book", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
             serviceIds: [a.servicioId], barberId: a.profesionalId, date: a.fecha, startTime: `${a.fecha}T${a.hora}:00`, clientName: a.nombre, clientEmail: a.correo, clientPhone: formatPhoneCL(a.telefono) }) }) as any);

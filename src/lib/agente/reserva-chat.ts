@@ -6,13 +6,14 @@ import { normalizar, mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fi
 import { ahoraChile, textoDeFecha, type Oferta } from "./disponibilidad";
 
 export const VIGENCIA_MIN = 30;
-export const MAX_RESERVAS_FUTURAS = 2;
+export const MAX_RESERVAS_FUTURAS = 2; // desde aquí se pregunta si quiere otra de todas formas
+export const MAX_RESERVAS_TOTAL = 4; // tope duro por número
 export const MAX_INTENTOS_DATOS = 3;
 const MAX_SERVICIOS_LISTADOS = 6;
 
 export type CampoIndicador = "respuestas_automaticas" | "consultas_disponibilidad" | "ofertas_horas" | "reservas_iniciadas" | "reservas_cerradas" | "derivadas_persona";
 export interface Seleccion { id: string; nombre: string; duracionMin: number; fecha: string; hora: string; intentos: number }
-export type EstadoChat = { etapa: "oferta"; datos: Oferta & { horaPendiente?: string } } | { etapa: "datos"; datos: Seleccion };
+export type EstadoChat = { etapa: "oferta"; datos: Oferta & { horaPendiente?: string; extraPendiente?: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string } } } | { etapa: "datos"; datos: Seleccion };
 export type ResultadoCreacion = { ok: true; citaId: string } | { ok: false; motivo: "ocupada" | "suspendido" | "otro" };
 export interface DependenciasReserva {
   ahora: () => number;
@@ -20,6 +21,8 @@ export interface DependenciasReserva {
   guardarEstado: (e: EstadoChat) => Promise<void>;
   borrarEstado: () => Promise<void>;
   reservasFuturas: (telefono: string) => Promise<number>;
+  /** Citas futuras del número (profesional, fecha y hora) para mostrarlas al llegar al tope; opcional. */
+  detalleFuturas?: (telefono: string) => Promise<Array<{ profesional: string; fecha: string; hora: string }>>;
   crearReserva: (a: { profesionalId: string; fecha: string; hora: string; servicioId: string; nombre: string; correo: string; telefono: string }) => Promise<ResultadoCreacion>;
   contar: (campo: CampoIndicador) => Promise<void>;
 }
@@ -64,6 +67,15 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   const hoy = ahoraChile(deps.ahora()).fecha;
   const t = normalizar(texto).replace(/\s+/g, " ").trim();
 
+  // Pasa a pedir nombre, correo y servicio para la hora ya elegida.
+  const empezarDatos = async (e: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string }): Promise<RespuestaReserva> => {
+    const servicios = (datos?.servicios ?? []).filter((s) => s && typeof s.id === "string" && datoSeguro(s.nombre)).slice(0, MAX_SERVICIOS_LISTADOS);
+    if (servicios.length === 0) { await deps.borrarEstado(); return { texto: "Para dejar tu hora necesito que una persona te ayude con los detalles.", derivar: true }; }
+    await deps.guardarEstado({ etapa: "datos", datos: { id: e.id, nombre: e.nombre, duracionMin: e.duracionMin, fecha: e.fecha, hora: e.hora, intentos: 0 } });
+    await deps.contar("reservas_iniciadas");
+    return { texto: pedirDatos(e.nombre, textoDeFecha(e.fecha, hoy), e.hora, servicios) };
+  };
+
   if (NEGATIVO.test(t)) {
     await deps.borrarEstado();
     return { texto: "Sin problema, no agendé nada. Si quieres ver otras horas, escríbeme, por ejemplo: «tienen hora mañana»." };
@@ -71,6 +83,16 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
 
   // ---- 1) el cliente elige una de las horas ofrecidas
   if (estado.etapa === "oferta") {
+    // Ya tenía varias horas y se le preguntó si quiere otra de todas formas: un "sí" sigue; un "no" ya se atendió arriba.
+    const extra = estado.datos.extraPendiente;
+    if (extra) {
+      if (!AFIRMATIVO.test(t)) return null;
+      if ((await deps.reservasFuturas(telefono)) >= MAX_RESERVAS_TOTAL) {
+        await deps.borrarEstado();
+        return { texto: `Ya tienes ${MAX_RESERVAS_TOTAL} horas agendadas, que es el máximo por este chat. Para cambiar o cancelar alguna, una persona te ayudará por aquí.`, derivar: true };
+      }
+      return await empezarDatos(extra);
+    }
     const admitido = mensajeAdmitido(texto);
     if (!admitido || PARECE_CONSULTA.test(t)) return null; // otra pregunta (o mensaje no admitido): sigue el camino normal
     const op = estado.datos.opciones;
@@ -110,15 +132,20 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       return { texto: `¿Con quién prefieres a las ${elegidas[0].hora}?\n${quienes.map((x) => `• ${x}`).join("\n")}\n\nEscríbeme el nombre del profesional.` };
     }
     const e = elegidas[0];
-    if ((await deps.reservasFuturas(telefono)) >= MAX_RESERVAS_FUTURAS) {
+    const futuras = await deps.reservasFuturas(telefono);
+    if (futuras >= MAX_RESERVAS_TOTAL) {
       await deps.borrarEstado();
-      return { texto: `Ya tienes ${MAX_RESERVAS_FUTURAS} horas agendadas con nosotros. Para agendar otra, una persona te ayudará por aquí.`, derivar: true };
+      return { texto: `Ya tienes ${futuras} horas agendadas, que es el máximo por este chat. Para cambiar o cancelar alguna, una persona te ayudará por aquí.`, derivar: true };
     }
-    const servicios = (datos?.servicios ?? []).filter((s) => s && typeof s.id === "string" && datoSeguro(s.nombre)).slice(0, MAX_SERVICIOS_LISTADOS);
-    if (servicios.length === 0) { await deps.borrarEstado(); return { texto: "Para dejar tu hora necesito que una persona te ayude con los detalles.", derivar: true }; }
-    await deps.guardarEstado({ etapa: "datos", datos: { id: e.id, nombre: e.nombre, duracionMin: e.duracionMin, fecha: e.fecha, hora: e.hora, intentos: 0 } });
-    await deps.contar("reservas_iniciadas");
-    return { texto: pedirDatos(e.nombre, textoDeFecha(e.fecha, hoy), e.hora, servicios) };
+    if (futuras >= MAX_RESERVAS_FUTURAS) {
+      // En vez de bloquear: se muestran sus horas y decide. Se guarda la elegida para seguir con un "sí".
+      let detalle: Array<{ profesional: string; fecha: string; hora: string }> = [];
+      try { detalle = (await deps.detalleFuturas?.(telefono)) ?? []; } catch { /* sin detalle: igual se le pregunta */ }
+      const lista = detalle.length ? `:\n${detalle.slice(0, 5).map((d) => `• *${d.profesional}* ${textoDeFecha(d.fecha, hoy)} a las ${d.hora}`).join("\n")}` : ".";
+      await deps.guardarEstado({ etapa: "oferta", datos: { ...estado.datos, extraPendiente: e } });
+      return { texto: `Ya tienes ${futuras} horas agendadas${lista}\n\n¿Quieres agendar otra de todas formas? Responde *sí* o *no*.\nSi prefieres cambiar o cancelar alguna, escríbenos y una persona te ayudará.` };
+    }
+    return await empezarDatos(e);
   }
 
   // ---- 2) el cliente envía sus datos
