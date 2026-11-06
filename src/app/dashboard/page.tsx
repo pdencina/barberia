@@ -14,6 +14,7 @@ import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashb
 import { VentasPorProfesional, MediosDePago, type VentaProfesional, type VentaMedio } from "@/components/dashboard/ventas-desglose";
 import { NotasCard } from "@/components/dashboard/notas-card";
 import { BranchBar } from "@/components/dashboard/branch-bar";
+import { FrecuenciaCard } from "@/components/dashboard/frecuencia-card";
 import { useBranch } from "@/lib/branch-context";
 import { NovedadesCard } from "@/components/dashboard/novedades-card";
 import { MetricInfo, type InfoMetrica } from "@/components/dashboard/metric-info";
@@ -427,6 +428,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Novedades de la semana: qué funcionó, qué empeoró y alertas (solo admin; si no hay nada que decir, no aparece) */}
+      {isAtLeast("admin") && (!ramaActiva || ramaActiva.principal) && <Sec id="frecuencia" className="empty:hidden" {...secProps}><FrecuenciaCard /></Sec>}
       {isAtLeast("admin") && (!ramaActiva || ramaActiva.principal) && <Sec id="novedades" className="empty:hidden" {...secProps}><NovedadesCard /></Sec>}
 
       {/* Cumpleanos del mes (solo admin; no se muestra si no hay) */}
