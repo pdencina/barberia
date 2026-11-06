@@ -1,4 +1,5 @@
 import { loadCustomSources } from "@/lib/client-sources";
+import { repartirVentas } from "@/lib/cierre-calculo";
 import { accountingColumnsAvailable, fetchMonthTx } from "@/lib/accounting";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
@@ -189,26 +190,22 @@ export async function GET(req: NextRequest) {
   // Servicios vs productos (items de las ventas del mes, por lotes).
   const txIds = income.map((t) => t.id);
   const items = await inChunks<any>(txIds, (c) =>
-    supabase.from("transaction_items").select("description, total, quantity, service_id, product_id").in("transaction_id", c));
-  let servicesRevenue = 0;
-  let productsRevenue = 0;
-  const svcMap: Record<string, { total: number; count: number }> = {};
-  const prodMap: Record<string, { total: number; count: number }> = {};
+    supabase.from("transaction_items").select("description, total, quantity, service_id, product_id, transaction_id").in("transaction_id", c));
+  // Lo realmente cobrado de cada venta se reparte entre sus líneas (descuentos incluidos): así servicios + productos suman el total
+  // y coincide con la pantalla del Cierre mensual. Ver src/lib/cierre-calculo.ts.
+  const lineasPorVenta = new Map<string, any[]>();
   for (const it of items) {
-    if (it.service_id) {
-      servicesRevenue += Number(it.total);
-      const k = it.description || "Servicio";
-      if (!svcMap[k]) svcMap[k] = { total: 0, count: 0 };
-      svcMap[k].total += Number(it.total); svcMap[k].count += Number(it.quantity);
-    } else if (it.product_id) {
-      productsRevenue += Number(it.total);
-      const k = it.description || "Producto";
-      if (!prodMap[k]) prodMap[k] = { total: 0, count: 0 };
-      prodMap[k].total += Number(it.total); prodMap[k].count += Number(it.quantity);
-    }
+    const tipo = it.service_id ? "servicio" : it.product_id ? "producto" : null;
+    if (!tipo) continue;
+    const arr = lineasPorVenta.get(it.transaction_id) || [];
+    arr.push({ description: it.description, total: Number(it.total) || 0, quantity: Number(it.quantity) || 1, tipo });
+    lineasPorVenta.set(it.transaction_id, arr);
   }
-  const topServices = Object.entries(svcMap).sort((a, b) => b[1].total - a[1].total).slice(0, 5);
-  const topProducts = Object.entries(prodMap).sort((a, b) => b[1].total - a[1].total).slice(0, 5);
+  const reparto = repartirVentas(income.map((t: any) => ({ id: t.id, total: Number(t.total) || 0, lineas: lineasPorVenta.get(t.id) || [] })));
+  const servicesRevenue = reparto.serviciosCobrado;
+  const productsRevenue = reparto.productosCobrado;
+  const topServices: [string, { total: number; count: number }][] = reparto.servicios.slice(0, 5).map((f) => [f.nombre, { total: f.cobrado, count: f.cantidad }]);
+  const topProducts: [string, { total: number; count: number }][] = reparto.productos.slice(0, 5).map((f) => [f.nombre, { total: f.cobrado, count: f.cantidad }]);
   const itemsRevenue = servicesRevenue + productsRevenue;
 
   // Metodos de pago.

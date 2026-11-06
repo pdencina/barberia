@@ -62,10 +62,12 @@ export async function GET(req: NextRequest) {
   // Punto 5 (Pablo): al crear/editar un movimiento manual, permitir elegir a que
   // profesional corresponde. Devuelto junto con la lista de transacciones para no
   // agregar otro round-trip al abrir el modal.
+  // Profesionales y también administradores que atienden clientes (ej. quien trabaja sola): antes solo role = barber, y en un
+  // negocio de una sola profesional (administradora) la lista de «Corresponde a: Profesional» salía vacía.
   let barbersQuery = supabase
     .from("profiles")
     .select("id, name")
-    .eq("role", "barber")
+    .or("role.eq.barber,and(role.in.(admin,super_admin),also_attends_clients.eq.true)")
     .eq("active", true)
     .order("name");
   if (tenantId && tenantId !== "ALL") barbersQuery = barbersQuery.eq("tenant_id", tenantId);
