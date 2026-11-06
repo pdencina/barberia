@@ -28,10 +28,12 @@ export async function GET(req: NextRequest) {
   ]);
 
   const assignedIds = new Set((assigned || []).map((a: any) => a.service_id));
+  // Los servicios internos (extras de POS) no se asignan a profesionales ni se reservan.
+  const servicesPublicos = (services || []).filter((x: any) => !x.internal_only);
   const counts = new Map<string, number>();
   for (const u of used || []) counts.set((u as any).service_id, (counts.get((u as any).service_id) || 0) + 1);
 
-  const list = (services || [])
+  const list = servicesPublicos
     .filter((s: any) => assignedIds.size === 0 || assignedIds.has(s.id))
     .map((s: any, i: number) => ({ s, i }))
     .sort((a, b) => (counts.get(b.s.id) || 0) - (counts.get(a.s.id) || 0) || a.i - b.i)

@@ -22,6 +22,7 @@ interface Service {
   price: number;
   duration: number;
   category?: string;
+  internal_only?: boolean | null;
 }
 
 interface Product {
@@ -200,7 +201,8 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
           const mine = await fetch(`/api/public/barber-services?barberId=${standby.barber.id}`).then((r) => r.json());
           if (Array.isArray(mine) && mine.length > 0) {
             const byId = new Map<string, any>(mine.map((m: any) => [m.id, m]));
-            svcList = svcList.filter((x) => byId.has(x.id)).map((x) => ({ ...x, price: Number(byId.get(x.id).price), duration: Number(byId.get(x.id).duration) || x.duration }));
+            // Los extras internos (0 minutos, solo se cobran) no se asignan a un profesional: quedan disponibles para todos.
+            svcList = svcList.filter((x) => byId.has(x.id) || x.internal_only).map((x) => ({ ...x, price: byId.has(x.id) ? Number(byId.get(x.id).price) : Number(x.price), duration: byId.has(x.id) ? Number(byId.get(x.id).duration) || x.duration : x.duration }));
           }
         } catch {}
       }
@@ -802,7 +804,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                       lowStock ? "bg-red-500/15 text-red-500" : "bg-black/5 text-brand-gray dark:bg-white/10"
                     }`}
                   >
-                    {isService ? `${(item as Service).duration} min` : `Stock ${stock}`}
+                    {isService ? ((item as Service).internal_only ? "Extra" : `${(item as Service).duration} min`) : `Stock ${stock}`}
                   </span>
                   <p className="text-xl font-extrabold tracking-tight text-brand-blue tabular-nums">{formatCurrency(Number(item.price))}</p>
                 </div>

@@ -1,3 +1,4 @@
+import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { isTenantSuspended, isBarberTenantSuspended, TENANT_SUSPENDED_MESSAGE } from "@/lib/tenant-suspension";
 import { NextRequest, NextResponse } from "next/server";
@@ -41,12 +42,10 @@ export async function POST(req: NextRequest) {
   }
 
   // Get services details
-  const { data: services } = await supabase
-    .from("services")
-    .select("id, name, price, duration")
-    .in("id", ids);
+  // Un servicio interno (extra que solo se cobra en el POS) no se puede reservar, aunque alguien mande su id.
+  const { data: services } = await leerServiciosPublicos((cols) => supabase.from("services").select(cols).in("id", ids) as any, "id, name, price, duration");
 
-  if (!services || services.length === 0) {
+  if (!services || services.length === 0 || services.length !== new Set(ids).size) {
     return NextResponse.json({ error: "Servicios no encontrados" }, { status: 404 });
   }
 

@@ -1,3 +1,4 @@
+import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
@@ -23,7 +24,7 @@ export async function GET(req: NextRequest) {
 
   const [{ data: barbers }, { data: services }] = await Promise.all([
     supabase.from("profiles").select("id, name, avatar_url").or("role.eq.barber,and(role.in.(admin,super_admin),also_attends_clients.eq.true)").eq("active", true).eq("tenant_id", tenant.id),
-    supabase.from("services").select("id, name, description, price, duration").eq("active", true).eq("tenant_id", tenant.id).in("id", serviceIds),
+    leerServiciosPublicos((cols) => supabase.from("services").select(cols).eq("active", true).eq("tenant_id", tenant.id).in("id", serviceIds) as any, "id, name, description, price, duration"),
   ]);
   if (!services || services.length !== serviceIds.length) return NextResponse.json({ error: "Servicio no válido" }, { status: 400 });
   if (!barbers || barbers.length === 0) return NextResponse.json({ date, slots: [], barbers: {} });

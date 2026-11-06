@@ -95,7 +95,7 @@ export default function AgendaPage() {
     ]).then(([b, c, s]) => {
       setBarbers(Array.isArray(b) ? b : []);
       setClients(Array.isArray(c?.clients) ? c.clients : Array.isArray(c) ? c : []);
-      setServices(Array.isArray(s) ? s : []);
+      setServices(Array.isArray(s) ? s.filter((x: any) => !x.internal_only) : []);
     });
   }, [tenantLoading, tenant?.id]);
 

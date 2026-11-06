@@ -115,7 +115,7 @@ export default function MiAgendaPage() {
       }
     });
     fetch(`/api/services${q}`).then((r) => r.json()).then((data) => {
-      setServices(Array.isArray(data) ? data : []);
+      setServices(Array.isArray(data) ? data.filter((x: any) => !x.internal_only) : []);
     });
   }, [user, tenantLoading, tenant?.id]);
 

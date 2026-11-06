@@ -1,3 +1,4 @@
+import { errorDuracion } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { authorizeServiceAccess } from "@/lib/service-access";
@@ -21,6 +22,22 @@ export async function PATCH(
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "No hay campos validos para actualizar" }, { status: 400 });
   }
+  // Visibilidad (público o interno) y duración: 0 minutos solo para internos.
+  if (body && body.internal_only !== undefined) update.internal_only = body.internal_only === true;
+  if (update.duration !== undefined || update.internal_only !== undefined) {
+    // Si solo llega uno de los dos, el otro se toma de lo que ya tiene el servicio (la columna puede no existir aún: sin ella, es público).
+    let actual: any = {};
+    if (update.duration === undefined || update.internal_only === undefined) {
+      let r: any = await supabase.from("services").select("duration, internal_only").eq("id", params.id).maybeSingle();
+      if (r.error) r = await supabase.from("services").select("duration").eq("id", params.id).maybeSingle();
+      actual = r.data || {};
+    }
+    const interno = update.internal_only !== undefined ? update.internal_only === true : actual.internal_only === true;
+    const dur = update.duration !== undefined ? update.duration : actual.duration;
+    const errDur = errorDuracion(dur, interno);
+    if (errDur) return NextResponse.json({ error: errDur }, { status: 400 });
+    if (update.duration !== undefined) update.duration = Number(update.duration);
+  }
 
   // If price is being changed, log it
   if (update.price !== undefined && Number(auth.service.price) !== Number(update.price)) {
@@ -40,6 +57,7 @@ export async function PATCH(
     .select()
     .single();
 
+  if (error && /internal_only/.test(error.message)) return NextResponse.json({ error: "Falta aplicar la migración 141 para usar servicios internos." }, { status: 409 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
