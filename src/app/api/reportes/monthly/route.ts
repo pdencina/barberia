@@ -1,4 +1,5 @@
 import { accountingColumnsAvailable, fetchMonthTx } from "@/lib/accounting";
+import { repartirVentas, cuadra, profesionalUnico, type VentaCierre } from "@/lib/cierre-calculo";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
@@ -71,7 +72,7 @@ export async function GET(req: NextRequest) {
   // first and filter items by them.
   const [incomeTx, expenseTx, { count: appointmentsCompleted }, { count: newClients }, { data: tenantTxIds }] = await Promise.all([
     // Income / expense transactions (todas las filas, por fecha contable)
-    fetchMonthTx(supabase, { select: "total, payment_method, barber_id", type: "income", range: mr, scope: tf, acc }),
+    fetchMonthTx(supabase, { select: "id, total, payment_method, barber_id", type: "income", range: mr, scope: tf, acc }),
     fetchMonthTx(supabase, { select: "id, total", type: "expense", range: mr, scope: tf, acc }),
     // Appointments completed
     tf(supabase
@@ -115,29 +116,27 @@ export async function GET(req: NextRequest) {
     barberMap[t.barber_id].count++;
   }
 
-  const txIdList = (tenantTxIds || []).map((t: any) => t.id);
+  const incomeIds = (incomeTx || []).map((t: any) => t.id).filter(Boolean) as string[];
   const expenseTxIds = new Set((expenseTx || []).map((t: any) => t.id));
 
   // Segunda tanda en paralelo: nombres/modo de los profesionales, items de servicios, de productos y de egresos.
   const barberIds = Object.keys(barberMap);
-  const [profilesRes, serviceItems, productItems, expenseItems] = await Promise.all([
+  const perfilIdsExtra: string[] = [];
+  const [profilesRes, allItems, _sinUso, perfilesRes, expenseItems] = await Promise.all([
     barberIds.length > 0
       ? supabase.from("profiles").select("id, name, work_mode, active").in("id", barberIds)
       : Promise.resolve({ data: [] as any[] }),
-    txIdList.length > 0
-      ? inChunks(txIdList, (c) => supabase
+    incomeIds.length > 0
+      ? inChunks(incomeIds, (c) => supabase
           .from("transaction_items")
-          .select("description, total, quantity, service_id, transaction_id")
-          .not("service_id", "is", null)
+          .select("description, total, quantity, service_id, product_id, transaction_id")
           .in("transaction_id", c))
       : Promise.resolve([] as any[]),
-    txIdList.length > 0
-      ? inChunks(txIdList, (c) => supabase
-          .from("transaction_items")
-          .select("description, total, quantity, product_id, transaction_id")
-          .not("product_id", "is", null)
-          .in("transaction_id", c))
-      : Promise.resolve([] as any[]),
+    Promise.resolve([] as any[]),
+    // Quién atiende clientes en este negocio (para saber si es de un solo profesional).
+    (tenantId && tenantId !== "ALL")
+      ? supabase.from("profiles").select("id, name, role, active, also_attends_clients, work_mode").eq("tenant_id", tenantId)
+      : Promise.resolve({ data: [] as any[] }),
     expenseTxIds.size > 0
       ? inChunks(Array.from(expenseTxIds) as string[], (c) => supabase
           .from("transaction_items")
@@ -150,6 +149,19 @@ export async function GET(req: NextRequest) {
     (profilesRes.data || []).map((p: any) => [p.id, { name: p.name, work_mode: p.work_mode || "commission", active: p.active !== false }])
   );
 
+  // Ventas sin profesional: en un negocio de UN solo profesional son de esa persona; en uno con equipo se muestran aparte
+  // («Sin profesional asignado») para que «Ingresos por profesional» siempre sume el total del negocio.
+  const unico = profesionalUnico((perfilesRes as any).data || []);
+  const sinProfesional = (incomeTx || []).filter((t: any) => !t.barber_id);
+  const sinProfesionalTotal = sinProfesional.reduce((a: number, t: any) => a + Number(t.total), 0);
+  if (unico && sinProfesional.length > 0) {
+    if (!barberMap[unico]) barberMap[unico] = { total: 0, count: 0 };
+    barberMap[unico].total += sinProfesionalTotal; barberMap[unico].count += sinProfesional.length;
+  }
+
+  for (const pf of ((perfilesRes as any).data || []) as any[]) {
+    if (!barberProfiles[pf.id]) barberProfiles[pf.id] = { name: pf.name, work_mode: pf.work_mode || "commission", active: pf.active !== false };
+  }
   // Punto 17: agrupar por nombre normalizado para no mostrar la misma persona dos veces
   // cuando su cuenta fue recreada (id viejo desactivado + id nuevo). Se prefiere el modo
   // de trabajo del profile activo; si ninguno esta activo, se usa el primero encontrado.
@@ -169,6 +181,10 @@ export async function GET(req: NextRequest) {
     }
   }
 
+  if (!unico && sinProfesional.length > 0) {
+    nameGroups["__sin_profesional__"] = { name: "Sin profesional asignado", total: sinProfesionalTotal, count: sinProfesional.length, workMode: "commission", hasActive: false };
+  }
+
   // Separate income by work mode
   let incomeCommission = 0;
   let incomeRental = 0;
@@ -184,21 +200,18 @@ export async function GET(req: NextRequest) {
   const noBarberIncome = (incomeTx || []).filter((t: any) => !t.barber_id).reduce((s: number, t: any) => s + Number(t.total), 0);
   incomeCommission += noBarberIncome;
 
-  // Top services (from transaction_items via this tenant's transactions)
-  const svcMap: Record<string, { total: number; count: number }> = {};
-  const prodMap: Record<string, { total: number; count: number }> = {};
-
-  for (const item of serviceItems || []) {
-    if (!svcMap[item.description]) svcMap[item.description] = { total: 0, count: 0 };
-    svcMap[item.description].total += Number(item.total);
-    svcMap[item.description].count += item.quantity;
+  // Servicios y productos: lo realmente cobrado de cada venta se reparte entre sus líneas (descuentos incluidos), así
+  // «Top servicios» + «Top productos» suman el Movimiento total. Ver src/lib/cierre-calculo.ts.
+  const lineasPorVenta = new Map<string, VentaCierre["lineas"]>();
+  for (const it of allItems || []) {
+    const tipo = it.service_id ? "servicio" : it.product_id ? "producto" : null;
+    if (!tipo) continue;
+    const arr = lineasPorVenta.get(it.transaction_id) || [];
+    arr.push({ description: it.description, total: Number(it.total) || 0, quantity: Number(it.quantity) || 1, tipo });
+    lineasPorVenta.set(it.transaction_id, arr);
   }
-
-  for (const item of productItems || []) {
-    if (!prodMap[item.description]) prodMap[item.description] = { total: 0, count: 0 };
-    prodMap[item.description].total += Number(item.total);
-    prodMap[item.description].count += item.quantity;
-  }
+  const reparto = repartirVentas((incomeTx || []).map((t: any) => ({ id: t.id, total: Number(t.total) || 0, lineas: lineasPorVenta.get(t.id) || [] })));
+  const verificacion = cuadra(reparto);
 
   // Punto 18 (Pablo): "incorporar egresos manuales al cierre mensual" — el total ya
   // incluia los egresos manuales (electricidad, arriendo, sueldos, insumos, bebidas,
@@ -223,20 +236,23 @@ export async function GET(req: NextRequest) {
       incomeRental,
       salonNetIncome: incomeCommission - totalExpenses, // lo que queda para la barberia
       totalTransactions: (incomeTx?.length || 0) + (expenseTx?.length || 0),
+      incomeCount: incomeTx?.length || 0,
+      expenseCount: expenseTx?.length || 0,
       appointmentsCompleted: appointmentsCompleted || 0,
       newClients: newClients || 0,
     },
     incomeByMethod: Object.entries(methodMap).map(([method, v]) => ({
       method, ...v,
     })),
-    topServices: Object.entries(svcMap)
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10),
-    topProducts: Object.entries(prodMap)
-      .map(([name, v]) => ({ name, ...v }))
-      .sort((a, b) => b.total - a.total)
-      .slice(0, 10),
+    topServices: reparto.servicios.slice(0, 10).map((f) => ({ name: f.nombre, count: f.cantidad, total: f.cobrado, lista: f.lista, descuentos: f.descuentos })),
+    topProducts: reparto.productos.slice(0, 10).map((f) => ({ name: f.nombre, count: f.cantidad, total: f.cobrado, lista: f.lista, descuentos: f.descuentos })),
+    // Resumen que cuadra: servicios a lista − descuentos = servicios cobrados; + productos + sin detalle = Movimiento total.
+    resumenCuadra: {
+      serviciosLista: reparto.serviciosLista, descuentos: reparto.descuentos, serviciosCobrado: reparto.serviciosCobrado,
+      productosCobrado: reparto.productosCobrado, sinDetalle: reparto.sinDetalle, totalIngresos: reparto.totalVentas,
+      cuadra: verificacion.ok, diferencia: verificacion.diferencia, ventasAjustadas: reparto.ventasAjustadas.length,
+      ventasSinProfesional: unico ? 0 : sinProfesional.length, montoSinProfesional: unico ? 0 : sinProfesionalTotal,
+    },
     incomeByBarber: Object.values(nameGroups)
       .map(({ name, total, count, workMode }) => ({ name, total, count, workMode }))
       .sort((a, b) => b.total - a.total),

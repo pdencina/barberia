@@ -1,5 +1,6 @@
 "use client";
 
+import { profesionalUnico } from "@/lib/cierre-calculo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { pareceCodigoPlanilla } from "@/lib/planilla-codigo";
 import { useState, useEffect } from "react";
@@ -95,6 +96,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const [sortBy, setSortBy] = useState<"default" | "price_asc" | "price_desc">("default");
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedBarber, setSelectedBarber] = useState(standby?.barber.id || "");
+  const [soloPro, setSoloPro] = useState<string | null>(null); // id del único profesional del negocio (si lo hay)
   const [selectedClient, setSelectedClient] = useState("");
   // Cita que viene del boton "Cobrar" del calendario: al cobrar queda completada.
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
@@ -207,6 +209,9 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
       setProducts(Array.isArray(productsData) ? productsData.filter((p: any) => (p.product_type || "sale") !== "supply") : []);
       setClients(Array.isArray(clientsData?.clients) ? clientsData.clients : Array.isArray(clientsData) ? clientsData : []);
       setBarbers(Array.isArray(barbersData) ? barbersData : []);
+      // Negocio de UN solo profesional (o donde la dueña es quien atiende): queda preseleccionado y el selector se oculta, así
+      // ninguna venta queda sin profesional. Con equipo, el selector sigue y es obligatorio antes de cobrar.
+      if (!standby && Array.isArray(barbersData)) { const unico = profesionalUnico(barbersData); if (unico) { setSoloPro(unico); setSelectedBarber((actual) => actual || unico); } }
       if (tuuSettings?.card_payment_provider === "tuu") setCardProvider("tuu");
 
       // Pre-load from the calendar's "Cobrar" button (?clientId=&barberId=&serviceIds=).
@@ -870,7 +875,11 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
             )}
           </div>
           <div className="grid grid-cols-2 gap-2">
-            {standby ? (
+            {soloPro && !standby ? (
+              <div className="flex items-center rounded-xl border border-brand-blue/30 bg-brand-blue/5 px-3 py-2 text-xs font-semibold text-brand-blue">
+                {barbers.find((b) => b.id === soloPro)?.name || "Profesional"}
+              </div>
+            ) : standby ? (
               <div className="flex items-center rounded-xl border border-brand-blue/30 bg-brand-blue/5 px-3 py-2 text-xs font-semibold text-brand-blue">
                 {standby.barber.name}
               </div>

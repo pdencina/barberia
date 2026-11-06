@@ -23,13 +23,16 @@ interface ReportData {
     incomeRental: number;
     salonNetIncome: number;
     totalTransactions: number;
+    incomeCount?: number;
+    expenseCount?: number;
     appointmentsCompleted: number;
     newClients: number;
   };
   incomeByBarber: Array<{ name: string; total: number; count: number; workMode: string }>;
   incomeByMethod: Array<{ method: string; total: number; count: number }>;
-  topServices: Array<{ name: string; count: number; total: number }>;
-  topProducts: Array<{ name: string; count: number; total: number }>;
+  topServices: Array<{ name: string; count: number; total: number; lista?: number; descuentos?: number }>;
+  topProducts: Array<{ name: string; count: number; total: number; lista?: number; descuentos?: number }>;
+  resumenCuadra?: { serviciosLista: number; descuentos: number; serviciosCobrado: number; productosCobrado: number; sinDetalle: number; totalIngresos: number; cuadra: boolean; diferencia: number; ventasAjustadas: number; ventasSinProfesional: number; montoSinProfesional: number };
   expensesDetail: Array<{ name: string; count: number; total: number }>;
 }
 
@@ -186,7 +189,7 @@ export default function ReportesPage() {
           tone="green"
           hint="Comisión − egresos"
         />
-        <StatCard label="Transacciones" value={<AnimatedNumber value={data.summary.totalTransactions} />} Icon={Receipt} tone="slate" />
+        <StatCard label="Ingresos y egresos" hint={data.summary.incomeCount !== undefined ? `${data.summary.incomeCount} ingresos · ${data.summary.expenseCount} egresos` : undefined} value={<AnimatedNumber value={data.summary.totalTransactions} />} Icon={Receipt} tone="slate" />
         <StatCard label="Citas completadas" value={<AnimatedNumber value={data.summary.appointmentsCompleted} />} Icon={CalendarCheck} tone="teal" />
         <StatCard label="Clientes nuevos" value={<AnimatedNumber value={data.summary.newClients} />} Icon={UserPlus} tone="green" />
       </div>
@@ -195,6 +198,38 @@ export default function ReportesPage() {
       {comparison.length > 0 && (
         <Panel title="Comparativa mensual" subtitle="Últimos 6 meses">
           <ComparativaChart data={comparison} />
+        </Panel>
+      )}
+
+      {/* Ventas sin profesional (negocios con equipo): avisa para poder asignarlas antes de cerrar el mes */}
+      {data.resumenCuadra && data.resumenCuadra.ventasSinProfesional > 0 && (
+        <div className="rounded-2xl border border-brand-blue/30 bg-brand-blue/5 px-4 py-3 text-sm text-brand-dark">
+          <b>{data.resumenCuadra.ventasSinProfesional} {data.resumenCuadra.ventasSinProfesional === 1 ? "venta" : "ventas"} sin profesional</b> ({formatCurrency(data.resumenCuadra.montoSinProfesional)}). Aparecen aparte en «Ingresos por profesional». Para asignarlas, entra a Ingresos/Egresos, toca Modificar en cada venta y elige «Corresponde a: Profesional».
+        </div>
+      )}
+
+      {/* Resumen que cuadra: de lo que se cobró por servicios y productos al total del mes */}
+      {data.resumenCuadra && data.resumenCuadra.totalIngresos > 0 && (
+        <Panel title="Resumen que cuadra" subtitle="De los servicios a precio de lista al movimiento total">
+          <div className="space-y-1.5 text-sm">
+            {([
+              ["Servicios a precio de lista", data.resumenCuadra.serviciosLista, false],
+              ["− Descuentos y ajustes", -data.resumenCuadra.descuentos, false],
+              ["= Servicios cobrados", data.resumenCuadra.serviciosCobrado, true],
+              ["+ Productos cobrados", data.resumenCuadra.productosCobrado, false],
+              ...(data.resumenCuadra.sinDetalle > 0 ? [["+ Ventas sin detalle de servicio o producto", data.resumenCuadra.sinDetalle, false]] : []),
+              ["= Movimiento total (ingresos)", data.resumenCuadra.totalIngresos, true],
+            ] as [string, number, boolean][]).map(([nombre, monto, fuerte]) => (
+              <div key={nombre} className={`flex items-center justify-between gap-3 ${fuerte ? "border-t border-gray-100 pt-1.5 font-bold text-brand-dark" : "text-brand-gray"}`}>
+                <span>{nombre}</span><span className="tabular-nums">{monto < 0 ? "−" : ""}{formatCurrency(Math.abs(monto))}</span>
+              </div>
+            ))}
+          </div>
+          <p className={`mt-3 rounded-xl px-3 py-2 text-xs ${data.resumenCuadra.cuadra ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"}`}>
+            {data.resumenCuadra.cuadra
+              ? `Cuadra: los ingresos suman igual en todas las tablas.${data.resumenCuadra.ventasAjustadas > 0 ? ` ${data.resumenCuadra.ventasAjustadas} ${data.resumenCuadra.ventasAjustadas === 1 ? "venta tenía" : "ventas tenían"} líneas que sumaban distinto de lo cobrado y se ajustaron.` : ""}`
+              : `No cuadra: hay una diferencia de ${formatCurrency(Math.abs(data.resumenCuadra.diferencia))}. Revisa las ventas del mes.`}
+          </p>
         </Panel>
       )}
 
@@ -262,7 +297,9 @@ export default function ReportesPage() {
                 <tr>
                   <th className={ts.th}>Servicio</th>
                   <th className={ts.thCenter}>Cantidad</th>
-                  <th className={ts.thRight}>Total</th>
+                  <th className={ts.thRight}>Lista</th>
+                  <th className={ts.thRight}>Descuentos</th>
+                  <th className={ts.thRight}>Cobrado</th>
                 </tr>
               </thead>
               <tbody className={ts.tbody}>
@@ -270,6 +307,8 @@ export default function ReportesPage() {
                   <tr key={i} className={ts.tr}>
                     <td className={ts.td}>{row.name}</td>
                     <td className={ts.tdCenter}>{row.count}</td>
+                    <td className={ts.tdRight}>{formatCurrency(row.lista ?? row.total)}</td>
+                    <td className={ts.tdRight}>{(row.descuentos ?? 0) > 0.5 ? `−${formatCurrency(row.descuentos!)}` : "—"}</td>
                     <td className={ts.tdRight}>{formatCurrency(row.total)}</td>
                   </tr>
                 ))}
