@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { sendAppointmentReminder } from "@/lib/resend";
+import { telefonoDeNegocio } from "@/lib/contacto-negocio";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { verifyCron } from "@/lib/cron-auth";
 
@@ -98,6 +99,7 @@ export async function GET(req: NextRequest) {
             serviceName,
             date: startTime,
             appointmentId: appt.id,
+            businessPhone: await telefonoDeNegocio(supabase, tenantId),
           });
           emailSent = true;
           emailsSent++;

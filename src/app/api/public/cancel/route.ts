@@ -5,6 +5,22 @@ import { notify } from "@/lib/notify";
 import { motivoValido, limpiarNota, NOTA_MINIMA, aHoraPared } from "@/lib/cancel-reasons";
 import { getPlazoCambios, aunSePuedeCambiar, textoPlazo } from "@/lib/cambio-cliente";
 
+// Negocio de la cita (nombre y enlace de reserva) para que la página de cancelar mande al cliente a reagendar en SU negocio.
+// Solo devuelve datos públicos del negocio de esa cita; nunca de otros.
+async function negocioDeCita(supabase: any, appointmentId: string) {
+  const { data } = await supabase.from("appointments").select("tenant_id").eq("id", appointmentId).maybeSingle();
+  const tid = (data as any)?.tenant_id;
+  if (!tid) return null;
+  const { data: t } = await supabase.from("tenants").select("name, slug").eq("id", tid).maybeSingle();
+  return t ? { name: (t as any).name as string, slug: (t as any).slug as string } : null;
+}
+
+export async function GET(req: NextRequest) {
+  const id = new URL(req.url).searchParams.get("id") || "";
+  if (!/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ negocio: null });
+  return NextResponse.json({ negocio: await negocioDeCita(createAdminSupabase(), id) });
+}
+
 // POST: Cancel an appointment by ID (public, no auth needed - uses appointment ID as token)
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -75,5 +91,5 @@ export async function POST(req: NextRequest) {
     console.error("aviso de cancelacion:", e);
   }
 
-  return NextResponse.json({ success: true, message: "Cita cancelada exitosamente" });
+  return NextResponse.json({ success: true, message: "Cita cancelada exitosamente", negocio: await negocioDeCita(supabase, appointmentId).catch(() => null) });
 }

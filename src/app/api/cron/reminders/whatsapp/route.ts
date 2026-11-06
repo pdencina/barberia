@@ -1,3 +1,4 @@
+import { formatoTelefono, telefonoDeNegocio } from "@/lib/contacto-negocio";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { chileDateOffset } from "@/lib/utils";
@@ -42,6 +43,8 @@ export async function GET(req: NextRequest) {
   if (!appointments) return NextResponse.json([]);
 
   const bookingUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl";
+  // Teléfono del negocio de ESTA sesión (antes era un número fijo de otro negocio).
+  const telNegocio = formatoTelefono(await telefonoDeNegocio(supabase, tenantId));
 
   // Punto 4 (Nico): el mensaje decia "manana" fijo, pero ahora la fecha puede ser
   // cualquier dia elegido en el selector, asi que el texto debe reflejar el dia real.
@@ -74,8 +77,7 @@ export async function GET(req: NextRequest) {
         `Servicio: ${services}\n` +
         `Profesional: ${barber?.name || "Tu profesional"}\n` +
         `Hora: ${time}\n\n` +
-        `Te esperamos!\n` +
-        `Si necesitas cancelar: 9 4266 6172`;
+        `Te esperamos!${telNegocio ? `\nSi necesitas cancelar: ${telNegocio}` : ""}`;
 
       let quotaOk = true;
       if (phone) {

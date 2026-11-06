@@ -6,6 +6,7 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 import { getQuotaStatus, tryConsumeQuota } from "@/lib/message-quota";
 import { hayCreditos, tryConsumirCreditos } from "@/lib/wa-credits";
 import { sendAppointmentReminder } from "@/lib/resend";
+import { telefonoDeCita } from "@/lib/contacto-negocio";
 import { parseWallClock } from "@/lib/wallclock";
 
 export const dynamic = "force-dynamic";
@@ -46,6 +47,7 @@ export const GET = crearManejadorRecordatorios({
           barberName: cita.barber?.name ?? "Tu profesional",
           serviceName: cita.services.map(s => s.service?.name).filter(Boolean).join(", ") || "Servicio",
           date: parseWallClock(cita.start_time), appointmentId: cita.id,
+          businessPhone: await telefonoDeCita(createAdminSupabase(), cita.id),
         });
         // HECHO: resend.ts:457-465 descarta la respuesta del proveedor y devuelve void.
         // No inventar aceptación: no reintentar; Claude debe exponer el resultado verificado.

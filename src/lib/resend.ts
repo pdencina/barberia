@@ -1,4 +1,5 @@
 import { fraseCorreoPlazo } from "@/lib/cambio-cliente";
+import { lineaContactoHtml } from "@/lib/contacto-negocio";
 import { getResendClient } from "@/lib/resend-client";
 import { couponDiscountText } from "@/lib/retention-message";
 import { receiptThanksHtml } from "@/lib/receipt-thanks";
@@ -232,6 +233,8 @@ function mailRow(label: string, value: string, strong = false): string {
 }
 
 interface SendBookingConfirmationParams {
+  // Teléfono del NEGOCIO (tenants.phone) para la línea «¿Dudas?». Sin valor no se muestra ninguno (nunca un número de otro negocio).
+  businessPhone?: string | null;
   // Horas de anticipación hasta las que el cliente puede cancelar o modificar (tenants.client_change_hours). Sin valor, el correo no menciona plazo.
   changeHours?: number | null;
   to: string;
@@ -247,7 +250,7 @@ interface SendBookingConfirmationParams {
 }
 
 export async function sendBookingConfirmation(params: SendBookingConfirmationParams) {
-  const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl, changeHours } = params;
+  const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl, changeHours, businessPhone } = params;
 
   // La hora de la cita se guarda como "hora de pared de Chile escrita como UTC": se formatea siempre como UTC para que el
   // correo muestre la misma hora en cualquier servidor (en Vercel ya era UTC; en uno con hora de Chile se corria 3 horas).
@@ -279,7 +282,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
     </table>
     ${appointmentId ? `<div style="text-align:center;margin:26px 0 6px;"><a href="https://www.re-booking.cl/cancel/${appointmentId}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Cancelar o modificar cita</a></div>` : ""}
     ${appointmentId && typeof changeHours === "number" ? `<p style="text-align:center;font-size:13px;color:#6B7280;margin:10px 0 0;">${fraseCorreoPlazo(changeHours)}</p>` : ""}
-    <p style="text-align:center;font-size:13px;color:#6B7280;margin:14px 0 0;">¿Dudas? Escríbenos al <strong style="color:#111827;">9 4266 6172</strong></p>
+    ${lineaContactoHtml("¿Dudas?", businessPhone)}
     <p style="text-align:center;font-size:14px;color:#374151;margin:18px 0 0;">¡Te esperamos!</p>`,
   });
 
@@ -297,6 +300,8 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 
 // Aviso al cliente cuando el equipo cambia su cita (hora, profesional o servicios). Mismo formato que la confirmacion.
 interface SendAppointmentUpdatedParams {
+  // Teléfono del NEGOCIO (tenants.phone) para la línea «¿Dudas?». Sin valor no se muestra ninguno (nunca un número de otro negocio).
+  businessPhone?: string | null;
   // Horas de anticipación hasta las que el cliente puede cancelar o modificar (tenants.client_change_hours). Sin valor, el correo no menciona plazo.
   changeHours?: number | null;
   to: string;
@@ -312,7 +317,7 @@ interface SendAppointmentUpdatedParams {
 }
 
 export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParams) {
-  const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl, changeHours } = params;
+  const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl, changeHours, businessPhone } = params;
 
   // La hora de la cita se guarda como "hora de pared de Chile escrita como UTC": se formatea siempre como UTC para que el
   // correo muestre la misma hora en cualquier servidor (en Vercel ya era UTC; en uno con hora de Chile se corria 3 horas).
@@ -344,7 +349,7 @@ export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParam
     </table>
     ${appointmentId ? `<div style="text-align:center;margin:26px 0 6px;"><a href="https://www.re-booking.cl/cancel/${appointmentId}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Cancelar o modificar cita</a></div>` : ""}
     ${appointmentId && typeof changeHours === "number" ? `<p style="text-align:center;font-size:13px;color:#6B7280;margin:10px 0 0;">${fraseCorreoPlazo(changeHours)}</p>` : ""}
-    <p style="text-align:center;font-size:13px;color:#6B7280;margin:14px 0 0;">¿Dudas? Escríbenos al <strong style="color:#111827;">9 4266 6172</strong></p>
+    ${lineaContactoHtml("¿Dudas?", businessPhone)}
     <p style="text-align:center;font-size:14px;color:#374151;margin:18px 0 0;">¡Te esperamos!</p>`,
   });
 
@@ -435,6 +440,8 @@ export async function sendRetentionEmail(params: SendRetentionEmailParams) {
 
 
 interface SendAppointmentReminderParams {
+  // Teléfono del NEGOCIO (tenants.phone) para la línea «¿Dudas?». Sin valor no se muestra ninguno (nunca un número de otro negocio).
+  businessPhone?: string | null;
   to: string;
   clientName: string;
   barberName: string;
@@ -444,7 +451,7 @@ interface SendAppointmentReminderParams {
 }
 
 export async function sendAppointmentReminder(params: SendAppointmentReminderParams) {
-  const { to, clientName, barberName, serviceName, date, appointmentId } = params;
+  const { to, clientName, barberName, serviceName, date, appointmentId, businessPhone } = params;
 
   const dateStr = new Date(date).toLocaleDateString("es-CL", {
     weekday: "long",
@@ -471,7 +478,7 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
       <a href="${appBase}/api/public/confirm-attendance?id=${appointmentId}&action=confirm" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:11px 24px;border-radius:10px;font-weight:700;font-size:14px;margin:0 4px 8px;">✓ Asistiré</a>
       <a href="${appBase}/cancel/${appointmentId}" style="display:inline-block;background:#F3F4F6;color:#374151;text-decoration:none;padding:11px 24px;border-radius:10px;font-weight:700;font-size:14px;margin:0 4px 8px;">✕ No podré ir</a>
     </div>` : ""}
-    <p style="text-align:center;font-size:13px;color:#6B7280;margin:14px 0 0;">¿Necesitas reprogramar? Escríbenos al <strong style="color:#111827;">9 4266 6172</strong></p>
+    ${lineaContactoHtml("¿Necesitas reprogramar?", businessPhone)}
     <p style="text-align:center;font-size:14px;color:#374151;margin:18px 0 0;">¡Te esperamos!</p>`,
   });
 

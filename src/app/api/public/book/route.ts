@@ -216,9 +216,11 @@ export async function POST(req: NextRequest) {
   // Business logo for the confirmation email (so it shows the salon's brand, not the
   // generic re-booking logo).
   let businessLogoUrl: string | null = null;
+  let businessPhone: string | null = null;
   if (tenantId) {
-    const { data: tenantRow } = await supabase.from("tenants").select("logo_url").eq("id", tenantId).single();
+    const { data: tenantRow } = await supabase.from("tenants").select("logo_url, phone").eq("id", tenantId).single();
     businessLogoUrl = tenantRow?.logo_url || null;
+    businessPhone = (tenantRow as any)?.phone || null;
   }
 
   // Send confirmation email (non-blocking). Cuenta contra el cupo de correos del negocio
@@ -237,6 +239,7 @@ export async function POST(req: NextRequest) {
           price: totalPrice,
           appointmentId: appointment!.id,
           businessLogoUrl,
+          businessPhone,
           changeHours: await getPlazoCambios(supabase, tenantId),
         });
       } else {
