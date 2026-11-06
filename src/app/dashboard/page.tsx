@@ -13,6 +13,7 @@ import { useToast } from "@/components/ui/toast";
 import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashboard/sales-chart";
 import { VentasPorProfesional, MediosDePago, type VentaProfesional, type VentaMedio } from "@/components/dashboard/ventas-desglose";
 import { NotasCard } from "@/components/dashboard/notas-card";
+import { NovedadesCard } from "@/components/dashboard/novedades-card";
 import { MetricInfo, type InfoMetrica } from "@/components/dashboard/metric-info";
 import { consejosCancelaciones, consejosConfirmadas, consejosReservas, consejosClientesNuevos, type ResumenCancelaciones, type CancelacionFila } from "@/lib/cancel-reasons";
 import { ProductCarousel, type CarouselItem } from "@/components/dashboard/product-carousel";
@@ -415,6 +416,9 @@ export default function DashboardPage() {
         />
         </Sec>
       </div>
+
+      {/* Novedades de la semana: qué funcionó, qué empeoró y alertas (solo admin; si no hay nada que decir, no aparece) */}
+      {isAtLeast("admin") && <Sec id="novedades" className="empty:hidden" {...secProps}><NovedadesCard /></Sec>}
 
       {/* Cumpleanos del mes (solo admin; no se muestra si no hay) */}
       {isAtLeast("admin") && <Sec id="problemas" className="empty:hidden" {...secProps}><ProblemReportsCard /></Sec>}
