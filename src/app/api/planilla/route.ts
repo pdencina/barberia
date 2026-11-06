@@ -3,6 +3,7 @@ import { createAdminSupabase, getCurrentUserRoleAndTenant, isManagerLevel } from
 import { computeProMonths } from "@/lib/ledger";
 import { todayInChile } from "@/lib/utils";
 import { notify } from "@/lib/notify";
+import { precioInterno } from "@/lib/precio-interno";
 import { makeShortCode, makeScanCode, resumenLineas, type LineaPlanilla } from "@/lib/planilla-codigo";
 
 // Descuento por planilla: el profesional elige un producto y se genera un CODIGO. Recien cuando
@@ -34,10 +35,11 @@ export async function POST(req: NextRequest) {
   const lines: LineaPlanilla[] = [];
   for (const [productId, quantity] of Array.from(wanted.entries())) {
     const { data: prod } = await supabase.from("products")
-      .select("id, name, price, stock, product_type").eq("id", productId).eq("tenant_id", tenantId).eq("active", true).maybeSingle();
+      .select("*").eq("id", productId).eq("tenant_id", tenantId).eq("active", true).maybeSingle();
     if (!prod || ((prod as any).product_type || "sale") === "supply") return NextResponse.json({ error: "Producto no encontrado" }, { status: 404 });
     if (Number(prod.stock) < quantity) return NextResponse.json({ error: `De ${prod.name} solo quedan ${prod.stock} en stock.` }, { status: 409 });
-    const unit = Math.round(Number(prod.price));
+    // Lo que se descuenta es el precio interno (o especial) del producto; si el negocio no puso uno, el precio de venta.
+    const unit = precioInterno(prod as any);
     lines.push({ product_id: prod.id, product_name: prod.name, quantity, unit_price: unit, total: unit * quantity });
   }
   const total = lines.reduce((t, l) => t + l.total, 0);

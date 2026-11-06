@@ -44,6 +44,7 @@ export interface DependenciasWebhook {
     guardarEstado: (tenantId: string, contactHash: string, estado: EstadoChat, expiraMs: number) => Promise<void>;
     borrarEstado: (tenantId: string, contactHash: string) => Promise<void>;
     reservasFuturas: (tenantId: string, telefono: string, ahora: number) => Promise<number>;
+    detalleFuturas?: (tenantId: string, telefono: string, ahora: number) => Promise<Array<{ profesional: string; fecha: string; hora: string }>>;
     crearReserva: (tenantId: string, a: { profesionalId: string; fecha: string; hora: string; servicioId: string; nombre: string; correo: string; telefono: string }) => Promise<ResultadoCreacion>;
     contar: (tenantId: string, campo: CampoIndicador, ahora: number) => Promise<void>;
   };
@@ -164,6 +165,7 @@ export function crearManejadoresWebhook(config: {
                           guardarEstado: (e) => chat.guardarEstado(n.tenantId,p.remitenteHash,e,deps.ahora() + VIGENCIA_MIN * 60000),
                           borrarEstado: () => chat.borrarEstado(n.tenantId,p.remitenteHash),
                           reservasFuturas: (tel) => chat.reservasFuturas(n.tenantId,tel,deps.ahora()),
+                          ...(chat.detalleFuturas ? { detalleFuturas: (tel: string) => chat.detalleFuturas!(n.tenantId,tel,deps.ahora()) } : {}),
                           crearReserva: (a) => chat.crearReserva(n.tenantId,a),
                           contar,
                         });
@@ -201,6 +203,7 @@ export function crearManejadoresWebhook(config: {
                                     guardarEstado: (e) => chat.guardarEstado(n.tenantId,p.remitenteHash,e,deps.ahora() + VIGENCIA_MIN * 60000),
                                     borrarEstado: () => chat.borrarEstado(n.tenantId,p.remitenteHash),
                                     reservasFuturas: (tel) => chat.reservasFuturas(n.tenantId,tel,deps.ahora()),
+                          ...(chat.detalleFuturas ? { detalleFuturas: (tel: string) => chat.detalleFuturas!(n.tenantId,tel,deps.ahora()) } : {}),
                                     crearReserva: (a) => chat.crearReserva(n.tenantId,a),
                                     contar,
                                   });

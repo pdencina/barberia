@@ -48,7 +48,7 @@ export default function InventarioPage() {
   const [showProductModal, setShowProductModal] = useState(false);
   const [showMovementModal, setShowMovementModal] = useState(false);
   const [productForm, setProductForm] = useState({
-    name: "", sku: "", barcode: "", cost: "", price: "", stock: "", min_stock: "", comType: "", comValue: "", hadCom: false, productType: "sale", category: "",
+    name: "", sku: "", barcode: "", cost: "", price: "", internalPrice: "", stock: "", min_stock: "", comType: "", comValue: "", hadCom: false, productType: "sale", category: "",
   });
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   // Filtro por tipo y categorias (base + propias del negocio).
@@ -194,6 +194,8 @@ export default function InventarioPage() {
       barcode: productForm.barcode || null,
       cost: parseFloat(productForm.cost),
       price: productForm.productType === "supply" ? 0 : parseFloat(productForm.price),
+      // Precio interno / especial: vacío = se usa el precio de venta (al editar, null borra el que había).
+      internal_price: productForm.productType === "supply" || productForm.internalPrice === "" ? null : parseFloat(productForm.internalPrice),
       stock: parseInt(productForm.stock),
       min_stock: parseInt(productForm.min_stock),
       tenantId: activeTenantId || undefined,
@@ -237,7 +239,7 @@ export default function InventarioPage() {
     }
     setShowProductModal(false);
     setEditingProductId(null);
-    setProductForm({ name: "", sku: "", barcode: "", cost: "", price: "", stock: "", min_stock: "", comType: "", comValue: "", hadCom: false, productType: "sale", category: "" });
+    setProductForm({ name: "", sku: "", barcode: "", cost: "", price: "", internalPrice: "", stock: "", min_stock: "", comType: "", comValue: "", hadCom: false, productType: "sale", category: "" });
     fetchData();
   };
 
@@ -267,11 +269,11 @@ export default function InventarioPage() {
 
   const openNewProduct = () => guard(() => {
     setEditingProductId(null);
-    setProductForm({ name: "", sku: "", barcode: "", cost: "", price: "", stock: "", min_stock: "", comType: "", comValue: "", hadCom: false, productType: "sale", category: "" });
+    setProductForm({ name: "", sku: "", barcode: "", cost: "", price: "", internalPrice: "", stock: "", min_stock: "", comType: "", comValue: "", hadCom: false, productType: "sale", category: "" });
     setShowProductModal(true);
   });
   const openEditProduct = (p: Product) => guard(() => {
-    setProductForm({ name: p.name, sku: p.sku || "", barcode: (p as any).barcode || "", cost: String(p.cost), price: String(p.price), stock: String(p.stock), min_stock: String(p.min_stock), comType: p.sales_commission_type || "", comValue: p.sales_commission_value ? String(Number(p.sales_commission_value)) : "", hadCom: !!p.sales_commission_type, productType: (p.product_type as "sale" | "supply") || "sale", category: p.category || "" });
+    setProductForm({ name: p.name, sku: p.sku || "", barcode: (p as any).barcode || "", cost: String(p.cost), price: String(p.price), internalPrice: (p as any).internal_price !== null && (p as any).internal_price !== undefined ? String(Math.round(Number((p as any).internal_price))) : "", stock: String(p.stock), min_stock: String(p.min_stock), comType: p.sales_commission_type || "", comValue: p.sales_commission_value ? String(Number(p.sales_commission_value)) : "", hadCom: !!p.sales_commission_type, productType: (p.product_type as "sale" | "supply") || "sale", category: p.category || "" });
     setEditingProductId(p.id);
     setShowProductModal(true);
   });
@@ -374,7 +376,7 @@ export default function InventarioPage() {
                       </select>
                     </td>
                     <td className={`${td} text-right tabular-nums`}>{formatCurrency(Number(p.cost))}</td>
-                    <td className={`${td} text-right tabular-nums`}>{supply ? <span className="text-gray-300">—</span> : formatCurrency(Number(p.price))}</td>
+                    <td className={`${td} text-right tabular-nums`}>{supply ? <span className="text-gray-300">—</span> : <>{formatCurrency(Number(p.price))}{(p as any).internal_price !== null && (p as any).internal_price !== undefined && Number((p as any).internal_price) !== Number(p.price) && <span className="block text-[10px] font-normal text-gray-400">interno {formatCurrency(Number((p as any).internal_price))}</span>}</>}</td>
                     <td className={`${td} whitespace-nowrap text-center tabular-nums`}>
                       <span className={low ? "font-bold text-red-600" : "font-semibold"}>{p.stock}</span>
                       <span className="text-[11px] text-brand-gray"> / {p.min_stock}</span>
@@ -529,6 +531,15 @@ export default function InventarioPage() {
                   </div>
                 )}
               </div>
+              {productForm.productType === "sale" && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Precio interno o especial <span className="font-normal text-gray-400">(opcional)</span></label>
+                  <input type="number" min="0" step="1" value={productForm.internalPrice} placeholder={productForm.price ? `Vacío = ${productForm.price} (el precio de venta)` : "Vacío = el precio de venta"}
+                    onChange={(e) => setProductForm({ ...productForm, internalPrice: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2" />
+                  <p className="mt-1 text-xs text-gray-500">Es lo que se le descuenta al profesional cuando se lleva este producto con un descuento por planilla. Si lo dejas vacío, se descuenta el precio de venta.</p>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">Stock</label>

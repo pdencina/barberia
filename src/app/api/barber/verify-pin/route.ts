@@ -24,7 +24,9 @@ export async function POST(req: NextRequest) {
     .from("profiles")
     .select("id, name")
     .or(await pinOr(supabase, pin))
-    .eq("role", "barber")
+    // Profesionales, y también administradores que atienden clientes (ej. quien trabaja sola en su negocio): antes solo
+    // entraba role = barber y el PIN de una administradora que corta pelo nunca abría su Standby.
+    .or("role.eq.barber,and(role.in.(admin,super_admin),also_attends_clients.eq.true)")
     .eq("active", true)
     .eq("tenant_id", tenantId)
     .limit(1);

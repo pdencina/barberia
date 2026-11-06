@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, isManagerLevel } from "@/lib/supabase/server";
+import { normalizarPrecioInterno } from "@/lib/precio-interno";
 
 export async function PATCH(
   req: NextRequest,
@@ -15,6 +16,13 @@ export async function PATCH(
   // El navegador manda tenantId (solo sirve al crear); no es columna de products y hacia fallar todo el guardado.
   // Tampoco se permite cambiar la identidad ni el negocio del producto desde aqui.
   const { tenantId: _ignored, id: _id, tenant_id: _tid, created_at: _ca, ...body } = await req.json();
+
+  // Precio interno / especial (migración 139): vacío o null lo borra (vuelve a valer el precio de venta).
+  if ("internal_price" in body) {
+    const interno = normalizarPrecioInterno(body.internal_price);
+    if (interno === undefined) return NextResponse.json({ error: "El precio interno no es válido" }, { status: 400 });
+    body.internal_price = interno;
+  }
 
   // If price is being changed, log it
   if (body.price !== undefined) {
@@ -44,8 +52,8 @@ export async function PATCH(
 
   // Columnas nuevas (comision por venta: migracion 091; tipo y categoria: 092): si aun no existen, no se pierde el
   // resto de los cambios.
-  if (error && /sales_commission|product_type|category/.test(error.message)) {
-    const { sales_commission_type: _t, sales_commission_value: _v, product_type: _p, category: _c, ...rest } = body;
+  if (error && /sales_commission|product_type|category|internal_price/.test(error.message)) {
+    const { sales_commission_type: _t, sales_commission_value: _v, product_type: _p, category: _c, internal_price: _i, ...rest } = body;
     ({ data, error } = await supabase.from("products").update(rest).eq("id", params.id).select().single());
   }
 
