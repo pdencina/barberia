@@ -12,12 +12,13 @@ const datos = (servicios?: DatosFaq["servicios"]): DatosFaq => ({
   negocio: { nombre: "N", direccion: null, telefono: null, linkReserva: "https://s.invalid/b/n" }, horario: [], profesionales: [],
   servicios: servicios ?? [{ id: "s1", nombre: "Corte de cabello", precio: 12000, duracionMin: 45 }, { id: "s2", nombre: "Corte + barba", precio: 18000, duracionMin: 60 }, { id: "s3", nombre: "Perfilado de barba", precio: 8000, duracionMin: 30 }],
 });
-function armar(estado: EstadoChat | null, opts: { futuras?: number; resultado?: ResultadoCreacion } = {}) {
+function armar(estado: EstadoChat | null, opts: { futuras?: number; resultado?: ResultadoCreacion; detalle?: Array<{ profesional: string; fecha: string; hora: string }> } = {}) {
   const e = { estado, creadas: [] as any[], contados: [] as CampoIndicador[], borrados: 0 };
   const deps: DependenciasReserva = {
     ahora: () => AHORA,
     leerEstado: async () => e.estado, guardarEstado: async (x) => { e.estado = x; }, borrarEstado: async () => { e.estado = null; e.borrados++; },
     reservasFuturas: async () => opts.futuras ?? 0,
+    ...(opts.detalle ? { detalleFuturas: async () => opts.detalle! } : {}),
     crearReserva: async (a) => { e.creadas.push(a); return opts.resultado ?? { ok: true, citaId: "cita-1" }; },
     contar: async (c) => { e.contados.push(c); },
   };
@@ -75,9 +76,40 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     for (const msg of ["no", "no gracias", "cancelar", "mejor no", "ya no"]) { const x = await r(msg, OFERTA_DIEGO); assert.ok(x.res!.texto.startsWith("Sin problema, no agendé nada."), msg); assert.equal(x.e.estado, null); }
     const y = await r("no gracias", { etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } }); assert.equal(y.e.estado, null);
   });
-  await caso("Ya tiene 2 horas futuras: no agenda otra y deriva a una persona", async () => {
-    const x = await r("la de las 4", OFERTA_DIEGO, { futuras: 2 });
+  const DETALLE = [{ profesional: "Matías Soto", fecha: "2026-11-03", hora: "19:00" }, { profesional: "Valentina Paredes", fecha: "2026-11-04", hora: "10:00" }];
+  await caso("Ya tiene 2 horas: muestra cuáles y pregunta si quiere otra, sin derivar", async () => {
+    const x = await r("la de las 4", OFERTA_DIEGO, { futuras: 2, detalle: DETALLE });
+    assert.equal(x.res!.derivar, undefined); assert.equal(x.e.creadas.length, 0);
+    assert.equal(x.res!.texto, "Ya tienes 2 horas agendadas:\n• *Matías Soto* hoy a las 19:00\n• *Valentina Paredes* mañana a las 10:00\n\n¿Quieres agendar otra de todas formas? Responde *sí* o *no*.\nSi prefieres cambiar o cancelar alguna, escríbenos y una persona te ayudará.");
+    assert.equal(x.e.estado?.etapa, "oferta"); assert.ok((x.e.estado as any).datos.extraPendiente?.hora === "16:00");
+    assert.equal(x.e.contados.length, 0, "todavía no empezó una reserva");
+  });
+  await caso("Sin detalle disponible igual pregunta", async () => {
+    const x = await r("la de las 4", OFERTA_DIEGO, { futuras: 3 });
+    assert.ok(x.res!.texto.startsWith("Ya tienes 3 horas agendadas.\n\n¿Quieres agendar otra de todas formas?"));
+  });
+  await caso("Confirma con un sí: pide los datos de esa hora", async () => {
+    const pregunta = await r("la de las 4", OFERTA_DIEGO, { futuras: 2, detalle: DETALLE });
+    const x = await r("si", pregunta.e.estado, { futuras: 2 });
+    assert.ok(x.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *16:00*."));
+    assert.equal(x.e.estado?.etapa, "datos"); assert.deepEqual(x.e.contados, ["reservas_iniciadas"]);
+  });
+  await caso("Dice que no: no agenda nada y borra la memoria", async () => {
+    const pregunta = await r("la de las 4", OFERTA_DIEGO, { futuras: 2 });
+    const x = await r("no", pregunta.e.estado, { futuras: 2 });
+    assert.ok(x.res!.texto.startsWith("Sin problema, no agendé nada.")); assert.equal(x.e.estado, null); assert.equal(x.e.creadas.length, 0);
+  });
+  await caso("Con 4 horas ya es el tope: deriva a una persona, también al confirmar", async () => {
+    const directo = await r("la de las 4", OFERTA_DIEGO, { futuras: 4 });
+    assert.equal(directo.res!.derivar, true); assert.equal(directo.e.estado, null); assert.ok(directo.res!.texto.includes("máximo"));
+    const pregunta = await r("la de las 4", OFERTA_DIEGO, { futuras: 2 });
+    const x = await r("sí", pregunta.e.estado, { futuras: 4 });
     assert.equal(x.res!.derivar, true); assert.equal(x.e.estado, null); assert.equal(x.e.creadas.length, 0);
+  });
+  await caso("Mientras espera la confirmación, otra cosa sigue el camino normal", async () => {
+    const pregunta = await r("la de las 4", OFERTA_DIEGO, { futuras: 2 });
+    const x = await r("cuanto cuesta un corte", pregunta.e.estado, { futuras: 2 });
+    assert.equal(x.res, null);
   });
 
   const DATOS_ETAPA: EstadoChat = { etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } };
