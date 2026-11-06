@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { EmptyIcons, SuccessMark } from "@/components/ui/empty-state";
 import { MOTIVOS_CLIENTE } from "@/lib/cancel-reasons";
@@ -11,6 +11,12 @@ export default function CancelPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [motivo, setMotivo] = useState("");
   const [nota, setNota] = useState("");
+  // Negocio de la cita: los botones de reagendar llevan SIEMPRE a ese negocio (antes iban a /booking sin negocio y la página quedaba cargando).
+  const [negocio, setNegocio] = useState<{ name: string; slug: string } | null>(null);
+  useEffect(() => {
+    fetch(`/api/public/cancel?id=${encodeURIComponent(String(params.id))}`).then((r) => r.json()).then((d) => setNegocio(d?.negocio || null)).catch(() => {});
+  }, [params.id]);
+  const urlReservar = negocio ? `/booking?tenant=${encodeURIComponent(negocio.slug)}` : null;
 
   const handleCancel = async () => {
     setStatus("loading");
@@ -24,6 +30,7 @@ export default function CancelPage() {
     const data = await res.json();
 
     if (res.ok) {
+      if (data.negocio) setNegocio(data.negocio);
       setStatus("success");
     } else {
       setErrorMsg(data.error || "Error al cancelar");
@@ -57,9 +64,11 @@ export default function CancelPage() {
               )}
             </div>
             <div className="flex gap-3">
-              <a href="/booking" className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50 flex items-center justify-center">
-                Volver
-              </a>
+              {urlReservar && (
+                <a href={urlReservar} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50 flex items-center justify-center">
+                  Volver
+                </a>
+              )}
               <button
                 onClick={handleCancel}
                 className="flex-1 py-2.5 bg-red-500 text-white rounded-xl text-sm font-medium hover:bg-red-600"
@@ -84,9 +93,11 @@ export default function CancelPage() {
             <p className="text-sm text-brand-gray mt-2 mb-6">
               Tu cita ha sido cancelada exitosamente. Puedes reagendar cuando quieras.
             </p>
-            <a href="/booking" className="block w-full py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-blue-700">
-              Agendar nueva cita
-            </a>
+            {urlReservar && (
+              <a href={urlReservar} className="block w-full py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-blue-700">
+                Agendar nueva cita{negocio ? ` en ${negocio.name}` : ""}
+              </a>
+            )}
           </>
         )}
 
@@ -97,9 +108,11 @@ export default function CancelPage() {
             </div>
             <h2 className="text-lg font-bold text-brand-dark">No se pudo cancelar</h2>
             <p className="text-sm text-red-500 mt-2 mb-6">{errorMsg}</p>
-            <a href="/booking" className="block w-full py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
-              Volver al inicio
-            </a>
+            {urlReservar && (
+              <a href={urlReservar} className="block w-full py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
+                Reservar otra hora
+              </a>
+            )}
           </>
         )}
       </div>

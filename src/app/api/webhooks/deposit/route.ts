@@ -271,6 +271,9 @@ export async function POST(req: NextRequest) {
         if (allowed) {
           const { data: barber } = await supabase.from("profiles").select("name").eq("id", barberId).single();
           const { sendBookingConfirmation } = await import("@/lib/resend");
+          const { plazoValido } = await import("@/lib/cambio-cliente");
+          let { data: negocioMail } = await supabase.from("tenants").select("logo_url, phone, client_change_hours").eq("id", tenantId).maybeSingle();
+          if (!negocioMail) negocioMail = (await supabase.from("tenants").select("logo_url, phone").eq("id", tenantId).maybeSingle()).data as any;
           const serviceNames = (await supabase.from("services").select("name").in("id", serviceIds)).data?.map((s) => s.name).join(" + ") || "";
 
           await sendBookingConfirmation({
@@ -278,11 +281,13 @@ export async function POST(req: NextRequest) {
             clientName,
             barberName: barber?.name || "Tu profesional",
             serviceName: serviceNames,
-            date: new Date(date + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }) as any,
+            date: startDate,   // la hora real de la cita (antes se mandaba un texto y el correo salía con «Invalid Date»)
             duration: totalDuration,
             price: totalPrice,
             appointmentId: appointment?.id || "",
-            changeHours: (await import("@/lib/cambio-cliente")).plazoValido((await supabase.from("tenants").select("client_change_hours").eq("id", tenantId).maybeSingle()).data?.client_change_hours) ?? 2,
+            businessLogoUrl: negocioMail?.logo_url || null,
+            businessPhone: negocioMail?.phone || null,
+            changeHours: plazoValido(negocioMail?.client_change_hours) ?? 2,
           });
         } else {
           console.warn(`Cupo de correos agotado para tenant ${tenantId}, no se envia confirmacion (deposito) a ${clientEmail}`);
