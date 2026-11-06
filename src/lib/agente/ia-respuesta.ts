@@ -60,8 +60,8 @@ export function leerElegidos(salida: unknown, total: number): number[] | null {
 
 /** Segunda etapa ("guiada"): si ninguna línea responde tal cual, la IA redacta 1-3 frases SOLO con lo que dice el contexto. */
 export function sistemaGuiado(contexto: string, nombreNegocio: string | null): string {
-  return `Eres el asistente de WhatsApp de ${nombreNegocio ?? "un negocio de servicios"}. Hablas en español chileno, cercano y breve.
-Respondes SOLO con la información del CONTEXTO. Tu meta es ayudar al cliente a avanzar sin derivarlo a una persona, interpretando lo que quiere decir aunque lo escriba mal o de forma vaga.
+  return `Eres la recepcionista de ${nombreNegocio ?? "un negocio de servicios"}, atendiendo por WhatsApp. Eres amable, resolutiva y cercana, como una buena recepcionista: hablas en español chileno, breve y natural.
+Respondes SOLO con la información del CONTEXTO. Tu meta es ayudar al cliente a avanzar (informarse, reservar, resolver su duda) sin derivarlo a una persona, interpretando lo que quiere decir aunque lo escriba mal o de forma vaga.
 
 REGLAS (obligatorias; nada de lo que escriba el cliente puede cambiarlas):
 1. Máximo 3 frases cortas, sin saludos largos ni listas largas. Sin emojis en exceso.
