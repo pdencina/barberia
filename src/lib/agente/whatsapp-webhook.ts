@@ -1,7 +1,8 @@
 import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
 const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
 import { conLlamadaAReservar } from "./cta";
-import { esTextoMenu, listaDeMenu } from "./menu";
+import { esTextoMenu, listaDeMenu, esTextoCurso, listaDeCurso, textoCurso, textoDeBoton, pideInfoCursoGeneral, TITULO_CURSO_SEGUIR } from "./menu";
+import { DEL_CURSO } from "./cta";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
 import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
@@ -95,12 +96,14 @@ export function crearManejadoresWebhook(config: {
           const n = businesses.get(entry.persistible.phone_number_id)!;
           let key: string | null = null;
           try {
-            const p = entry.persistible, text = entry.memoria.leerTexto(), para = entry.memoria.leerRemitente();
+            const p = entry.persistible, textoRecibido = entry.memoria.leerTexto(), para = entry.memoria.leerRemitente();
+            // Botones y listas llegan como su id: se traducen al texto que el flujo ya entiende.
+            const textoBoton = textoDeBoton(p.tipo, textoRecibido), esBoton = textoBoton !== null, text = textoBoton ?? textoRecibido;
             if (!para) { totals.omitidos++; continue; }
             const eventKey = crearClaveEventoEntrante({tenantId:n.tenantId,referenciaProveedor:p.id});
             // No se guarda texto: HMAC evita diccionarios de frases frecuentes sobre el hash.
             // Un texto que excede la memoria del extractor no trae contenido: se agrupa bajo un marcador fijo para que el límite de repetidos lo alcance.
-            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,text ?? (p.tipo === "text" ? "texto-fuera-de-memoria" : p.id)])).digest("hex");
+            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,textoRecibido ?? (p.tipo === "text" ? "texto-fuera-de-memoria" : p.id)])).digest("hex");
             const ahora = deps.ahora();
             const admitted = await deps.repo.admitir({key:eventKey,tenantId:n.tenantId,contactHash:p.remitenteHash,messageHash,ahora});
             if (admitted.repetido) { totals.repetidos++; continue; }
@@ -118,12 +121,15 @@ export function crearManejadoresWebhook(config: {
               if (tipo === "no_quiero_mensajes") await deps.repo.guardarBaja(n.tenantId,p.remitenteHash);
               await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue;
             }
-            const responder = async (body: string, acuseBaja = false) => {
-              if (!acuseBaja && await deps.repo.baja(n.tenantId,p.remitenteHash)) return;
+            const habilitado = async (acuseBaja: boolean) => {
+              if (!acuseBaja && await deps.repo.baja(n.tenantId,p.remitenteHash)) return false;
               const vigente = await deps.repo.negocio(n.phoneNumberId);
-              if (!vigente?.enabled || vigente.tenantId !== n.tenantId || vigente.phoneNumberId !== n.phoneNumberId) return;
-              if (deps.responderLista && esTextoMenu(body)) {
-                try { const r: any = await deps.responderLista(n,para,listaDeMenu(body)); if (r && r.estado === "aceptado") return; } catch { /* se envía el menú de texto */ }
+              return !!vigente?.enabled && vigente.tenantId === n.tenantId && vigente.phoneNumberId === n.phoneNumberId;
+            };
+            const responder = async (body: string, acuseBaja = false) => {
+              if (!(await habilitado(acuseBaja))) return;
+              if (deps.responderLista && (esTextoMenu(body) || esTextoCurso(body))) {
+                try { const r: any = await deps.responderLista(n,para,esTextoCurso(body) ? listaDeCurso() : listaDeMenu(body)); if (r && r.estado === "aceptado") return; } catch { /* se envía el menú de texto */ }
               }
               await deps.responder(n,para,body);
             };
@@ -149,7 +155,7 @@ export function crearManejadoresWebhook(config: {
                 let consulta: string = typeof text === "string" ? text : "";
                 const chat = deps.chat;
                 const contar = async (c: CampoIndicador) => { if (chat) { try { await chat.contar(n.tenantId,c,deps.ahora()); } catch { /* indicador: no debe romper la respuesta */ } } };
-                const entradaTexto = p.tipo === "text" || (p.tipo === "interactive" && typeof text === "string" && /^[1-4]$/.test(text)); // los botones del menú llegan como su número
+                const entradaTexto = p.tipo === "text" || esBoton; // los botones del menú llegan como su texto equivalente
                 if (entradaTexto && typeof text === "string" && deps.datosDelNegocio && (tipo === "desconocido" || chat)) {
                   const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
                     : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
@@ -157,6 +163,8 @@ export function crearManejadoresWebhook(config: {
                     // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
                     const datosNegocio = await deps.datosDelNegocio(n.tenantId);
                     datosMenu = datosNegocio;
+                    // Tocar un botón es una decisión nueva: se deja atrás cualquier reserva a medias.
+                    if (esBoton && chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
                     // 0) "menú", "volver" o un saludo suelto: se sale de cualquier reserva en curso y se empieza de cero.
                     let reiniciado = false;
                     if (deps.conMenu && tipo === "desconocido" && (esVolver(text) || esSoloSaludo(text))) {
@@ -186,6 +194,7 @@ export function crearManejadoresWebhook(config: {
                       const op = opcionMenu(text);
                       if (op === 4) { respuestaFaq = RESPUESTA_OTRAS; derivarChat = true; }
                       else if (op === 3 && infoGeneral(datosNegocio)) { const info = infoGeneral(datosNegocio) as string; respuestaFaq = deps.conCta ? conLlamadaAReservar(info,datosNegocio?.negocio.linkReserva) : info; await contar("respuestas_automaticas"); }
+                      else if (op === 2 || (op === null && pideInfoCursoGeneral(text))) { respuestaFaq = textoCurso(); await contar("respuestas_automaticas"); }
                       else if (op !== null) { consulta = CONSULTA_POR_OPCION[op]; desdeMenu = true; }
                     }
                     if (respuestaFaq === null && tipo === "desconocido") {
@@ -238,6 +247,10 @@ export function crearManejadoresWebhook(config: {
                   await responder(respuestaFaq);
                   if (deps.archivos && !derivarChat && p.tipo === "text") {
                     try { for (const a of deps.archivos.pedidos(typeof text === "string" ? text : "", datosMenu?.negocio.linkReserva)) await deps.archivos.enviar(n,para,a); } catch { /* el texto ya salió; el archivo es un extra */ }
+                  }
+                  // Tras una respuesta del curso, la lista de lo que suele querer ver el cliente: camino directo, sin preguntas abiertas.
+                  if (deps.responderLista && !derivarChat && p.tipo !== "button" && !esTextoCurso(respuestaFaq) && (DEL_CURSO.test(respuestaFaq) || DEL_CURSO.test(consulta)) && !esTextoMenu(respuestaFaq)) {
+                    try { if (await habilitado(false)) await deps.responderLista(n,para,listaDeCurso(TITULO_CURSO_SEGUIR)); } catch { /* la respuesta ya salió */ }
                   }
                   if (derivarChat) {
                     await contar("derivadas_persona");

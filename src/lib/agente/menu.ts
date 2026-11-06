@@ -76,14 +76,48 @@ export function infoGeneral(datos: DatosFaq | null): string | null {
 
 // Menú como lista de WhatsApp (botón "Ver opciones"): cada fila responde con su número, que el flujo ya entiende como opción.
 const FILAS_MENU = [
-  { id: "1", title: "Reservar una hora" },
-  { id: "2", title: "Información del curso" },
-  { id: "3", title: "Precios y horarios", description: "Precios, horarios y ubicación" },
-  { id: "4", title: "Otras preguntas" },
+  { id: "m1", title: "Reservar una hora" },
+  { id: "m2", title: "Información del curso" },
+  { id: "m3", title: "Precios y horarios", description: "Precios, horarios y ubicación" },
+  { id: "m4", title: "Otras preguntas" },
 ] as const;
 export const BOTON_MENU = "Ver opciones";
 export function esTextoMenu(cuerpo: string): boolean { return /\n1\. Deseo reservar\.\n2\./.test(cuerpo); }
 export function listaDeMenu(cuerpo: string): { cuerpo: string; boton: string; filas: readonly { id: string; title: string; description?: string }[] } {
   const sinNumeros = cuerpo.replace(/\n*1\. Deseo reservar\.\n2\. [^\n]*\n3\. [^\n]*\n4\. [^\n]*\n*/, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
   return { cuerpo: sinNumeros.replace(/Elige una opción:|elige una de estas opciones:/i, (m) => m.replace(/:$/, " en el botón:")), boton: BOTON_MENU, filas: FILAS_MENU };
+}
+
+// ---- Submenú del curso (lista de WhatsApp). Cada fila vuelve como un id "c_..." que se traduce a una consulta concreta.
+const BOTON_FILAS_CURSO = [
+  { id: "c_malla", title: "Malla del curso" },
+  { id: "c_valor", title: "Valor y cómo reservar" },
+  { id: "c_fechas", title: "Fechas y horarios" },
+  { id: "c_video", title: "Video explicativo" },
+  { id: "c_otras", title: "Otras preguntas" },
+  { id: "c_menu", title: "Volver al menú" },
+] as const;
+export const TITULO_CURSO = "Sobre el curso de barbería, elige lo que quieres ver:";
+export const TITULO_CURSO_SEGUIR = "¿Qué más quieres ver del curso?";
+/** Texto de respaldo si la lista no se puede enviar (sin botones). */
+export function textoCurso(): string { return `${TITULO_CURSO}\n\nEscribe lo que quieres ver: *malla*, *valor*, *fechas* o *video*. O escribe *menú* para volver al inicio.`; }
+export function esTextoCurso(cuerpo: string): boolean { return cuerpo.startsWith(TITULO_CURSO) && /\*malla\*/.test(cuerpo); }
+export function listaDeCurso(titulo: string = TITULO_CURSO) { return { cuerpo: titulo, boton: BOTON_MENU, filas: BOTON_FILAS_CURSO }; }
+
+const CONSULTA_BOTON: Record<string, string> = {
+  m1: "1", m2: "2", m3: "3", m4: "4",
+  c_malla: "quiero la malla del curso de barbería", c_valor: "cuánto cuesta el curso de barbería y cómo reservo mi cupo",
+  c_fechas: "cuándo comienza el curso de barbería y en qué horario son las clases", c_video: "quiero el video explicativo del curso de barbería",
+  c_otras: "4", c_menu: "menú",
+};
+/** Un botón o fila de lista llega como su id: aquí se traduce al texto que el flujo ya entiende. null = no es uno de nuestros botones. */
+export function textoDeBoton(tipo: string, id: unknown): string | null {
+  return tipo === "interactive" && typeof id === "string" && Object.prototype.hasOwnProperty.call(CONSULTA_BOTON, id) ? CONSULTA_BOTON[id] : null;
+}
+const PIDE_INFO_CURSO = /\b(info|informacion|saber|conocer|detalles?|del curso|sobre el curso|el curso)\b/;
+/** "información del curso", "quiero saber del curso", "del curso": pide el curso en general (sin una pregunta concreta). */
+export function pideInfoCursoGeneral(texto: string): boolean {
+  const n = normalizar(texto).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
+  const w = n.split(" ").filter(Boolean);
+  return w.length >= 2 && w.length <= 7 && /\bcurso\b/.test(n) && PIDE_INFO_CURSO.test(n) && !/\b(precio|cuesta|cuanto|valor|malla|temario|video|fecha|cuando|horario|donde|cupo|abono|certificad\w*|edad|requisito\w*)\b/.test(n);
 }
