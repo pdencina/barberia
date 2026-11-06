@@ -115,20 +115,47 @@ export async function GET(req: NextRequest) {
   // Helper to add tenant filter (skip for super_admin "ALL")
   const withTenant = (query: any) => (tenantId && tenantId !== "ALL") ? query.eq("tenant_id", tenantId) : query;
 
+  // Sucursal (?branchId=): la PRINCIPAL (la más antigua) incluye todo lo que no tiene sucursal asignada (todo lo anterior a las sucursales);
+  // las demás solo ven lo asignado a ellas. Sin ?branchId, o si el negocio tiene una sola sucursal, todo queda como siempre.
+  let ramaId: string | null = null;
+  let ramaSecundaria = false;
+  const ramaPedida = searchParams.get("branchId");
+  if (ramaPedida && /^[0-9a-f-]{36}$/i.test(ramaPedida) && tenantId && tenantId !== "ALL") {
+    const { data: ramas } = await supabase.from("branches").select("id, created_at").eq("tenant_id", tenantId).eq("active", true).order("created_at", { ascending: true });
+    if ((ramas || []).length > 1 && (ramas || []).some((r: any) => r.id === ramaPedida)) { ramaId = ramaPedida; ramaSecundaria = (ramas as any[])[0].id !== ramaPedida; }
+  }
+  const withBranch = (query: any) => {
+    const q = withTenant(query);
+    if (!ramaId) return q;
+    return ramaSecundaria ? q.eq("branch_id", ramaId) : q.or(`branch_id.is.null,branch_id.eq.${ramaId}`);
+  };
+
   // Todas las consultas se lanzan juntas (antes eran ~17 seguidas, una tras otra).
   const countAppts = (date: string, statuses?: string[]) => {
     let q = supabase.from("appointments").select("id", { count: "exact", head: true }).eq("date", date);
     if (statuses) q = q.in("status", statuses);
-    return withTenant(q);
+    return withBranch(q);
   };
   const incomeIn = (startUtc: string, endUtc: string) =>
-    withTenant(supabase
+    withBranch(supabase
       .from("transactions")
       .select("total")
       .eq("type", "income")
       .eq("status", "completed")
       .gte("created_at", startUtc)
       .lt("created_at", endUtc));
+  // En una sucursal secundaria los clientes no tienen sucursal propia: se cuentan los nuevos que tienen citas en ella.
+  const newClientsEnRama = async (startUtc: string, endUtc: string) => {
+    const { data } = await supabase.from("appointments").select("client_id").eq("tenant_id", tenantId as string).eq("branch_id", ramaId as string).not("client_id", "is", null).limit(5000);
+    const ids = Array.from(new Set((data || []).map((r: any) => r.client_id))) as string[];
+    if (ids.length === 0) return { count: 0 };
+    let n = 0;
+    for (let i = 0; i < ids.length; i += 200) {
+      const { count } = await supabase.from("clients").select("id", { count: "exact", head: true }).in("id", ids.slice(i, i + 200)).gte("created_at", startUtc).lt("created_at", endUtc);
+      n += count || 0;
+    }
+    return { count: n };
+  };
   const newClientsIn = (startUtc: string, endUtc: string) =>
     withTenant(supabase
       .from("clients")
@@ -159,7 +186,7 @@ export async function GET(req: NextRequest) {
   // la transaccion padre (que si tiene created_at y tenant_id) y se recorren los items en
   // memoria. El mismo query alimenta "Productos mas vendidos" (cada item es o un
   // service_id o un product_id, nunca ambos). La ventana termina en el dia elegido.
-  const topServicesQuery = withTenant(supabase
+  const topServicesQuery = withBranch(supabase
     .from("transactions")
     .select("items:transaction_items(description, quantity, service_id, product_id)")
     .eq("type", "income")
@@ -169,12 +196,12 @@ export async function GET(req: NextRequest) {
 
   // Aviso de stock bajo: se trae el catalogo activo y se filtra en memoria (el cliente
   // de Supabase no puede comparar dos columnas entre si en un filtro).
-  const productsForStockQuery = withTenant(supabase
+  const productsForStockQuery = withBranch(supabase
     .from("products")
     .select("id, name, stock, min_stock")
     .eq("active", true));
 
-  const todayAppointmentsQuery = withTenant(supabase
+  const todayAppointmentsQuery = withBranch(supabase
     .from("appointments")
     .select(`
       id, start_time, end_time, status,
@@ -189,21 +216,21 @@ export async function GET(req: NextRequest) {
 
   // Proyeccion del dia: lo que falta por cobrar de las citas que aun no se completan (agendadas, confirmadas o en curso).
   // Las completadas ya estan en las ventas, asi que no se cuentan dos veces.
-  const pendingApptsQuery = withTenant(supabase
+  const pendingApptsQuery = withBranch(supabase
     .from("appointments")
     .select("id, services:appointment_services(price)")
     .eq("date", todayStr)
     .in("status", ["scheduled", "confirmed", "in_progress"]));
 
   // Todas las filas del rango (con paginación: más de 1.000 ventas en 3 o 12 meses se cortaban y el gráfico quedaba corto).
-  const chartTxP = fetchAllRows<any>(() => withTenant(supabase
+  const chartTxP = fetchAllRows<any>(() => withBranch(supabase
     .from("transactions")
     .select("id, total, created_at, barber_id, payment_method")
     .eq("type", "income")
     .eq("status", "completed")
     .gte("created_at", chartRangeStartUtc)
     .lt("created_at", chartRangeEndUtc))).catch(() => [] as any[]).then((data) => ({ data }));
-  const prevChartP = fetchAllRows<any>(() => withTenant(supabase
+  const prevChartP = fetchAllRows<any>(() => withBranch(supabase
     .from("transactions")
     .select("id, total, created_at")
     .eq("type", "income")
@@ -215,7 +242,7 @@ export async function GET(req: NextRequest) {
   // Detalle de las cancelaciones del día: quién y por qué (migración 136; sin ella solo se cuenta cuántas).
   const cancelP = (async () => {
     // Con las columnas nuevas (136 y 138) se sabe quién, por qué canal y por qué; sin ellas se cae a lo que haya.
-    const q = (cols: string) => withTenant(supabase.from("appointments").select(cols).eq("date", todayStr).in("status", ["cancelled", "no_show"]).order("start_time"));
+    const q = (cols: string) => withBranch(supabase.from("appointments").select(cols).eq("date", todayStr).in("status", ["cancelled", "no_show"]).order("start_time"));
     const base = "id, start_time, status, client:clients(name), barber:profiles!barber_id(name)";
     let r: { data: any; error: any } = await q(`${base}, cancelled_by, cancel_reason, cancel_channel, cancelled_by_user, cancelled_at, cancel_note`);
     if (r.error) r = await q(`${base}, cancelled_by, cancel_reason, cancel_channel, cancelled_by_user, cancelled_at`);
@@ -250,8 +277,8 @@ export async function GET(req: NextRequest) {
     countAppts(yesterdayStr),
     incomeIn(todayBounds.startUtc, todayBounds.endUtc),
     incomeIn(yesterdayBounds.startUtc, yesterdayBounds.endUtc),
-    newClientsIn(todayBounds.startUtc, todayBounds.endUtc),
-    newClientsIn(yesterdayBounds.startUtc, yesterdayBounds.endUtc),
+    ramaSecundaria ? newClientsEnRama(todayBounds.startUtc, todayBounds.endUtc) : newClientsIn(todayBounds.startUtc, todayBounds.endUtc),
+    ramaSecundaria ? newClientsEnRama(yesterdayBounds.startUtc, yesterdayBounds.endUtc) : newClientsIn(yesterdayBounds.startUtc, yesterdayBounds.endUtc),
     countAppts(todayStr, ["confirmed"]),
     countAppts(yesterdayStr, ["confirmed"]),
     countAppts(todayStr, ["cancelled", "no_show"]),

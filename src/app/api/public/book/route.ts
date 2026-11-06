@@ -82,7 +82,8 @@ export async function POST(req: NextRequest) {
   if (await isOnVacation(supabase, barberId, date)) {
     return NextResponse.json({ error: "El profesional no atiende ese día. Selecciona otra fecha." }, { status: 409 });
   }
-  const { data: barberForCap } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
+  let { data: barberForCap } = await supabase.from("profiles").select("tenant_id, branch_id").eq("id", barberId).single() as { data: any };
+  if (!barberForCap) ({ data: barberForCap } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single() as { data: any });
   // Bloqueos del profesional: la pantalla no ofrece esas horas, pero la reserva tambien debe rechazarlas (antes solo las vacaciones y los cupos).
   {
     let { data: blks, error: blkErr } = (await supabase.from("barber_blocks").select("all_day, start_time, end_time, spots").eq("barber_id", barberId).eq("date", date)) as { data: any[] | null; error: any };
@@ -171,6 +172,7 @@ export async function POST(req: NextRequest) {
       notes: notes || null,
       tenant_id: tenantId,
       source: "link", // Punto 10: reserva hecha por el cliente desde el link publico.
+      ...(barberForCap?.branch_id ? { branch_id: barberForCap.branch_id } : {}), // sucursal del profesional
     })
     .select("id")
     .single();

@@ -63,7 +63,8 @@ export async function POST(req: NextRequest) {
   const { clientId, barberId, date, startTime, endTime: customEndTime, serviceIds, notes, staff_note } = body;
 
   // El negocio sale del profesional, y debe ser el de quien crea la cita (super_admin con cualquiera).
-  const { data: barberProfile } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
+  let { data: barberProfile } = await supabase.from("profiles").select("tenant_id, branch_id").eq("id", barberId).single();
+  if (!barberProfile) ({ data: barberProfile } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single());
   const resolvedTenantId = barberProfile?.tenant_id || null;
   if (!barberProfile) return NextResponse.json({ error: "Profesional no encontrado" }, { status: 404 });
   if (session.role !== "super_admin" && resolvedTenantId !== session.tenantId) {
@@ -109,6 +110,7 @@ export async function POST(req: NextRequest) {
       notes: notes ?? null,
       tenant_id: resolvedTenantId,
       source: "manual", // Punto 10: creada por el equipo desde el dashboard (no por el cliente).
+      ...((barberProfile as any)?.branch_id ? { branch_id: (barberProfile as any).branch_id } : {}), // sucursal del profesional
     })
     .select()
     .single();

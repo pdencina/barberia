@@ -6,6 +6,7 @@ interface Branch {
   id: string;
   name: string;
   slug: string;
+  principal?: boolean;
 }
 
 interface BranchContextType {
@@ -37,7 +38,7 @@ export function BranchProvider({ children }: { children: ReactNode }) {
         // Load saved branch from localStorage, or use first one
         const savedId = localStorage.getItem("active_branch_id");
         const saved = list.find((b: Branch) => b.id === savedId);
-        setActiveBranch(saved || list[0] || null);
+        setActiveBranch(saved || list.find((b: Branch) => b.principal) || list[0] || null);
       })
       .finally(() => setLoading(false));
   }, []);
