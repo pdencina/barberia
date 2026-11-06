@@ -1,6 +1,7 @@
 import { accountingColumnsAvailable, fetchMonthTx } from "@/lib/accounting";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
+import { chileDayBoundsUtc, todayInChile } from "@/lib/utils";
 
 // Reads from the DB and must never be prerendered/baked at build time.
 export const dynamic = "force-dynamic";
@@ -24,20 +25,21 @@ export async function GET(req: NextRequest) {
   // Los 6 meses (ingresos y egresos de cada uno) se piden a la vez; antes eran 12 consultas una tras otra.
   const months = await Promise.all(
     [5, 4, 3, 2, 1, 0].map(async (i) => {
-      const d = new Date();
-      d.setMonth(d.getMonth() - i);
-      const month = d.getMonth() + 1;
-      const year = d.getFullYear();
-      const startDate = new Date(year, month - 1, 1).toISOString();
-      const endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
-
+      // Mes calendario de Chile (antes se armaba con la hora del servidor: los límites del mes quedaban corridos 3 horas y,
+      // los días 29 a 31, restar meses con setMonth podía repetir o saltarse un mes).
+      const [cy, cm] = todayInChile().split("-").map(Number);
+      const idx = cy * 12 + (cm - 1) - i;
+      const year = Math.floor(idx / 12);
+      const month = (idx % 12) + 1;
       const first = `${year}-${String(month).padStart(2, "0")}-01`;
-      const last = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+      const last = `${year}-${String(month).padStart(2, "0")}-${String(new Date(Date.UTC(year, month, 0)).getUTCDate()).padStart(2, "0")}`;
+      const startDate = chileDayBoundsUtc(first).startUtc;
+      const endDate = chileDayBoundsUtc(last).endUtc; // límite superior exclusivo
       const mr = { first, last, startIso: startDate, endIso: endDate };
 
       const [incomeTx, expenseTx] = await Promise.all([
-        fetchMonthTx(supabase, { select: "total", type: "income", range: mr, scope: scoped, acc, endOp: "lte" }),
-        fetchMonthTx(supabase, { select: "total", type: "expense", range: mr, scope: scoped, acc, endOp: "lte" }),
+        fetchMonthTx(supabase, { select: "total", type: "income", range: mr, scope: scoped, acc }),
+        fetchMonthTx(supabase, { select: "total", type: "expense", range: mr, scope: scoped, acc }),
       ]);
 
       return {
