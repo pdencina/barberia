@@ -193,6 +193,23 @@ export async function enviarTexto(args: { para: string; texto: string }, deps: D
   } catch { return { estado: "fallido" }; }
 }
 
+/** Mensaje de lista de WhatsApp: botón que abre hasta 10 opciones; la respuesta llega como interactive/list_reply con el id de la fila. */
+export async function enviarLista(args: { para: string; cuerpo: string; boton: string; filas: readonly { id: string; title: string; description?: string }[] }, deps: DependenciasWhatsAppMeta): Promise<ResultadoEnvioPlantilla> {
+  try {
+    if (!deps || typeof deps.fetch !== "function" || typeof deps.token !== "string" || !deps.token.trim() || /[\r\n]/.test(deps.token)
+      || !/^v[0-9]+\.[0-9]+$/.test(deps.version) || !numero(deps.phone_number_id) || !args || !numero(args.para)
+      || typeof args.cuerpo !== "string" || !args.cuerpo.trim() || args.cuerpo.length > 1024
+      || typeof args.boton !== "string" || !args.boton.trim() || args.boton.length > 20
+      || !Array.isArray(args.filas) || args.filas.length < 1 || args.filas.length > 10
+      || args.filas.some(f => !f || !/^[A-Za-z0-9_-]{1,200}$/.test(f.id) || typeof f.title !== "string" || !f.title.trim() || f.title.length > 24 || (f.description !== undefined && (typeof f.description !== "string" || f.description.length > 72)))) return { estado: "fallido" };
+    return enviarPeticionMeta(`https://graph.facebook.com/${deps.version}/${deps.phone_number_id}/messages`, {
+      method: "POST", redirect: "error", headers: { Authorization: `Bearer ${deps.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: "interactive", interactive: { type: "list", body: { text: args.cuerpo },
+        action: { button: args.boton, sections: [{ title: "Opciones", rows: args.filas.map(f => ({ id: f.id, title: f.title, ...(f.description ? { description: f.description } : {}) })) }] } } }),
+    }, deps);
+  } catch { return { estado: "fallido" }; }
+}
+
 export interface ArchivoSaliente { nombre: string; mime: string; bytes: Uint8Array; caption?: string }
 const MIMES_ARCHIVO = new Set(["application/pdf", "image/jpeg", "image/png"]);
 export const LIMITE_ARCHIVO_BYTES = 5 * 1024 * 1024;

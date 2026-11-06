@@ -2,7 +2,7 @@ import { crearRepositorioDatosNegocio } from "@/lib/agente/datos-negocio";
 // Se reutiliza la MISMA función que calcula las horas de la reserva web (en el servidor, solo lectura): una sola regla.
 import { GET as disponibilidadPublica } from "@/app/api/public/availability/route";
 import { crearManejadoresWebhook, crearRepositorioWebhook, accionesDesdeBase } from "@/lib/agente/whatsapp-webhook";
-import { enviarTexto, enviarArchivo } from "@/lib/agente/whatsapp-meta";
+import { enviarTexto, enviarArchivo, enviarLista } from "@/lib/agente/whatsapp-meta";
 import { archivosPedidos } from "@/lib/agente/archivos";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -118,6 +118,10 @@ const handlers = () => crearManejadoresWebhook({
       responder: (negocio, para, texto) => enviarTexto({ para, texto }, {
         token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "",
         phone_number_id: negocio.phoneNumberId,
+        fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
+      }),
+      responderLista: (negocio, para, l) => enviarLista({ para, ...l }, {
+        token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "", phone_number_id: negocio.phoneNumberId,
         fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
       }),
       archivos: {
