@@ -50,6 +50,8 @@ export interface DependenciasWebhook {
   };
   accion: (tipo: "confirmar" | "cancelar", c: { tenantId: string; clienteId: string; referenciaRecordatorio: string }) => Promise<ResultadoAccionCita>;
   responder: (negocio: NegocioWebhook, para: string, texto: string) => Promise<unknown>;
+  // Archivos (malla del curso, folletos): se envían después del texto cuando el cliente los pide. Opcional.
+  archivos?: { pedidos: (consulta: string, linkReserva: string | null | undefined) => unknown[]; enviar: (negocio: NegocioWebhook, para: string, archivo: any) => Promise<unknown> };
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
 }
 export class MigracionWebhookPendiente extends Error { constructor() { super("Falta aplicar la migración del webhook"); } }
@@ -216,17 +218,20 @@ export function crearManejadoresWebhook(config: {
                       }
                       if (respuestaFaq === null) {
                         const faq = responderFaq(consulta,datosNegocio);
-                        if (faq.tipo === "respuesta") { respuestaFaq = deps.conCta ? conLlamadaAReservar(faq.texto,datosNegocio?.negocio.linkReserva) : faq.texto; await contar("respuestas_automaticas"); }
+                        if (faq.tipo === "respuesta") { respuestaFaq = deps.conCta ? conLlamadaAReservar(faq.texto,datosNegocio?.negocio.linkReserva,consulta) : faq.texto; await contar("respuestas_automaticas"); }
                       }
                       // 3) Modo Avanzado (IA) con el contexto del negocio, solo si lo anterior no respondió.
                       if (respuestaFaq === null && deps.ia) {
-                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,consulta,datosNegocio),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva) : ia; } catch { /* sin IA: se deriva a una persona */ }
+                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,consulta,datosNegocio),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva,consulta) : ia; } catch { /* sin IA: se deriva a una persona */ }
                       }
                     }
                   }
                 }
                 if (respuestaFaq !== null) {
                   await responder(respuestaFaq);
+                  if (deps.archivos && !derivarChat && p.tipo === "text") {
+                    try { for (const a of deps.archivos.pedidos(typeof text === "string" ? text : "", datosMenu?.negocio.linkReserva)) await deps.archivos.enviar(n,para,a); } catch { /* el texto ya salió; el archivo es un extra */ }
+                  }
                   if (derivarChat) {
                     await contar("derivadas_persona");
                     if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);

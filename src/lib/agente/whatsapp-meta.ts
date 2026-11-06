@@ -193,6 +193,33 @@ export async function enviarTexto(args: { para: string; texto: string }, deps: D
   } catch { return { estado: "fallido" }; }
 }
 
+export interface ArchivoSaliente { nombre: string; mime: string; bytes: Uint8Array; caption?: string }
+const MIMES_ARCHIVO = new Set(["application/pdf", "image/jpeg", "image/png"]);
+export const LIMITE_ARCHIVO_BYTES = 5 * 1024 * 1024;
+/** Sube el archivo a Meta y lo envía como documento (PDF) o imagen. Una sola vez, sin reintentos. */
+export async function enviarArchivo(args: { para: string; archivo: ArchivoSaliente }, deps: DependenciasWhatsAppMeta): Promise<ResultadoEnvioPlantilla> {
+  try {
+    const a = args?.archivo;
+    if (!deps || typeof deps.fetch !== "function" || typeof deps.token !== "string" || !deps.token.trim() || /[\r\n]/.test(deps.token)
+      || !/^v[0-9]+\.[0-9]+$/.test(deps.version) || !numero(deps.phone_number_id) || !numero(args.para)
+      || !a || !MIMES_ARCHIVO.has(a.mime) || !a.bytes?.length || a.bytes.length > LIMITE_ARCHIVO_BYTES
+      || typeof a.nombre !== "string" || !a.nombre.trim() || a.nombre.length > 120 || (a.caption !== undefined && (typeof a.caption !== "string" || a.caption.length > 1000))) return { estado: "fallido" };
+    const form = new FormData();
+    form.append("messaging_product", "whatsapp"); form.append("type", a.mime);
+    form.append("file", new Blob([a.bytes as BlobPart], { type: a.mime }), a.nombre);
+    const subida = await deps.fetch(`https://graph.facebook.com/${deps.version}/${deps.phone_number_id}/media`, { method: "POST", redirect: "error", headers: { Authorization: `Bearer ${deps.token}` }, body: form });
+    if (subida.status < 200 || subida.status >= 300) return { estado: "fallido" };
+    const id = campo(await subida.json(), "id");
+    if (!identificador(id)) return { estado: "fallido" };
+    const esImagen = a.mime.startsWith("image/");
+    const media = esImagen ? { id, ...(a.caption ? { caption: a.caption } : {}) } : { id, filename: a.nombre, ...(a.caption ? { caption: a.caption } : {}) };
+    return enviarPeticionMeta(`https://graph.facebook.com/${deps.version}/${deps.phone_number_id}/messages`, {
+      method: "POST", redirect: "error", headers: { Authorization: `Bearer ${deps.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: esImagen ? "image" : "document", [esImagen ? "image" : "document"]: media }),
+    }, deps);
+  } catch { return { estado: "fallido" }; }
+}
+
 // Usa el criterio Chile existente; cero troncal como cron/reminders/whatsapp:70-71.
 export function normalizarTelefonoWhatsApp(raw: unknown): string | null {
   if (typeof raw !== "string" || !raw.trim() || !/^[+\d\s()\-]+$/.test(raw)) return null;
