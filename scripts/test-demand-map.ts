@@ -1,5 +1,5 @@
 // Mapa de demanda. Uso: npx tsx scripts/test-demand-map.ts
-import { construirMapa, horariosFlojos, diaSemana, horaDe } from "../src/lib/demand-map";
+import { construirMapa, horariosFlojos, diaSemana, horaDe, nivelesPorDia, nivelesPorHora } from "../src/lib/demand-map";
 let fallos = 0;
 const ok = (c: boolean, n: string) => { if (!c) { fallos++; console.log("FALLA:", n); } else console.log("ok:", n); };
 
@@ -28,4 +28,19 @@ const fl = horariosFlojos(m2);
 ok(fl.length > 0 && fl[0].hour === 13, `el hueco de las 13h sale primero (${fl[0]?.hour})`);
 ok(horariosFlojos(m2, [13, 14]).every((f) => f.hour !== 13 && f.hour !== 14), "las horas de descanso no cuentan");
 ok(horariosFlojos(construirMapa([], 4, "2026-10-05", "2026-11-01")).length === 0, "sin datos no hay horarios flojos");
+
+// Negocio chico (caso real de Looky Estudio): 1 profesional, ~9 reservas por semana. Antes todos los días salían "cerrados" y todo en 0.
+const r3: any[] = [];
+const sem = ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"];
+sem.forEach((d, i) => {
+  const lun = d, mar = `2026-10-${String(6 + i * 7).padStart(2, "0")}`, mie = `2026-10-${String(7 + i * 7).padStart(2, "0")}`;
+  for (const [fecha, h] of [[lun, 8], [lun, 11], [mar, 8], [mar, 11], [mar, 15], [mie, 11]] as [string, number][]) r3.push({ date: fecha, start_time: `${fecha}T${String(h).padStart(2, "0")}:00:00+00:00`, status: "completed" });
+});
+const m3 = construirMapa(r3, 4, "2026-10-05", "2026-11-01");
+const d3 = nivelesPorDia(m3);
+ok(m3.totalReservas === 24 && [1, 2, 3].every((dow) => d3.get(dow)!.nivel !== "cerrado"), "negocio chico: los días con reservas ya no salen 'cerrados'");
+ok(d3.get(4)!.nivel === "cerrado" && d3.get(7)!.nivel === "cerrado", "negocio chico: un día sin reservas sí sale cerrado");
+ok(m3.horas.length > 0, `negocio chico: se muestran horas (${m3.horas.join()})`);
+ok(nivelesPorHora(m3).some((h) => h.avg > 0), "negocio chico: las horas muestran un promedio mayor que 0");
+ok(horariosFlojos(m3).length > 0, "negocio chico: hay horarios donde conviene promocionar");
 console.log(fallos ? `\n${fallos} fallas` : "\nTodo bien"); process.exit(fallos ? 1 : 0);
