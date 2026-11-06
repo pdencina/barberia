@@ -6,7 +6,7 @@ export type OpcionMenu = 1 | 2 | 3 | 4;
 // Mensajes largos que ninguna regla ni la IA entendió son una consulta real: los ve una persona, no se les muestra el menú.
 export const PALABRAS_CONSULTA_LARGA = 6;
 
-const SALUDO = /^(hola+|holi+|ola|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hello|que tal|saludos|buenas buenas)( .*)?$/;
+const SALUDO = /^(h?o+l+a+|holi+|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hello|que tal|saludos|buenas buenas)( .*)?$/;
 
 export function esSaludo(texto: string): boolean {
   const n = normalizar(texto).replace(/[!¡.,]+/g, " ").replace(/\s+/g, " ").trim();
@@ -25,7 +25,7 @@ export function esSoloSaludo(texto: string): boolean {
   const n = normalizar(texto).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
   if (!n) return false;
   const palabras = n.split(" ");
-  return palabras.length <= 5 && /^(hola|holi|ola|buenas|buenos|buen|hey|hello|saludos)/.test(palabras[0]) && palabras.every((w) => PALABRAS_SALUDO.has(w) || /^hola+$/.test(w));
+  return palabras.length <= 5 && /^(h?o+l+[ai]+|buenas|buenos|buen|hey|hello|saludos)/.test(palabras[0]) && palabras.every((w) => PALABRAS_SALUDO.has(w) || /^h?o+l+a+$/.test(w));
 }
 
 const VOLVER_EXACTO = new Set(["volver", "inicio", "salir", "atras", "reiniciar", "empezar de nuevo", "empezar otra vez", "de nuevo", "otra vez", "olvidalo", "no quiero", "ya no quiero", "cancelar", "menu"]);
@@ -72,4 +72,18 @@ export function infoGeneral(datos: DatosFaq | null): string | null {
     if (r.tipo === "respuesta" && !partes.includes(r.texto)) partes.push(r.texto);
   }
   return partes.length ? partes.join("\n\n") : null;
+}
+
+// Menú como lista de WhatsApp (botón "Ver opciones"): cada fila responde con su número, que el flujo ya entiende como opción.
+const FILAS_MENU = [
+  { id: "1", title: "Reservar una hora" },
+  { id: "2", title: "Información del curso" },
+  { id: "3", title: "Precios y horarios", description: "Precios, horarios y ubicación" },
+  { id: "4", title: "Otras preguntas" },
+] as const;
+export const BOTON_MENU = "Ver opciones";
+export function esTextoMenu(cuerpo: string): boolean { return /\n1\. Deseo reservar\.\n2\./.test(cuerpo); }
+export function listaDeMenu(cuerpo: string): { cuerpo: string; boton: string; filas: readonly { id: string; title: string; description?: string }[] } {
+  const sinNumeros = cuerpo.replace(/\n*1\. Deseo reservar\.\n2\. [^\n]*\n3\. [^\n]*\n4\. [^\n]*\n*/, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  return { cuerpo: sinNumeros.replace(/Elige una opción:|elige una de estas opciones:/i, (m) => m.replace(/:$/, " en el botón:")), boton: BOTON_MENU, filas: FILAS_MENU };
 }

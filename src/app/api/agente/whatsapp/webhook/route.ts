@@ -2,7 +2,10 @@ import { crearRepositorioDatosNegocio } from "@/lib/agente/datos-negocio";
 // Se reutiliza la MISMA función que calcula las horas de la reserva web (en el servidor, solo lectura): una sola regla.
 import { GET as disponibilidadPublica } from "@/app/api/public/availability/route";
 import { crearManejadoresWebhook, crearRepositorioWebhook, accionesDesdeBase } from "@/lib/agente/whatsapp-webhook";
-import { enviarTexto } from "@/lib/agente/whatsapp-meta";
+import { enviarTexto, enviarArchivo, enviarLista } from "@/lib/agente/whatsapp-meta";
+import { archivosPedidos } from "@/lib/agente/archivos";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { POST as reservaPublica } from "@/app/api/public/book/route";
 import { ahoraChile } from "@/lib/agente/disponibilidad";
 import { formatPhoneCL } from "@/lib/phone";
@@ -117,6 +120,20 @@ const handlers = () => crearManejadoresWebhook({
         phone_number_id: negocio.phoneNumberId,
         fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
       }),
+      responderLista: (negocio, para, l) => enviarLista({ para, ...l }, {
+        token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "", phone_number_id: negocio.phoneNumberId,
+        fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
+      }),
+      archivos: {
+        pedidos: (consulta, link) => archivosPedidos(consulta, link),
+        enviar: async (negocio, para, a: any) => {
+          const bytes = new Uint8Array(readFileSync(path.join(process.cwd(), a.ruta)));
+          return enviarArchivo({ para, archivo: { nombre: a.nombre, mime: a.mime, bytes, caption: a.caption } }, {
+            token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "", phone_number_id: negocio.phoneNumberId,
+            fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(15000) }),
+          });
+        },
+      },
       avisarAdministrador: async tenantId => {
         // Apagado: los avisos van a la app del super admin. Para volver al correo, AGENTE_AVISO_CORREO=1 en Vercel.
         if (process.env.AGENTE_AVISO_CORREO !== "1") return;
