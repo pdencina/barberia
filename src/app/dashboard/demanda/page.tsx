@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
 import { PageHeader, Panel, Segmented, inputClass } from "@/components/ui/premium";
 import { Spinner } from "@/components/ui/spinner";
+import { DemandaGraficos } from "@/components/demanda/graficos";
 import { DIAS, horariosFlojos, nivelesPorDia, nivelesPorHora, nivelCelda, type DemandMap, type Nivel } from "@/lib/demand-map";
 
 const NOMBRE_DIA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
@@ -24,6 +25,8 @@ export default function DemandaPage() {
   const { role } = useAuth();
   const isAdmin = role === "admin" || role === "super_admin";
   const [weeks, setWeeks] = useState<"4" | "8" | "12">("8");
+  // Dos formas de ver lo mismo: el detalle de siempre (barras y colores) o gráficos.
+  const [vista, setVista] = useState<"detalle" | "graficos">("detalle");
   const [barberId, setBarberId] = useState("");
   const [equipo, setEquipo] = useState<{ id: string; name: string }[]>([]);
   const [mapa, setMapa] = useState<DemandMap | null>(null);
@@ -70,6 +73,7 @@ export default function DemandaPage() {
           <option value="">Todo el equipo</option>
           {equipo.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
         </select>
+        <Segmented value={vista} onChange={setVista} options={[{ value: "detalle", label: "Ver detalle" }, { value: "graficos", label: "📊 Ver en gráficos" }]} />
       </div>
 
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
@@ -102,8 +106,10 @@ export default function DemandaPage() {
             </div>
           </div>
 
+          {vista === "graficos" && <DemandaGraficos mapa={mapa} dias={dias} horas={horas} celda={celda} descanso={descanso} />}
+
           {/* 2. Gráficos de barras */}
-          <div className="grid gap-4 md:grid-cols-2">
+          {vista === "detalle" && <div className="grid gap-4 md:grid-cols-2">
             <Panel title="Reservas por día" subtitle="Promedio por semana">
               <div className="space-y-2">
                 {mapa.porDia.filter((d) => dias.get(d.dow)?.nivel !== "cerrado").map((d) => {
@@ -130,10 +136,10 @@ export default function DemandaPage() {
                 ))}
               </div>
             </Panel>
-          </div>
+          </div>}
 
           {/* 3. Mapa de colores, sin números */}
-          <Panel title="Día y hora, en colores" subtitle="Cada cuadro es un día a una hora. Pasa el cursor (o toca) para ver cuántas reservas por semana.">
+          {vista === "detalle" && <Panel title="Día y hora, en colores" subtitle="Cada cuadro es un día a una hora. Pasa el cursor (o toca) para ver cuántas reservas por semana.">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[420px] border-separate border-spacing-1 text-center text-xs">
                 <thead><tr><th className="w-12" />{DIAS.slice(0, 6).map((d) => <th key={d} className="pb-1 font-semibold text-brand-dark">{d}</th>)}</tr></thead>
@@ -155,7 +161,7 @@ export default function DemandaPage() {
               {(["fuerte", "normal", "flojo"] as Nivel[]).map((n) => <span key={n} className="inline-flex items-center gap-1"><span className={`inline-block h-3 w-3 rounded ${COLOR[n].barra}`} /> {COLOR[n].etiqueta}</span>)}
               <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-gray-200" /> Descanso o sin atención</span>
             </div>
-          </Panel>
+          </Panel>}
 
           {/* 4. Qué hacer */}
           <Panel title="Dónde conviene promocionar" subtitle="Los horarios con menos reservas, dentro del horario en que cada día sí se atiende.">
