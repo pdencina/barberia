@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
+import { createAdminSupabase, getCurrentTenantId, requireRole, resolveTenantForRequest } from "@/lib/supabase/server";
+import { puedeCrearSucursal, MENSAJE_SIN_SUCURSALES } from "@/lib/branch-limit";
 
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -33,6 +34,9 @@ export async function GET(req: NextRequest) {
 }
 
 export async function POST(req: NextRequest) {
+  // Solo administración crea sucursales (antes cualquier usuario con sesión podía).
+  const guard = await requireRole(["admin", "super_admin"]);
+  if (!guard.ok) return guard.response;
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { name, slug, address, phone, email, open_time, close_time, tenantId } = body;
@@ -46,6 +50,12 @@ export async function POST(req: NextRequest) {
     : (resolvedTenant === "ALL" && tenantId ? tenantId : null);
   if (!branchTenant) {
     return NextResponse.json({ error: "No se pudo determinar el negocio para la sucursal." }, { status: 400 });
+  }
+
+  // Límite de sucursales del plan (tenants.max_branches). Solo el super admin puede pasarlo (p. ej. al vender una sucursal adicional).
+  if (guard.role !== "super_admin") {
+    const lim = await puedeCrearSucursal(supabase, branchTenant);
+    if (!lim.ok) return NextResponse.json({ error: MENSAJE_SIN_SUCURSALES, code: "plan_limit" }, { status: 403 });
   }
 
   const { data, error } = await supabase

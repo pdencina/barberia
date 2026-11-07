@@ -50,7 +50,7 @@ function FacturacionContent() {
       .then((data) => {
         setTenant(data.tenant || null);
         setSubscription(data.subscription || null);
-        setPlans(data.plans || []);
+        setPlans(((data.plans || []) as Plan[]).filter((p) => p.plan !== "lite" || data.tenant?.plan === "lite"));   // Lite no se ofrece como cambio de plan
         setSelectedPlan(data.tenant?.plan || data.plans?.[0]?.plan || "");
         setProfessionals(data.tenant?.max_professionals || 1);
         setLoading(false);

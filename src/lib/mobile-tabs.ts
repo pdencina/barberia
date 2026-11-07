@@ -30,7 +30,7 @@ export const TAB_CATALOG: TabDef[] = [
   { key: "finanzas", label: "Egresos", href: "/dashboard/finanzas", icon: "dollar", minRole: "admin", basicLocked: true },
   { key: "boletas", label: "Boletas", href: "/dashboard/boletas", icon: "receipt", minRole: "admin", basicLocked: true },
   { key: "cierre", label: "Cierre", href: "/dashboard/reportes", icon: "clipboard", minRole: "admin" },
-  { key: "mi-billetera", label: "Billetera", href: "/dashboard/mi-billetera", icon: "piggy", minRole: "barber", basicLocked: true },
+  { key: "mi-billetera", label: "Billetera", href: "/dashboard/mi-billetera", icon: "piggy", minRole: "barber" },
   { key: "comisiones", label: "Comisiones", href: "/dashboard/comisiones", icon: "percent", minRole: "barber", feature: "commissions", basicLocked: true },
   { key: "arriendo", label: "Arriendo", href: "/dashboard/arriendo", icon: "key", minRole: "admin", feature: "rental", basicLocked: true },
   { key: "profesionales", label: "Equipo", href: "/dashboard/barberos", icon: "scissors", minRole: "admin" },

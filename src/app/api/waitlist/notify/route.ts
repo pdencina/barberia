@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { authorizeWaitlistEntry } from "@/lib/waitlist-access";
+import { tryConsumeQuota } from "@/lib/message-quota";
 
 // Notify waitlisted clients that a slot opened up
 export async function POST(req: NextRequest) {
@@ -19,6 +20,15 @@ export async function POST(req: NextRequest) {
   if (!entry) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
 
   const bookingUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl";
+
+  // Estos avisos también cuentan en el cupo mensual de mensajes del plan (antes salían sin límite). El negocio se deduce del profesional o del servicio.
+  let tenantDeLaLista: string | null = null;
+  if ((entry as any).barber_id) tenantDeLaLista = ((await supabase.from("profiles").select("tenant_id").eq("id", (entry as any).barber_id).maybeSingle()).data as any)?.tenant_id || null;
+  if (!tenantDeLaLista && (entry as any).service_id) tenantDeLaLista = ((await supabase.from("services").select("tenant_id").eq("id", (entry as any).service_id).maybeSingle()).data as any)?.tenant_id || null;
+  if ((type === "email" || type === "whatsapp") && tenantDeLaLista) {
+    const ok = await tryConsumeQuota(tenantDeLaLista, type === "email" ? "email" : "whatsapp", "followup", `waitlist:${waitlistId}:${type}`);
+    if (!ok) return NextResponse.json({ error: "Ya usaste todos los mensajes de este mes de tu plan. Mejora tu plan o espera al próximo ciclo." }, { status: 429 });
+  }
 
   if (type === "whatsapp" && entry.client_phone) {
     const phone = entry.client_phone.replace(/\D/g, "").replace(/^0/, "56");
