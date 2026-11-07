@@ -73,3 +73,6 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · `codex/agenda-arriendo-ventas`: todos los profesionales rental proyectan suma completa de servicios, como administradores; comisión conserva porcentaje.
 - Etiqueta «Cliente nuevo» más visible junto al nombre; tarjeta «Total esperado» grande y «Total de ventas actual» pequeño: ingresos completados del profesional en el día de Chile, incluye abonos aplicados, excluye ajustes manuales; refresca cada minuto y al volver.
 - Sin SQL ni cambios a pagos; pruebas simuladas y TypeScript; falta validar datos reales y pantalla en celular tras merge de Nico.
+- 2026-11-07 · Codex · `codex/deslizar-actualizar`: gesto compartido de arrastrar y soltar desde arriba en pantallas de consulta del panel; indicador turquesa y limpieza del cache de lectura antes de recargar la URL actual.
+- Excluye POS/Standby/terminal, configuración y fichas de edición; bloquea con formularios modificados, modales y gestos en rejilla/citas. Conserva sesión y URL; filtros locales se reinician al recargar.
+- Verificado: 26 pruebas simuladas, TypeScript y demostración de touchstart/move/end en navegador local con datos ficticios. Sin SQL; falta dispositivo real/WebView y merge por Nico.
