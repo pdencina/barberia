@@ -16,8 +16,8 @@ Module._load = original;
 const view = () => renderToStaticMarkup(<ProtectedRoute><div>Contenido protegido</div></ProtectedRoute>);
 let count = 0;
 function t(name: string, fn: () => void) { fn(); count++; console.log('OK ' + name); }
-t('sesión cargando muestra logo sin contenido ni candado', () => { auth = { loading: true }; const s = view(); assert.ok(s.includes('logo-horizontal')); assert.ok(!s.includes('Contenido protegido')); assert.ok(!s.includes('Acceso restringido')); });
-t('profesional redirigiendo muestra logo', () => { auth = { loading: false, user: { role: 'barber' }, canAccess: () => false }; const s = view(); assert.ok(s.includes('logo-horizontal')); assert.ok(!s.includes('Acceso restringido')); });
+t('sesión cargando muestra logo sin contenido ni candado', () => { auth = { loading: true }; const s = view(); assert.ok(s.includes('logo-carga-oficial')); assert.ok(!s.includes('Contenido protegido')); assert.ok(!s.includes('Acceso restringido')); });
+t('profesional redirigiendo muestra logo', () => { auth = { loading: false, user: { role: 'barber' }, canAccess: () => false }; const s = view(); assert.ok(s.includes('logo-carga-oficial')); assert.ok(!s.includes('Acceso restringido')); });
 t('profesional autorizado ve su agenda', () => { pathname = '/dashboard/mi-agenda'; auth.canAccess = () => true; assert.ok(view().includes('Contenido protegido')); });
 t('restricción real de otro rol se conserva', () => { auth = { loading: false, user: { role: 'receptionist' }, canAccess: () => false }; assert.ok(view().includes('Acceso restringido')); });
 const props = { name: 'Profesional Ejemplo', date: '2026-11-07', onDateChange() {}, onChangeDay() {}, barbers: [{id:'a',name:'Profesional Ejemplo'},{id:'b',name:'Otro'}], selectedBarber:'a', onBarberChange() {}, onBlock() {}, notifications:null };
