@@ -26,6 +26,22 @@ async function main() {
   });
   await test("error de historial no se muestra como cero nuevos", () => assert.equal(summarizeAgenda([row("a")], null, profile).newClients, null));
 
+  await test("administrador seleccionado proyecta total sin descontar comisión", () => {
+    const s = summarizeAgenda([row("a"), row("b", "completed", 20000)], new Set(), { ...profile, role: "admin" });
+    assert.equal(s.expectedIncome, 30000); assert.equal(s.incomeBasis, "day_total"); assert.equal(s.incomeUnavailable, null);
+  });
+  await test("administrador sin porcentaje también ve total; sin precios no inventa monto", () => {
+    assert.equal(summarizeAgenda([row("a")], new Set(), { ...profile, role: "admin", commission_rate: null }).expectedIncome, 10000);
+    assert.equal(summarizeAgenda([row("a", "scheduled", null)], new Set(), { ...profile, role: "admin" }).expectedIncome, null);
+  });
+  await test("profesional seleccionado conserva su porcentaje aunque consulte un admin", () => {
+    const s = summarizeAgenda([row("a")], new Set(), { ...profile, role: "barber" });
+    assert.equal(s.expectedIncome, 4000); assert.equal(s.incomeBasis, "commission");
+  });
+  await test("administrador en arriendo conserva modalidad sin comisión", () => {
+    assert.equal(summarizeAgenda([row("a")], new Set(), { ...profile, role: "admin", work_mode: "rental" }).expectedIncome, null);
+  });
+
   function historyDb(history: any[], error = false) {
     return { from() {
       let tenant: string | undefined, clients: string[] = [], max = "", from = 0, to = 0;

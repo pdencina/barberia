@@ -57,3 +57,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · Listo para revisión en `codex/mi-agenda-resumen`: resumen diario, primera visita al negocio y proyección por porcentaje; encabezado reducido a saludo + fecha, acciones como iconos, resumen de menor altura y selector solo admin; tarjetas turquesa con primera visita verificada, bloqueo en una línea y avance por hora de Chile sin cambiar estados; iconos genéricos de calendario.
 - Verificado: 21 pruebas de cálculo/historial/API + 6 de acceso/encabezado + 10 de reloj/tarjetas/bloqueos; TypeScript limpio. Preview local con componentes reales y datos ficticios en puerto 4318.
 - Nico aprobó el diseño y pidió subirlo; pendiente crear/mergear PR por Nico. Ingreso en celular real y datos reales no probados. Logo durante carga/redirección del profesional; sin SQL ni cambios de producción.
+
+- 2026-11-07 · Codex · `codex/agenda-total-admin`: Nico pidió total del día sin descuentos en su agenda de administrador en comisión; profesionales conservan proyección por porcentaje.
+- El rol se obtiene del perfil seleccionado en servidor, no de quien mira la pantalla; se muestra «Total del día · Sin descuentos». Sin SQL ni cambios de comisiones/cobros.
+- Pruebas simuladas de total admin, datos faltantes, profesional y arriendo; pendiente crear/mergear PR por Nico y comprobar datos reales en pantalla.
