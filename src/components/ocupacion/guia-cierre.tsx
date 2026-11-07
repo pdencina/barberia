@@ -4,10 +4,10 @@ import Link from "next/link";
 import type { CierreCitas } from "@/lib/ocupacion";
 
 const PASOS: { n: number; titulo: string; texto: string; donde?: { href: string; label: string } }[] = [
-  { n: 1, titulo: "Agenda la cita", texto: "Cada cliente que va a venir debe estar en el Calendario (lo agendas tú o lo reserva él por el link). Así queda «Agendada».", donde: { href: "/dashboard/calendario", label: "Ir al Calendario" } },
+  { n: 1, titulo: "Agenda la cita", texto: "Cada cliente que va a venir debe estar en el Calendario: lo agendas tú, o él reserva desde tu link. Así queda «Agendada».", donde: { href: "/dashboard/calendario", label: "Ir al Calendario" } },
   { n: 2, titulo: "El cliente llega y se atiende", texto: "No hace falta tocar nada mientras lo atiendes." },
-  { n: 3, titulo: "Cóbralo en el Punto de Venta", texto: "Al terminar, cobra desde el Punto de Venta eligiendo al cliente y al profesional. Al cobrar, la cita se cierra sola como «Completada».", donde: { href: "/dashboard/pos", label: "Ir al Punto de Venta" } },
-  { n: 4, titulo: "Si no llegó o canceló, márcalo", texto: "Abre la cita y elige «No llegó» o «Cancelar» (con el motivo). Nunca la dejes «Agendada» después de su hora." },
+  { n: 3, titulo: "Cóbralo en el Punto de Venta o en el Calendario", texto: "Al terminar, cobra desde el Punto de Venta, o desde el Calendario tocando el nombre del cliente y eligiendo «Cobrar». Elige al cliente y al profesional. Al cobrar, la cita se cierra sola como «Completada».", donde: { href: "/dashboard/pos", label: "Ir al Punto de Venta" } },
+  { n: 4, titulo: "Si no llegó o canceló, márcalo", texto: "Marca «No llegó», o elimina la cita desde el Calendario y en el motivo de cancelación explica qué pasó. Nunca la dejes «Agendada» después de su hora." },
 ];
 
 // Explica el proceso correcto para que los datos (ocupación, comisiones, caja, asistencia de clientes) se vean bien en todo el sistema.
