@@ -24,6 +24,9 @@ t("Lite solo abre lo suyo", () => {
   assert.ok(liteBloqueaPagina("lite", "/dashboard/clientes")); assert.ok(liteBloqueaPagina("lite", "/dashboard"));
   assert.ok(!liteBloqueaPagina("lite", "/dashboard/calendario")); assert.ok(!liteBloqueaPagina("lite", "/dashboard/configuracion/facturacion")); assert.ok(!liteBloqueaPagina("lite", "/dashboard/onboarding"));
   assert.ok(!liteBloqueaPagina("basic", "/dashboard/clientes"));
+  // Configuración: solo la pantalla principal; las subpantallas (boletas, publicidad, reservas...) no
+  assert.ok(!liteBloqueaPagina("lite", "/dashboard/configuracion")); assert.ok(liteBloqueaPagina("lite", "/dashboard/configuracion/boleta-sii")); assert.ok(liteBloqueaPagina("lite", "/dashboard/configuracion/reservas"));
+  assert.ok(!liteBloqueaPagina("lite", "/dashboard/servicios")); assert.ok(!liteBloqueaPagina("lite", "/dashboard/mi-billetera/personal"));
 });
 t("accesos del equipo desde Starter", () => { assert.ok(!planIncluye("basic", "starter")); assert.ok(!planIncluye("lite", "starter")); assert.ok(planIncluye("starter", "starter")); assert.ok(planIncluye("enterprise", "starter")); });
 process.exit(fails ? 1 : 0);

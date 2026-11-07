@@ -141,7 +141,7 @@ export default function BarberosPage() {
     <div className="p-3 md:p-6 space-y-3 md:space-y-3 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Equipo</h1>
-        {!scheduleOnly && (
+        {!scheduleOnly && tenant?.plan !== "lite" && (
           <button onClick={() => setShowModal(true)}
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
             Nuevo Miembro
@@ -155,26 +155,10 @@ export default function BarberosPage() {
         </p>
       )}
 
-      {/* Invite Code — admin only */}
-      {!scheduleOnly && (
-      <div className="bg-gradient-to-r from-brand-blue/5 to-brand-accent/5 rounded-2xl border border-brand-blue/20 p-4 flex flex-col md:flex-row md:items-center gap-3">
-        <div className="flex-1">
-          <p className="text-sm font-medium text-brand-dark">Codigo de invitacion</p>
-          <p className="text-xs text-brand-gray">Comparte este codigo para que un profesional se una a tu negocio al registrarse.</p>
-        </div>
-        {inviteCode ? (
-          <div className="flex items-center gap-2">
-            <span className="px-4 py-2 bg-white border border-gray-200 rounded-xl font-mono text-lg font-bold text-brand-dark tracking-widest">{inviteCode}</span>
-            <button onClick={() => { navigator.clipboard.writeText(inviteCode); showToast("Codigo copiado!", "success"); }}
-              className="px-3 py-2 bg-brand-blue text-white text-xs rounded-xl hover:bg-brand-blue/90">Copiar</button>
-          </div>
-        ) : (
-          <button onClick={generateInviteCode} disabled={generatingCode || tenantLoading || !tenant?.id}
-            className="px-4 py-2 bg-brand-blue text-white text-sm rounded-xl hover:bg-brand-blue/90 disabled:opacity-50 whitespace-nowrap">
-            {generatingCode ? "Generando..." : tenantLoading ? "Cargando..." : "Generar codigo"}
-          </button>
-        )}
-      </div>
+      {tenant?.plan === "lite" && (
+        <p className="text-sm text-brand-gray bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
+          El plan Lite es para una sola persona. Para sumar más profesionales, mejora tu plan.
+        </p>
       )}
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-x-auto">

@@ -50,7 +50,7 @@ function FacturacionContent() {
       .then((data) => {
         setTenant(data.tenant || null);
         setSubscription(data.subscription || null);
-        setPlans(((data.plans || []) as Plan[]).filter((p) => p.plan !== "lite" || data.tenant?.plan === "lite"));   // Lite no se ofrece como cambio de plan
+        setPlans(((data.plans || []) as Plan[]).filter((p) => p.plan !== "lite"));   // Lite no se ofrece como cambio de plan (es de entrada)
         setSelectedPlan(data.tenant?.plan || data.plans?.[0]?.plan || "");
         setProfessionals(data.tenant?.max_professionals || 1);
         setLoading(false);
@@ -212,18 +212,20 @@ function FacturacionContent() {
               <p className="text-sm font-semibold text-brand-dark">Suscripción actual</p>
               <p className="text-xs text-brand-gray mt-0.5">
                 Plan {plans.find((p) => p.plan === subscription.plan)?.name || subscription.plan} ·{" "}
-                {subscription.billing_period === "annual" ? "anual" : "mensual"}
+                {subscription.plan === "lite" ? "pago único" : subscription.billing_period === "annual" ? "anual" : "mensual"}
               </p>
             </div>
             <span className="text-lg font-bold text-brand-dark">{fmt(subscription.amount)}</span>
           </div>
-          {subscription.current_period_end && (
+          {subscription.plan === "lite" ? (
+            <p className="text-xs text-brand-gray mt-2">Pagaste una sola vez: no tiene vencimiento ni renovación. Cuando quieras más, mejora tu plan.</p>
+          ) : subscription.current_period_end && (
             <p className="text-xs text-brand-gray mt-2">
               {isAnnualOneTime ? "Tu plan anual vence el" : "Próxima renovación:"}{" "}
               {new Date(subscription.current_period_end).toLocaleDateString("es-CL")}
             </p>
           )}
-          {isAnnualOneTime && !isCancelled && (
+          {isAnnualOneTime && !isCancelled && subscription.plan !== "lite" && (
             <div className="mt-3 flex items-center gap-3">
               <button
                 type="button"

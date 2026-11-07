@@ -5,6 +5,11 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 import { puedeAgregarAsiento } from "@/lib/seats";
 
 export async function POST(req: NextRequest) {
+  // Los códigos de invitación se eliminaron: ya no se puede entrar a un negocio con uno.
+  return NextResponse.json({ error: "Los códigos de invitación ya no existen. Pídele al administrador que te agregue desde Equipo." }, { status: 410 });
+}
+
+async function _verifyAnterior(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { code, userId } = await req.json();
 

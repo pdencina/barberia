@@ -106,6 +106,11 @@ export async function POST(req: NextRequest) {
     if (caller.role !== "super_admin") resolvedTenantId = caller.tenantId || resolvedTenantId;
 
     if (resolvedTenantId && caller.role !== "super_admin") {
+      // Plan Lite: una sola persona (la cuenta del administrador).
+      const { data: tl } = await adminSupabase.from("tenants").select("plan").eq("id", resolvedTenantId).maybeSingle();
+      if ((tl as any)?.plan === "lite") {
+        return NextResponse.json({ error: "El plan Lite es para una sola persona. Para sumar más gente, mejora tu plan.", code: "plan_required" }, { status: 403 });
+      }
       // Los accesos para el equipo (recepción, otros administradores) son de Starter hacia arriba.
       if (userRole !== "barber") {
         const { data: t } = await adminSupabase.from("tenants").select("plan").eq("id", resolvedTenantId).maybeSingle();

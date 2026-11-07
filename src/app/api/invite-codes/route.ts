@@ -22,6 +22,11 @@ export async function GET(req: NextRequest) {
 
 // POST: Generate a new invite code
 export async function POST(req: NextRequest) {
+  // Los códigos de invitación se eliminaron: no se pueden crear nuevos.
+  return NextResponse.json({ error: "Los códigos de invitación ya no existen." }, { status: 410 });
+}
+
+async function _postAnterior(req: NextRequest) {
   const supabase = createAdminSupabase();
   // SEGURIDAD: antes no pedia sesion y el negocio venia del navegador: cualquiera podia generar un codigo de invitacion para el negocio de otro
   // y registrarse como profesional dentro de el. Solo el administrador (o super admin), y el negocio sale de su sesion.

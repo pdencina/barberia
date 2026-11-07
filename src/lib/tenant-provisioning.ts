@@ -105,6 +105,8 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
       role: "admin",
       tenant_id: tenant.id,
       active: true,
+      // En un negocio de un solo profesional (Lite, Basic) el dueño es quien atiende: aparece en la agenda y ocupa el asiento.
+      ...(input.maxProfessionals <= 1 ? { also_attends_clients: true } : {}),
     });
   }
 

@@ -36,6 +36,8 @@ interface NavItem {
   // del plan contratado (no del rol). Cuando el plan del negocio no incluye esta feature,
   // el item se muestra bloqueado con la misma insignia "PRO" que ya existia para roles.
   feature?: string;
+  // Solo se muestra en el plan Lite (crear servicios simples, porque «Mi negocio» no está incluido en Lite).
+  liteOnly?: boolean;
   // Basic es 1 profesional con agenda, mensajes y reportes basicos (tabla de precios): estos
   // modulos se muestran bloqueados solo en Basic. Starter/Pro/Enterprise no cambian.
   basicLocked?: boolean;
@@ -101,7 +103,8 @@ const sections: NavSection[] = [
       { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin", basicLocked: true },
       { name: "Facturas", href: "/dashboard/facturas", icon: FileText, minRole: "admin", feature: "invoices" },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: ClipboardList, minRole: "admin" },
-      { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: PiggyBank, minRole: "barber" },   // el plan Basic y Lite la incluyen (landing)
+      { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: PiggyBank, minRole: "barber" },
+      { name: "Gastos personales", href: "/dashboard/mi-billetera/personal", icon: HandCoins, minRole: "barber" },   // el plan Basic y Lite la incluyen (landing)
     ],
   },
   {
@@ -110,6 +113,7 @@ const sections: NavSection[] = [
     items: [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin" },
+      { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin", liteOnly: true },
       { name: "Ocupación", href: "/dashboard/ocupacion", icon: Gauge, minRole: "admin", basicLocked: true },
       {
         name: "Mi negocio", href: "/dashboard/mi-negocio", icon: Briefcase, minRole: "admin",
@@ -232,7 +236,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     ],
     barber: [
       "/dashboard/standby", "/dashboard/mi-agenda", "/dashboard/calendario",
-      "/dashboard/clientes", "/dashboard/mi-billetera",
+      "/dashboard/clientes", "/dashboard/mi-billetera", "/dashboard/mi-billetera/personal",
       "/dashboard/mi-perfil", "/dashboard/avisos", "/dashboard/soporte",
     ],
   };
@@ -257,6 +261,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     // que no sea super_admin, en vez de mostrarse bloqueados.
     if (item.minRole === "super_admin" && effectiveRole !== "super_admin") return null;
 
+    if (item.liteOnly && !esLite(overrideTenant?.plan)) return null;
     const whitelist = ROLE_MENU_ACCESS[effectiveRole];
     const roleLocked = whitelist ? !whitelist.includes(item.href) : !isAtLeast(item.minRole);
 

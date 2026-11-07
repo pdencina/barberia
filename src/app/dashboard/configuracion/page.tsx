@@ -46,6 +46,9 @@ export default function ConfiguracionPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tab, setTab] = useState<"negocio" | "horario" | "reservas" | "mensajes" | "equipo" | "cuenta">("negocio");
+  // Plan Lite: solo datos del negocio, horario, barra inferior, apariencia y privacidad; lo demás aparece bloqueado.
+  const { tenant: tenantLite } = useTenant();
+  const lite = tenantLite?.plan === "lite";
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
   // For a super_admin (no own tenant): let them pick which business to configure,
@@ -627,9 +630,11 @@ export default function ConfiguracionPage() {
           { key: "horario", label: "Horario", show: true },
           { key: "reservas", label: "Reservas", show: isAdmin },
           { key: "mensajes", label: "Mensajes y avisos", show: true },
-          { key: "equipo", label: "Equipo y caja", show: isAdmin },
+          { key: "equipo", label: lite ? "Barra inferior" : "Equipo y caja", show: isAdmin },
           { key: "cuenta", label: "Apariencia y cuenta", show: true },
-        ] as const).filter((t) => t.show).map((t) => (
+        ] as const).filter((t) => t.show).map((t) => lite && (t.key === "reservas" || t.key === "mensajes") ? (
+          <span key={t.key} title="Disponible en planes superiores" className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-400">🔒 {t.label}</span>
+        ) : (
           <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
             className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
               tab === t.key ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25" : "border border-gray-200 dark:border-white/10 bg-white dark:bg-brand-white text-brand-gray hover:border-brand-blue/40 hover:text-brand-dark"
@@ -637,9 +642,10 @@ export default function ConfiguracionPage() {
             {t.label}
           </button>
         ))}
+        {lite && <span title="Disponible en planes superiores" className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-400">🔒 Caja y más</span>}
       </div>
 
-      <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
+      <div className={tab === "negocio" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Preferencias de reservas: banner, logo, Google Maps y tipo de vista */}
       {isAdmin && (
         <a href="/dashboard/configuracion/reservas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
@@ -654,7 +660,7 @@ export default function ConfiguracionPage() {
 
       </div>
 
-      <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
+      <div className={tab === "negocio" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Boleta electronica SII del negocio (migracion 116, apagada por defecto) */}
       {isAdmin && (
         <a href="/dashboard/configuracion/boleta-sii" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
@@ -1121,7 +1127,7 @@ export default function ConfiguracionPage() {
 
       </div>
 
-      <div className={tab === "equipo" ? "space-y-3 md:space-y-6" : "hidden"}>
+      <div className={tab === "equipo" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Caja y Standby (Fase 5). Solo administrador. */}
       {isAdmin && cajaSec && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
@@ -1229,7 +1235,7 @@ export default function ConfiguracionPage() {
 
       </div>
 
-      <div className={tab === "equipo" ? "space-y-3 md:space-y-6" : "hidden"}>
+      <div className={tab === "equipo" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Libro de movimientos del profesional (Arriendo y Comision). Solo administrador. */}
       {isAdmin && ledger && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
