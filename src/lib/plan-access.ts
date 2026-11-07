@@ -18,6 +18,11 @@ export interface ReglaPlan {
 // Pro y superiores: lo que Starter tampoco incluye (caja, terminal de pago, inventario, fidelización, facturas, comisiones y arriendo).
 export const REGLAS: ReglaPlan[] = [
   { min: "basic", nombre: "Importar clientes", paginas: [], apis: ["/api/clients/import"] },
+  { min: "starter", nombre: "Mi Agenda (equipo)", paginas: ["/dashboard/mi-agenda"], apis: [] },
+  { min: "starter", nombre: "Reseñas", paginas: ["/dashboard/resenas"], apis: [] },
+  { min: "starter", nombre: "Cierre mensual", paginas: ["/dashboard/reportes"], apis: [] },
+  { min: "starter", nombre: "Métricas de clientes", paginas: ["/dashboard/clientes/metricas"], apis: [] },
+  { min: "pro", nombre: "Sucursales", paginas: ["/dashboard/sucursales"], apis: [] },
   { min: "starter", nombre: "Punto de Venta", paginas: ["/dashboard/pos"], apis: ["/api/pos"] },
   { min: "starter", nombre: "Modo Standby", paginas: ["/dashboard/standby"], apis: [] },
   { min: "starter", nombre: "Ingresos, abonos, boletas y proveedores", paginas: ["/dashboard/finanzas", "/dashboard/abonos", "/dashboard/boletas", "/dashboard/pagos", "/dashboard/proveedores"], apis: ["/api/finanzas", "/api/abonos", "/api/boletas", "/api/proveedores"] },
@@ -55,3 +60,17 @@ export function liteBloqueaPagina(plan: string | null | undefined, pathname: str
 /** Plan mínimo para un tipo de usuario del equipo: los accesos por profesional (recepción, administradores extra) son de Starter. */
 export const PLAN_MIN_ACCESOS_EQUIPO: PlanId = "starter";
 export const planIncluye = (plan: string | null | undefined, minimo: PlanId): boolean => !esPlanId(plan) || RANGO[plan] >= RANGO[minimo];
+
+// Capacidades de la interfaz por plan (lo que se muestra o no dentro de una pantalla). Una sola tabla, para no mostrar algo y luego quitarlo.
+// Basic = 1 profesional que no vende desde la app (landing); Starter suma ventas, mensajes masivos, fichas y reportes avanzados; Pro suma caja, inventario, fidelización, comisiones y arriendo.
+export type Capacidad =
+  | "ventas" | "dashboardPersonalizar" | "reportesAvanzados" | "inventario" | "miAgenda" | "resenas" | "cierreMensual"
+  | "sucursales" | "boletaSii" | "honorarios" | "publicidad" | "agenteWhatsapp" | "cobrosOnline" | "reglaReserva"
+  | "caja" | "standby" | "libroProfesional" | "fichasCliente" | "serviciosAvanzados" | "informeDiario" | "equipoAccesos" | "avisosCaja";
+export const CAPACIDADES: Record<Capacidad, PlanId> = {
+  ventas: "starter", dashboardPersonalizar: "starter", reportesAvanzados: "starter", miAgenda: "starter", resenas: "starter", cierreMensual: "starter",
+  boletaSii: "starter", cobrosOnline: "starter", reglaReserva: "starter", standby: "starter", fichasCliente: "starter", serviciosAvanzados: "starter",
+  informeDiario: "starter", equipoAccesos: "starter",
+  inventario: "pro", sucursales: "pro", honorarios: "pro", publicidad: "pro", agenteWhatsapp: "pro", caja: "pro", libroProfesional: "pro", avisosCaja: "pro",
+};
+export const planPermite = (plan: string | null | undefined, cap: Capacidad): boolean => planIncluye(plan, CAPACIDADES[cap]);

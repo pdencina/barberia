@@ -14,6 +14,7 @@ import { SalesChart, type ChartRange, type ChartPoint } from "@/components/dashb
 import { VentasPorProfesional, MediosDePago, type VentaProfesional, type VentaMedio } from "@/components/dashboard/ventas-desglose";
 import { NotasCard } from "@/components/dashboard/notas-card";
 import { BranchBar } from "@/components/dashboard/branch-bar";
+import { planPermite } from "@/lib/plan-access";
 import { FrecuenciaCard } from "@/components/dashboard/frecuencia-card";
 import { useBranch } from "@/lib/branch-context";
 import { NovedadesCard } from "@/components/dashboard/novedades-card";
@@ -163,8 +164,12 @@ export default function DashboardPage() {
   // Con más de una sucursal, el Dashboard se filtra por la sucursal activa (la principal incluye lo que aún no tiene sucursal).
   const ramaActiva = sucursales.length > 1 ? activeBranch : null;
   // El cuadro «Veces al mes por cliente» es del negocio completo: solo administración y en la sucursal principal.
-  const conFrecuencia = isAtLeast("admin") && (!ramaActiva || ramaActiva.principal);
   const { tenant, loading: tenantLoading, isOverriding } = useTenant();
+  const planActual = tenant?.plan;
+  const sinPlan = !planActual;                       // super admin sin negocio u otro caso sin plan: se muestra todo como siempre
+  const puede = (c: Parameters<typeof planPermite>[1]) => sinPlan || planPermite(planActual, c);
+  const conVentas = puede("ventas");
+  const conFrecuencia = isAtLeast("admin") && (!ramaActiva || ramaActiva.principal) && puede("reportesAvanzados");
   // Super Admin (sin "Entrar" a una empresa): ve el panel de plataforma, no el de un negocio.
   const isSuperView = effectiveRole === "super_admin" && !isOverriding;
   const isToday = selectedDate === todayInChile();
@@ -348,6 +353,7 @@ export default function DashboardPage() {
                 Restaurar
               </button>
             )}
+            {puede("dashboardPersonalizar") && (
             <button
               type="button"
               onClick={() => setEditingLayout((v) => !v)}
@@ -358,6 +364,7 @@ export default function DashboardPage() {
               <SlidersHorizontal className="h-4 w-4" />
               <span className={editingLayout ? "" : "hidden md:inline"}>{editingLayout ? "Listo" : "Personalizar"}</span>
             </button>
+            )}
           </div>
         }
       />
@@ -374,7 +381,8 @@ export default function DashboardPage() {
       {isAtLeast("receptionist") && <AvisoCorreos />}
 
       {/* Stat Cards: Ventas destacada + 4 metricas */}
-      <div className={`grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3 ${conFrecuencia ? "lg:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))]" : "lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]"}`}>
+      <div className={`grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3 ${conVentas ? (conFrecuencia ? "lg:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))]" : "lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]") : (conFrecuencia ? "lg:grid-cols-5" : "lg:grid-cols-4")}`}>
+        {conVentas && (
         <Sec id="ventas" className="col-span-2 lg:col-span-1" {...secProps}>
         <StatCard
           compact
@@ -393,6 +401,7 @@ export default function DashboardPage() {
           delta={{ value: data.stats.ventasChange, suffix: "vs dia anterior" }}
         />
         </Sec>
+        )}
         <Sec id="reservas" {...secProps}>
         <StatCard
           compact
@@ -441,15 +450,15 @@ export default function DashboardPage() {
       </div>
 
       {/* Novedades de la semana: qué funcionó, qué empeoró y alertas (solo admin; si no hay nada que decir, no aparece) */}
-      {isAtLeast("admin") && (!ramaActiva || ramaActiva.principal) && <Sec id="novedades" className="empty:hidden" {...secProps}><NovedadesCard /></Sec>}
+      {isAtLeast("admin") && puede("reportesAvanzados") && (!ramaActiva || ramaActiva.principal) && <Sec id="novedades" className="empty:hidden" {...secProps}><NovedadesCard /></Sec>}
 
       {/* Cumpleanos del mes (solo admin; no se muestra si no hay) */}
-      {isAtLeast("admin") && <Sec id="problemas" className="empty:hidden" {...secProps}><ProblemReportsCard /></Sec>}
-      {isAtLeast("admin") && <Sec id="reglaReservas" className="empty:hidden" {...secProps}><BookingRuleCard /></Sec>}
-      {isAtLeast("admin") && <Sec id="insumos" className="empty:hidden" {...secProps}><SupplyRequestsCard tenantId={tenant?.id} /></Sec>}
+      {isAtLeast("admin") && puede("avisosCaja") && <Sec id="problemas" className="empty:hidden" {...secProps}><ProblemReportsCard /></Sec>}
+      {isAtLeast("admin") && puede("reglaReserva") && <Sec id="reglaReservas" className="empty:hidden" {...secProps}><BookingRuleCard /></Sec>}
+      {isAtLeast("admin") && puede("inventario") && <Sec id="insumos" className="empty:hidden" {...secProps}><SupplyRequestsCard tenantId={tenant?.id} /></Sec>}
       {isAtLeast("admin") && <Sec id="cumples" className="empty:hidden" {...secProps}><BirthdaysCard tenantId={tenant?.id} /></Sec>}
 
-      <Sec id="grafico" {...secProps}>
+      {conVentas && <Sec id="grafico" {...secProps}>
       <SalesChart
         data={data.chartData || []}
         range={chartRange}
@@ -460,11 +469,11 @@ export default function DashboardPage() {
         hideAmount={hideAmount}
         onToggleHide={toggleAmount}
       />
-      </Sec>
+      </Sec>}
 
       {/* Desglose del período. En computador: a la izquierda «Ventas por profesional»; a la derecha, bajo «Medios de pago», el
           stock bajo y lo más vendido (llenan el espacio que antes quedaba vacío). En el celular todo va en una sola columna, en el mismo orden. */}
-      {(() => {
+      {conVentas && (() => {
         const hayPro = (data.ventasPorProfesional?.length || 0) > 1;
         const hayMedios = (data.ventasPorMedio?.length || 0) > 0;
         const tarjetas = (
@@ -489,9 +498,9 @@ export default function DashboardPage() {
       })()}
 
       {/* Main content: Agenda + Top Services */}
-      <div className="grid grid-cols-1 gap-3 md:gap-6 lg:grid-cols-5">
+      <div className={`grid grid-cols-1 gap-3 md:gap-6 ${conVentas ? "lg:grid-cols-5" : "lg:grid-cols-1"}`}>
         {/* Agenda del dia elegido (por defecto, hoy) */}
-        <Sec id="agenda" className="lg:col-span-3" {...secProps}>
+        <Sec id="agenda" className={conVentas ? "lg:col-span-3" : ""} {...secProps}>
         <Panel
           className="lg:col-span-3"
           title={isToday ? "Agenda de hoy" : "Agenda de ese dia"}
@@ -541,7 +550,7 @@ export default function DashboardPage() {
         </Sec>
 
         {/* Top Servicios */}
-        <Sec id="topServicios" className="lg:col-span-2" {...secProps}>
+        {conVentas && <Sec id="topServicios" className="lg:col-span-2" {...secProps}>
         <Panel
           className="lg:col-span-2"
           title="Top servicios"
@@ -581,7 +590,7 @@ export default function DashboardPage() {
             </div>
           )}
         </Panel>
-        </Sec>
+        </Sec>}
       </div>
       {/* Frase de negocios (solo admin): franja discreta al final */}
       {isAtLeast("admin") && <Sec id="frase" {...secProps}><BusinessQuoteNote /></Sec>}

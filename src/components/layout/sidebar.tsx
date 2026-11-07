@@ -14,6 +14,7 @@ import { NotificationBell } from "@/components/layout/notification-bell";
 import { Role } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { esLite, liteIncluye } from "@/lib/plan-lite";
+import { planPermite, type Capacidad } from "@/lib/plan-access";
 import {
   LayoutDashboard, Wallet, DollarSign, ShoppingCart, Package, Users,
   Calendar, CalendarCheck, CalendarDays, MapPin, Receipt, BarChart3,
@@ -38,6 +39,9 @@ interface NavItem {
   feature?: string;
   // Solo se muestra en el plan Lite (crear servicios simples, porque «Mi negocio» no está incluido en Lite).
   liteOnly?: boolean;
+  // Capacidad del plan que necesita esta pantalla (ver plan-access.ts). Sin ella, el menú la muestra bloqueada.
+  cap?: Capacidad;
+  hideIfNoCap?: boolean;   // si el plan no la incluye, ni se muestra bloqueada (por ejemplo Mi Agenda en planes de una sola persona)
   // Basic es 1 profesional con agenda, mensajes y reportes basicos (tabla de precios): estos
   // modulos se muestran bloqueados solo en Basic. Starter/Pro/Enterprise no cambian.
   basicLocked?: boolean;
@@ -53,7 +57,7 @@ const sections: NavSection[] = [
     title: "Principal",
     items: [
       { name: "Dashboard", href: "/dashboard", icon: LayoutDashboard, minRole: "admin" },
-      { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck, minRole: "barber" },
+      { name: "Mi Agenda", href: "/dashboard/mi-agenda", icon: CalendarCheck, minRole: "barber", cap: "miAgenda", hideIfNoCap: true },
       { name: "Standby", href: "/dashboard/standby", icon: Zap, minRole: "barber", basicLocked: true },
     ],
   },
@@ -91,7 +95,7 @@ const sections: NavSection[] = [
       },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle, minRole: "admin", basicLocked: true },
       { name: "Cupones", href: "/dashboard/cupones", icon: Ticket, minRole: "admin", feature: "coupons", basicLocked: true },
-      { name: "Reseñas", href: "/dashboard/resenas", icon: Star, minRole: "receptionist" },
+      { name: "Reseñas", href: "/dashboard/resenas", icon: Star, minRole: "receptionist", cap: "resenas" },
       { name: "Mapa de demanda", href: "/dashboard/demanda", icon: BarChart3, minRole: "admin", basicLocked: true },
     ],
   },
@@ -102,7 +106,7 @@ const sections: NavSection[] = [
       { name: "Abonos", href: "/dashboard/abonos", icon: HandCoins, minRole: "receptionist", basicLocked: true },
       { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin", basicLocked: true },
       { name: "Facturas", href: "/dashboard/facturas", icon: FileText, minRole: "admin", feature: "invoices" },
-      { name: "Cierre Mensual", href: "/dashboard/reportes", icon: ClipboardList, minRole: "admin" },
+      { name: "Cierre Mensual", href: "/dashboard/reportes", icon: ClipboardList, minRole: "admin", cap: "cierreMensual" },
       { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: PiggyBank, minRole: "barber" },
       { name: "Gastos personales", href: "/dashboard/mi-billetera/personal", icon: HandCoins, minRole: "barber" },   // el plan Basic y Lite la incluyen (landing)
     ],
@@ -112,7 +116,7 @@ const sections: NavSection[] = [
     title: "Negocio",
     items: [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
-      { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin" },
+      { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin", cap: "sucursales" },
       { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin", liteOnly: true },
       { name: "Ocupación", href: "/dashboard/ocupacion", icon: Gauge, minRole: "admin", basicLocked: true },
       {
@@ -262,7 +266,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     if (item.minRole === "super_admin" && effectiveRole !== "super_admin") return null;
 
     if (item.liteOnly && !esLite(overrideTenant?.plan)) return null;
-    if (esLite(overrideTenant?.plan) && item.href === "/dashboard/mi-agenda") return null;   // Lite: solo Calendario
+    if (item.hideIfNoCap && item.cap && overrideTenant?.plan && !planPermite(overrideTenant.plan, item.cap)) return null;   // Mi Agenda: solo con 2 o más profesionales
     const whitelist = ROLE_MENU_ACCESS[effectiveRole];
     const roleLocked = whitelist ? !whitelist.includes(item.href) : !isAtLeast(item.minRole);
 
@@ -272,6 +276,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     const planLocked =
       (!!item.feature && !hasPlanFeature(item.feature)) ||
       (!!item.basicLocked && overrideTenant?.plan === "basic") ||
+      (!!item.cap && !!overrideTenant?.plan && !planPermite(overrideTenant.plan, item.cap)) ||
       (esLite(overrideTenant?.plan) && !liteIncluye(item.href));
     const locked = roleLocked || planLocked;
 
