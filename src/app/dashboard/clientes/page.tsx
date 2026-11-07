@@ -12,6 +12,8 @@ import { EmptyIcons } from "@/components/ui/empty-state";
 import { parseCsvText, rowsToClients } from "@/lib/client-import";
 import SourceSelect from "@/components/clients/source-select";
 import type { GrupoCliente, ResumenGrupos } from "@/lib/clientes-grupos";
+import type { OrdenCliente, StatsCliente } from "@/lib/clientes-stats";
+import { formatCurrency } from "@/lib/utils";
 
 interface Client {
   id: string;
@@ -20,6 +22,7 @@ interface Client {
   phone: string;
   notes: string;
   created_at?: string;
+  stats?: StatsCliente;
 }
 
 export default function ClientesPage() {
@@ -44,6 +47,9 @@ export default function ClientesPage() {
   // Grupos (migración 143): nacidos en re-booking / cargados que ya usan / solo cargados. "" = todos.
   const [grupo, setGrupo] = useState<"" | GrupoCliente>("");
   const [resumen, setResumen] = useState<ResumenGrupos | null>(null);
+  // Orden de la lista: por nombre o por cualquier dato del resumen (veces que vino, ticket, asistencia, total gastado).
+  const [orden, setOrden] = useState<OrdenCliente>("nombre");
+  const [dir, setDir] = useState<"asc" | "desc">("asc");
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
@@ -61,8 +67,8 @@ export default function ClientesPage() {
   // Cache de lectura en memoria (por usuario, negocio, busqueda y pagina; nada queda escrito en el navegador). Solo la carga
   // automatica al abrir la pantalla la usa (skipSpinnerRef); buscar, paginar y las acciones piden todo como siempre.
   const skipSpinnerRef = useRef(false);
-  const clientsKey = (query: string, p: number, g: string = grupo) => cacheKey(["clientes", user?.id, tenant?.id, query, String(p), g]);
-  const fetchClients = async (query: string, p: number = page, g: "" | GrupoCliente = grupo) => {
+  const clientsKey = (query: string, p: number, g: string = grupo, o: string = `${orden}-${dir}`) => cacheKey(["clientes", user?.id, tenant?.id, query, String(p), g, o]);
+  const fetchClients = async (query: string, p: number = page, g: "" | GrupoCliente = grupo, o: OrdenCliente = orden, dr: "asc" | "desc" = dir) => {
     if (!skipSpinnerRef.current) setLoading(true);
     skipSpinnerRef.current = false;
     try {
@@ -70,6 +76,7 @@ export default function ClientesPage() {
       if (query) params.set("search", query);
       if (tenant?.id) params.set("tenantId", tenant.id);
       if (g) params.set("grupo", g);
+      if (o !== "nombre" || dr !== "asc") { params.set("orden", o); params.set("dir", dr); }
       params.set("page", String(p));
       params.set("limit", "50");
       const res = await fetch(`/api/clients?${params.toString()}`);
@@ -79,7 +86,7 @@ export default function ClientesPage() {
       setTotalClients(data.total || 0);
       setPage(data.page || 1);
       // La ruta responde 200 con lista vacia cuando falla la base: una lista vacia no se guarda como dato bueno.
-      if (res.ok && Array.isArray(data.clients) && data.clients.length > 0) writeCache(clientsKey(query, p, g), data, "memory");
+      if (res.ok && Array.isArray(data.clients) && data.clients.length > 0) writeCache(clientsKey(query, p, g, `${o}-${dr}`), data, "memory");
     } catch (err) {
       console.error("Error fetching clients:", err);
     } finally {
@@ -104,6 +111,21 @@ export default function ClientesPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenant?.id, tenantLoading, user?.id]);
+
+  // Tocar un título ordena por esa columna; tocarlo otra vez invierte el sentido. Los números parten de mayor a menor.
+  const ordenarPor = (o: OrdenCliente) => {
+    const nuevoDir: "asc" | "desc" = o === orden ? (dir === "asc" ? "desc" : "asc") : o === "nombre" ? "asc" : "desc";
+    setOrden(o); setDir(nuevoDir); setPage(1); setSelectedIds(new Set());
+    fetchClients(search, 1, grupo, o, nuevoDir);
+  };
+  const Titulo = ({ o, children, className = "" }: { o: OrdenCliente; children: React.ReactNode; className?: string }) => (
+    <th className={`p-4 font-medium text-gray-600 ${className}`}>
+      <button type="button" onClick={() => ordenarPor(o)} title="Ordenar por esta columna"
+        className={`inline-flex items-center gap-1 whitespace-nowrap hover:text-brand-blue ${orden === o ? "font-bold text-brand-blue" : ""}`}>
+        {children}<span className="text-[10px]">{orden === o ? (dir === "asc" ? "▲" : "▼") : "↕"}</span>
+      </button>
+    </th>
+  );
 
   const elegirGrupo = (g: "" | GrupoCliente) => { setGrupo(g); setPage(1); setSelectedIds(new Set()); fetchClients(search, 1, g); };
 
@@ -375,17 +397,20 @@ export default function ClientesPage() {
                   onChange={toggleAll}
                   className="w-4 h-4 rounded border-gray-300" />
               </th>
-              <th className="text-left p-4 font-medium text-gray-600">Nombre</th>
+              <Titulo o="nombre" className="text-left">Nombre</Titulo>
               <th className="text-left p-4 font-medium text-gray-600">Email</th>
               <th className="text-left p-4 font-medium text-gray-600">Telefono</th>
-              <th className="text-left p-4 font-medium text-gray-600">Notas</th>
+              <Titulo o="visitas" className="text-right">Veces que vino</Titulo>
+              <Titulo o="ticket" className="text-right">Ticket promedio</Titulo>
+              <Titulo o="asistencia" className="text-right">Asistencia</Titulo>
+              <Titulo o="gastado" className="text-right">Total gastado</Titulo>
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={5}><Spinner /></td></tr>
+              <tr><td colSpan={8}><Spinner /></td></tr>
             ) : clients.length === 0 ? (
-              <tr><td colSpan={5} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
+              <tr><td colSpan={8} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
             ) : clients.map((c) => (
               <tr key={c.id} className="hover:bg-gray-50">
                 <td className="p-4" onClick={(e) => e.stopPropagation()}>
@@ -401,7 +426,14 @@ export default function ClientesPage() {
                 </td>
                 <td className="p-4">{c.email || "-"}</td>
                 <td className="p-4">{c.phone || "-"}</td>
-                <td className="p-4 text-gray-500">{c.notes || "-"}</td>
+                <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats ? c.stats.visitas : "-"}</td>
+                <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats?.ticket != null ? formatCurrency(c.stats.ticket) : "-"}</td>
+                <td className="p-4 text-right">
+                  {c.stats?.asistencia != null ? (
+                    <span className={`inline-block min-w-[3rem] rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${c.stats.asistencia >= 80 ? "bg-emerald-50 text-emerald-600" : c.stats.asistencia >= 50 ? "bg-amber-50 text-amber-600" : "bg-red-50 text-red-500"}`}>{c.stats.asistencia}%</span>
+                  ) : <span className="text-gray-400">-</span>}
+                </td>
+                <td className="p-4 text-right font-semibold tabular-nums text-brand-dark">{c.stats && c.stats.gastado > 0 ? formatCurrency(c.stats.gastado) : "-"}</td>
               </tr>
             ))}
           </tbody>
