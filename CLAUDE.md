@@ -2,6 +2,8 @@
 
 Claude Code lee este archivo solo al abrir la carpeta. Detalle largo en `docs/CONTEXTO.md` (estado por fase), `docs/PLAN-OCTUBRE.md` (decisiones y vuelta atrás), `docs/PRUEBAS-FASES-5-7.md` (pruebas), `docs/auditoria-rutas-api.md` (seguridad de rutas) y `entrega-produccion/` (paquete para Pablo).
 
+> **Codex y Claude trabajan igual.** El método compartido está en `AGENTS.md` §16 y el estado más reciente en `docs/TRASPASO-CODEX-7-NOV.md` (leer antes de empezar; agregar 3 líneas a su bitácora al terminar cada tarea).
+
 ## 1. Quién es quién y cómo hablar
 - **Nico** (Nicolás, `nicoperezj1`, barberiaestudiolevels@gmail.com) es el dueño de Estudio Levels. No programa: prueba en su Mac en `localhost:3000` y decide.
 - **Pablo** (`pdencina`) es el desarrollador. Dueño del repo oficial `pdencina/barberia` (`main` = producción), de Vercel y del Supabase de producción. Corre el SQL a mano y despliega. Desde el 3 oct. Nico es **colaborador** de `pdencina/barberia` (puede subir ramas; nunca a `main`).
