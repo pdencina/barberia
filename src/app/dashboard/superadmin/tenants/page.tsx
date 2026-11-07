@@ -524,7 +524,7 @@ export default function SuperAdminTenantsPage() {
                       { key: "basic", label: "Basic", desc: "1 prof · $8.900/mes" },
                       { key: "starter", label: "Starter", desc: "3 prof · $29.990/mes" },
                       { key: "pro", label: "Pro", desc: "8 prof · $49.990/mes" },
-                      { key: "enterprise", label: "Enterprise", desc: "Ilimitado · $189.990/mes" },
+                      { key: "enterprise", label: "Enterprise", desc: "Ilimitado · $249.990/mes" },
                     ].map((p) => (
                       <button key={p.key} type="button" onClick={() => setForm({ ...form, plan: p.key })}
                         className={`p-3 rounded-xl border-2 text-left transition-all ${form.plan === p.key ? "border-brand-blue bg-brand-blue/5" : "border-gray-200 hover:border-gray-300"}`}>
