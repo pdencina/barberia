@@ -61,3 +61,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · `codex/agenda-total-admin`: Nico pidió total del día sin descuentos en su agenda de administrador en comisión; profesionales conservan proyección por porcentaje.
 - El rol se obtiene del perfil seleccionado en servidor, no de quien mira la pantalla; se muestra «Total del día · Sin descuentos». Sin SQL ni cambios de comisiones/cobros.
 - Pruebas simuladas de total admin, datos faltantes, profesional y arriendo; pendiente crear/mergear PR por Nico y comprobar datos reales en pantalla.
+
+- 2026-11-07 · Codex · `codex/logo-carga-oficial`: pantalla de carga del panel usa el PNG exacto que Nico adjuntó («Logo RE-BOOKING Texto Hori 01.png»), sin reinterpretación ni recorte.
+- Logo en fondo blanco y proporción original; se anima solo la barra. No cambia otros logos, splash nativo, permisos ni datos; sin migraciones.
+- Verificado SHA-256 contra el adjunto, pruebas de acceso y TypeScript; pendiente merge de Nico y verificación del arranque en app instalada.
