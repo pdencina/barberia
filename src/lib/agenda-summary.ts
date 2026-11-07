@@ -8,7 +8,7 @@ export interface AgendaSummaryAppointment {
 export function summarizeAgenda(
   rows: AgendaSummaryAppointment[],
   newIds: Set<string> | null,
-  profile: { commission_rate: number | string | null; work_mode: string | null },
+  profile: { commission_rate: number | string | null; work_mode: string | null; role?: string | null },
 ) {
   const active = rows.filter(r => ["scheduled", "confirmed", "in_progress", "completed"].includes(r.status));
   const newClients = new Set(active.filter(r => r.client_id && newIds?.has(r.id)).map(r => r.client_id)).size;
@@ -26,15 +26,18 @@ export function summarizeAgenda(
     }
   }
   const commissionMode = profile.work_mode === null || profile.work_mode === "commission";
+  const fullDayTotal = profile.role === "admin" && commissionMode;
   return {
+    incomeBasis: fullDayTotal ? "day_total" as const : "commission" as const,
     appointments: active.length,
     completed: active.filter(r => r.status === "completed").length,
     newClients: newIds === null ? null : newClients,
     unlinkedClients: active.filter(r => !r.client_id).length,
     commissionRate,
-    expectedIncome: commissionMode && commissionRate !== null && pricesComplete
-      ? Math.round(serviceTotal * commissionRate / 100) : null,
-    incomeUnavailable: !commissionMode ? "No aplica porcentaje en esta modalidad" : commissionRate === null
+    expectedIncome: fullDayTotal && pricesComplete ? Math.round(serviceTotal)
+      : commissionMode && commissionRate !== null && pricesComplete
+        ? Math.round(serviceTotal * commissionRate / 100) : null,
+    incomeUnavailable: !commissionMode ? "No aplica porcentaje en esta modalidad" : !fullDayTotal && commissionRate === null
       ? "Falta configurar el porcentaje" : !pricesComplete ? "Faltan precios de servicios" : null,
   };
 }

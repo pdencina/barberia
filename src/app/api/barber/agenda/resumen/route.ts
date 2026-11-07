@@ -20,7 +20,7 @@ export async function GET(req: NextRequest) {
   }
   const db = createAdminSupabase();
   const { data: profile, error } = await db.from("profiles")
-    .select("commission_rate, work_mode").eq("id", barberId).eq("tenant_id", caller.tenantId).maybeSingle();
+    .select("commission_rate, work_mode, role").eq("id", barberId).eq("tenant_id", caller.tenantId).maybeSingle();
   if (error) return NextResponse.json({ error: "No se pudo cargar el porcentaje" }, { status: 503 });
   if (!profile) return NextResponse.json({ error: "Profesional no disponible" }, { status: 403 });
   try {
