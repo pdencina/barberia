@@ -6,9 +6,10 @@ import { useTenant } from "@/lib/tenant-context";
 import { PageHeader, Panel, Segmented } from "@/components/ui/premium";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
+import { GuiaCierre } from "@/components/ocupacion/guia-cierre";
 import { nivelOcup, ordenarPros, pctOcup, totalGrupo, type MesOc, type Modo, type NivelOc, type Orden, type ResultadoOc } from "@/lib/ocupacion";
 
-type Datos = ResultadoOc & { desde?: string; hasta?: string; mesEnCurso?: string; error?: string };
+type Datos = ResultadoOc & { desde?: string; hasta?: string; mesEnCurso?: string; error?: string; cierre?: { pct: number; cerradas: number; abiertas: number; confiable: boolean } };
 
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const mesLargo = (m: string) => `${MESES[Number(m.slice(5, 7)) - 1]} ${m.slice(0, 4)}`;
@@ -173,6 +174,7 @@ export default function OcupacionPage() {
   const [mes, setMes] = useState("");
   const [orden, setOrden] = useState<Orden>("ocupacion");
   const [asc, setAsc] = useState(false);
+  const [verIgual, setVerIgual] = useState(false);
 
   useEffect(() => {
     if (!isAdmin || tenantLoading) return;
@@ -211,7 +213,11 @@ export default function OcupacionPage() {
       {error && <p className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">{error}</p>}
       {d && d.meses.length === 0 && !error && <Panel><p className="p-5 text-sm text-brand-gray">Todavía no hay meses con suficientes citas completadas para medir la ocupación.</p></Panel>}
 
-      {d && d.meses.length > 0 && equipo && (
+      {d && d.meses.length > 0 && d.cierre && !d.cierre.confiable && !verIgual && (
+        <GuiaCierre cierre={d.cierre} onVerIgual={() => setVerIgual(true)} />
+      )}
+
+      {d && d.meses.length > 0 && equipo && (d.cierre?.confiable !== false || verIgual) && (
         <>
           {/* Controles */}
           <div className="flex flex-wrap items-center justify-between gap-3">
@@ -303,6 +309,10 @@ export default function OcupacionPage() {
             Tiempo muerto = la diferencia. Es la duración de las citas en la agenda, no el tiempo real en la silla. Un día sin ninguna cita igual cuenta como disponible.
             Solo se mide desde el primer mes en que el equipo cerró las ventas en re-booking.
           </p>
+          <details className="rounded-2xl border border-gray-100 bg-white p-4">
+            <summary className="cursor-pointer text-sm font-semibold text-brand-dark">¿Cómo cerrar bien las citas para que estos números sean reales?</summary>
+            <div className="mt-3"><GuiaCierre /></div>
+          </details>
         </>
       )}
     </div>

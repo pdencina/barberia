@@ -1,6 +1,6 @@
 // Ocupación de profesionales. Uso: npx tsx scripts/test-ocupacion.ts
 import assert from "node:assert/strict";
-import { calcularOcupacion, totalGrupo, ordenarPros, pctOcup, nivelOcup, aMinutos, diasEntre } from "../src/lib/ocupacion";
+import { calcularOcupacion, totalGrupo, ordenarPros, pctOcup, nivelOcup, aMinutos, diasEntre, evaluarCierre } from "../src/lib/ocupacion";
 let fails = 0;
 const t = (n: string, f: () => void) => { try { f(); console.log("OK  " + n); } catch (e: any) { fails++; console.log("MAL " + n + ": " + e.message); } };
 
@@ -40,5 +40,12 @@ t("niveles y orden", () => {
   assert.deepEqual(ordenarPros(r.pros, "2026-11", "ocupacion", false).map((p) => p.name), ["Beto", "Ana"]);
   assert.deepEqual(ordenarPros(r.pros, "2026-11", "muerto", false).map((p) => p.name), ["Ana", "Beto"]);
   assert.deepEqual(ordenarPros(r.pros, "2026-11", "nombre", true).map((p) => p.name), ["Ana", "Beto"]);
+});
+t("cierre de citas: confiable desde 70% o con pocas citas", () => {
+  const mk = (c: number, n: number, a: number) => [...Array(c).fill("completed"), ...Array(n).fill("no_show"), ...Array(a).fill("scheduled"), "cancelled", "cancelled"];
+  assert.deepEqual(evaluarCierre(mk(60, 2, 89)), { pct: 41, cerradas: 62, abiertas: 89, confiable: false });   // como Fluye en octubre
+  assert.equal(evaluarCierre(mk(700, 10, 150)).confiable, true);                                                   // como Levels
+  assert.equal(evaluarCierre(mk(2, 0, 8)).confiable, true);                                                        // muy pocas citas: no se juzga
+  assert.equal(evaluarCierre([]).pct, 100);
 });
 process.exit(fails ? 1 : 0);

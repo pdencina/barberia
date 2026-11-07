@@ -116,3 +116,18 @@ export function ordenarPros<T extends { name: string; porMes: Record<string, Mes
   const out = [...pros].sort((a, b) => (orden === "nombre" ? a.name.localeCompare(b.name, "es") : v(a) - v(b) || a.name.localeCompare(b.name, "es")));
   return asc ? out : out.reverse();
 }
+
+// ¿Las citas se están cerrando? Si muchas citas pasadas siguen «agendadas» o «confirmadas», es que no se marcan como completadas
+// (ni se cobran en el Punto de Venta) y la ocupación saldría artificialmente baja. Cerrada = completada o «no llegó».
+export const CIERRE_MINIMO = 70;   // % mínimo para confiar en los números
+export interface CierreCitas { pct: number; cerradas: number; abiertas: number; confiable: boolean }
+export function evaluarCierre(estados: string[]): CierreCitas {
+  let cerradas = 0, abiertas = 0;
+  for (const e of estados) {
+    if (e === "completed" || e === "no_show") cerradas++;
+    else if (e === "scheduled" || e === "confirmed" || e === "in_progress") abiertas++;
+  }
+  const total = cerradas + abiertas;
+  const pct = total > 0 ? Math.round((cerradas / total) * 100) : 100;
+  return { pct, cerradas, abiertas, confiable: total < 20 || pct >= CIERRE_MINIMO };
+}
