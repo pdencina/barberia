@@ -32,7 +32,7 @@ export default async function DashboardLayout({
   // Single query: profile + tenant name via join (was two sequential round-trips).
   const { data: profile } = await createAdminSupabase()
     .from("profiles")
-    .select("name, role, tenant_id, tenant:tenants(name, status, admin_email, must_change_password, temp_password, created_at)")
+    .select("name, role, tenant_id, tenant:tenants(name, status, plan, admin_email, must_change_password, temp_password, created_at)")
     .eq("id", user.id)
     .single();
 
@@ -94,7 +94,7 @@ export default async function DashboardLayout({
             {!isSuspended && <PushNotificationPrompt />}
             <SupportWidget role={profile?.role || "barber"} />
             {!isSuspended && <OtiWidget />}
-            {!isSuspended && <QuickActions userRole={profile?.role || "barber"} />}
+            {!isSuspended && (profile?.tenant as any)?.plan !== "lite" && <QuickActions userRole={profile?.role || "barber"} />}
             {!isSuspended && <MobileTabBar role={profile?.role || "barber"} />}
             {!isSuspended && <CommandPalette />}
           </main>

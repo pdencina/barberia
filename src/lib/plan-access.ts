@@ -17,6 +17,7 @@ export interface ReglaPlan {
 // Starter y superiores: lo que Basic y Lite NO incluyen (landing: mensajes masivos, cupones, Standby, ventas y finanzas, reportes avanzados).
 // Pro y superiores: lo que Starter tampoco incluye (caja, terminal de pago, inventario, fidelización, facturas, comisiones y arriendo).
 export const REGLAS: ReglaPlan[] = [
+  { min: "basic", nombre: "Importar clientes", paginas: [], apis: ["/api/clients/import"] },
   { min: "starter", nombre: "Punto de Venta", paginas: ["/dashboard/pos"], apis: ["/api/pos"] },
   { min: "starter", nombre: "Modo Standby", paginas: ["/dashboard/standby"], apis: [] },
   { min: "starter", nombre: "Ingresos, abonos, boletas y proveedores", paginas: ["/dashboard/finanzas", "/dashboard/abonos", "/dashboard/boletas", "/dashboard/pagos", "/dashboard/proveedores"], apis: ["/api/finanzas", "/api/abonos", "/api/boletas", "/api/proveedores"] },

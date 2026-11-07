@@ -50,6 +50,8 @@ export default function ServiciosPage() {
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
+  // Plan Lite: servicios simples (nombre, descripción, imagen, precio y duración), sin categorías ni servicios internos.
+  const lite = tenant?.plan === "lite";
 
   // Drag state
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -644,6 +646,7 @@ export default function ServiciosPage() {
                   placeholder="Breve descripcion del servicio"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
               </div>
+              {!lite && (
               <div>
                 <label className="block text-xs font-medium text-brand-gray mb-1">Categoria (opcional)</label>
                 {/* Nico, 29-sep: en vez de escribir el nombre de la categoria cada vez (y
@@ -707,6 +710,7 @@ export default function ServiciosPage() {
                   </div>
                 )}
               </div>
+              )}
 
               {/* Reference photo: shown to clients while choosing services in the
                   public booking page (e.g. an example of "perfilado de barba"). */}
@@ -741,6 +745,7 @@ export default function ServiciosPage() {
                 <p className="text-xs text-brand-gray italic">Podras agregar una foto de referencia despues de crear el servicio.</p>
               )}
 
+              {!lite && (
               <div>
                 <label className="block text-xs font-medium text-brand-gray mb-1">¿Quién lo puede elegir?</label>
                 <div className="grid grid-cols-2 gap-2">
@@ -754,6 +759,7 @@ export default function ServiciosPage() {
                   </button>
                 </div>
               </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
