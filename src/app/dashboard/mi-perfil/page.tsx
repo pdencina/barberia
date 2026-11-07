@@ -18,6 +18,7 @@ import { Copy, Camera, Sun, Moon, Monitor, Trash2 } from "lucide-react";
 export default function MiPerfilPage() {
   const { user } = useAuth();
   const { tenant, userTheme, setUserTheme } = useTenant();
+  const lite = tenant?.plan === "lite";   // Lite: sin PIN de Standby ni Informes
   const { showToast } = useToast();
   const isSuper = user?.role === "super_admin";
   const [data, setData] = useState<any>(null);
@@ -269,7 +270,7 @@ export default function MiPerfilPage() {
           { key: "datos", label: "Mis datos" },
           { key: "apariencia", label: "Apariencia" },
           { key: "seguridad", label: "Seguridad y avisos" },
-          ...(user?.role === "admin" ? [{ key: "informes", label: "Informes" }] : []),
+          ...(user?.role === "admin" && !lite ? [{ key: "informes", label: "Informes" }] : []),
         ] as ReadonlyArray<{ key: "datos" | "apariencia" | "seguridad" | "informes"; label: string }>).map((t) => (
           <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
             className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
@@ -280,7 +281,7 @@ export default function MiPerfilPage() {
         ))}
       </div>
 
-      {tab === "informes" && user?.role === "admin" && <InformeDiarioCard />}
+      {tab === "informes" && user?.role === "admin" && !lite && <InformeDiarioCard />}
 
       <div className={tab === "datos" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Basic info */}
@@ -419,7 +420,7 @@ export default function MiPerfilPage() {
 
       <div className={tab === "datos" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* PIN */}
-      {!isSuper && (
+      {!isSuper && !lite && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 space-y-3">
         <h3 className="font-bold text-brand-dark">PIN Standby</h3>
         <p className="text-xs text-brand-gray">Tu código personal para acceder al modo Standby.</p>
