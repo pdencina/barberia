@@ -633,7 +633,7 @@ export default function ConfiguracionPage() {
           { key: "equipo", label: lite ? "Barra inferior" : "Equipo y caja", show: isAdmin },
           { key: "cuenta", label: "Apariencia y cuenta", show: true },
         ] as const).filter((t) => t.show).map((t) => lite && (t.key === "reservas" || t.key === "mensajes") ? (
-          <span key={t.key} title="Disponible en planes superiores" className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-400">🔒 {t.label}</span>
+          <span key={t.key} title="Disponible en planes superiores" className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-400">{t.label}</span>
         ) : (
           <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
             className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
@@ -642,7 +642,7 @@ export default function ConfiguracionPage() {
             {t.label}
           </button>
         ))}
-        {lite && <span title="Disponible en planes superiores" className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-400">🔒 Caja y más</span>}
+        {lite && <span title="Disponible en planes superiores" className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-400">Caja y más</span>}
       </div>
 
       <div className={tab === "negocio" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>

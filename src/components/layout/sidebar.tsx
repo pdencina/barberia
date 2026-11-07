@@ -262,6 +262,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     if (item.minRole === "super_admin" && effectiveRole !== "super_admin") return null;
 
     if (item.liteOnly && !esLite(overrideTenant?.plan)) return null;
+    if (esLite(overrideTenant?.plan) && item.href === "/dashboard/mi-agenda") return null;   // Lite: solo Calendario
     const whitelist = ROLE_MENU_ACCESS[effectiveRole];
     const roleLocked = whitelist ? !whitelist.includes(item.href) : !isAtLeast(item.minRole);
 
@@ -285,7 +286,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
       ?.map(processItem)
       .filter((c): c is NavItem & { locked?: boolean } => c !== null);
 
-    return { ...item, locked, children: children && children.length > 0 ? children : undefined };
+    return { ...item, locked, children: !esLite(overrideTenant?.plan) && children && children.length > 0 ? children : undefined };
   };
 
   // Super admin sin empresa elegida ("Viendo como" apagado): solo ve lo de la plataforma. Todo lo del negocio

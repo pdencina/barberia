@@ -59,10 +59,12 @@ export default function ClientesPage() {
   const isAdmin = gateRole === "admin" || gateRole === "super_admin";
   // Import/Export is a security-sensitive bulk operation: only owners/admins.
   // NOT available to barbers NOR receptionists.
-  const canImportExport = gateRole === "admin" || gateRole === "super_admin";
+  // Plan Lite: clientes muy básico (nombre, celular y correo), sin importar, exportar ni métricas.
+  const lite = tenant?.plan === "lite";
+  const canImportExport = (gateRole === "admin" || gateRole === "super_admin") && !lite;
   // Punto 10 (Pablo): "Metricas" (origen de clientes) es solo para Administrador y
   // Recepcion, igual que el resto de la vista de negocio.
-  const canSeeMetrics = isAdmin || gateRole === "receptionist";
+  const canSeeMetrics = (isAdmin || gateRole === "receptionist") && !lite;
 
   // Cache de lectura en memoria (por usuario, negocio, busqueda y pagina; nada queda escrito en el navegador). Solo la carga
   // automatica al abrir la pantalla la usa (skipSpinnerRef); buscar, paginar y las acciones piden todo como siempre.
@@ -404,17 +406,17 @@ export default function ClientesPage() {
               <Titulo o="nombre" className="text-left">Nombre</Titulo>
               <th className="text-left p-4 font-medium text-gray-600">Email</th>
               <th className="text-left p-4 font-medium text-gray-600">Telefono</th>
-              <Titulo o="visitas" className="text-right">Veces que vino</Titulo>
-              <Titulo o="ticket" className="text-right">Ticket promedio</Titulo>
-              <Titulo o="asistencia" className="text-right">Asistencia</Titulo>
-              <Titulo o="gastado" className="text-right">Total gastado</Titulo>
+              {!lite && <Titulo o="visitas" className="text-right">Veces que vino</Titulo>}
+              {!lite && <Titulo o="ticket" className="text-right">Ticket promedio</Titulo>}
+              {!lite && <Titulo o="asistencia" className="text-right">Asistencia</Titulo>}
+              {!lite && <Titulo o="gastado" className="text-right">Total gastado</Titulo>}
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={8}><Spinner /></td></tr>
+              <tr><td colSpan={lite ? 4 : 8}><Spinner /></td></tr>
             ) : clients.length === 0 ? (
-              <tr><td colSpan={8} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
+              <tr><td colSpan={lite ? 4 : 8} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
             ) : clients.map((c) => (
               <tr key={c.id} className="hover:bg-gray-50">
                 <td className="p-4" onClick={(e) => e.stopPropagation()}>
@@ -430,6 +432,7 @@ export default function ClientesPage() {
                 </td>
                 <td className="p-4">{c.email || "-"}</td>
                 <td className="p-4">{c.phone || "-"}</td>
+                {!lite && (<>
                 <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats ? c.stats.visitas : "-"}</td>
                 <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats?.ticket != null ? formatCurrency(c.stats.ticket) : "-"}</td>
                 <td className="p-4 text-right">
@@ -438,6 +441,7 @@ export default function ClientesPage() {
                   ) : <span className="text-gray-400">-</span>}
                 </td>
                 <td className="p-4 text-right font-semibold tabular-nums text-brand-dark">{c.stats && c.stats.gastado > 0 ? formatCurrency(c.stats.gastado) : "-"}</td>
+                </>)}
               </tr>
             ))}
           </tbody>

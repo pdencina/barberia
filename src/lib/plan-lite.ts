@@ -3,10 +3,11 @@
 export const PLAN_LITE = "lite";
 export const LITE_PRECIO_TOTAL = 1000;   // IVA incluido
 export const LITE_PRECIO_NETO = 840;     // 840 + 19% = 1.000
+export const LITE_WHATSAPP_MES = 20;     // botón WhatsApp de la ficha del cliente: 20 usos al mes
 export const LITE_PERIODO_DIAS = 3650;   // pago único: no vence ni se renueva
 
 const PERMITIDAS = [
-  "/dashboard/calendario", "/dashboard/mi-agenda", "/dashboard/mi-billetera",   // mi-billetera incluye «Mis gastos personales»
+  "/dashboard/calendario", "/dashboard/mi-billetera",   // mi-billetera incluye «Mis gastos personales»
   "/dashboard/barberos",        // aquí se configuran el perfil y los horarios y breaks
   "/dashboard/servicios",       // crear servicios simples: nombre, descripción, imagen, precio y duración
   "/dashboard/vacaciones", "/dashboard/mi-perfil", "/dashboard/soporte", "/dashboard/avisos",
@@ -16,4 +17,6 @@ const EXACTAS = ["/dashboard/configuracion", "/dashboard/configuracion/facturaci
 
 export const esLite = (plan: string | null | undefined) => plan === PLAN_LITE;
 /** ¿Esa pantalla es parte del plan Lite? (la ruta o cualquiera de sus subpantallas) */
-export const liteIncluye = (href: string): boolean => EXACTAS.includes(href) || PERMITIDAS.some((p) => href === p || href.startsWith(p + "/"));
+// Clientes: lista y ficha (con casi todo borroso); no «Métricas», Fidelidad ni Retención.
+const esClientesBasico = (href: string) => href === "/dashboard/clientes" || (href.startsWith("/dashboard/clientes/") && href !== "/dashboard/clientes/metricas");
+export const liteIncluye = (href: string): boolean => esClientesBasico(href) || EXACTAS.includes(href) || PERMITIDAS.some((p) => href === p || href.startsWith(p + "/"));

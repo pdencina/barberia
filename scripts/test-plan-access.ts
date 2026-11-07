@@ -21,7 +21,8 @@ t("lo que todos los planes incluyen nunca se bloquea", () => {
 t("una ruta parecida no se confunde (prefijo exacto)", () => { assert.ok(!bloq("basic", "/dashboard/posx")); assert.ok(!bloq("basic", "/api/posters", "api")); });
 t("plan desconocido o vacío no bloquea por error", () => { assert.ok(!bloq("raro", "/dashboard/pos")); assert.equal(reglaQueBloquea(null, "/dashboard/pos", "pagina"), null); });
 t("Lite solo abre lo suyo", () => {
-  assert.ok(liteBloqueaPagina("lite", "/dashboard/clientes")); assert.ok(liteBloqueaPagina("lite", "/dashboard"));
+  assert.ok(!liteBloqueaPagina("lite", "/dashboard/clientes")); assert.ok(!liteBloqueaPagina("lite", "/dashboard/clientes/abc-123")); assert.ok(liteBloqueaPagina("lite", "/dashboard/clientes/metricas"));
+  assert.ok(liteBloqueaPagina("lite", "/dashboard/mi-agenda")); assert.ok(liteBloqueaPagina("lite", "/dashboard"));
   assert.ok(!liteBloqueaPagina("lite", "/dashboard/calendario")); assert.ok(!liteBloqueaPagina("lite", "/dashboard/configuracion/facturacion")); assert.ok(!liteBloqueaPagina("lite", "/dashboard/onboarding"));
   assert.ok(!liteBloqueaPagina("basic", "/dashboard/clientes"));
   // Configuración: solo la pantalla principal; las subpantallas (boletas, publicidad, reservas...) no

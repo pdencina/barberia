@@ -40,7 +40,7 @@ const SUGERENCIAS = [
 // Ejemplos de pedidos de cierre: se muestran mientras la persona escribe algo parecido.
 const EJEMPLOS_CIERRE = ["Cierra mañana mi agenda", "Cierra el domingo mi agenda", "Cierra del 28 al 30 de octubre mi agenda"];
 const PARECE_CIERRE = /\b(cier|cerr|bloq|ausent|libre|no (?:voy|atiend|trabaj))/;
-const SALUDO: Mensaje = { de: "oti", tipo: "texto", texto: "¡Hola! Soy Oti y aún estoy en desarrollo, así que puedo cometer errores. Te ayudo con tareas pequeñas del panel: te explico dónde está algo, cierro días de un profesional si me lo pides y anoto tus gastos personales en Mi Billetera (por ejemplo: «compré pan $1.200»). Solo sé lo que hay en re-booking; si no lo sé, te ayudo a avisar a soporte." };
+const SALUDO: Mensaje = { de: "oti", tipo: "texto", texto: "¡Hola! Soy Oti, tu asistente. Te explico dónde está cada cosa, cierro días de un profesional y anoto tus gastos personales en Mi Billetera (por ejemplo: «pagué la cuenta de la luz $45.000»). Aún estoy en desarrollo y puedo equivocarme." };
 
 const falta = (r: Extract<PedidoBloqueo, { ok: false }>): string => {
   switch (r.falta) {

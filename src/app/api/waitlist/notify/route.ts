@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   if ((entry as any).barber_id) tenantDeLaLista = ((await supabase.from("profiles").select("tenant_id").eq("id", (entry as any).barber_id).maybeSingle()).data as any)?.tenant_id || null;
   if (!tenantDeLaLista && (entry as any).service_id) tenantDeLaLista = ((await supabase.from("services").select("tenant_id").eq("id", (entry as any).service_id).maybeSingle()).data as any)?.tenant_id || null;
   if ((type === "email" || type === "whatsapp") && tenantDeLaLista) {
-    const ok = await tryConsumeQuota(tenantDeLaLista, type === "email" ? "email" : "whatsapp", "followup", `waitlist:${waitlistId}:${type}`);
+    const ok = await tryConsumeQuota(tenantDeLaLista, type === "email" ? "email" : "whatsapp", "reminder", `waitlist:${waitlistId}:${type}`);
     if (!ok) return NextResponse.json({ error: "Ya usaste todos los mensajes de este mes de tu plan. Mejora tu plan o espera al próximo ciclo." }, { status: 429 });
   }
 

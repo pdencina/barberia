@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useTenant } from "@/lib/tenant-context";
 import { useParams, useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
@@ -82,6 +83,7 @@ const paymentLabels: Record<string, string> = {
 export default function ClienteDetailPage() {
   const params = useParams();
   const router = useRouter();
+  const { tenant } = useTenant();
   const [data, setData] = useState<ClientData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Array<{ id: string; note: string; pinned: boolean; created_at: string; created_by_profile: { name: string } | null }>>([]);
@@ -232,6 +234,22 @@ export default function ClienteDetailPage() {
     setPhotos(photos.filter((p) => p.id !== photoId));
   };
 
+  // Plan Lite: la ficha muestra solo nombre, celular y correo; el resto se ve borroso y anima a mejorar el plan. WhatsApp: 20 usos al mes.
+  const lite = tenant?.plan === "lite";
+  const [limiteWa, setLimiteWa] = useState("");
+  const abrirWhatsApp = async () => {
+    const tel = String(client?.phone || "").replace(/\D/g, "");
+    if (!tel) return;
+    if (!lite) { window.open(`https://wa.me/${tel}`, "_blank", "noreferrer"); return; }
+    const ventana = window.open("", "_blank");   // se abre ya (los navegadores bloquean ventanas abiertas después de esperar)
+    try {
+      const r = await fetch("/api/clients/whatsapp-click", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ clientId: client?.id }) });
+      const d = await r.json().catch(() => ({} as any));
+      if (!r.ok) { ventana?.close(); setLimiteWa(d?.error || "No se pudo abrir WhatsApp."); return; }
+      if (ventana) ventana.location.href = `https://wa.me/${tel}`;
+    } catch { ventana?.close(); setLimiteWa("No se pudo abrir WhatsApp. Intenta de nuevo."); }
+  };
+
   if (loading) return <Spinner />;
   if (!data) return <div className="p-6 text-center text-gray-500">Cliente no encontrado</div>;
 
@@ -300,16 +318,22 @@ export default function ClienteDetailPage() {
               <CalendarPlus className="h-4 w-4" strokeWidth={2} /> Agendar
             </button>
             {client.phone && (
-              <a href={`https://wa.me/${client.phone.replace(/\D/g, "")}`} target="_blank" rel="noreferrer"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-sm font-bold text-emerald-500 ring-1 ring-emerald-500/20 transition-colors hover:bg-emerald-500/20">
+              <button type="button" onClick={abrirWhatsApp} title={lite ? "Plan Lite: 20 usos al mes" : undefined}
+                className={lite
+                  ? "inline-flex items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-bold text-gray-400 ring-1 ring-gray-200 transition-colors hover:bg-gray-200"
+                  : "inline-flex items-center justify-center gap-2 rounded-xl bg-emerald-500/10 px-4 py-2.5 text-sm font-bold text-emerald-500 ring-1 ring-emerald-500/20 transition-colors hover:bg-emerald-500/20"}>
                 <MessageCircle className="h-4 w-4" strokeWidth={2} /> WhatsApp
-              </a>
+              </button>
             )}
-            {client.email && (
+            {client.email && (lite ? (
+              <span title="Disponible desde el plan Basic" className="inline-flex cursor-not-allowed items-center justify-center gap-2 rounded-xl bg-gray-100 px-4 py-2.5 text-sm font-bold text-gray-400 ring-1 ring-gray-200">
+                <Mail className="h-4 w-4" strokeWidth={2} /> Email
+              </span>
+            ) : (
               <a href={`mailto:${client.email}`} className={ghostButton}>
                 <Mail className="h-4 w-4" strokeWidth={2} /> Email
               </a>
-            )}
+            ))}
           </div>
         </div>
         {client.notes && (
@@ -371,6 +395,15 @@ export default function ClienteDetailPage() {
         </div>
       )}
 
+      {limiteWa && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          <p className="font-bold">{limiteWa}</p>
+          <button type="button" onClick={() => router.push("/dashboard/configuracion/facturacion")} className="mt-2 rounded-xl bg-brand-blue px-4 py-2 text-xs font-bold text-white">Mejorar mi plan</button>
+        </div>
+      )}
+
+      <div className={lite ? "relative" : undefined}>
+      <div className={lite ? "pointer-events-none select-none opacity-90 blur-[7px]" : undefined} aria-hidden={lite || undefined}>
       {/* Metricas */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total gastado" value={formatCurrency(stats.totalSpent)} Icon={Wallet} hero className="col-span-2 lg:col-span-1" hint={`${stats.totalVisits} visitas`} />
@@ -620,6 +653,16 @@ export default function ClienteDetailPage() {
             </Panel>
           )}
         </div>
+      </div>
+
+      </div>
+      {lite && (
+        <div className="absolute inset-x-0 top-6 z-10 mx-auto flex max-w-md flex-col items-center gap-2 rounded-2xl border border-brand-blue/20 bg-white/95 p-5 text-center shadow-xl">
+          <p className="text-base font-bold text-brand-dark">Conoce a tu cliente de verdad</p>
+          <p className="text-sm text-brand-gray">Cuánto gasta, cuántas veces viene, su asistencia, notas, fotos y servicios favoritos están disponibles desde el plan Basic.</p>
+          <button type="button" onClick={() => router.push("/dashboard/configuracion/facturacion")} className="mt-1 rounded-xl bg-brand-blue px-5 py-2.5 text-sm font-bold text-white">Mejorar mi plan</button>
+        </div>
+      )}
       </div>
 
       {/* Lightbox */}
