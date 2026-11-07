@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { cupoClientes, mensajeLimiteClientes } from "@/lib/client-limit";
 
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
@@ -66,6 +67,16 @@ export async function POST(req: NextRequest) {
     skipped += rows.length - toInsert.length;
   }
 
+  // Límite de clientes del plan: se importan solo los que caben y se avisa cuántos quedaron fuera.
+  let omitidosPorPlan = 0;
+  if (role !== "super_admin") {
+    const cupo = await cupoClientes(supabase, targetTenantId);
+    if (cupo.libres !== null) {
+      if (cupo.libres === 0) return NextResponse.json({ error: mensajeLimiteClientes(cupo.max), code: "plan_limit" }, { status: 403 });
+      if (toInsert.length > cupo.libres) { omitidosPorPlan = toInsert.length - cupo.libres; toInsert = toInsert.slice(0, cupo.libres); }
+    }
+  }
+
   let imported = 0;
   let failed = 0;
   let lastError = "";
@@ -96,5 +107,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ success: failed === 0, imported, skipped, failed, lastError: lastError || null, total: clients.length });
+  return NextResponse.json({ success: failed === 0, imported, skipped, omitidosPorPlan, failed, lastError: lastError || null, total: clients.length });
 }
