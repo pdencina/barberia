@@ -169,6 +169,8 @@ export default function DashboardPage() {
   const isSuperView = effectiveRole === "super_admin" && !isOverriding;
   const isToday = selectedDate === todayInChile();
   const router = useRouter();
+  // Plan Lite (solo agenda, Oti con billetera): su inicio es la agenda, no el Dashboard.
+  useEffect(() => { if (!tenantLoading && tenant?.plan === "lite") router.replace("/dashboard/calendario"); }, [tenantLoading, tenant?.plan, router]);
 
   // Item 37 (Nico, 27-sep): un negocio nuevo (admin) que aun no completo el wizard de
   // bienvenida es mandado ahi apenas cae en el dashboard, en vez de ver metricas vacias.

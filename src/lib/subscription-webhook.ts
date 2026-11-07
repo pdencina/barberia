@@ -2,6 +2,7 @@
 import { provisionTenant } from "@/lib/tenant-provisioning";
 import { calculateSubscriptionAmount, type BillingPeriod } from "@/lib/subscription-pricing";
 import { mpGet, MP_API } from "@/lib/mercadopago";
+import { LITE_PERIODO_DIAS, esLite } from "@/lib/plan-lite";
 import { aplicarBeneficiosReferidos, repoSupabase, mpReal } from "@/lib/referidos-beneficios";
 
 // ---------------------------------------------------------------------------
@@ -28,7 +29,7 @@ export async function provisionFromSignup(signupRequest: any, supabase: any, mpP
       maxProfessionals: signupRequest.professionals || planConfig?.max_professionals || 1,
       maxBranches: planConfig?.max_branches || 1,
       status: "active",
-      periodDays: billingPeriod === "annual" ? 365 : 30,
+      periodDays: esLite(signupRequest.plan) ? LITE_PERIODO_DIAS : billingPeriod === "annual" ? 365 : 30,
       // Se guarda lo que realmente se cobra por ciclo (con profesionales extra, IVA y dcto.)
       priceClp: signupRequest.amount || planConfig?.price_clp || 0,
       billingPeriod,
