@@ -11,10 +11,10 @@ const fechaChile = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone:
 const trozos = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
 
 // Ocupación de todos los profesionales del negocio (horas disponibles vs horas con cita), mes a mes. Solo administrador.
-export async function GET() {
+export async function GET(req: Request) {
   const guard = await requireRole(["admin", "super_admin"]);
   if (!guard.ok) return guard.response;
-  const { tenantId } = await resolveTenantForRequest(null);
+  const { tenantId } = await resolveTenantForRequest(new URL(req.url).searchParams.get("tenantId"));
   if (!tenantId || tenantId === "ALL") return NextResponse.json({ meses: [], pros: [], horas: {} });
 
   const sb = createAdminSupabase();

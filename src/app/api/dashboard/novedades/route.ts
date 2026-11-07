@@ -13,10 +13,10 @@ const trozos = <T,>(a: T[], n: number) => Array.from({ length: Math.ceil(a.lengt
 
 // Novedades de la semana (qué funcionó, qué empeoró y alertas) del negocio. Solo administrador; el negocio sale de la sesión.
 // Cada bloque se calcula por separado: si uno falla (por ejemplo, una tabla que aún no existe), los demás siguen.
-export async function GET() {
+export async function GET(req: Request) {
   const guard = await requireRole(["admin", "super_admin"]);
   if (!guard.ok) return guard.response;
-  const { tenantId } = await resolveTenantForRequest(null);
+  const { tenantId } = await resolveTenantForRequest(new URL(req.url).searchParams.get("tenantId"));
   if (!tenantId || tenantId === "ALL") return NextResponse.json({ semana: lunesDe(todayInChile()), novedades: [] });
 
   const sb = createAdminSupabase();

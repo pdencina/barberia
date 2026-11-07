@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import type { Novedad, TipoNovedad } from "@/lib/novedades";
+import { useTenant } from "@/lib/tenant-context";
 
 const CLAVE = "dashboard_novedades_ocultas";
 const leer = (): string[] => { try { const v = JSON.parse(localStorage.getItem(CLAVE) || "[]"); return Array.isArray(v) ? v : []; } catch { return []; } };
@@ -17,12 +18,13 @@ const ESTILO: Record<TipoNovedad, { barra: string; etiqueta: string; texto: stri
 // Novedades de la semana: qué funcionó, qué empeoró y alertas. Si no hay nada que decir, no se muestra el bloque.
 // Cada aviso se puede quitar; vuelve a salir la semana siguiente si sigue pasando (se recuerda solo en este navegador).
 export function NovedadesCard() {
+  const { tenant } = useTenant();
   const [datos, setDatos] = useState<{ semana: string; novedades: Novedad[] } | null>(null);
   const [ocultas, setOcultas] = useState<string[]>([]);
 
   useEffect(() => {
     setOcultas(leer());
-    fetch("/api/dashboard/novedades", { cache: "no-store" }).then((r) => r.json()).then((d) => setDatos(d && Array.isArray(d.novedades) ? d : null)).catch(() => setDatos(null));
+    fetch(`/api/dashboard/novedades${tenant?.id ? `?tenantId=${tenant.id}` : ""}`, { cache: "no-store" }).then((r) => r.json()).then((d) => setDatos(d && Array.isArray(d.novedades) ? d : null)).catch(() => setDatos(null));
   }, []);
 
   const visibles = useMemo(() => (datos ? datos.novedades.filter((n) => !ocultas.includes(`${n.id}|${datos.semana}`)) : []), [datos, ocultas]);
