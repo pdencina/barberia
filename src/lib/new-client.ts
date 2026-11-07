@@ -13,7 +13,8 @@ const MAX_PAGES = 30;
 
 export async function newClientAppointmentIds(
   supabase: any,
-  rows: Array<{ id: string; client_id?: string | null; date: string; start_time?: string | null }>
+  rows: Array<{ id: string; client_id?: string | null; date: string; start_time?: string | null }>,
+  options: { tenantId?: string; strict?: boolean } = {}
 ): Promise<Set<string>> {
   const result = new Set<string>();
   const clientIds = Array.from(new Set(rows.map((r) => r.client_id).filter(Boolean))) as string[];
@@ -28,7 +29,7 @@ export async function newClientAppointmentIds(
   // Primera cita (por fecha y hora) de cada cliente, mirando todo su historial hasta hoy.
   const earliest = new Map<string, { id: string; k: string }>();
   for (let page = 0; page < MAX_PAGES; page++) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("appointments")
       .select("id, client_id, date, start_time")
       .in("client_id", clientIds)
@@ -38,7 +39,15 @@ export async function newClientAppointmentIds(
       .order("start_time", { ascending: true })
       .order("id", { ascending: true })
       .range(page * PAGE, page * PAGE + PAGE - 1);
-    if (error) break;
+    if (options.tenantId) query = query.eq("tenant_id", options.tenantId);
+    const { data, error } = await query;
+    if (error) {
+      if (options.strict) throw new Error("No se pudo verificar el historial de clientes");
+      break;
+    }
+    if (options.strict && page === MAX_PAGES - 1 && data?.length === PAGE) {
+      throw new Error("Historial demasiado extenso para verificar clientes nuevos");
+    }
     for (const a of data || []) {
       const k = key(a);
       const cur = earliest.get(a.client_id);

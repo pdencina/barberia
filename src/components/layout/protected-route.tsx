@@ -3,7 +3,7 @@
 import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
-import { Spinner } from "@/components/ui/spinner";
+import { BrandLoading } from "@/components/ui/brand-loading";
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
@@ -37,21 +37,23 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     }
   }, [user, loading, pathname]);
 
-  // While loading, show children anyway (server already validated session)
-  // This prevents blank screen flash
+  // Mientras se resuelve la sesión no se muestra una pantalla sin autorizar.
   if (loading) {
-    return <>{children}</>;
+    return <BrandLoading />;
   }
 
   // If no user after loading, show nothing (redirect is happening)
-  if (!user) return null;
+  if (!user) return <BrandLoading />;
 
   // Client role should never see dashboard
   if (user.role === "client" && pathname.startsWith("/dashboard")) {
-    return null; // redirect happening via useEffect
+    return <BrandLoading />; // redirección en curso
   }
 
-  // If no access, show restriction message briefly
+  // El profesional va a su agenda: no mostrar un error durante la redirección.
+  if (user.role === "barber" && !canAccess(pathname)) return <BrandLoading />;
+
+  // Mantener la restricción cuando no hay una redirección prevista.
   if (!canAccess(pathname)) {
     return (
       <div className="flex flex-col items-center justify-center h-screen gap-4">

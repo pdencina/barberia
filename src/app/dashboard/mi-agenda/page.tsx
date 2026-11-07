@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
@@ -11,12 +11,18 @@ import { EmptyState, EmptyIcons } from "@/components/ui/empty-state";
 import { PushNotificationButton } from "@/components/push-notifications";
 import { WhatsAppSendButton } from "@/components/whatsapp/whatsapp-send-button";
 import Link from "next/link";
+import { AppointmentCard } from "@/components/agenda/appointment-card";
+import { BlockedSlot } from "@/components/agenda/blocked-slot";
+import { chileClock, currentAppointmentId } from "@/lib/agenda-current";
+import { AgendaHeader } from "@/components/agenda/agenda-header";
+import { DaySummary } from "@/components/agenda/day-summary";
 
 interface Appointment {
   id: string;
   start_time: string;
   end_time: string;
   status: string;
+  is_new_client?: boolean | null;
   client: { id?: string; name: string; phone: string | null } | null;
   services: Array<{ price: number; service: { name: string; duration: number } }>;
 }
@@ -35,20 +41,6 @@ interface Barber {
   name: string;
 }
 
-const statusLabels: Record<string, string> = {
-  scheduled: "Agendada",
-  confirmed: "Confirmada",
-  in_progress: "En Atencion",
-  completed: "Completada",
-};
-
-const statusColors: Record<string, string> = {
-  scheduled: "bg-yellow-100 text-yellow-700",
-  confirmed: "bg-blue-100 text-blue-700",
-  in_progress: "bg-purple-100 text-purple-700",
-  completed: "bg-green-100 text-green-700",
-};
-
 // Read HH:MM straight from the stored timestamp string, WITHOUT timezone conversion.
 // In this app times are stored as UTC that already holds Chile local time (same
 // convention the calendar uses). Using new Date(...).toLocaleTimeString() re-applied the
@@ -63,6 +55,7 @@ export default function MiAgendaPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blocks, setBlocks] = useState<Block[]>([]);
   const [loading, setLoading] = useState(true);
+  const [summaryRefresh, setSummaryRefresh] = useState(0);
   const [showBlockModal, setShowBlockModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createForm, setCreateForm] = useState({
@@ -130,6 +123,7 @@ export default function MiAgendaPage() {
     setAppointments(Array.isArray(appts) ? appts : []);
     setBlocks(await blockRes.json());
     setLoading(false);
+    setSummaryRefresh(value => value + 1);
   };
 
   useEffect(() => { fetchData(); }, [selectedBarber, date]);
@@ -226,85 +220,48 @@ export default function MiAgendaPage() {
     fetchData();
   };
 
+  const [clock, setClock] = useState(() => chileClock());
+  const lastScroll = useRef("");
+  const userBrowsing = useRef(false);
+  useEffect(() => {
+    userBrowsing.current = false;
+    lastScroll.current = "";
+  }, [date, selectedBarber]);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(chileClock()), 30_000);
+    const onBrowse = () => { userBrowsing.current = true; };
+    window.addEventListener("wheel", onBrowse, { passive: true });
+    window.addEventListener("touchmove", onBrowse, { passive: true });
+    return () => { clearInterval(timer); window.removeEventListener("wheel", onBrowse); window.removeEventListener("touchmove", onBrowse); };
+  }, []);
+  const currentId = currentAppointmentId(appointments, date, clock);
+  useEffect(() => {
+    if (loading || !currentId || userBrowsing.current) return;
+    const key = `${date}:${selectedBarber}:${currentId}`;
+    if (lastScroll.current === key) return;
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`agenda-${currentId}`)?.scrollIntoView({ block: "start", behavior: "auto" });
+      lastScroll.current = key;
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [currentId, date, selectedBarber, loading]);
+
   const todayBlocks = blocks.filter((b) => b.date === date);
   const isBlockedToday = todayBlocks.some((b) => b.all_day);
 
   return (
     <div className="p-3 md:p-6 space-y-2.5 md:space-y-4 max-w-2xl mx-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-lg md:text-2xl font-bold">Mi Agenda</h1>
-        <button
-          onClick={() => setShowBlockModal(true)}
-          className="px-3 py-1.5 md:py-2 bg-red-600 text-white text-xs md:text-sm rounded-lg hover:bg-red-700"
-        >
-          Bloquear Dia
-        </button>
-      </div>
+      <AgendaHeader
+        name={barbers.find(b => b.id === selectedBarber)?.name || user?.name || ""}
+        date={date} onDateChange={setDate} onChangeDay={changeDate}
+        barbers={barbers} selectedBarber={selectedBarber} onBarberChange={setSelectedBarber}
+        canSelectProfessional={isAtLeast("admin")}
+        onBlock={() => setShowBlockModal(true)} notifications={<PushNotificationButton />}
+      />
 
-      {/* Turn on push alerts for new appointments (Vicente's request). Permanent, unlike
-          the one-time banner. */}
-      <div>
-        <PushNotificationButton />
-      </div>
+      {selectedBarber && <DaySummary key={`${tenant?.id}:${selectedBarber}:${date}`} barberId={selectedBarber} date={date} refresh={summaryRefresh} />}
 
-      {/* Selector de profesional: solo admin/super_admin y solo si hay mas de uno (con uno solo se entiende). */}
-      {isAtLeast("admin") && barbers.length > 1 && (
-        <select
-          value={selectedBarber}
-          onChange={(e) => setSelectedBarber(e.target.value)}
-          className="w-full border border-gray-200 rounded-xl px-3 py-1.5 text-sm"
-        >
-          {barbers.map((b) => (
-            <option key={b.id} value={b.id}>{b.name}</option>
-          ))}
-        </select>
-      )}
-
-      {/* Date navigation */}
-      <div className="flex items-center justify-between bg-white rounded-lg p-2 shadow">
-        <button onClick={() => changeDate(-1)} className="px-3 py-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 text-base">←</button>
-        <div className="relative text-center">
-          <p className="font-bold first-letter:uppercase">
-            {new Date(date + "T12:00:00").toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })}
-          </p>
-          {/* Tocar la fecha abre el selector de fecha (el input va encima, invisible). */}
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} aria-label="Elegir fecha" className="absolute inset-0 h-full w-full cursor-pointer opacity-0" />
-        </div>
-        <button onClick={() => changeDate(1)} className="px-3 py-1.5 bg-gray-100 rounded-lg hover:bg-gray-200 text-base">→</button>
-      </div>
-
-      {/* Blocked day indicator */}
-      {isBlockedToday && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-center justify-between">
-          <div>
-            <p className="font-medium text-red-700">Dia bloqueado</p>
-            <p className="text-sm text-red-500">{todayBlocks[0]?.reason || "Sin motivo"}</p>
-          </div>
-          <button
-            onClick={() => removeBlock(todayBlocks[0].id)}
-            className="text-xs text-red-600 border border-red-300 px-2 py-1 rounded hover:bg-red-100"
-          >
-            Desbloquear
-          </button>
-        </div>
-      )}
-
-      {/* Partial blocks */}
-      {todayBlocks.filter((b) => !b.all_day).map((b) => (
-        <div key={b.id} className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center justify-between">
-          <div>
-            <p className="font-medium text-yellow-700">Bloqueado: {b.start_time} - {b.end_time}</p>
-            <p className="text-sm text-yellow-500">{b.reason || "Sin motivo"}</p>
-          </div>
-          <button
-            onClick={() => removeBlock(b.id)}
-            className="text-xs text-yellow-600 border border-yellow-300 px-2 py-1 rounded hover:bg-yellow-100"
-          >
-            Quitar
-          </button>
-        </div>
-      ))}
+      {todayBlocks.map(b => <BlockedSlot key={b.id} allDay={b.all_day} start={b.start_time} end={b.end_time} reason={b.reason} onRemove={() => removeBlock(b.id)} />)}
 
       {/* Appointments */}
       {loading ? (
@@ -319,32 +276,7 @@ export default function MiAgendaPage() {
       ) : (
         <div className="space-y-2">
           {appointments.map((a: any) => (
-            <div key={a.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-3">
-              <div className="flex items-start justify-between">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="text-base font-bold text-indigo-600">
-                      {hhmm(a.start_time)}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      - {hhmm(a.end_time)}
-                    </span>
-                  </div>
-                  <p className="font-medium text-gray-900">{a.client?.name || "Sin cliente"}</p>
-                  {a.client?.phone && (
-                    <a href={`tel:${a.client.phone}`} className="text-xs text-blue-500 hover:underline">
-                      {a.client.phone}
-                    </a>
-                  )}
-                  <p className="text-sm text-gray-500">
-                    {a.services?.map((s: any) => s.service?.name).join(", ")}
-                  </p>
-                </div>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusColors[a.status] || ""}`}>
-                  {statusLabels[a.status] || a.status}
-                </span>
-              </div>
-
+            <AppointmentCard key={a.id} id={a.id} start={hhmm(a.start_time)} end={hhmm(a.end_time)} name={a.client?.name || "Sin cliente"} phone={a.client?.phone} services={a.services?.map((s: any) => s.service?.name).join(", ")} status={a.status} isNew={a.is_new_client} current={a.id === currentId}>
               {/* Una sola fila: WhatsApp, ficha del cliente y la accion de estado. */}
               <div className="flex gap-2 mt-2">
               {/* Acceso rapido: WhatsApp de confirmacion y ficha del cliente, sin ir a buscarlo. */}
@@ -366,7 +298,7 @@ export default function MiAgendaPage() {
                           time: a.start_time,
                           totalPrice: (a.services || []).reduce((n: number, s: any) => n + (Number(s.price ?? s.service?.price) || 0), 0),
                         }}
-                        className="inline-flex items-center justify-center gap-1.5 py-2.5 lg:py-2 bg-[#25D366] text-white rounded-lg text-sm font-medium hover:bg-[#1da851]"
+                        className="inline-flex items-center justify-center gap-1.5 py-2.5 lg:py-2 bg-brand-blue/10 text-brand-blue rounded-xl text-xs font-semibold hover:bg-brand-blue/15"
                       >
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                           <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z" />
@@ -378,7 +310,7 @@ export default function MiAgendaPage() {
                     {a.client?.id && (
                       <Link
                         href={`/dashboard/clientes/${a.client.id}`}
-                        className="flex-1 inline-flex items-center justify-center py-2.5 lg:py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50"
+                        className="flex-1 inline-flex items-center justify-center py-2.5 lg:py-2 border border-brand-blue/15 text-brand-blue rounded-xl text-xs font-semibold hover:bg-brand-blue/5"
                       >
                         Ficha
                       </Link>
@@ -409,7 +341,7 @@ export default function MiAgendaPage() {
                 )}
               </div>
               </div>
-            </div>
+            </AppointmentCard>
           ))}
         </div>
       )}
