@@ -88,3 +88,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · Conflicto de `codex/temas-rosa-monocromo` con PR #356 resuelto conservando ambas entradas. El fetch configurado solo trae agente/whatsapp: traer main explícitamente con `git fetch origin main:refs/remotes/origin/main`.
 - Migración 148 aplicada por Editor SQL en rebooking Base y EstudioLevels, verificada con profiles_theme_check y sus cinco valores. Pruebas carecía de profiles.theme: 148 ahora crea theme en profiles/tenants si falta; no modifica preferencias existentes.
 - Revalidado TypeScript y 23 pruebas de temas; respuesta controlada también si falta la columna. Sin UPDATE/DELETE de negocios, sin merge a main ni despliegue; Nico crea y mergea el PR.
+
+- 2026-11-07 · Codex · `codex/logo-rosa`: logo oficial horizontal, icono y carga en rosado únicamente cuando se elige Rosa.
+- Cambio de CSS aislado; las demás paletas conservan sus logos. Sin SQL ni cambios de datos.
+- TypeScript verificado; pendiente merge por Nico y comprobación en la app instalada.
