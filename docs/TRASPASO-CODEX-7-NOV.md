@@ -65,3 +65,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · `codex/logo-carga-oficial`: pantalla de carga del panel usa el PNG exacto que Nico adjuntó («Logo RE-BOOKING Texto Hori 01.png»), sin reinterpretación ni recorte.
 - Logo en fondo blanco y proporción original; se anima solo la barra. No cambia otros logos, splash nativo, permisos ni datos; sin migraciones.
 - Verificado SHA-256 contra el adjunto, pruebas de acceso y TypeScript; pendiente merge de Nico y verificación del arranque en app instalada.
+
+- 2026-11-07 · Codex · `codex/agenda-admin-modalidad`: corrige total oculto en admin de Levels; la excepción del administrador ya no depende de work_mode.
+- Total de servicios agendados del administrador en cualquier modalidad; profesionales conservan su regla. No modifica configuración, porcentajes, pagos ni base de datos.
+- Verificación: 27 pruebas simuladas de resumen y TypeScript; sin SQL. Pendiente merge por Nico y comprobación del monto real en su sesión.

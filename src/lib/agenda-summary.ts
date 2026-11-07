@@ -26,7 +26,8 @@ export function summarizeAgenda(
     }
   }
   const commissionMode = profile.work_mode === null || profile.work_mode === "commission";
-  const fullDayTotal = profile.role === "admin" && commissionMode;
+  // El administrador que atiende proyecta sus servicios completos, cualquiera sea su modalidad.
+  const fullDayTotal = profile.role === "admin";
   return {
     incomeBasis: fullDayTotal ? "day_total" as const : "commission" as const,
     appointments: active.length,
@@ -37,7 +38,7 @@ export function summarizeAgenda(
     expectedIncome: fullDayTotal && pricesComplete ? Math.round(serviceTotal)
       : commissionMode && commissionRate !== null && pricesComplete
         ? Math.round(serviceTotal * commissionRate / 100) : null,
-    incomeUnavailable: !commissionMode ? "No aplica porcentaje en esta modalidad" : !fullDayTotal && commissionRate === null
+    incomeUnavailable: !fullDayTotal && !commissionMode ? "No aplica porcentaje en esta modalidad" : !fullDayTotal && commissionRate === null
       ? "Falta configurar el porcentaje" : !pricesComplete ? "Faltan precios de servicios" : null,
   };
 }

@@ -38,8 +38,22 @@ async function main() {
     const s = summarizeAgenda([row("a")], new Set(), { ...profile, role: "barber" });
     assert.equal(s.expectedIncome, 4000); assert.equal(s.incomeBasis, "commission");
   });
-  await test("administrador en arriendo conserva modalidad sin comisión", () => {
-    assert.equal(summarizeAgenda([row("a")], new Set(), { ...profile, role: "admin", work_mode: "rental" }).expectedIncome, null);
+  await test("administrador ve total en arriendo sin alterar modalidad ni descontar porcentaje", () => {
+    const s = summarizeAgenda([row("a")], new Set(), { ...profile, role: "admin", work_mode: "rental" });
+    assert.equal(s.expectedIncome, 10000); assert.equal(s.incomeUnavailable, null); assert.equal(s.incomeBasis, "day_total");
+  });
+
+  await test("admin con modalidad vacía o no reconocida sigue viendo total sin porcentaje", () => {
+    for (const work_mode of ["", "legacy", null]) {
+      const s = summarizeAgenda([row("a")], new Set(), { role: "admin", work_mode, commission_rate: null });
+      assert.equal(s.expectedIncome, 10000); assert.equal(s.incomeUnavailable, null);
+    }
+  });
+  await test("admin sin precios no presenta un total engañoso en ninguna modalidad", () => {
+    for (const work_mode of ["rental", "commission", null]) {
+      const s = summarizeAgenda([row("a", "confirmed", null)], new Set(), { role: "admin", work_mode, commission_rate: 40 });
+      assert.equal(s.expectedIncome, null); assert.equal(s.incomeUnavailable, "Faltan precios de servicios");
+    }
   });
 
   function historyDb(history: any[], error = false) {
