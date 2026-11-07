@@ -92,3 +92,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · `codex/logo-rosa`: logo oficial horizontal, icono y carga en rosado únicamente cuando se elige Rosa.
 - Cambio de CSS aislado; las demás paletas conservan sus logos. Sin SQL ni cambios de datos.
 - TypeScript verificado; pendiente merge por Nico y comprobación en la app instalada.
+
+- 2026-11-07 · Codex · `codex/escala-rosa`: variedad tonal en Rosa: títulos intensos, acentos medios, resumen pastel y fondos de tarjetas al 7%/12%, con texto sólido.
+- Se conservan fondo blanco y logo rosado; ninguna otra paleta cambia. Sin SQL ni cambios de datos.
+- Verificación de contraste y TypeScript; falta revisión en app instalada. Nico crea/mergea PR.
