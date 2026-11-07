@@ -1,0 +1,23 @@
+import assert from 'node:assert/strict';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { currentAppointmentId, chileClock } from '../src/lib/agenda-current';
+import { BlockedSlot } from '../src/components/agenda/blocked-slot';
+import { AppointmentCard } from '../src/components/agenda/appointment-card';
+(globalThis as any).React = React;
+const day = '2026-11-07';
+const rows = [{id:'a',end_time:day+'T12:00:00Z',status:'completed'}, {id:'b',end_time:day+'T13:30:00Z',status:'confirmed'}, {id:'c',end_time:day+'T14:00:00Z',status:'scheduled'}];
+let count=0;
+function t(name:string,fn:()=>void) { fn(); count++; console.log('OK '+name); }
+t('a las 13 se destaca cita vigente y no completada anterior',()=>assert.equal(currentAppointmentId(rows,day,{date:day,time:'13:00'}),'b'));
+t('al terminar la cita avanza a la siguiente',()=>assert.equal(currentAppointmentId(rows,day,{date:day,time:'13:30'}),'c'));
+t('día pasado o futuro no salta',()=>assert.equal(currentAppointmentId(rows,'2026-11-08',{date:day,time:'13:00'}),null));
+t('al terminar el día no inventa cita actual',()=>assert.equal(currentAppointmentId(rows,day,{date:day,time:'20:00'}),null));
+t('no destaca canceladas ni ausencias',()=>assert.equal(currentAppointmentId(rows.map(r=>({...r,status:'no_show'})),day,{date:day,time:'11:00'}),null));
+t('reloj usa Chile y conserva fecha',()=>assert.deepEqual(chileClock(new Date('2026-11-07T16:00:00Z')),{date:day,time:'13:00'}));
+t('bloqueo compacto sin repetir motivo genérico ni segundos',()=>{const s=renderToStaticMarkup(<BlockedSlot start="12:00:00" end="13:45:00" reason="Bloqueo" onRemove={()=>{}}/>);assert.ok(s.includes('12:00–13:45'));assert.ok(!s.includes('>Bloqueo<'));assert.ok(!s.includes('bg-yellow'));});
+t('motivo específico sí se conserva',()=>assert.ok(renderToStaticMarkup(<BlockedSlot allDay reason="Capacitación" onRemove={()=>{}}/>).includes('Capacitación')));
+const props={id:'a',start:'13:00',end:'13:30',name:'Ejemplo',services:'Corte',status:'confirmed',children:null};
+t('primera visita tiene distintivo',()=>assert.ok(renderToStaticMarkup(<AppointmentCard {...props} isNew/>).includes('Cliente nuevo')));
+t('cliente antiguo o historial desconocido no tiene distintivo',()=>{for(const isNew of [false,null,undefined])assert.ok(!renderToStaticMarkup(<AppointmentCard {...props} isNew={isNew}/>).includes('Cliente nuevo'));});
+console.log(`${count} pruebas correctas`);
