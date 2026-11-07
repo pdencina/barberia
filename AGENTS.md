@@ -164,3 +164,6 @@ Desde esta fecha puedes escribir código en **cualquier área del proyecto**, pe
 6. **Todo lo nuevo viene apagado** o idéntico a como era antes (interruptor por negocio o variable de entorno), sobre todo si toca dinero, stock, pedidos o mensajes.
 7. **Límites que siguen vigentes** (sección 4): sin merge a `main`, sin desplegar, sin migraciones en producción, sin leer ni tocar `.env*` ni secretos, sin enviar correos, WhatsApp, mensajes ni cobros reales, sin datos personales reales en pruebas o respuestas. Los permisos del entorno (por ejemplo, poder hacer `git push`) los habilita Nico por separado, cuando corresponda.
 8. **Liderazgo técnico.** Claude decide el diseño final. Si no estás de acuerdo con un diseño, lo dices en el PR con tu alternativa y tus razones; no lo cambias por tu cuenta.
+
+## 16. TRASPASO ENTRE HERRAMIENTAS (léelo primero si vas a continuar el agente de WhatsApp con IA)
+El estado vivo, el método paso a paso, el entorno de pruebas y los pendientes están en **`docs/agente/TRASPASO-SESION-IA.md`**. Es la fuente única para continuar el trabajo entre Claude Code y Codex: léelo completo antes de empezar y **actualiza su sección 9 ("Estado") al terminar**, en el mismo PR.
