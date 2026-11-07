@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
 import { PageHeader, Panel, Segmented } from "@/components/ui/premium";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
@@ -165,6 +166,7 @@ function Pro({ p, mes, meses, posicion, maxVentasHora }: { p: ResultadoOc["pros"
 
 export default function OcupacionPage() {
   const { role } = useAuth();
+  const { tenant, loading: tenantLoading } = useTenant();
   const isAdmin = role === "admin" || role === "super_admin";
   const [d, setD] = useState<Datos | null>(null);
   const [error, setError] = useState("");
@@ -173,11 +175,12 @@ export default function OcupacionPage() {
   const [asc, setAsc] = useState(false);
 
   useEffect(() => {
-    if (!isAdmin) return;
-    fetch("/api/ocupacion", { cache: "no-store" })
+    if (!isAdmin || tenantLoading) return;
+    setD(null); setError("");
+    fetch(`/api/ocupacion${tenant?.id ? `?tenantId=${tenant.id}` : ""}`, { cache: "no-store" })
       .then(async (r) => { const j = await r.json().catch(() => ({})); if (!r.ok) setError(j?.error || "No se pudo cargar"); else { setD(j); setMes((j.meses || []).slice(-1)[0] || ""); } })
       .catch(() => setError("No se pudo cargar"));
-  }, [isAdmin]);
+  }, [isAdmin, tenant?.id, tenantLoading]);
 
   const idx = d ? d.meses.indexOf(mes) : -1;
   const equipo = d && mes ? totalGrupo(d, "todos", mes) : null;

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const guard = await requireRole(["admin", "super_admin"]);
   if (!guard.ok) return guard.response;
-  const { tenantId } = await resolveTenantForRequest(null);
+  const { tenantId } = await resolveTenantForRequest(new URL(req.url).searchParams.get("tenantId"));
   if (!tenantId || tenantId === "ALL") return NextResponse.json({ meses: [] });
 
   const sb = createAdminSupabase();

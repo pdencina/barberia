@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Repeat } from "lucide-react";
 import { StatCard } from "@/components/ui/premium";
+import { useTenant } from "@/lib/tenant-context";
 import { META_FRECUENCIA, META_INTERMEDIA, visitasParaMeta, type MesFrecuencia } from "@/lib/frecuencia";
 
 const MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"];
@@ -12,12 +13,13 @@ const num = (n: number) => n.toFixed(2).replace(".", ",");
 // «Veces que viene cada cliente al mes»: cuadro chico como los otros del Dashboard (el promedio del mes y cómo va contra el mes anterior);
 // al tocarlo se abre el detalle con la meta de 1,5 y 2, lo que falta y el historial. Solo cuenta desde el primer mes con flujo real.
 export function FrecuenciaCard({ fecha }: { fecha?: string }) {
+  const { tenant } = useTenant();   // el super admin que «entra» a un negocio ve los datos de ese negocio
   const [meses, setMeses] = useState<MesFrecuencia[] | null>(null);
   const [comparable, setComparable] = useState<{ mes: string; hastaDia: number; promedio: number; clientes: number } | null>(null);
   const [abierto, setAbierto] = useState(false);
   useEffect(() => {
-    fetch(`/api/dashboard/frecuencia${fecha ? `?fecha=${encodeURIComponent(fecha)}` : ""}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { setMeses(Array.isArray(d?.meses) ? d.meses : []); setComparable(d?.comparable || null); }).catch(() => setMeses([]));
-  }, [fecha]);
+    fetch(`/api/dashboard/frecuencia?${new URLSearchParams({ ...(fecha ? { fecha } : {}), ...(tenant?.id ? { tenantId: tenant.id } : {}) }).toString()}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { setMeses(Array.isArray(d?.meses) ? d.meses : []); setComparable(d?.comparable || null); }).catch(() => setMeses([]));
+  }, [fecha, tenant?.id]);
   useEffect(() => {
     if (!abierto) return;
     const k = (e: KeyboardEvent) => { if (e.key === "Escape") setAbierto(false); };
