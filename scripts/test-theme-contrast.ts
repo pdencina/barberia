@@ -16,7 +16,7 @@ for (const theme of ["rose","monochrome","monochrome-dark"]) {
   assert.ok(block,`Debe existir ${theme}`);
   const tokens: Record<string,number[]>={};
   for (const match of Array.from(block.matchAll(/--([\w-]+): ([^;]+);/g))) tokens[match[1]]=rgb(match[2]);
-  for (const [text,surface] of [["foreground","background"],["card-foreground","card"],["muted-foreground","card"],["foreground","secondary"],["muted-foreground","secondary"],["primary-foreground","primary"],["brand-gray","brand-white"],["brand-blue","card"]]) {
+  for (const [text,surface] of [["foreground","background"],["card-foreground","card"],["muted-foreground","card"],["foreground","secondary"],["muted-foreground","secondary"],["primary-foreground","primary"],["brand-gray","brand-white"],["brand-blue","card"],["accent-foreground","accent"],...(theme === "rose" ? [["foreground","rose-summary"],["muted-foreground","rose-summary"],["primary-foreground","rose-active"]] : [])]) {
     const ratio=contrast(tokens[text],tokens[surface]);assert.ok(ratio>=4.5,`${theme} ${text}/${surface}: ${ratio.toFixed(2)} debe ser >=4.5`);checks++;console.log(`OK ${theme} ${text}/${surface}: ${ratio.toFixed(2)}`);
   }
 }

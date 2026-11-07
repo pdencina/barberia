@@ -2,7 +2,7 @@
 export const THEMES = [
   { value: "light", label: "Claro", background: "#f5f7fa", ink: "#0b7375" },
   { value: "dark", label: "Oscuro", background: "#151921", ink: "#36c5c8" },
-  { value: "rose", label: "Rosa", background: "#ffffff", ink: "#b12f68" },
+  { value: "rose", label: "Rosa", background: "#ffffff", ink: "#b73570" },
   { value: "monochrome", label: "Blanco y negro", background: "#ffffff", ink: "#202020" },
   { value: "monochrome-dark", label: "Negro con blanco", background: "#111111", ink: "#ffffff" },
 ] as const;
