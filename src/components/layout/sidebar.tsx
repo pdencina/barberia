@@ -19,7 +19,7 @@ import {
   Tablet, CreditCard, Tag, Settings, LogOut, Scissors, Menu, X,
   Heart, Bell, Zap, Image, Star, ChevronLeft, ChevronRight, ChevronDown,
   MessageCircle, Clock, FileText, UserCircle, PiggyBank, ClipboardList,
-  Building2, ShieldCheck, Ticket, Percent, KeyRound, Truck, Briefcase, Plane, LifeBuoy, HandCoins,
+  Building2, ShieldCheck, Ticket, Percent, KeyRound, Truck, Briefcase, Plane, LifeBuoy, HandCoins, Gauge,
 } from "lucide-react";
 
 interface NavItem {
@@ -109,6 +109,7 @@ const sections: NavSection[] = [
     items: [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin" },
+      { name: "Ocupación", href: "/dashboard/ocupacion", icon: Gauge, minRole: "admin" },
       {
         name: "Mi negocio", href: "/dashboard/mi-negocio", icon: Briefcase, minRole: "admin",
         // Fase 6: lo que se administra del negocio, junto en un solo menu.
