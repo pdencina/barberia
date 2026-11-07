@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
+// Sin esto Next guarda la respuesta al desplegar y un plan nuevo (o un cambio de precio) no aparece hasta el próximo despliegue.
+export const dynamic = "force-dynamic";
+
 // GET: Public list of plans for the /suscribirse signup page (no auth — this is
 // shown before the business has an account). Only exposes what the pricing UI needs.
 export async function GET() {
