@@ -1,5 +1,7 @@
 "use client";
 
+import { ThemePicker } from "@/components/settings/theme-picker";
+import { type AppTheme } from "@/lib/themes";
 import { clearAppCache } from "@/lib/swr-cache";
 import { useState, useEffect } from "react";
 import { MyTabBarCard } from "@/components/settings/tab-bar-cards";
@@ -14,7 +16,7 @@ import { createClient } from "@/lib/supabase/client";
 import { useIsNativeApp } from "@/lib/native-app";
 import { nativePushAvailable, nativePushEnabledFor, enableNativePush, disableNativePush } from "@/lib/native-push";
 import { biometricAvailable, biometricLockEnabled, biometricVerify, setBiometricLockEnabled } from "@/lib/biometric";
-import { Copy, Camera, Sun, Moon, Monitor, Trash2 } from "lucide-react";
+import { Copy, Camera, Trash2 } from "lucide-react";
 
 export default function MiPerfilPage() {
   const { user } = useAuth();
@@ -172,7 +174,7 @@ export default function MiPerfilPage() {
 
   // Tema propio: claro, oscuro o "igual que el negocio" (null). Se aplica al instante
   // desde TenantProvider y se guarda en el perfil del usuario.
-  const changeTheme = async (next: "light" | "dark" | null) => {
+  const changeTheme = async (next: AppTheme | null) => {
     if (savingTheme || next === userTheme) return;
     const previous = userTheme;
     setUserTheme(next);
@@ -183,11 +185,11 @@ export default function MiPerfilPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ theme: next }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || "No se pudo cambiar el tema"); }
       showToast("Tema guardado", "success");
-    } catch {
+    } catch (error: any) {
       setUserTheme(previous);
-      showToast("No se pudo cambiar el tema", "error");
+      showToast(error.message || "No se pudo cambiar el tema", "error");
     } finally {
       setSavingTheme(false);
     }
@@ -374,28 +376,7 @@ export default function MiPerfilPage() {
       <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-5 space-y-3">
         <h3 className="font-bold text-brand-dark">Mi tema</h3>
         <p className="text-xs text-brand-gray">Elige como ves re-booking. No cambia lo que ven los demas.</p>
-        <div className="grid grid-cols-3 gap-2">
-          {([
-            { value: "light", label: "Claro", icon: Sun },
-            { value: "dark", label: "Oscuro", icon: Moon },
-            { value: null, label: "Del negocio", icon: Monitor },
-          ] as const).map(({ value, label, icon: Icon }) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => changeTheme(value)}
-              disabled={savingTheme}
-              className={`flex flex-col items-center gap-1 rounded-xl border-2 px-2 py-3 text-xs font-medium transition-colors disabled:opacity-50 ${
-                userTheme === value
-                  ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
-                  : "border-gray-200 dark:border-white/10 text-brand-gray hover:border-gray-300 dark:hover:border-white/20"
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              {label}
-            </button>
-          ))}
-        </div>
+        <ThemePicker value={userTheme} onChange={changeTheme} disabled={savingTheme} inherit />
       </div>
 
       </div>

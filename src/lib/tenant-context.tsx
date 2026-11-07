@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { type AppTheme, isAppTheme, normalizeTheme, applyColorTheme, clearColorTheme } from "@/lib/themes";
 import { instalarVerComo } from "@/lib/ver-como";
 import { useAuth } from "@/lib/auth-context";
 import { setTenantId as setGlobalTenantId } from "@/lib/api-fetch";
@@ -17,7 +18,7 @@ interface TenantInfo {
   trial_ends_at: string | null;
   // Punto (Nico, 25-sep): tema claro/oscuro elegido por el Administrador en
   // Configuracion, aplicado a todo el sistema para ese negocio.
-  theme: "light" | "dark";
+  theme: AppTheme;
   // Item 37 (Nico, 27-sep): wizard de bienvenida para negocios nuevos. Ver
   // src/app/dashboard/onboarding/page.tsx y supabase/migrations/077_onboarding.sql.
   onboarding_completed: boolean;
@@ -27,8 +28,8 @@ interface TenantInfo {
 interface TenantContextType {
   tenant: TenantInfo | null;
   // Tema propio del usuario (null = usa el del negocio). Ver api/profile/theme.
-  userTheme: "light" | "dark" | null;
-  setUserTheme: (theme: "light" | "dark" | null) => void;
+  userTheme: AppTheme | null;
+  setUserTheme: (theme: AppTheme | null) => void;
   loading: boolean;
   isTrialExpired: boolean;
   daysLeft: number;
@@ -54,7 +55,7 @@ const TenantContext = createContext<TenantContextType>({
 
 export function TenantProvider({ children, serverTenantId }: { children: ReactNode; serverTenantId?: string | null }) {
   const [tenant, setTenant] = useState<TenantInfo | null>(null);
-  const [userTheme, setUserTheme] = useState<"light" | "dark" | null>(null);
+  const [userTheme, setUserTheme] = useState<AppTheme | null>(null);
   const [planFeatures, setPlanFeatures] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const { effectiveRole } = useAuth();
@@ -111,9 +112,9 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
       .then((r) => (r.ok ? r.json() : null))
       .then((data) => {
         if (data?.tenant) {
-          setTenant(data.tenant);
+          setTenant({ ...data.tenant, theme: normalizeTheme(data.tenant.theme) });
           setPlanFeatures(data.features || []);
-          setUserTheme(data.userTheme === "light" || data.userTheme === "dark" ? data.userTheme : null);
+          setUserTheme(isAppTheme(data.userTheme) ? data.userTheme : null);
           setGlobalTenantId(data.tenant.id);
         } else {
           setTenant(null);
@@ -131,10 +132,10 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
   useEffect(() => {
     if (typeof document === "undefined") return;
     // El tema del usuario manda; si no eligio uno, aplica el del negocio.
-    const effective = userTheme ?? tenant?.theme;
-    document.documentElement.classList.toggle("dark", effective === "dark");
+    const effective = normalizeTheme(userTheme ?? tenant?.theme);
+    applyColorTheme(document.documentElement, effective);
     return () => {
-      document.documentElement.classList.remove("dark");
+      clearColorTheme(document.documentElement);
     };
   }, [userTheme, tenant?.theme]);
 

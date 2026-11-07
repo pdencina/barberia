@@ -1,3 +1,4 @@
+import { type AppTheme, isAppTheme } from "@/lib/themes";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 
@@ -53,12 +54,12 @@ export async function GET(req: NextRequest) {
 
   // Tema propio del usuario (migracion 086). Si la columna aun no existe en la base o falla
   // la consulta, se ignora y se usa el tema del negocio: nunca debe romper la carga.
-  let userTheme: "light" | "dark" | null = null;
+  let userTheme: AppTheme | null = null;
   try {
     const { userId } = await getCurrentUserRoleAndTenant();
     if (userId) {
       const { data: prof, error } = await supabase.from("profiles").select("theme").eq("id", userId).single();
-      if (!error && (prof?.theme === "light" || prof?.theme === "dark")) userTheme = prof.theme;
+      if (!error && isAppTheme(prof?.theme)) userTheme = prof.theme;
     }
   } catch {
     userTheme = null;
