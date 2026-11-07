@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { effectiveTargets, getRuleConfig, weekRange, weeklyAutoCounts } from "@/lib/booking-rules";
 import { todayInChile } from "@/lib/utils";
 
@@ -7,7 +7,7 @@ import { todayInChile } from "@/lib/utils";
 // reservas automaticas hubo y si hay una recomendacion nueva al empezar el mes. Solo cuando el negocio
 // usa la regla 3 (% por profesional); con otra regla no muestra nada.
 export async function GET() {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if ((c.role !== "admin" && c.role !== "super_admin") || !c.tenantId) return NextResponse.json({ active: false });
   const supabase = createAdminSupabase();
   const cfg = await getRuleConfig(supabase, c.tenantId);

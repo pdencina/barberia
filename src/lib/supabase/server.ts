@@ -1,6 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { NextResponse } from "next/server";
 
 export function createServerSupabase() {
@@ -76,6 +76,21 @@ export async function getCurrentUserRoleAndTenant(): Promise<CallerInfo> {
     callerCache.set(key, { at: Date.now(), value });
   }
   return value;
+}
+
+/**
+ * Como getCurrentUserRoleAndTenant, pero cuando el SUPER ADMIN está «viendo como» un negocio (botón «Entrar» en Empresas) usa ese negocio.
+ * El navegador manda su id en el encabezado x-tenant-id (ver src/lib/ver-como.ts). Solo se respeta para el super admin: a cualquier
+ * otra persona se le ignora, así nadie puede pedir los datos de otro negocio.
+ */
+export async function getCallerForView(): Promise<CallerInfo> {
+  const base = await getCurrentUserRoleAndTenant();
+  if (base.role !== "super_admin") return base;
+  try {
+    const id = headers().get("x-tenant-id") || "";
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) return { ...base, tenantId: id };
+  } catch {}
+  return base;
 }
 
 async function loadCallerRoleAndTenant(): Promise<CallerInfo> {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { todayInChile } from "@/lib/utils";
 import { accountingColumnsAvailable, isMonthClosed, monthLabelEs, monthStart } from "@/lib/accounting";
 import { validarMovimientoNegocio } from "@/lib/oti/negocio";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // Oti (administrador): anota un gasto o ingreso en Ingresos/Egresos del NEGOCIO. Solo administrador; el negocio sale de la sesión
 // (nunca del navegador); respeta el cierre mensual. Es el mismo movimiento que se crea a mano en Finanzas (asignado a «Negocio general»).
 export async function POST(req: NextRequest) {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if (!c.userId || (c.role !== "admin" && c.role !== "super_admin")) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   if (!c.tenantId || c.tenantId === "ALL") return NextResponse.json({ error: "Elige primero un negocio" }, { status: 400 });
   const v = validarMovimientoNegocio(await req.json().catch(() => ({})), todayInChile());

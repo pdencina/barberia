@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/accounting";
 
 // Reservas por campana / anuncio del negocio (solo admin). Cuenta las reservas por link de los ultimos dias y, de ellas,
 // cuales traian el origen de un anuncio (migracion 112). Nunca confia en un tenantId del navegador.
 export async function GET(req: NextRequest) {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if (!c.userId || (c.role !== "admin" && c.role !== "super_admin") || !c.tenantId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }

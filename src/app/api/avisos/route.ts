@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
 
 // Avisos del administrador al equipo (solo admin). Cada aviso llega a la bandeja y como push de cada persona.
 // POST { title, body?, audience: "all" | "barbers" | "receptionists" | "people", userIds?, requiresAck? }
 // GET  -> avisos enviados, con cuántos lo leyeron y cuántos confirmaron.
 async function adminOnly() {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if (!c.userId || (c.role !== "admin" && c.role !== "super_admin") || !c.tenantId) return null;
   return c;
 }

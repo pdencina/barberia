@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 
 // Interruptor del centro de notificaciones del negocio (solo admin). Apagado por defecto.
 async function adminOnly() {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if (!c.userId || (c.role !== "admin" && c.role !== "super_admin") || !c.tenantId) return null;
   return c;
 }

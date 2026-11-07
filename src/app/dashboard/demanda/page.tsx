@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth-context";
+import { useTenant } from "@/lib/tenant-context";
 import { PageHeader, Panel, Segmented, inputClass } from "@/components/ui/premium";
 import { Spinner } from "@/components/ui/spinner";
 import { DemandaGraficos } from "@/components/demanda/graficos";
@@ -23,6 +24,7 @@ const COLOR: Record<Nivel, { barra: string; celda: string; texto: string; etique
 // Mapa de demanda: cuándo se agenda más y cuándo menos, para cubrir los horarios bajos con promociones. Solo lectura.
 export default function DemandaPage() {
   const { role } = useAuth();
+  const { tenant } = useTenant();   // al «entrar» como super admin, el equipo del filtro es el de ese negocio
   const isAdmin = role === "admin" || role === "super_admin";
   const [weeks, setWeeks] = useState<"4" | "8" | "12">("8");
   // Dos formas de ver lo mismo: el detalle de siempre (barras y colores) o gráficos.
@@ -38,15 +40,15 @@ export default function DemandaPage() {
 
   useEffect(() => {
     if (!isAdmin) return;
-    fetch("/api/barberos", { cache: "no-store" }).then((r) => r.json()).then((d) => setEquipo(Array.isArray(d) ? d.filter((m: any) => m?.id && m?.name).map((m: any) => ({ id: m.id, name: m.name })) : [])).catch(() => {});
-  }, [isAdmin]);
+    fetch(`/api/barberos${tenant?.id ? `?tenantId=${tenant.id}` : ""}`, { cache: "no-store" }).then((r) => r.json()).then((d) => setEquipo(Array.isArray(d) ? d.filter((m: any) => m?.id && m?.name).map((m: any) => ({ id: m.id, name: m.name })) : [])).catch(() => {});
+  }, [isAdmin, tenant?.id]);
   useEffect(() => {
     if (!isAdmin) return;
     setMapa(null); setError("");
     fetch(`/api/reportes/demanda?weeks=${weeks}${barberId ? `&barberId=${barberId}` : ""}`, { cache: "no-store" })
       .then(async (r) => { const d = await r.json().catch(() => ({})); if (!r.ok) setError(d?.error || "No se pudo cargar"); else setMapa(d); })
       .catch(() => setError("No se pudo cargar"));
-  }, [isAdmin, weeks, barberId]);
+  }, [isAdmin, weeks, barberId, tenant?.id]);
 
   const celda = useMemo(() => new Map((mapa?.cells || []).map((c) => [`${c.dow}-${c.hour}`, c.avg])), [mapa]);
   const maxCelda = useMemo(() => Math.max(1, ...(mapa?.cells || []).map((c) => c.avg)), [mapa]);

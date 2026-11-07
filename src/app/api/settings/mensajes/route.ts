@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { DEFAULT_WHATSAPP_CONFIG, mergeWhatsAppConfig } from "@/lib/whatsapp-confirm";
 
 // Mensajes de WhatsApp del negocio (Mi negocio > Mensajes de WhatsApp).
@@ -7,7 +7,7 @@ import { DEFAULT_WHATSAPP_CONFIG, mergeWhatsAppConfig } from "@/lib/whatsapp-con
 // PUT: solo el administrador. Sin la migracion 113 todo sigue con los mensajes de siempre.
 
 export async function GET() {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if (!c.userId || !c.tenantId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const { data, error } = await createAdminSupabase().from("tenants").select("whatsapp_messages").eq("id", c.tenantId).maybeSingle();
   if (error) return NextResponse.json({ config: DEFAULT_WHATSAPP_CONFIG, migrationMissing: true });
@@ -15,7 +15,7 @@ export async function GET() {
 }
 
 export async function PUT(req: NextRequest) {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if (!c.userId || (c.role !== "admin" && c.role !== "super_admin") || !c.tenantId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }

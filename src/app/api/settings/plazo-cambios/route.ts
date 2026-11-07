@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { getPlazoCambios, plazoValido, PLAZO_MAXIMO } from "@/lib/cambio-cliente";
 
 // Plazo para que el cliente cancele o modifique su cita desde el correo (solo administrador). tenants.client_change_hours (migración 144).
 async function admin() {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if ((c.role !== "admin" && c.role !== "super_admin") || !c.tenantId || c.tenantId === "ALL") return null;
   return c;
 }

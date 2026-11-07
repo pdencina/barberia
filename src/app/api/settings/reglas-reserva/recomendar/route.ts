@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { recommendShares } from "@/lib/booking-rules";
 import { serviceSalesByPro, previousMonthStart } from "@/lib/booking-sales";
 import { monthLabelEs } from "@/lib/accounting";
@@ -9,7 +9,7 @@ import { todayInChile } from "@/lib/utils";
 // al que vendio menos (minimo 10%, maximo 60%; un profesional nuevo recibe el promedio). Solo propone,
 // no guarda nada: el administrador decide.
 export async function GET() {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if ((c.role !== "admin" && c.role !== "super_admin") || !c.tenantId) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const supabase = createAdminSupabase();
   const first = previousMonthStart(todayInChile());

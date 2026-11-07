@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { dateStrOffset, todayInChile } from "@/lib/utils";
 
 // Vacaciones de profesionales (solo administrador). Un rango de fechas por profesional: bloquea su
 // agenda y la reserva online (ver src/lib/vacations.ts). Tabla professional_vacations (migracion 095).
 
 async function admin() {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if ((c.role !== "admin" && c.role !== "super_admin") || !c.tenantId) return null;
   return c;
 }
