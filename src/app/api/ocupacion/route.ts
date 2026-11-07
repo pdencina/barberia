@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminSupabase, requireRole, resolveTenantForRequest } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/accounting";
 import { dateStrOffset, todayInChile } from "@/lib/utils";
-import { calcularOcupacion, type ProOc } from "@/lib/ocupacion";
+import { calcularOcupacion, evaluarCierre, type ProOc } from "@/lib/ocupacion";
 
 export const dynamic = "force-dynamic";
 
@@ -50,8 +50,12 @@ export async function GET(req: Request) {
     const tx = await fetchAllRows<any>(() => sb.from("transactions").select("id, barber_id, total, created_at").eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed").in("barber_id", idsPros).gte("created_at", `${dateStrOffset(desde, -1)}T00:00:00Z`));
     const ventas = tx.map((t: any) => ({ barber_id: t.barber_id, dia: fechaChile(t.created_at), total: Number(t.total) || 0 }));
 
+    // ¿Se están cerrando las citas? (si no, la ocupación no es confiable)
+    const estados = await fetchAllRows<any>(() => sb.from("appointments").select("id, status").eq("tenant_id", tenantId).gte("date", desde).lte("date", ayer));
+    const cierre = evaluarCierre(estados.map((e: any) => e.status));
+
     const r = calcularOcupacion({ pros, horarios, descansos, bloqueos, vacaciones, citas: citas.filter((c: any) => c.date >= desde), ventas, desde, hasta: ayer });
-    return NextResponse.json({ ...r, desde, hasta: ayer, mesEnCurso: hoy.slice(0, 7) });
+    return NextResponse.json({ ...r, desde, hasta: ayer, mesEnCurso: hoy.slice(0, 7), cierre });
   } catch (e) {
     console.error("[ocupacion]", e);
     return NextResponse.json({ meses: [], pros: [], horas: {}, error: "No se pudo calcular" });
