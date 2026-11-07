@@ -299,6 +299,7 @@ export default function ClientesPage() {
                 let skipped = 0;
                 let failed = 0;
                 let lastError = "";
+                let limitePlan = "";
                 for (let i = 0; i < clients.length; i += batchSize) {
                   const batch = clients.slice(i, i + batchSize);
                   try {
@@ -307,12 +308,15 @@ export default function ClientesPage() {
                       body: JSON.stringify({ clients: batch, tenantId: tenant?.id }), // el superadmin importa al negocio que esta viendo
                     });
                     const data = await res.json().catch(() => ({} as any));
-                    if (!res.ok) {
+                    if (!res.ok && data?.code === "plan_limit") {
+                      limitePlan = data.error;          // el plan ya no admite más clientes: no es un error del archivo
+                    } else if (!res.ok) {
                       failed += batch.length;
                       lastError = typeof data?.error === "string" && data.error ? data.error : `error ${res.status}`;
                     } else {
                       imported += data.imported || 0;
                       skipped += data.skipped || 0;
+                      if (data.omitidosPorPlan) limitePlan = `Tu plan no admite más clientes: ${data.omitidosPorPlan} de este lote quedaron fuera.`;
                       failed += data.failed || 0;
                       if (data.lastError) lastError = data.lastError;
                     }
@@ -324,8 +328,8 @@ export default function ClientesPage() {
                   setImportProgress(`Importando... ${Math.min(i + batchSize, clients.length)} de ${clients.length}`);
                 }
 
-                const msg = `${imported} importados, ${skipped} repetidos omitidos` + (failed ? `, ${failed} con error (${lastError})` : "");
-                showToast(msg, failed && !imported ? "error" : "success");
+                const msg = `${imported} importados, ${skipped} repetidos omitidos` + (failed ? `, ${failed} con error (${lastError})` : "") + (limitePlan ? `. ${limitePlan}` : "");
+                showToast(msg, (failed || limitePlan) && !imported ? "error" : "success");
                 fetchClients("");
               } catch (err: any) {
                 console.error("[import clientes]", err);

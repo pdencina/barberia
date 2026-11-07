@@ -3,6 +3,7 @@ import { BUILTIN_SOURCES, loadCustomSources } from "@/lib/client-sources";
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllRows } from "@/lib/accounting";
 import { esGrupo, resumirGrupos } from "@/lib/clientes-grupos";
+import { cupoClientes, mensajeLimiteClientes } from "@/lib/client-limit";
 import { calcularStats, esOrdenCliente, esOrdenPorStats, ordenarClientes, type StatsCliente } from "@/lib/clientes-stats";
 import { createAdminSupabase, getCurrentTenantId, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 
@@ -153,6 +154,12 @@ export async function POST(req: NextRequest) {
   // porque eso inflaria esa metrica.
   const acquisitionSource = VALID_SOURCES.includes(source) ? source : null;
   const acquisitionDetail = (source === "promotion" || source === "influencer") ? (sourceDetail || null) : null;
+
+  // Límite de clientes del plan (el super admin no se limita).
+  if (resolvedTenantId && session.role !== "super_admin") {
+    const cupo = await cupoClientes(supabase, resolvedTenantId);
+    if (cupo.libres === 0) return NextResponse.json({ error: mensajeLimiteClientes(cupo.max), code: "plan_limit" }, { status: 403 });
+  }
 
   const { data, error } = await supabase
     .from("clients")
