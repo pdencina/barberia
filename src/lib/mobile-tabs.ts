@@ -1,4 +1,5 @@
 import { esLite, liteIncluye } from "@/lib/plan-lite";
+import { reglaQueBloquea } from "@/lib/plan-access";
 // Barra inferior del celular personalizable: catalogo de atajos posibles y reglas de quien puede ver cada uno.
 // Cada usuario elige hasta 4 (el 5.º siempre es "Más"); el administrador fija los del negocio por rol.
 // Solo aparece lo que el rol y el plan del negocio permiten (las mismas reglas del menu lateral).
@@ -87,6 +88,7 @@ export function tabAvailable(
   if (def.feature && !plan.hasPlanFeature(def.feature)) return false;
   if (def.basicLocked && plan.plan === "basic") return false;
   if (esLite(plan.plan) && !liteIncluye(def.href)) return false;
+  if (reglaQueBloquea(plan.plan, def.href, "pagina")) return false;   // lo mismo que bloquea el servidor para ese plan
   return true;
 }
 

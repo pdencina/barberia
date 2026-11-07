@@ -11,7 +11,7 @@ t("Basic y Lite no abren ventas, finanzas, mensajes masivos, cupones ni reportes
 });
 t("Starter sí tiene ventas, mensajes masivos, cupones y reportes, pero no caja, inventario, fidelización, facturas ni terminal", () => {
   for (const r of ["/dashboard/pos", "/dashboard/whatsapp", "/dashboard/cupones", "/dashboard/ocupacion", "/dashboard/standby"]) assert.ok(!bloq("starter", r), r);
-  for (const r of ["/dashboard/caja", "/dashboard/inventario", "/dashboard/fidelidad", "/dashboard/facturas", "/dashboard/terminal-pos", "/dashboard/arriendo", "/dashboard/solicitud"]) assert.ok(bloq("starter", r), r);
+  for (const r of ["/dashboard/caja", "/dashboard/inventario", "/dashboard/fidelidad", "/dashboard/facturas", "/dashboard/terminal-pos", "/dashboard/arriendo", "/dashboard/solicitud", "/dashboard/abonos", "/dashboard/boletas", "/dashboard/pagos"]) assert.ok(bloq("starter", r), r);
   for (const r of ["/api/caja", "/api/invoices", "/api/loyalty/redeem", "/api/inventario/movements"]) assert.ok(bloq("starter", r, "api"), r);
 });
 t("Pro y Enterprise abren todo", () => { for (const plan of ["pro", "enterprise"]) for (const r of ["/dashboard/caja", "/dashboard/pos", "/dashboard/facturas", "/dashboard/fidelidad"]) assert.ok(!bloq(plan, r), `${plan} ${r}`); });

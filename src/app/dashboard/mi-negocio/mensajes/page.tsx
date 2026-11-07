@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { ChevronLeft, MessageCircle } from "lucide-react";
 import { useTenant } from "@/lib/tenant-context";
+import { planPermite } from "@/lib/plan-access";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
 import { primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
@@ -47,6 +48,7 @@ function Card({ title, desc, children }: { title: string; desc?: string; childre
 // Todo lo extra viene apagado: sin tocar nada, los mensajes quedan como siempre.
 export default function MensajesWhatsAppPage() {
   const { tenant } = useTenant();
+  const conAbono = !tenant?.plan || planPermite(tenant.plan, "cobrosOnline");   // «Solicitar abono» es de Starter hacia arriba
   const { showToast } = useToast();
   const [cfg, setCfg] = useState<WhatsAppMessagesConfig>(DEFAULT_WHATSAPP_CONFIG);
   const [loaded, setLoaded] = useState(false);
@@ -108,6 +110,7 @@ export default function MensajesWhatsAppPage() {
         <button type="button" onClick={() => set("confirm_text", DEFAULT_CONFIRM_TEXT)} className={ghostButton}>Volver al mensaje original</button>
       </Card>
 
+      {conAbono && (
       <Card title="Solicitar abono (opcional)" desc="Si lo activas, al enviar el WhatsApp aparece una casilla “Solicitar abono”. Nunca va marcada: tú decides en cada cita.">
         <label className="flex items-center gap-2 text-sm font-medium text-brand-dark">
           <input type="checkbox" checked={cfg.deposit_enabled} onChange={(e) => set("deposit_enabled", e.target.checked)} className="h-5 w-5" />
@@ -130,6 +133,7 @@ export default function MensajesWhatsAppPage() {
           </div>
         )}
       </Card>
+      )}
 
       <Card title="Información del servicio (opcional)" desc="Un texto extra, por ejemplo cuidados o qué traer. Si lo activas, aparece la casilla “Agregar información del servicio”.">
         <label className="flex items-center gap-2 text-sm font-medium text-brand-dark">

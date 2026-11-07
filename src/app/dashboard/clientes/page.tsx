@@ -14,6 +14,7 @@ import SourceSelect from "@/components/clients/source-select";
 import type { GrupoCliente, ResumenGrupos } from "@/lib/clientes-grupos";
 import type { OrdenCliente, StatsCliente } from "@/lib/clientes-stats";
 import { formatCurrency } from "@/lib/utils";
+import { planPermite } from "@/lib/plan-access";
 
 interface Client {
   id: string;
@@ -61,10 +62,13 @@ export default function ClientesPage() {
   // NOT available to barbers NOR receptionists.
   // Plan Lite: clientes muy básico (nombre, celular y correo), sin importar, exportar ni métricas.
   const lite = tenant?.plan === "lite";
+  // Sin Punto de Venta (Lite, Basic) no hay ventas que resumir: la lista no muestra gasto, ticket ni asistencia, y tampoco se exporta.
+  const conStats = !lite && (!tenant?.plan || planPermite(tenant.plan, "ventas"));
   const canImportExport = (gateRole === "admin" || gateRole === "super_admin") && !lite;
   // Punto 10 (Pablo): "Metricas" (origen de clientes) es solo para Administrador y
   // Recepcion, igual que el resto de la vista de negocio.
-  const canSeeMetrics = (isAdmin || gateRole === "receptionist") && !lite;
+  // Métricas, grupos de clientes y su crecimiento son reportes avanzados (desde Starter).
+  const canSeeMetrics = (isAdmin || gateRole === "receptionist") && (!tenant?.plan || planPermite(tenant.plan, "reportesAvanzados"));
 
   // Cache de lectura en memoria (por usuario, negocio, busqueda y pagina; nada queda escrito en el navegador). Solo la carga
   // automatica al abrir la pantalla la usa (skipSpinnerRef); buscar, paginar y las acciones piden todo como siempre.
@@ -255,12 +259,14 @@ export default function ClientesPage() {
                         >
                           Importar CSV/Excel
                         </button>
+                        {conStats && (
                         <a
                           href="/api/clients/export" download onClick={() => setMoreOpen(false)}
                           className="block w-full px-4 py-2.5 text-left text-sm text-gray-700 hover:bg-gray-50"
                         >
                           Exportar
                         </a>
+                        )}
                       </>
                     )}
                   </div>
@@ -406,17 +412,17 @@ export default function ClientesPage() {
               <Titulo o="nombre" className="text-left">Nombre</Titulo>
               <th className="text-left p-4 font-medium text-gray-600">Email</th>
               <th className="text-left p-4 font-medium text-gray-600">Telefono</th>
-              {!lite && <Titulo o="visitas" className="text-right">Veces que vino</Titulo>}
-              {!lite && <Titulo o="ticket" className="text-right">Ticket promedio</Titulo>}
-              {!lite && <Titulo o="asistencia" className="text-right">Asistencia</Titulo>}
-              {!lite && <Titulo o="gastado" className="text-right">Total gastado</Titulo>}
+              {conStats && <Titulo o="visitas" className="text-right">Veces que vino</Titulo>}
+              {conStats && <Titulo o="ticket" className="text-right">Ticket promedio</Titulo>}
+              {conStats && <Titulo o="asistencia" className="text-right">Asistencia</Titulo>}
+              {conStats && <Titulo o="gastado" className="text-right">Total gastado</Titulo>}
             </tr>
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={lite ? 4 : 8}><Spinner /></td></tr>
+              <tr><td colSpan={conStats ? 8 : 4}><Spinner /></td></tr>
             ) : clients.length === 0 ? (
-              <tr><td colSpan={lite ? 4 : 8} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
+              <tr><td colSpan={conStats ? 8 : 4} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
             ) : clients.map((c) => (
               <tr key={c.id} className="hover:bg-gray-50">
                 <td className="p-4" onClick={(e) => e.stopPropagation()}>
@@ -432,7 +438,7 @@ export default function ClientesPage() {
                 </td>
                 <td className="p-4">{c.email || "-"}</td>
                 <td className="p-4">{c.phone || "-"}</td>
-                {!lite && (<>
+                {conStats && (<>
                 <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats ? c.stats.visitas : "-"}</td>
                 <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats?.ticket != null ? formatCurrency(c.stats.ticket) : "-"}</td>
                 <td className="p-4 text-right">

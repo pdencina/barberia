@@ -6,6 +6,7 @@ import { MyTabBarCard } from "@/components/settings/tab-bar-cards";
 import { InformeDiarioCard } from "@/components/settings/informe-diario-card";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
+import { planPermite } from "@/lib/plan-access";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
 import { useRouter } from "next/navigation";
@@ -18,7 +19,8 @@ import { Copy, Camera, Sun, Moon, Monitor, Trash2 } from "lucide-react";
 export default function MiPerfilPage() {
   const { user } = useAuth();
   const { tenant, userTheme, setUserTheme } = useTenant();
-  const lite = tenant?.plan === "lite";   // Lite: sin PIN de Standby ni Informes
+  // Sin PIN de Standby ni Informes en los planes que no incluyen Standby ni informes por correo (Lite y Basic).
+  const lite = !!tenant?.plan && !planPermite(tenant.plan, "standby");
   const { showToast } = useToast();
   const isSuper = user?.role === "super_admin";
   const [data, setData] = useState<any>(null);

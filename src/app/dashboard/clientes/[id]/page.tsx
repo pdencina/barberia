@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTenant } from "@/lib/tenant-context";
+import { planPermite } from "@/lib/plan-access";
 import { useParams, useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
@@ -236,6 +237,9 @@ export default function ClienteDetailPage() {
 
   // Plan Lite: la ficha muestra solo nombre, celular y correo; el resto se ve borroso y anima a mejorar el plan. WhatsApp: 20 usos al mes.
   const lite = tenant?.plan === "lite";
+  // «Fichas para el cliente» (notas, fotos y perfil) son de Starter hacia arriba.
+  const conVentas = !tenant?.plan || planPermite(tenant.plan, "ventas");   // sin Punto de Venta no hay compras que mostrar
+  const conFichas = !tenant?.plan || planPermite(tenant.plan, "fichasCliente");
   const [limiteWa, setLimiteWa] = useState("");
   const abrirWhatsApp = async () => {
     const tel = String(client?.phone || "").replace(/\D/g, "");
@@ -405,18 +409,18 @@ export default function ClienteDetailPage() {
       <div className={lite ? "relative" : undefined}>
       <div className={lite ? "pointer-events-none select-none opacity-90 blur-[7px]" : undefined} aria-hidden={lite || undefined}>
       {/* Metricas */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {conVentas && <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total gastado" value={formatCurrency(stats.totalSpent)} Icon={Wallet} hero className="col-span-2 lg:col-span-1" hint={`${stats.totalVisits} visitas`} />
         <StatCard label="Ticket promedio" value={formatCurrency(stats.averageSpend)} Icon={TrendingUp} tone="violet" />
         <StatCard label="Visitas" value={stats.totalVisits} Icon={CalendarCheck} tone="teal" />
         <StatCard label="Asistencia" value={`${stats.attendanceRate}%`} Icon={Percent} tone={attendanceTone as any} hint={`${stats.totalNoShows} no asistió · ${stats.totalCancelled} canceladas`} />
-      </div>
+      </div>}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Columna principal */}
         <div className="space-y-6 lg:col-span-2">
           {/* Notas internas */}
-          <Panel title="Notas internas" subtitle="Preferencias y observaciones (solo visibles para el equipo)">
+          {conFichas && <Panel title="Notas internas" subtitle="Preferencias y observaciones (solo visibles para el equipo)">
             {/* Enter hace salto de línea; la nota solo se guarda al apretar Agregar */}
             <div className="space-y-2">
               <textarea
@@ -474,10 +478,10 @@ export default function ClienteDetailPage() {
                 ))}
               </div>
             )}
-          </Panel>
+          </Panel>}
 
           {/* Fotos */}
-          <Panel
+          {conFichas && <Panel
             title="Fotos y registro visual"
             subtitle="Antes y después, evolución o referencias del cliente"
             action={
@@ -530,7 +534,7 @@ export default function ClienteDetailPage() {
                 ))}
               </div>
             )}
-          </Panel>
+          </Panel>}
 
           {/* Historial de citas */}
           <Panel title={`Historial de citas (${appointments.length})`} flush>
@@ -564,7 +568,7 @@ export default function ClienteDetailPage() {
           </Panel>
 
           {/* Historial de compras */}
-          <Panel title={`Historial de compras (${transactions.length})`} flush>
+          {conVentas && <Panel title={`Historial de compras (${transactions.length})`} flush>
             <div className="max-h-[420px] divide-y divide-gray-50 overflow-y-auto px-5 pb-3">
               {transactions.length === 0 ? (
                 <p className="py-8 text-center text-sm text-brand-gray">Sin compras registradas</p>
@@ -585,7 +589,7 @@ export default function ClienteDetailPage() {
                 </div>
               ))}
             </div>
-          </Panel>
+          </Panel>}
         </div>
 
         {/* Columna lateral */}
@@ -609,7 +613,7 @@ export default function ClienteDetailPage() {
             </dl>
           </Panel>
 
-          <Panel title="Perfil del cliente" subtitle="Toca para marcar o quitar">
+          {conFichas && <Panel title="Perfil del cliente" subtitle="Toca para marcar o quitar">
             <div className="flex flex-wrap gap-2">
               {["Reservado", "Extrovertido", "Puntual", "Impuntual", "VIP", "Conversador", "Apurado", "Detallista"].map((tag) => {
                 const isActive = tags.includes(tag.toLowerCase());
@@ -628,7 +632,7 @@ export default function ClienteDetailPage() {
                 );
               })}
             </div>
-          </Panel>
+          </Panel>}
 
           {stats.favoriteServices.length > 0 && (
             <Panel title="Servicios favoritos">

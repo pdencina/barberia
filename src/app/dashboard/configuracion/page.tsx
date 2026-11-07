@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { BookingRuleCard } from "@/components/settings/booking-rule-card";
+import { planPermite, type Capacidad } from "@/lib/plan-access";
 import { PlazoCambiosCard } from "@/components/settings/plazo-cambios-card";
 import { NotificationsCard } from "@/components/settings/notifications-card";
 import { TeamTabBarCard } from "@/components/settings/tab-bar-cards";
@@ -49,6 +50,8 @@ export default function ConfiguracionPage() {
   // Plan Lite: solo datos del negocio, horario, barra inferior, apariencia y privacidad; lo demás aparece bloqueado.
   const { tenant: tenantLite } = useTenant();
   const lite = tenantLite?.plan === "lite";
+  const planCfg = tenantLite?.plan;
+  const puedeCfg = (c: Capacidad) => !planCfg || planPermite(planCfg, c);   // sin plan (super admin sin negocio): se ve todo
   const [tenantSlug, setTenantSlug] = useState<string | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
   // For a super_admin (no own tenant): let them pick which business to configure,
@@ -630,7 +633,7 @@ export default function ConfiguracionPage() {
           { key: "horario", label: "Horario", show: true },
           { key: "reservas", label: "Reservas", show: isAdmin },
           { key: "mensajes", label: "Mensajes y avisos", show: true },
-          { key: "equipo", label: lite ? "Barra inferior" : "Equipo y caja", show: isAdmin },
+          { key: "equipo", label: !puedeCfg("standby") ? "Barra inferior" : !puedeCfg("caja") ? "Equipo y Standby" : "Equipo y caja", show: isAdmin },
           { key: "cuenta", label: "Apariencia y cuenta", show: true },
         ] as const).filter((t) => t.show).map((t) => lite && (t.key === "reservas" || t.key === "mensajes") ? (
           <span key={t.key} title="Disponible en planes superiores" className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-400">{t.label}</span>
@@ -662,7 +665,7 @@ export default function ConfiguracionPage() {
 
       <div className={tab === "negocio" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Boleta electronica SII del negocio (migracion 116, apagada por defecto) */}
-      {isAdmin && (
+      {isAdmin && puedeCfg("boletaSii") && (
         <a href="/dashboard/configuracion/boleta-sii" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">
@@ -674,7 +677,7 @@ export default function ConfiguracionPage() {
       )}
 
       {/* Boletas de honorarios de profesionales por comision (migracion 119) */}
-      {isAdmin && (
+      {isAdmin && puedeCfg("honorarios") && (
         <a href="/dashboard/honorarios" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">
@@ -686,7 +689,7 @@ export default function ConfiguracionPage() {
       )}
 
       {/* Publicidad: de que anuncio viene cada reserva por link (migracion 112, apagado por defecto) */}
-      {isAdmin && (
+      {isAdmin && puedeCfg("publicidad") && (
         <a href="/dashboard/origen-de-reservas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">
@@ -697,7 +700,7 @@ export default function ConfiguracionPage() {
         </a>
       )}
       {/* Indicadores del agente de WhatsApp */}
-      {isAdmin && (
+      {isAdmin && puedeCfg("agenteWhatsapp") && (
         <a href="/dashboard/whatsapp-indicadores" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">
@@ -708,7 +711,7 @@ export default function ConfiguracionPage() {
         </a>
       )}
       {/* Preguntas y respuestas del agente de WhatsApp */}
-      {isAdmin && (
+      {isAdmin && puedeCfg("agenteWhatsapp") && (
         <a href="/dashboard/whatsapp-preguntas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">
@@ -904,7 +907,7 @@ export default function ConfiguracionPage() {
       </div>
 
       <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
-      {isAdmin && tenantId && <CobrosOnlineCard tenantId={tenantId} />}
+      {isAdmin && tenantId && puedeCfg("cobrosOnline") && <CobrosOnlineCard tenantId={tenantId} />}
       {/* Deposit / Abono Config
           (Configuracion de terminales de cobro con tarjeta: ver /dashboard/terminal-pos.
           Antes vivia aqui duplicado con otra pagina vieja separada, se unifico todo alla.) */}
@@ -1110,7 +1113,7 @@ export default function ConfiguracionPage() {
 
       <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Preferencias de reserva (Fase 6): regla de "Primer profesional disponible". Solo administrador. */}
-      {isAdmin && <BookingRuleCard />}
+      {isAdmin && <BookingRuleCard soloVentana={!puedeCfg("reglaReserva")} />}
       {isAdmin && <PlazoCambiosCard />}
 
       </div>
@@ -1129,11 +1132,11 @@ export default function ConfiguracionPage() {
 
       <div className={tab === "equipo" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Caja y Standby (Fase 5). Solo administrador. */}
-      {isAdmin && cajaSec && (
+      {isAdmin && cajaSec && puedeCfg("standby") && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
           <div>
-            <h2 className="font-bold text-brand-dark">Caja y Standby</h2>
-            <p className="text-xs text-brand-gray">Standby con servicios y productos, y aviso para llevar el efectivo a la caja fuerte</p>
+            <h2 className="font-bold text-brand-dark">{puedeCfg("caja") ? "Caja y Standby" : "Standby"}</h2>
+            <p className="text-xs text-brand-gray">{puedeCfg("caja") ? "Standby con servicios y productos, y aviso para llevar el efectivo a la caja fuerte" : "Standby con servicios y productos para la tablet del equipo"}</p>
           </div>
           <label className="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" checked={cajaSec.standbyV2} disabled={savingCajaSec}
@@ -1144,6 +1147,7 @@ export default function ConfiguracionPage() {
               <span className="block text-xs text-brand-gray">Saluda al profesional y le muestra sus servicios y los productos de venta. Si lo apagas, vuelve el Standby de siempre.</span>
             </span>
           </label>
+          {puedeCfg("caja") && (<>
           <label className="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" checked={!!cajaSec.cajaLock} disabled={savingCajaSec}
               onChange={(e) => saveCajaSec({ cajaLock: e.target.checked }, e.target.checked ? "Apagar caja con PIN activado" : "Apagar caja con PIN desactivado")}
@@ -1164,6 +1168,7 @@ export default function ConfiguracionPage() {
             </div>
             <p className="text-xs text-brand-gray mt-1">Cuando el efectivo pase este monto, se le pedirá a quien esté en caja llevar el excedente a la caja fuerte. Vacío = sin aviso.</p>
           </div>
+          </>)}
           {cajaSec.migrationMissing && <p className="text-xs text-red-500">Falta aplicar la migración 094 en la base de datos.</p>}
         </div>
       )}
@@ -1172,7 +1177,7 @@ export default function ConfiguracionPage() {
 
       <div className={tab === "reservas" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Clientes por bloque: solo administrador y solo negocios de Kinesiologia. */}
-      {isAdmin && cap?.eligible && (
+      {isAdmin && cap?.eligible && puedeCfg("caja") && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
           <div>
             <h2 className="font-bold text-brand-dark">Clientes por bloque</h2>
@@ -1203,7 +1208,7 @@ export default function ConfiguracionPage() {
 
       <div className={tab === "mensajes" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Solicitud de insumos: a que correo llega. Solo administrador. */}
-      {isAdmin && supplyEmail.loaded && (
+      {isAdmin && supplyEmail.loaded && puedeCfg("inventario") && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
           <div>
             <h2 className="font-bold text-brand-dark">Solicitud de insumos</h2>
@@ -1237,7 +1242,7 @@ export default function ConfiguracionPage() {
 
       <div className={tab === "equipo" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Libro de movimientos del profesional (Arriendo y Comision). Solo administrador. */}
-      {isAdmin && ledger && (
+      {isAdmin && ledger && puedeCfg("libroProfesional") && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-3">
           <div>
             <h2 className="font-bold text-brand-dark">Arriendo y Comisión</h2>
@@ -1265,8 +1270,8 @@ export default function ConfiguracionPage() {
         </div>
       )}
 
-      {isAdmin && tenantId && <ComisionCosmeticosCard tenantId={tenantId} />}
-      {isAdmin && tenantId && <ArriendoProductosCard tenantId={tenantId} />}
+      {isAdmin && tenantId && puedeCfg("libroProfesional") && <ComisionCosmeticosCard tenantId={tenantId} />}
+      {isAdmin && tenantId && puedeCfg("libroProfesional") && <ArriendoProductosCard tenantId={tenantId} />}
 
       </div>
 

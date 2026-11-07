@@ -1,21 +1,26 @@
 "use client";
 
 import Link from "next/link";
+import { useTenant } from "@/lib/tenant-context";
+import { planPermite, type Capacidad } from "@/lib/plan-access";
 import { Plane, Percent, KeyRound, Tag, Truck, FileText, MessageCircle } from "lucide-react";
 
 // Mi negocio: todo lo que el administrador maneja del negocio, en un solo lugar.
-const ITEMS = [
+const ITEMS: Array<{ cap?: Capacidad; href: string; title: string; desc: string; icon: any }> = [
   { href: "/dashboard/vacaciones", title: "Vacaciones", desc: "Días en que un profesional no atiende: se bloquea su agenda y la reserva online.", icon: Plane },
-  { href: "/dashboard/comisiones", title: "Comisiones", desc: "Lo que ganó cada profesional por comisión, con sus movimientos del mes.", icon: Percent },
-  { href: "/dashboard/arriendo", title: "Arriendo", desc: "Días trabajados y cobro de los profesionales que arriendan.", icon: KeyRound },
+  { cap: "libroProfesional", href: "/dashboard/comisiones", title: "Comisiones", desc: "Lo que ganó cada profesional por comisión, con sus movimientos del mes.", icon: Percent },
+  { cap: "libroProfesional", href: "/dashboard/arriendo", title: "Arriendo", desc: "Días trabajados y cobro de los profesionales que arriendan.", icon: KeyRound },
   { href: "/dashboard/servicios", title: "Servicios", desc: "Tu carta de servicios, categorías y el orden en que se ve al reservar.", icon: Tag },
-  { href: "/dashboard/proveedores", title: "Proveedores", desc: "Tus proveedores y las cotizaciones por WhatsApp.", icon: Truck },
+  { cap: "ventas", href: "/dashboard/proveedores", title: "Proveedores", desc: "Tus proveedores y las cotizaciones por WhatsApp.", icon: Truck },
   { href: "/dashboard/mi-negocio/mensajes", title: "Mensajes de WhatsApp", desc: "Cambia el texto de la confirmación y agrega, si quieres, abono, datos de transferencia, bienvenida o información.", icon: MessageCircle },
   // Remuneraciones oculta a los negocios hasta terminar las pruebas (se reactiva descomentando)
   // { href: "/dashboard/remuneraciones", title: "Remuneraciones", desc: "Liquidaciones de sueldo de tus trabajadores con contrato.", icon: FileText },
 ];
 
 export default function MiNegocioPage() {
+  const { tenant } = useTenant();
+  // Solo lo que incluye el plan (Basic no ve Comisiones, Arriendo ni Proveedores).
+  const items = ITEMS.filter((i) => !i.cap || !tenant?.plan || planPermite(tenant.plan, i.cap));
   return (
     <div className="p-3 md:p-6 max-w-3xl mx-auto space-y-3 md:space-y-4 animate-fade-in">
       <div>
@@ -23,7 +28,7 @@ export default function MiNegocioPage() {
         <p className="text-sm text-brand-gray">Lo que administras de tu negocio.</p>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        {ITEMS.map(({ href, title, desc, icon: Icon }) => (
+        {items.map(({ href, title, desc, icon: Icon }) => (
           <Link key={href} href={href} className="flex items-start gap-3 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm transition hover:border-brand-blue/40 hover:shadow-md">
             <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Icon className="h-5 w-5" /></span>
             <span><span className="block font-semibold text-brand-dark">{title}</span><span className="block text-xs text-brand-gray">{desc}</span></span>
