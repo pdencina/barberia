@@ -76,3 +76,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · `codex/deslizar-actualizar`: gesto compartido de arrastrar y soltar desde arriba en pantallas de consulta del panel; indicador turquesa y limpieza del cache de lectura antes de recargar la URL actual.
 - Excluye POS/Standby/terminal, configuración y fichas de edición; bloquea con formularios modificados, modales y gestos en rejilla/citas. Conserva sesión y URL; filtros locales se reinician al recargar.
 - Verificado: 26 pruebas simuladas, TypeScript y demostración de touchstart/move/end en navegador local con datos ficticios. Sin SQL; falta dispositivo real/WebView y merge por Nico.
+
+- 2026-11-07 · Codex · `codex/temas-rosa-monocromo`: agrega Rosa, Blanco y negro y Negro con blanco a Configuración y Mi perfil; conserva Claro/Oscuro y preferencias existentes. Tarjetas oscuras y logo oficial blanco en el invertido, aprobado por Nico.
+- Verificado: 23 pruebas de catálogo/permisos/guardado, 24 parejas de contraste, TypeScript y 168 lecturas de texto en componentes reales con datos ficticios (56 por paleta, contraste >=4.5). No se probaron todas las pantallas ni dispositivos físicos.
+- Migración 148 amplía la restricción de temas personales sin cambiar filas. No aplicada: entorno sin conector Supabase; ejecutar en Editor SQL de rebooking Base y después EstudioLevels, verificar los cinco nombres. Nico crea/mergea PR; sin despliegue ni datos reales.

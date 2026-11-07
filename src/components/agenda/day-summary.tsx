@@ -28,7 +28,7 @@ export function DaySummary({ barberId, date, refresh }: { barberId: string; date
   }, [barberId, date, refresh, tick]);
 
   return (
-    <section aria-label="Resumen del día" aria-live="polite" className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-blue to-brand-accent p-3 text-white shadow-lg shadow-brand-blue/15">
+    <section aria-label="Resumen del día" aria-live="polite" className="agenda-day-summary relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-blue to-brand-accent p-3 text-white shadow-lg shadow-brand-blue/15">
       {error ? <p className="text-xs text-white/75">No se pudo cargar el resumen del día.</p> : !data ?
         <p className="text-xs text-white/75">Cargando resumen del día…</p> : <>
           <dl className="grid grid-cols-3 gap-2 text-center">

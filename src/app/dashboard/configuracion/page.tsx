@@ -1,5 +1,7 @@
 ﻿"use client";
 
+import { ThemePicker } from "@/components/settings/theme-picker";
+import { type AppTheme, THEMES, normalizeTheme } from "@/lib/themes";
 import { BookingRuleCard } from "@/components/settings/booking-rule-card";
 import { planPermite, type Capacidad } from "@/lib/plan-access";
 import { PlazoCambiosCard } from "@/components/settings/plazo-cambios-card";
@@ -71,7 +73,7 @@ export default function ConfiguracionPage() {
   // en la tabla tenants y se aplica al instante en toda la app via TenantProvider
   // (ver src/lib/tenant-context.tsx), asi que aca solo hace falta reflejar el valor
   // actual y avisarle al servidor cuando cambia.
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [theme, setTheme] = useState<AppTheme>("light");
   const [savingTheme, setSavingTheme] = useState(false);
 
   // Calendario "profesionales agrupados" (solo negocios de 2 a 4 profesionales). Lo lee y lo
@@ -316,7 +318,7 @@ export default function ConfiguracionPage() {
         });
         setTenantSlug(tenantRow.slug || null);
         setLogoUrl((tenantRow as any).logo_url || null);
-        setTheme(((tenantRow as any).theme as "light" | "dark") || "light");
+        setTheme(normalizeTheme((tenantRow as any).theme));
       }
 
       {
@@ -415,7 +417,7 @@ export default function ConfiguracionPage() {
     showToast("Link copiado!", "success");
   };
 
-  const handleThemeChange = async (next: "light" | "dark") => {
+  const handleThemeChange = async (next: AppTheme) => {
     if (!tenantId || savingTheme || next === theme) return;
     const previous = theme;
     setTheme(next); // optimista: TenantProvider aplica document.documentElement.classList al instante
@@ -427,7 +429,7 @@ export default function ConfiguracionPage() {
         body: JSON.stringify({ tenantId, theme: next }),
       });
       if (!res.ok) throw new Error();
-      showToast(next === "dark" ? "Tema oscuro activado" : "Tema claro activado", "success");
+      showToast(`Tema ${THEMES.find(t => t.value === next)?.label} activado`, "success");
       // TenantProvider (arriba, en el layout) es quien aplica document.documentElement.dark
       // en base al tema del tenant que ya tiene cargado; recargamos para que vuelva a
       // pedir /api/tenant/info y el cambio se refleje en TODA la app (sidebar incluido),
@@ -1285,38 +1287,11 @@ export default function ConfiguracionPage() {
             {theme === "dark" ? <Moon className="w-5 h-5 text-brand-gray" /> : <Sun className="w-5 h-5 text-brand-gray" />}
             <div>
               <h2 className="font-bold text-brand-dark">Tema del Negocio</h2>
-              <p className="text-xs text-brand-gray">Elige como se ve re-booking para todo tu equipo (claro u oscuro)</p>
+              <p className="text-xs text-brand-gray">Elige como se ve re-booking para todo tu equipo (elige una de las cinco paletas)</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 max-w-md">
-            <button
-              type="button"
-              onClick={() => handleThemeChange("light")}
-              disabled={savingTheme}
-              className={`flex items-center gap-2 justify-center rounded-xl border-2 px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50 ${
-                theme === "light"
-                  ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
-                  : "border-gray-200 dark:border-white/10 text-brand-gray hover:border-gray-300 dark:hover:border-white/20"
-              }`}
-            >
-              <Sun className="w-4 h-4" />
-              Claro
-            </button>
-            <button
-              type="button"
-              onClick={() => handleThemeChange("dark")}
-              disabled={savingTheme}
-              className={`flex items-center gap-2 justify-center rounded-xl border-2 px-4 py-3 text-sm font-medium transition-colors disabled:opacity-50 ${
-                theme === "dark"
-                  ? "border-brand-blue bg-brand-blue/5 text-brand-blue"
-                  : "border-gray-200 dark:border-white/10 text-brand-gray hover:border-gray-300 dark:hover:border-white/20"
-              }`}
-            >
-              <Moon className="w-4 h-4" />
-              Oscuro
-            </button>
-          </div>
+          <ThemePicker value={theme} disabled={savingTheme} onChange={value => { if (value) handleThemeChange(value); }} />
           <p className="text-xs text-brand-gray">
             Este cambio aplica a todo el sistema para {businessData.name || "tu negocio"}: colores, tarjetas y el logo de re-booking se adaptan automaticamente.
           </p>
