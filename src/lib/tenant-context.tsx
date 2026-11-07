@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { instalarVerComo } from "@/lib/ver-como";
 import { useAuth } from "@/lib/auth-context";
 import { setTenantId as setGlobalTenantId } from "@/lib/api-fetch";
 
@@ -81,6 +82,7 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
 
   const [overrideTenantId, setOverrideTenantId] = useState<string | null>(getInitialOverride);
   const [isOverriding, setIsOverriding] = useState(!!getInitialOverride());
+  useEffect(() => { instalarVerComo(); }, []);
 
   // Drop any override left behind by a previous (super_admin) session in this browser.
   useEffect(() => {

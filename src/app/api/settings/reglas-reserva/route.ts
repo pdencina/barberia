@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { BOOKING_RULES, getRuleConfig, type BookingRule } from "@/lib/booking-rules";
 import { todayInChile } from "@/lib/utils";
 import { WINDOW_OPTIONS, getWindowDays } from "@/lib/booking-window";
@@ -7,7 +7,7 @@ import { WINDOW_OPTIONS, getWindowDays } from "@/lib/booking-window";
 // Preferencias de reserva: que regla usa "Primer profesional disponible" (solo administrador).
 // tenants.booking_rule + booking_rule_pros (migracion 095). Sin la migracion, queda la regla de siempre.
 async function admin() {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if ((c.role !== "admin" && c.role !== "super_admin") || !c.tenantId) return null;
   return c;
 }

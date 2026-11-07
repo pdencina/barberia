@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/accounting";
 import { dateStrOffset, todayInChile } from "@/lib/utils";
 import { construirMapa } from "@/lib/demand-map";
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // Mapa de demanda del negocio (solo admin): reservas promedio por semana en cada dia y hora. Solo lectura.
 // El negocio sale siempre de la sesion; un administrador no puede pedir el de otro.
 export async function GET(req: NextRequest) {
-  const c = await getCurrentUserRoleAndTenant();
+  const c = await getCallerForView();
   if (!c.userId || (c.role !== "admin" && c.role !== "super_admin") || !c.tenantId || c.tenantId === "ALL") {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
