@@ -87,8 +87,8 @@ const sections: NavSection[] = [
           { name: "Retención", href: "/dashboard/retencion", icon: Heart, minRole: "admin", basicLocked: true },
         ],
       },
-      { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle, minRole: "admin" },
-      { name: "Cupones", href: "/dashboard/cupones", icon: Ticket, minRole: "admin", feature: "coupons" },
+      { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle, minRole: "admin", basicLocked: true },
+      { name: "Cupones", href: "/dashboard/cupones", icon: Ticket, minRole: "admin", feature: "coupons", basicLocked: true },
       { name: "Reseñas", href: "/dashboard/resenas", icon: Star, minRole: "receptionist" },
       { name: "Mapa de demanda", href: "/dashboard/demanda", icon: BarChart3, minRole: "admin", basicLocked: true },
     ],
@@ -101,7 +101,7 @@ const sections: NavSection[] = [
       { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin", basicLocked: true },
       { name: "Facturas", href: "/dashboard/facturas", icon: FileText, minRole: "admin", feature: "invoices" },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: ClipboardList, minRole: "admin" },
-      { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: PiggyBank, minRole: "barber", basicLocked: true },
+      { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: PiggyBank, minRole: "barber" },   // el plan Basic y Lite la incluyen (landing)
     ],
   },
   {
@@ -110,7 +110,7 @@ const sections: NavSection[] = [
     items: [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin" },
-      { name: "Ocupación", href: "/dashboard/ocupacion", icon: Gauge, minRole: "admin" },
+      { name: "Ocupación", href: "/dashboard/ocupacion", icon: Gauge, minRole: "admin", basicLocked: true },
       {
         name: "Mi negocio", href: "/dashboard/mi-negocio", icon: Briefcase, minRole: "admin",
         // Fase 6: lo que se administra del negocio, junto en un solo menu.

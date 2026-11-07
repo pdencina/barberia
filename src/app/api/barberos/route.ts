@@ -64,6 +64,9 @@ async function generateUniqueBookingSlug(adminSupabase: ReturnType<typeof create
   return `${base}-${userId.slice(0, 6)}`;
 }
 
+import { puedeAgregarAsiento, MENSAJE_SIN_ASIENTOS } from "@/lib/seats";
+import { planIncluye, PLAN_MIN_ACCESOS_EQUIPO } from "@/lib/plan-access";
+
 export async function POST(req: NextRequest) {
   const adminSupabase = createAdminSupabase();
   const body = await req.json();
@@ -92,35 +95,28 @@ export async function POST(req: NextRequest) {
   // en precios/landing corresponde a los perfiles con role="barber" (admin/recepcion no
   // cuentan como asiento de profesional). Se valida ANTES de crear el usuario en Auth para
   // no dejar una cuenta huerfana si se rechaza.
-  if (userRole === "barber") {
+  {
     let resolvedTenantId = tenantId;
     if (!resolvedTenantId) {
       const { getCurrentTenantId } = await import("@/lib/supabase/server");
       resolvedTenantId = await getCurrentTenantId();
       if (resolvedTenantId === "ALL") resolvedTenantId = null;
     }
+    // Un administrador solo crea en su propio negocio (el super admin elige).
+    if (caller.role !== "super_admin") resolvedTenantId = caller.tenantId || resolvedTenantId;
 
-    if (resolvedTenantId) {
-      const { data: tenantRow } = await adminSupabase
-        .from("tenants")
-        .select("max_professionals")
-        .eq("id", resolvedTenantId)
-        .single();
-
-      if (tenantRow && typeof tenantRow.max_professionals === "number") {
-        const { count } = await adminSupabase
-          .from("profiles")
-          .select("id", { count: "exact", head: true })
-          .eq("tenant_id", resolvedTenantId)
-          .eq("role", "barber")
-          .eq("active", true);
-
-        if ((count || 0) >= tenantRow.max_professionals) {
-          return NextResponse.json(
-            { error: "Ups, has alcanzado la cantidad máxima de profesionales permitida por tu plan. Mejora tu plan para agregar más." },
-            { status: 403 }
-          );
+    if (resolvedTenantId && caller.role !== "super_admin") {
+      // Los accesos para el equipo (recepción, otros administradores) son de Starter hacia arriba.
+      if (userRole !== "barber") {
+        const { data: t } = await adminSupabase.from("tenants").select("plan").eq("id", resolvedTenantId).maybeSingle();
+        if (!planIncluye((t as any)?.plan, PLAN_MIN_ACCESOS_EQUIPO)) {
+          return NextResponse.json({ error: "Los accesos para recepción y otros administradores están desde el plan Starter. Mejora tu plan para agregarlos.", code: "plan_required" }, { status: 403 });
         }
+      }
+      // Asientos del plan: profesionales activos + administradores que atienden clientes.
+      if (userRole === "barber") {
+        const est = await puedeAgregarAsiento(adminSupabase, resolvedTenantId);
+        if (!est.ok) return NextResponse.json({ error: MENSAJE_SIN_ASIENTOS, code: "plan_limit" }, { status: 403 });
       }
     }
   }

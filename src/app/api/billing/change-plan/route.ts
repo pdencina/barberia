@@ -14,6 +14,8 @@ import { MP_API, createCheckoutPreference, getMpPublicUrl } from "@/lib/mercadop
 // (external_reference "upgrade:<sub>:<plan>:<profesionales>"). Bajar de plan en el
 // anual no se cobra ni se aplica aqui: rige desde la renovacion (contactar soporte).
 // Cambiar de mensual a anual (o viceversa) no esta cubierto todavía.
+import { contarAsientos } from "@/lib/seats";
+
 export async function POST(req: NextRequest) {
   const { role } = await getCurrentUserRoleAndTenant();
   if (role !== "admin" && role !== "super_admin") {
@@ -47,6 +49,10 @@ export async function POST(req: NextRequest) {
   }
 
   const targetPlan = plan || subscription.plan;
+  // Lite es un pago único de entrada ($1.000): no se puede «bajar» a Lite desde un plan de pago (pagaría $1.000 por todo el plan).
+  if (targetPlan === "lite" && subscription.plan !== "lite") {
+    return NextResponse.json({ error: "El plan Lite es solo para empezar y no se puede elegir desde otro plan." }, { status: 400 });
+  }
   const { data: planConfig } = await supabase
     .from("plan_limits")
     .select("*") // incluye seat_prices (migracion 109) si existe
@@ -64,6 +70,11 @@ export async function POST(req: NextRequest) {
   const professionalsError = validateProfessionals(planConfig, professionals);
   if (professionalsError) {
     return NextResponse.json({ error: professionalsError }, { status: 400 });
+  }
+  // Bajar de plan o de cantidad de profesionales no deja a nadie sobre el límite: primero hay que desactivar a los que sobran.
+  const usados = await contarAsientos(supabase, tenantId);
+  if (professionals < usados) {
+    return NextResponse.json({ error: `Tienes ${usados} profesionales activos (los administradores que atienden también cuentan). Desactiva a quienes sobren antes de bajar a ${professionals}.` }, { status: 400 });
   }
 
   const billingPeriod = subscription.billing_period === "annual" ? "annual" : "monthly";

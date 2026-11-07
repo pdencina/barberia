@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, authorizeBarberManagement, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { slugify } from "@/lib/utils";
 import { pinWriteFields } from "@/lib/pin";
+import { cambioUsaAsiento, puedeAgregarAsiento, MENSAJE_SIN_ASIENTOS } from "@/lib/seats";
 
 
 // El slug del profesional es unico POR NEGOCIO (migracion 079), asi el link queda limpio
@@ -156,6 +157,15 @@ export async function PATCH(
     update.booking_slug = await uniqueBookingSlugForTenant(
       supabase, update.name || current.name || "profesional", params.id, current.tenant_id
     );
+  }
+
+  // Reactivar a alguien, o marcar a un administrador como «atiende clientes», ocupa un asiento del plan: se valida antes de guardar.
+  if (("active" in update || "also_attends_clients" in update) && auth.role !== "super_admin") {
+    const { data: act } = await supabase.from("profiles").select("role, active, also_attends_clients, tenant_id").eq("id", params.id).maybeSingle();
+    if (act?.tenant_id && cambioUsaAsiento(act as any, update)) {
+      const est = await puedeAgregarAsiento(supabase, act.tenant_id, params.id);
+      if (!est.ok) return NextResponse.json({ error: MENSAJE_SIN_ASIENTOS, code: "plan_limit" }, { status: 403 });
+    }
   }
 
   let { data, error } = await supabase

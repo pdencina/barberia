@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
 // POST: Verify an invite code and link user to tenant
+import { puedeAgregarAsiento } from "@/lib/seats";
+
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { code, userId } = await req.json();
@@ -45,26 +47,9 @@ export async function POST(req: NextRequest) {
     // unia al usuario como "barber" sin validar tenants.max_professionals, permitiendo
     // eludir el limite del plan por esta via (codigo de invitacion) aunque el alta manual
     // desde el panel ya estuviera bloqueada.
-    const { data: tenantRow } = await supabase
-      .from("tenants")
-      .select("max_professionals")
-      .eq("id", invite.tenant_id)
-      .single();
-
-    if (tenantRow && typeof tenantRow.max_professionals === "number") {
-      const { count } = await supabase
-        .from("profiles")
-        .select("id", { count: "exact", head: true })
-        .eq("tenant_id", invite.tenant_id)
-        .eq("role", "barber")
-        .eq("active", true);
-
-      if ((count || 0) >= tenantRow.max_professionals) {
-        return NextResponse.json(
-          { error: "Ups, este negocio ya alcanzó la cantidad máxima de profesionales permitida por su plan." },
-          { status: 403 }
-        );
-      }
+    const est = await puedeAgregarAsiento(supabase, invite.tenant_id);
+    if (!est.ok) {
+      return NextResponse.json({ error: "Ups, este negocio ya alcanzó la cantidad máxima de profesionales permitida por su plan." }, { status: 403 });
     }
 
     await supabase
