@@ -1,6 +1,11 @@
 // Mapa de demanda: reservas promedio por semana en cada dia y hora. Puro: se prueba sin base de datos.
 // Las citas guardan la hora de Chile escrita como UTC, por eso la hora se lee del texto, sin convertir zonas.
-export interface DemandRow { date: string; start_time: string; status: string }
+//
+// Se mide el TIEMPO OCUPADO, no solo cuántas citas empiezan en cada hora: una cita larga (por ejemplo 3 horas) ocupa a su profesional
+// en todas las horas que dura. Antes solo contaba la hora de inicio, y para un negocio de servicios largos las horas siguientes
+// (10 y 11 si empieza a las 9) salían como «poca demanda» cuando en realidad estaban ocupadas. El tiempo ocupado se expresa en
+// «reservas equivalentes» (dividido por la duración típica de las citas del negocio) para que los números sigan siendo comparables.
+export interface DemandRow { date: string; start_time: string; status: string; end_time?: string | null }
 export interface DemandCell { dow: number; hour: number; total: number; avg: number }
 export interface DemandMap {
   weeks: number; desde: string; hasta: string; totalReservas: number;
@@ -29,20 +34,45 @@ export function horaDe(startTime: string): number | null {
   const m = /[T ](\d{2}):\d{2}/.exec(startTime || "");
   return m ? Number(m[1]) : null;
 }
+const minutoDe = (t: string | null | undefined): number | null => {
+  const m = /[T ](\d{2}):(\d{2})/.exec(t || "");
+  return m ? Number(m[1]) * 60 + Number(m[2]) : null;
+};
+// Minutos de la cita que caen en cada hora del día. Sin hora de término válida se asume 1 hora (como antes, solo cuenta la hora de inicio).
+export function minutosPorHora(startTime: string, endTime?: string | null): Map<number, number> {
+  const ini = minutoDe(startTime);
+  const out = new Map<number, number>();
+  if (ini === null) return out;
+  let fin = minutoDe(endTime);
+  if (fin === null || fin <= ini || fin - ini > 12 * 60) fin = ini + 60;
+  fin = Math.min(fin, 24 * 60);
+  for (let h = Math.floor(ini / 60); h * 60 < fin; h++) {
+    const m = Math.min(fin, (h + 1) * 60) - Math.max(ini, h * 60);
+    if (m > 0) out.set(h, m);
+  }
+  return out;
+}
 
 export function construirMapa(rows: DemandRow[], weeks: number, desde: string, hasta: string): DemandMap {
-  const tot = new Map<string, number>();
-  const dia = new Map<number, number>();
-  let total = 0;
+  const ocupado = new Map<string, number>();            // «dow-hora» -> horas de agenda ocupadas en el período
+  const diaOcupado = new Map<number, number>();
+  let total = 0, minutosTotales = 0;
   for (const r of rows) {
     if (!CUENTAN.has(r.status) || !r.date || r.date < desde || r.date > hasta) continue;
-    const h = horaDe(r.start_time);
-    if (h === null) continue;
+    const reparto = minutosPorHora(r.start_time, r.end_time);
+    if (reparto.size === 0) continue;
     const dow = diaSemana(r.date);
-    tot.set(`${dow}-${h}`, (tot.get(`${dow}-${h}`) || 0) + 1);
-    dia.set(dow, (dia.get(dow) || 0) + 1);
+    for (const [h, min] of Array.from(reparto.entries())) {
+      ocupado.set(`${dow}-${h}`, (ocupado.get(`${dow}-${h}`) || 0) + min / 60);
+      diaOcupado.set(dow, (diaOcupado.get(dow) || 0) + min / 60);
+      minutosTotales += min;
+    }
     total++;
   }
+  // Duración típica de una cita del negocio (en horas): convierte horas ocupadas en «reservas equivalentes».
+  const duracionTipica = total > 0 ? Math.max(0.25, minutosTotales / 60 / total) : 1;
+  const tot = new Map<string, number>(Array.from(ocupado.entries()).map(([k, v]) => [k, v / duracionTipica]));
+  const dia = new Map<number, number>(Array.from(diaOcupado.entries()).map(([k, v]) => [k, v / duracionTipica]));
   const cells: DemandCell[] = Array.from(tot.entries()).map(([k, n]) => { const [dow, hour] = k.split("-").map(Number); return { dow, hour, total: n, avg: n / weeks }; });
   // Horas a mostrar: de la primera a la ultima que tenga al menos 3 reservas en el periodo (descarta horas sueltas fuera de horario).
   const porHora = new Map<number, number>();

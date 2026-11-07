@@ -76,6 +76,8 @@ export default function DemandaPage() {
         <Segmented value={vista} onChange={setVista} options={[{ value: "detalle", label: "Ver detalle" }, { value: "graficos", label: "📊 Ver en gráficos" }]} />
       </div>
 
+      <p className="text-xs text-brand-gray">Se mide el tiempo que ocupa cada cita: una cita larga cuenta en todas las horas que dura, así los servicios largos no aparecen como «poca demanda» las horas siguientes a su inicio.</p>
+
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
       {!mapa && !error && <Spinner />}
       {mapa && mapa.totalReservas === 0 && <p className="py-8 text-center text-sm text-brand-gray">Aún no hay reservas en este período.</p>}

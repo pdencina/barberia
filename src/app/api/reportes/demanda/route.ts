@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
   try {
     const rows = await fetchAllRows<any>(() => {
-      let q = supabase.from("appointments").select("id, date, start_time, status").eq("tenant_id", c.tenantId!).gte("date", desde).lte("date", hasta);
+      let q = supabase.from("appointments").select("id, date, start_time, end_time, status").eq("tenant_id", c.tenantId!).gte("date", desde).lte("date", hasta);
       if (barberId) q = q.eq("barber_id", barberId);
       return q;
     });
