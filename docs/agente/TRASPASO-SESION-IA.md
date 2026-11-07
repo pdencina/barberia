@@ -101,7 +101,7 @@ Otras piezas: `whatsapp-meta.ts` (envío de texto, lista, archivos, plantillas; 
 
 ## 9. Estado (actualizar al terminar cada sesión)
 **En `agente/whatsapp` (mergeado):** IA Avanzada funcionando con llave real; menú, volver, CTA; seguimientos de disponibilidad; CI rápido; arreglo del correo de confirmación (remitente `re-booking.cl`); contexto hasta 30.000 caracteres; etapa guiada recepcionista; menú como lista; PDF de malla (primer envío).
-**En la rama `claude/ia-guiada` (PR pendiente a `agente/whatsapp`, lo mergea Nico):** submenú del curso con botones, lista tras cada respuesta del curso, IA sin preguntas abiertas, botón "Malla del curso" que sí envía el PDF, la IA ya no menciona "el contexto", y **este archivo de traspaso**.
+**Mergeado además (PR #348, `claude/ia-guiada`):** submenú del curso con botones, lista tras cada respuesta del curso, IA sin preguntas abiertas, botón "Malla del curso" que envía el PDF, la IA ya no menciona "el contexto", y este traspaso. **No queda ningún PR pendiente de esa tanda.**
 **Sin probar todavía en WhatsApp real:** el submenú del curso completo, el envío del PDF desde botón, el video.
 
 **Pendientes y decisiones abiertas (de Nico):**
@@ -119,3 +119,14 @@ Otras piezas: `whatsapp-meta.ts` (envío de texto, lista, archivos, plantillas; 
 2. Leer `AGENTS.md` (secciones 11 a 15) y este archivo.
 3. Pedirle a Nico la **captura** o el caso que falló; reproducirlo con las pruebas (`scripts/test-agente-*.ts`).
 4. Seguir el método de la sección 5.
+
+## 11. Modo de trabajo cuando continúa Codex (autorizado por Nico el 7 nov. 2026)
+Nico quiere que Codex siga **exactamente como en la sesión de Claude Code** y que pueda **hacer cambios**. Por eso, **dentro del agente de WhatsApp** (`src/lib/agente/`, `src/app/api/agente/`, `src/app/dashboard/whatsapp-preguntas/`, `scripts/test-agente-*.ts`, `docs/agente/`):
+1. **Un pedido directo de Nico en el chat (con captura o descripción del caso) vale como ficha de tarea.** No hace falta pedir otra ficha: se hace.
+2. Se trabaja con el método de la sección 5: rama `codex/<tema>` creada desde `agente/whatsapp` actualizada, cambios pequeños, `tsc` + batería de pruebas, push a esa rama. **Codex puede abrir el PR hacia `agente/whatsapp`** (si no puede, entrega el enlace compare con título y cuerpo, como en 5.7). **Nico mergea.**
+3. Lo demás de `AGENTS.md` sigue igual: nada a `main`, nada de `.env*` ni secretos, **ningún SQL en producción**, todo lo nuevo apagado o igual que antes si hay riesgo; el código de envíos, seguridad y SQL lo revisa Claude.
+4. Al terminar: actualizar la sección 9, y decirle a Nico **qué probó, qué no, y los pasos numerados para probarlo en WhatsApp** (sección 8).
+5. Si Nico pide algo **fuera del agente** (otras pantallas de re-booking), aplica `AGENTS.md` sección 15 (rama propia y ficha).
+
+## 12. Nota para análisis de conversaciones y ventas
+El agente **no guarda el texto de los mensajes** (solo contadores en `agent_whatsapp_indicadores`, ver `whatsapp-webhook.ts`). Por eso **no se pueden reconstruir conversaciones pasadas desde la base**. Cualquier análisis de cierres de venta o motivos de pérdida necesita una **fuente nueva** (exportar chats de WhatsApp Business, o guardar mensajes con consentimiento y retención definidos). Es una **decisión de Nico** (privacidad, Ley 21.719), no algo a hacer por defecto.
