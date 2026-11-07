@@ -32,7 +32,7 @@ async function main() {
   await t("recepción y profesional no cambian el tema de todo el negocio", async () => { writes=[]; for (const role of ["barber","receptionist"]) { caller.role=role; assert.equal((await business(req({theme:"rose"}))).status,403); } caller.role="admin"; assert.equal(writes.length,0); });
   await t("otro negocio queda rechazado antes de escribir", async () => { denied=true; writes=[]; assert.equal((await business(req({theme:"rose",tenantId:"other"}))).status,403); assert.equal(writes.length,0); denied=false; });
   await t("tema inválido o JSON nulo no restablece preferencias silenciosamente", async () => { writes=[]; for (const b of [null,{}, {theme:"unknown"}, {theme:{}}]) { assert.equal((await business(req(b))).status,400); assert.equal((await personal(req(b))).status,400); } assert.equal(writes.length,0); });
-  await t("sin migración informa el pendiente y no anuncia tema guardado", async () => { dbError={code:"23514"}; const r=await personal(req({theme:"rose"})); assert.equal(r.status,503); assert.match((await r.json()).error,/148/); dbError=null; });
+  await t("sin migración informa el pendiente y no anuncia tema guardado", async () => { for (const code of ["23514","42703"]) { dbError={code}; const r=await personal(req({theme:"rose"})); assert.equal(r.status,503); assert.match((await r.json()).error,/148/); } dbError=null; });
   console.log(`${passed} pruebas correctas`);
 }
 main().catch(e=>{console.error(e);process.exitCode=1;});

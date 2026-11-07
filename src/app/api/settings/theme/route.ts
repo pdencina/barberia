@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
 
   const supabase = createAdminSupabase();
   const { error } = await supabase.from("tenants").update({ theme }).eq("id", tenantId);
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: error.code === "42703" ? "Falta aplicar la actualización de temas (migración 148)." : "No se pudo guardar el tema" }, { status: error.code === "42703" ? 503 : 500 });
 
   return NextResponse.json({ success: true, theme });
 }

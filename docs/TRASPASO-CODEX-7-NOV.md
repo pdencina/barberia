@@ -77,6 +77,14 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - Excluye POS/Standby/terminal, configuración y fichas de edición; bloquea con formularios modificados, modales y gestos en rejilla/citas. Conserva sesión y URL; filtros locales se reinician al recargar.
 - Verificado: 26 pruebas simuladas, TypeScript y demostración de touchstart/move/end en navegador local con datos ficticios. Sin SQL; falta dispositivo real/WebView y merge por Nico.
 
+- 2026-11-07 · Codex · `codex/reagendar-con-abono`: el enlace del correo permite cambiar fecha/hora de la misma cita, con plazo del negocio, profesional/servicios originales y abono intacto; no crea cobros.
+- Verificado con 30 pruebas simuladas nuevas (ruta y disponibilidad), 3 de preferencias y TypeScript; sin SQL ni datos reales. No probado en celular ni con Supabase.
+- Pendiente merge por Nico; los demás puntos del informe de Looky siguen separados: contabilidad de abonos en borrador `codex/abonos-contabilidad`, recuperación manual, alertas de ventas, extras y abonos futuros. La comprobación de cupos previa no incorpora un bloqueo transaccional entre distintas citas simultáneas.
+
 - 2026-11-07 · Codex · `codex/temas-rosa-monocromo`: agrega Rosa, Blanco y negro y Negro con blanco a Configuración y Mi perfil; conserva Claro/Oscuro y preferencias existentes. Tarjetas oscuras y logo oficial blanco en el invertido, aprobado por Nico.
 - Verificado: 23 pruebas de catálogo/permisos/guardado, 24 parejas de contraste, TypeScript y 168 lecturas de texto en componentes reales con datos ficticios (56 por paleta, contraste >=4.5). No se probaron todas las pantallas ni dispositivos físicos.
 - Migración 148 amplía la restricción de temas personales sin cambiar filas. No aplicada: entorno sin conector Supabase; ejecutar en Editor SQL de rebooking Base y después EstudioLevels, verificar los cinco nombres. Nico crea/mergea PR; sin despliegue ni datos reales.
+
+- 2026-11-07 · Codex · Conflicto de `codex/temas-rosa-monocromo` con PR #356 resuelto conservando ambas entradas. El fetch configurado solo trae agente/whatsapp: traer main explícitamente con `git fetch origin main:refs/remotes/origin/main`.
+- Migración 148 aplicada por Editor SQL en rebooking Base y EstudioLevels, verificada con profiles_theme_check y sus cinco valores. Pruebas carecía de profiles.theme: 148 ahora crea theme en profiles/tenants si falta; no modifica preferencias existentes.
+- Revalidado TypeScript y 23 pruebas de temas; respuesta controlada también si falta la columna. Sin UPDATE/DELETE de negocios, sin merge a main ni despliegue; Nico crea y mergea el PR.
