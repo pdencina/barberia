@@ -16,7 +16,7 @@ const RULES: Array<{ key: Rule; title: string; desc: string }> = [
 // Preferencias de reserva (Fase 6): que regla usa "Primer profesional disponible". Solo cuentan
 // profesionales que hacen el servicio, trabajan ese dia, tienen la hora libre y no estan bloqueados ni
 // de vacaciones; si el elegido no puede, pasa al siguiente (nunca se pierde la reserva).
-export function BookingRuleCard() {
+export function BookingRuleCard({ soloVentana = false }: { soloVentana?: boolean } = {}) {
   const { showToast } = useToast();
   const [loaded, setLoaded] = useState(false);
   const [migrationMissing, setMigrationMissing] = useState(false);
@@ -78,7 +78,7 @@ export function BookingRuleCard() {
     <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
       <div>
         <h2 className="font-bold text-brand-dark">Preferencias de reserva</h2>
-        <p className="text-xs text-brand-gray">Cómo se elige al profesional cuando el cliente toca "Primer profesional disponible".</p>
+        {!soloVentana && <p className="text-xs text-brand-gray">Cómo se elige al profesional cuando el cliente toca "Primer profesional disponible".</p>}
       </div>
 
       <div>
@@ -98,6 +98,7 @@ export function BookingRuleCard() {
         </div>
       </div>
 
+      {!soloVentana && (<>
       <div className="space-y-2">
         {RULES.map((r) => (
           <label key={r.key} className={`flex items-start gap-3 rounded-xl border p-3 cursor-pointer ${rule === r.key ? "border-brand-blue bg-brand-blue/5" : "border-gray-200"}`}>
@@ -159,6 +160,8 @@ export function BookingRuleCard() {
           )}
         </div>
       )}
+
+      </>)}
 
       {migrationMissing && <p className="text-xs text-red-500">Falta aplicar la migración 095 en la base de datos.</p>}
       <button onClick={save} disabled={saving} className="px-5 py-2 bg-brand-blue text-white rounded-xl text-sm font-medium disabled:opacity-50">
