@@ -14,6 +14,7 @@ import SourceSelect from "@/components/clients/source-select";
 import type { GrupoCliente, ResumenGrupos } from "@/lib/clientes-grupos";
 import type { OrdenCliente, StatsCliente } from "@/lib/clientes-stats";
 import { formatCurrency } from "@/lib/utils";
+import { planPermite } from "@/lib/plan-access";
 
 interface Client {
   id: string;
@@ -64,7 +65,8 @@ export default function ClientesPage() {
   const canImportExport = (gateRole === "admin" || gateRole === "super_admin") && !lite;
   // Punto 10 (Pablo): "Metricas" (origen de clientes) es solo para Administrador y
   // Recepcion, igual que el resto de la vista de negocio.
-  const canSeeMetrics = (isAdmin || gateRole === "receptionist") && !lite;
+  // Métricas, grupos de clientes y su crecimiento son reportes avanzados (desde Starter).
+  const canSeeMetrics = (isAdmin || gateRole === "receptionist") && (!tenant?.plan || planPermite(tenant.plan, "reportesAvanzados"));
 
   // Cache de lectura en memoria (por usuario, negocio, busqueda y pagina; nada queda escrito en el navegador). Solo la carga
   // automatica al abrir la pantalla la usa (skipSpinnerRef); buscar, paginar y las acciones piden todo como siempre.

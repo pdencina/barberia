@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTenant } from "@/lib/tenant-context";
+import { planPermite } from "@/lib/plan-access";
 import { useParams, useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
@@ -236,6 +237,8 @@ export default function ClienteDetailPage() {
 
   // Plan Lite: la ficha muestra solo nombre, celular y correo; el resto se ve borroso y anima a mejorar el plan. WhatsApp: 20 usos al mes.
   const lite = tenant?.plan === "lite";
+  // «Fichas para el cliente» (notas, fotos y perfil) son de Starter hacia arriba.
+  const conFichas = !tenant?.plan || planPermite(tenant.plan, "fichasCliente");
   const [limiteWa, setLimiteWa] = useState("");
   const abrirWhatsApp = async () => {
     const tel = String(client?.phone || "").replace(/\D/g, "");
@@ -416,7 +419,7 @@ export default function ClienteDetailPage() {
         {/* Columna principal */}
         <div className="space-y-6 lg:col-span-2">
           {/* Notas internas */}
-          <Panel title="Notas internas" subtitle="Preferencias y observaciones (solo visibles para el equipo)">
+          {conFichas && <Panel title="Notas internas" subtitle="Preferencias y observaciones (solo visibles para el equipo)">
             {/* Enter hace salto de línea; la nota solo se guarda al apretar Agregar */}
             <div className="space-y-2">
               <textarea
@@ -474,10 +477,10 @@ export default function ClienteDetailPage() {
                 ))}
               </div>
             )}
-          </Panel>
+          </Panel>}
 
           {/* Fotos */}
-          <Panel
+          {conFichas && <Panel
             title="Fotos y registro visual"
             subtitle="Antes y después, evolución o referencias del cliente"
             action={
@@ -530,7 +533,7 @@ export default function ClienteDetailPage() {
                 ))}
               </div>
             )}
-          </Panel>
+          </Panel>}
 
           {/* Historial de citas */}
           <Panel title={`Historial de citas (${appointments.length})`} flush>
@@ -609,7 +612,7 @@ export default function ClienteDetailPage() {
             </dl>
           </Panel>
 
-          <Panel title="Perfil del cliente" subtitle="Toca para marcar o quitar">
+          {conFichas && <Panel title="Perfil del cliente" subtitle="Toca para marcar o quitar">
             <div className="flex flex-wrap gap-2">
               {["Reservado", "Extrovertido", "Puntual", "Impuntual", "VIP", "Conversador", "Apurado", "Detallista"].map((tag) => {
                 const isActive = tags.includes(tag.toLowerCase());
@@ -628,7 +631,7 @@ export default function ClienteDetailPage() {
                 );
               })}
             </div>
-          </Panel>
+          </Panel>}
 
           {stats.favoriteServices.length > 0 && (
             <Panel title="Servicios favoritos">

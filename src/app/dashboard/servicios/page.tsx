@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
+import { planPermite } from "@/lib/plan-access";
 import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { compressImage } from "@/lib/image-compress";
@@ -52,6 +53,8 @@ export default function ServiciosPage() {
   const { tenant, loading: tenantLoading } = useTenant();
   // Plan Lite: servicios simples (nombre, descripción, imagen, precio y duración), sin categorías ni servicios internos.
   const lite = tenant?.plan === "lite";
+  // Servicios internos (solo se cobran en el Punto de Venta): desde Starter, que es donde empieza el Punto de Venta.
+  const conInternos = !tenant?.plan || planPermite(tenant.plan, "ventas");
 
   // Drag state
   const [dragIndex, setDragIndex] = useState<number | null>(null);
@@ -745,7 +748,7 @@ export default function ServiciosPage() {
                 <p className="text-xs text-brand-gray italic">Podras agregar una foto de referencia despues de crear el servicio.</p>
               )}
 
-              {!lite && (
+              {conInternos && (
               <div>
                 <label className="block text-xs font-medium text-brand-gray mb-1">¿Quién lo puede elegir?</label>
                 <div className="grid grid-cols-2 gap-2">

@@ -22,6 +22,7 @@ export const REGLAS: ReglaPlan[] = [
   { min: "starter", nombre: "Reseñas", paginas: ["/dashboard/resenas"], apis: [] },
   { min: "starter", nombre: "Cierre mensual", paginas: ["/dashboard/reportes"], apis: [] },
   { min: "starter", nombre: "Métricas de clientes", paginas: ["/dashboard/clientes/metricas"], apis: [] },
+  { min: "starter", nombre: "Servicios y precios por profesional", paginas: ["/dashboard/barberos/precios"], apis: [] },
   { min: "pro", nombre: "Sucursales", paginas: ["/dashboard/sucursales"], apis: [] },
   { min: "starter", nombre: "Punto de Venta", paginas: ["/dashboard/pos"], apis: ["/api/pos"] },
   { min: "starter", nombre: "Modo Standby", paginas: ["/dashboard/standby"], apis: [] },

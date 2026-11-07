@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useToast } from "@/components/ui/toast";
 import { cacheKey, readCache, writeCache } from "@/lib/swr-cache";
 import { useTenant } from "@/lib/tenant-context";
+import { planPermite } from "@/lib/plan-access";
 import { useAuth } from "@/lib/auth-context";
 import { Spinner } from "@/components/ui/spinner";
 
@@ -34,6 +35,9 @@ export default function BarberosPage() {
   // schedule. All team-management actions (create, invite, deactivate, delete) are
   // hidden for them — Nico asked to keep that off the receptionist's plate.
   const scheduleOnly = effectiveRole === "receptionist";
+  // Planes de una sola persona (Lite y Basic): no se suma gente. Recepción y otros administradores (accesos del equipo) son de Starter.
+  const unaPersona = tenant?.max_professionals === 1;
+  const conAccesos = !tenant?.plan || planPermite(tenant.plan, "equipoAccesos");
 
   // Get tenant ID (from context or localStorage override for super_admin)
   const getActiveTenantId = () => {
@@ -141,7 +145,7 @@ export default function BarberosPage() {
     <div className="p-3 md:p-6 space-y-3 md:space-y-3 md:space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
         <h1 className="text-xl md:text-2xl font-bold text-gray-900">Equipo</h1>
-        {!scheduleOnly && tenant?.plan !== "lite" && (
+        {!scheduleOnly && !unaPersona && (
           <button onClick={() => setShowModal(true)}
             className="bg-indigo-600 text-white px-4 py-2 rounded-lg hover:bg-indigo-700">
             Nuevo Miembro
@@ -155,9 +159,9 @@ export default function BarberosPage() {
         </p>
       )}
 
-      {tenant?.plan === "lite" && (
+      {unaPersona && (
         <p className="text-sm text-brand-gray bg-blue-50 border border-blue-100 rounded-xl px-4 py-3">
-          El plan Lite es para una sola persona. Para sumar más profesionales, mejora tu plan.
+          Tu plan es para una sola persona. Para sumar más profesionales, mejora tu plan.
         </p>
       )}
 
@@ -317,8 +321,8 @@ export default function BarberosPage() {
                   onChange={(e) => setFormData({ ...formData, role: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2">
                   <option value="barber">Profesional</option>
-                  <option value="receptionist">Recepcionista</option>
-                  <option value="admin">Administrador</option>
+                  {conAccesos && <option value="receptionist">Recepcionista</option>}
+                  {conAccesos && <option value="admin">Administrador</option>}
                 </select>
                 <p className="text-[10px] text-gray-400 mt-1">
                   {formData.role === "barber" && "Ve su agenda, standby, clientes y comisiones"}
