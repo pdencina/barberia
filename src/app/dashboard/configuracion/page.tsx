@@ -1135,8 +1135,8 @@ export default function ConfiguracionPage() {
       {isAdmin && cajaSec && puedeCfg("standby") && (
         <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
           <div>
-            <h2 className="font-bold text-brand-dark">Caja y Standby</h2>
-            <p className="text-xs text-brand-gray">Standby con servicios y productos, y aviso para llevar el efectivo a la caja fuerte</p>
+            <h2 className="font-bold text-brand-dark">{puedeCfg("caja") ? "Caja y Standby" : "Standby"}</h2>
+            <p className="text-xs text-brand-gray">{puedeCfg("caja") ? "Standby con servicios y productos, y aviso para llevar el efectivo a la caja fuerte" : "Standby con servicios y productos para la tablet del equipo"}</p>
           </div>
           <label className="flex items-start gap-3 cursor-pointer">
             <input type="checkbox" checked={cajaSec.standbyV2} disabled={savingCajaSec}

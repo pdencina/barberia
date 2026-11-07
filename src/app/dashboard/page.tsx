@@ -478,12 +478,12 @@ export default function DashboardPage() {
         const hayMedios = (data.ventasPorMedio?.length || 0) > 0;
         const tarjetas = (
           <>
-            <Sec id="stockBajo" {...secProps}>
+            {puede("inventario") && <Sec id="stockBajo" {...secProps}>
               <ProductCarousel title="Stock bajo" icon={<PackageX className="h-4 w-4" />} emptyMessage="Todo el inventario esta dentro de su stock minimo." items={lowStockItems} />
-            </Sec>
-            <Sec id="masVendidos" {...secProps}>
+            </Sec>}
+            {puede("inventario") && <Sec id="masVendidos" {...secProps}>
               <ProductCarousel title="Mas vendidos (ultimos 30 dias)" icon={<ShoppingBag className="h-4 w-4" />} emptyMessage="Sin ventas de productos en este periodo." items={topProductItems} />
-            </Sec>
+            </Sec>}
           </>
         );
         return (

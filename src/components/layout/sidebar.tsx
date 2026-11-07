@@ -103,8 +103,8 @@ const sections: NavSection[] = [
     title: "Finanzas",
     items: [
       { name: "Ingresos/Egresos", href: "/dashboard/finanzas", icon: DollarSign, minRole: "admin", basicLocked: true },
-      { name: "Abonos", href: "/dashboard/abonos", icon: HandCoins, minRole: "receptionist", basicLocked: true },
-      { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin", basicLocked: true },
+      { name: "Abonos", href: "/dashboard/abonos", icon: HandCoins, minRole: "receptionist", basicLocked: true, cap: "cobrosOnline" },
+      { name: "Boletas", href: "/dashboard/boletas", icon: Receipt, minRole: "admin", basicLocked: true, cap: "boletaSii" },
       { name: "Facturas", href: "/dashboard/facturas", icon: FileText, minRole: "admin", feature: "invoices" },
       { name: "Cierre Mensual", href: "/dashboard/reportes", icon: ClipboardList, minRole: "admin", cap: "cierreMensual" },
       { name: "Mi Billetera", href: "/dashboard/mi-billetera", icon: PiggyBank, minRole: "barber" },
@@ -134,7 +134,7 @@ const sections: NavSection[] = [
       },
       { name: "Precios", href: "/dashboard/precios", icon: Tag, minRole: "super_admin" },
       { name: "Galería", href: "/dashboard/galeria", icon: Image, minRole: "admin" },
-      { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin", basicLocked: true },
+      { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin", basicLocked: true, cap: "cobrosOnline" },
       {
         name: "Configuración", href: "/dashboard/configuracion", icon: Settings, minRole: "admin",
         // Terminal POS e Inventario son hijos de Configuracion (Comisiones, Arriendo, Servicios y Proveedores ahora viven en Mi negocio).

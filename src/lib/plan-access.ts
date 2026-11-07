@@ -27,7 +27,8 @@ export const REGLAS: ReglaPlan[] = [
   { min: "pro", nombre: "Sucursales", paginas: ["/dashboard/sucursales"], apis: [] },
   { min: "starter", nombre: "Punto de Venta", paginas: ["/dashboard/pos"], apis: ["/api/pos"] },
   { min: "starter", nombre: "Modo Standby", paginas: ["/dashboard/standby"], apis: [] },
-  { min: "starter", nombre: "Ingresos, abonos, boletas y proveedores", paginas: ["/dashboard/finanzas", "/dashboard/abonos", "/dashboard/boletas", "/dashboard/pagos", "/dashboard/proveedores"], apis: ["/api/finanzas", "/api/abonos", "/api/boletas", "/api/proveedores"] },
+  { min: "starter", nombre: "Ingresos, egresos y proveedores", paginas: ["/dashboard/finanzas", "/dashboard/proveedores"], apis: ["/api/finanzas", "/api/proveedores"] },
+  { min: "pro", nombre: "Abonos, pagos en línea y boletas electrónicas (integración con sistemas de pago)", paginas: ["/dashboard/abonos", "/dashboard/pagos", "/dashboard/boletas"], apis: ["/api/abonos", "/api/boletas"] },
   { min: "starter", nombre: "Mensajes masivos", paginas: ["/dashboard/whatsapp"], apis: ["/api/whatsapp"] },
   { min: "starter", nombre: "Cupones de descuento", paginas: ["/dashboard/cupones"], apis: ["/api/cupones"] },
   { min: "starter", nombre: "Retención de clientes", paginas: ["/dashboard/retencion"], apis: ["/api/retention"] },
@@ -71,7 +72,7 @@ export type Capacidad =
   | "caja" | "standby" | "libroProfesional" | "fichasCliente" | "serviciosAvanzados" | "informeDiario" | "equipoAccesos" | "avisosCaja";
 export const CAPACIDADES: Record<Capacidad, PlanId> = {
   ventas: "starter", dashboardPersonalizar: "starter", reportesAvanzados: "starter", miAgenda: "starter", resenas: "starter", cierreMensual: "starter",
-  boletaSii: "starter", cobrosOnline: "starter", reglaReserva: "starter", standby: "starter", fichasCliente: "starter", serviciosAvanzados: "starter",
+  boletaSii: "pro", cobrosOnline: "pro", reglaReserva: "starter", standby: "starter", fichasCliente: "starter", serviciosAvanzados: "starter",
   informeDiario: "starter", equipoAccesos: "starter",
   inventario: "pro", sucursales: "pro", honorarios: "pro", publicidad: "pro", agenteWhatsapp: "pro", caja: "pro", libroProfesional: "pro", avisosCaja: "pro",
 };
