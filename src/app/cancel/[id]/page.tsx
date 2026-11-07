@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { EmptyIcons, SuccessMark } from "@/components/ui/empty-state";
+import { BookingReschedule } from "@/components/booking-reschedule";
 import { MOTIVOS_CLIENTE } from "@/lib/cancel-reasons";
 
 export default function CancelPage() {
@@ -48,7 +49,9 @@ export default function CancelPage() {
             <div className="w-14 h-14 mx-auto mb-4 rounded-2xl bg-amber-50 ring-4 ring-amber-100 flex items-center justify-center">
               <EmptyIcons.agendaEmpty className="w-6 h-6 text-amber-600" strokeWidth={1.75} />
             </div>
-            <h2 className="text-lg font-bold text-brand-dark">Cancelar cita</h2>
+            <h2 className="text-lg font-bold text-brand-dark">Gestionar tu cita</h2>
+            <div className="mt-4 mb-5"><BookingReschedule appointmentId={String(params.id)} /></div>
+            <h3 className="text-sm font-semibold text-brand-dark">¿Prefieres cancelar?</h3>
             <p className="text-sm text-brand-gray mt-2 mb-4">
               Estas seguro que deseas cancelar tu cita? Esta accion no se puede deshacer.
             </p>

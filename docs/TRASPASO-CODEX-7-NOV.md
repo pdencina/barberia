@@ -76,3 +76,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · `codex/deslizar-actualizar`: gesto compartido de arrastrar y soltar desde arriba en pantallas de consulta del panel; indicador turquesa y limpieza del cache de lectura antes de recargar la URL actual.
 - Excluye POS/Standby/terminal, configuración y fichas de edición; bloquea con formularios modificados, modales y gestos en rejilla/citas. Conserva sesión y URL; filtros locales se reinician al recargar.
 - Verificado: 26 pruebas simuladas, TypeScript y demostración de touchstart/move/end en navegador local con datos ficticios. Sin SQL; falta dispositivo real/WebView y merge por Nico.
+
+- 2026-11-07 · Codex · `codex/reagendar-con-abono`: el enlace del correo permite cambiar fecha/hora de la misma cita, con plazo del negocio, profesional/servicios originales y abono intacto; no crea cobros.
+- Verificado con 30 pruebas simuladas nuevas (ruta y disponibilidad), 3 de preferencias y TypeScript; sin SQL ni datos reales. No probado en celular ni con Supabase.
+- Pendiente merge por Nico; los demás puntos del informe de Looky siguen separados: contabilidad de abonos en borrador `codex/abonos-contabilidad`, recuperación manual, alertas de ventas, extras y abonos futuros. La comprobación de cupos previa no incorpora un bloqueo transaccional entre distintas citas simultáneas.
