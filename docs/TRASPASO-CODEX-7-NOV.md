@@ -69,3 +69,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · `codex/agenda-admin-modalidad`: corrige total oculto en admin de Levels; la excepción del administrador ya no depende de work_mode.
 - Total de servicios agendados del administrador en cualquier modalidad; profesionales conservan su regla. No modifica configuración, porcentajes, pagos ni base de datos.
 - Verificación: 27 pruebas simuladas de resumen y TypeScript; sin SQL. Pendiente merge por Nico y comprobación del monto real en su sesión.
+
+- 2026-11-07 · Codex · `codex/agenda-arriendo-ventas`: todos los profesionales rental proyectan suma completa de servicios, como administradores; comisión conserva porcentaje.
+- Etiqueta «Cliente nuevo» más visible junto al nombre; tarjeta «Total esperado» grande y «Total de ventas actual» pequeño: ingresos completados del profesional en el día de Chile, incluye abonos aplicados, excluye ajustes manuales; refresca cada minuto y al volver.
+- Sin SQL ni cambios a pagos; pruebas simuladas y TypeScript; falta validar datos reales y pantalla en celular tras merge de Nico.

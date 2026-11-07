@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/accounting";
 import { newClientAppointmentIds } from "@/lib/new-client";
-import { summarizeAgenda } from "@/lib/agenda-summary";
-import { todayInChile } from "@/lib/utils";
+import { summarizeAgenda, sumAgendaSales } from "@/lib/agenda-summary";
+import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
 export async function GET(req: NextRequest) {
@@ -36,7 +36,19 @@ export async function GET(req: NextRequest) {
         for (const id of Array.from(ids)) newIds.add(id);
       }
     } catch { newIds = null; }
-    return NextResponse.json(summarizeAgenda(rows, newIds, profile));
+    let actualSales: number | null = null;
+    try {
+      const { startUtc, endUtc } = chileDayBoundsUtc(date);
+      const sales = (fields: string) => fetchAllRows(() => db.from("transactions").select(fields)
+        .eq("tenant_id", caller.tenantId).eq("barber_id", barberId)
+        .eq("type", "income").eq("status", "completed")
+        .gte("created_at", startUtc).lt("created_at", endUtc));
+      let transactions;
+      try { transactions = await sales("id,total,notes,prepaid_amount"); }
+      catch { transactions = await sales("id,total,notes"); } // tolerar migración 135 ausente
+      actualSales = sumAgendaSales(transactions);
+    } catch { /* mostrar desconocido; no confundir fallo con ventas cero */ }
+    return NextResponse.json({ ...summarizeAgenda(rows, newIds, profile), actualSales });
   } catch {
     return NextResponse.json({ error: "No se pudo cargar el resumen" }, { status: 503 });
   }

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { summarizeAgenda } from "../src/lib/agenda-summary";
+import { summarizeAgenda, sumAgendaSales } from "../src/lib/agenda-summary";
 import { newClientAppointmentIds } from "../src/lib/new-client";
 let passed = 0;
 async function test(name: string, fn: () => unknown) { await fn(); passed++; console.log(`OK ${name}`); }
@@ -17,7 +17,7 @@ async function main() {
   await test("cero por ciento es válido y no se sustituye por 40", () => assert.equal(summarizeAgenda([row("a")], new Set(), { ...profile, commission_rate: 0 }).expectedIncome, 0));
   await test("porcentaje decimal y precio numérico en texto", () => assert.equal(summarizeAgenda([row("a", "scheduled", "10001")], new Set(), { ...profile, commission_rate: 37.5 }).expectedIncome, 3750));
   await test("porcentajes ausentes o inválidos nunca inventan un monto", () => { for (const commission_rate of [null, "", -1, 101, "x"]) assert.equal(summarizeAgenda([row("a")], new Set(), { ...profile, commission_rate }).expectedIncome, null); });
-  await test("arriendo no se presenta como comisión", () => assert.equal(summarizeAgenda([row("a")], new Set(), { ...profile, work_mode: "rental" }).expectedIncome, null));
+  await test("arriendo proyecta todos los servicios sin comisión", () => { const s = summarizeAgenda([row("a")], new Set(), { ...profile, work_mode: "rental" }); assert.equal(s.expectedIncome, 10000); assert.equal(s.incomeBasis, "day_total"); assert.equal(s.incomeUnavailable, null); });
   await test("precios incompletos no subestiman el monto", () => { for (const price of [null, "", -5, "x"]) assert.equal(summarizeAgenda([row("a", "scheduled", price)], new Set(), profile).expectedIncome, null); });
   await test("día vacío devuelve ceros", () => assert.equal(summarizeAgenda([], new Set(), profile).expectedIncome, 0));
   await test("clientes únicos y citas sin ficha identificadas aparte", () => {
@@ -56,6 +56,16 @@ async function main() {
     }
   });
 
+  await test("arriendo sin porcentaje suma varios servicios y excluye canceladas", () => {
+    const s = summarizeAgenda([row("a"), row("b", "completed", 20000), row("c", "cancelled")], new Set(), { role: "barber", work_mode: "rental", commission_rate: null });
+    assert.equal(s.expectedIncome, 30000); assert.equal(s.incomeUnavailable, null);
+  });
+  await test("ventas actuales incluyen abonos aplicados una sola vez", () => assert.equal(sumAgendaSales([{total: 8000, prepaid_amount: 2000},{total:"12000"}]),22000));
+  await test("ventas excluyen ajustes manuales", () => assert.equal(sumAgendaSales([{total: 5000},{total:10000,notes:"[AJUSTE MANUAL] antiguo"}]),5000));
+  await test("día sin ventas muestra cero e importe inválido queda desconocido", () => {
+    assert.equal(sumAgendaSales([]),0); assert.equal(sumAgendaSales([{total:null}]),null); assert.equal(sumAgendaSales([{total:"x"}]),null);
+  });
+
   function historyDb(history: any[], error = false) {
     return { from() {
       let tenant: string | undefined, clients: string[] = [], max = "", from = 0, to = 0;
@@ -89,11 +99,11 @@ async function main() {
   const Module = require("node:module"); const originalLoad = Module._load;
   let caller: any = { userId: "admin", role: "admin", tenantId: "t" };
   let exists = true; let queries = 0;
-  const fakeDb = { from() { queries++; const q: any = { select: () => q, eq: (key: string, value: string) => { if (key === "tenant_id") assert.equal(value, "t"); return q; }, in: () => q, maybeSingle: async () => ({ data: exists ? profile : null, error: null }) }; return q; } };
+  const fakeDb = { from() { queries++; const q: any = { select: () => q, eq: (key: string, value: string) => { if (key === "tenant_id") assert.equal(value, "t"); return q; }, in: () => q, gte: () => q, lt: () => q, maybeSingle: async () => ({ data: exists ? profile : null, error: null }) }; return q; } };
   Module._load = function(id: string, ...args: any[]) {
     if (id === "@/lib/supabase/server") return { getCallerForView: async () => caller, createAdminSupabase: () => fakeDb };
     if (id === "@/lib/accounting") return { fetchAllRows: async (build: any) => { build(); return []; } };
-    if (id === "@/lib/utils") return { todayInChile: () => "2026-11-07" };
+    if (id === "@/lib/utils") return { todayInChile: () => "2026-11-07", chileDayBoundsUtc: () => ({ startUtc: "2026-11-07T03:00:00Z", endUtc: "2026-11-08T03:00:00Z" }) };
     return originalLoad.call(this, id, ...args);
   };
   const { GET } = require("../src/app/api/barber/agenda/resumen/route");
@@ -103,7 +113,7 @@ async function main() {
   await test("profesional no ve ingresos de otro", async () => { caller = { userId: "otro", role: "barber", tenantId: "t" }; queries = 0; assert.equal((await GET(request())).status, 403); assert.equal(queries, 0); });
   await test("cliente no accede aunque conozca un id", async () => { caller = { userId: "pro", role: "client", tenantId: "t" }; assert.equal((await GET(request())).status, 403); });
   await test("otro negocio: profesional no encontrado dentro del tenant", async () => { caller = { userId: "admin", role: "admin", tenantId: "t" }; exists = false; assert.equal((await GET(request())).status, 403); exists = true; });
-  await test("profesional puede consultar su propio resumen", async () => { caller = { userId: "pro", role: "barber", tenantId: "t" }; assert.equal((await GET(request())).status, 200); });
+  await test("profesional puede consultar su propio resumen", async () => { caller = { userId: "pro", role: "barber", tenantId: "t" }; const res = await GET(request()); assert.equal(res.status, 200); assert.equal((await res.json()).actualSales, 0); });
   await test("super admin requiere negocio concreto", async () => { caller = { userId: "sa", role: "super_admin", tenantId: "ALL" }; assert.equal((await GET(request())).status, 403); });
   await test("fecha inválida devuelve 400", async () => { caller = { userId: "admin", role: "admin", tenantId: "t" }; assert.equal((await GET(request("pro", "invalida"))).status, 400); });
   console.log(`${passed} pruebas correctas`);

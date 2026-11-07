@@ -26,8 +26,8 @@ export function summarizeAgenda(
     }
   }
   const commissionMode = profile.work_mode === null || profile.work_mode === "commission";
-  // El administrador que atiende proyecta sus servicios completos, cualquiera sea su modalidad.
-  const fullDayTotal = profile.role === "admin";
+  // Administradores y profesionales en arriendo proyectan el total completo de sus servicios.
+  const fullDayTotal = profile.role === "admin" || profile.work_mode === "rental";
   return {
     incomeBasis: fullDayTotal ? "day_total" as const : "commission" as const,
     appointments: active.length,
@@ -42,4 +42,17 @@ export function summarizeAgenda(
       ? "Falta configurar el porcentaje" : !pricesComplete ? "Faltan precios de servicios" : null,
   };
 }
-export type AgendaSummary = ReturnType<typeof summarizeAgenda>;
+export type AgendaSummary = ReturnType<typeof summarizeAgenda> & { actualSales?: number | null };
+
+// Ventas completadas del profesional; los abonos aplicados forman parte del valor vendido.
+export function sumAgendaSales(rows: Array<{ total: number | string | null; prepaid_amount?: number | string | null; notes?: string | null }>): number | null {
+  let total = 0;
+  for (const row of rows) {
+    if (String(row.notes || "").startsWith("[AJUSTE MANUAL]")) continue;
+    if (row.total === null || row.total === "") return null;
+    const amount = Number(row.total), prepaid = Number(row.prepaid_amount ?? 0);
+    if (!Number.isFinite(amount) || !Number.isFinite(prepaid) || amount < 0 || prepaid < 0) return null;
+    total += amount + prepaid;
+  }
+  return Math.round(total);
+}

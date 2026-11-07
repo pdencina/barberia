@@ -12,7 +12,7 @@ export function AppointmentCard({ id, start, end, name, phone, services, status,
       <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${current ? "bg-white/20 text-white" : status === "completed" ? "bg-brand-blue/10 text-brand-blue" : "bg-white text-brand-gray dark:bg-brand-white"}`}>{labels[status] || status}</span>
     </div>
     <div className="p-3 pt-2">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><h2 className="text-sm font-bold text-brand-dark">{name}</h2>{isNew === true && <span className="inline-flex items-center gap-1 rounded-full bg-brand-accent/10 px-2 py-0.5 text-[9px] font-bold text-brand-blue"><UserPlus className="h-3 w-3"/>Cliente nuevo</span>}</div>
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1"><h2 className="text-sm font-bold text-brand-dark">{name}</h2>{isNew === true && <span className="inline-flex items-center gap-1 rounded-full bg-brand-blue px-2 py-1 text-[10px] font-bold text-white"><UserPlus className="h-3 w-3"/>Cliente nuevo</span>}</div>
       {phone && <a href={`tel:${phone}`} className="text-[11px] text-brand-gray hover:text-brand-blue">{phone}</a>}
       <p className="mt-1 flex items-center gap-1 text-xs text-brand-gray"><CalendarDays className="h-3 w-3 shrink-0"/>{services}</p>
       {children}
