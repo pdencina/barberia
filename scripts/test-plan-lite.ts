@@ -9,8 +9,8 @@ t("el neto de 840 más IVA cobra exactamente $1.000", () => {
   assert.equal(a.monto, LITE_PRECIO_TOTAL);
 });
 t("Lite incluye agenda, billetera, horarios; bloquea el resto", () => {
-  for (const ok of ["/dashboard/calendario", "/dashboard/calendario/semana", "/dashboard/mi-billetera", "/dashboard/barberos/123", "/dashboard/configuracion"]) assert.ok(liteIncluye(ok), ok);
-  for (const no of ["/dashboard", "/dashboard/pos", "/dashboard/clientes", "/dashboard/finanzas", "/dashboard/ocupacion", "/dashboard/barberosx"]) assert.ok(!liteIncluye(no), no);
+  for (const ok of ["/dashboard/calendario", "/dashboard/calendario/semana", "/dashboard/mi-billetera", "/dashboard/barberos/123", "/dashboard/configuracion", "/dashboard/clientes", "/dashboard/servicios"]) assert.ok(liteIncluye(ok), ok);
+  for (const no of ["/dashboard", "/dashboard/pos", "/dashboard/clientes/metricas", "/dashboard/mi-agenda", "/dashboard/finanzas", "/dashboard/ocupacion", "/dashboard/barberosx"]) assert.ok(!liteIncluye(no), no);
   assert.ok(esLite("lite") && !esLite("basic") && !esLite(null));
 });
 process.exit(fails ? 1 : 0);
