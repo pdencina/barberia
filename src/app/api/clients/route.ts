@@ -3,6 +3,7 @@ import { BUILTIN_SOURCES, loadCustomSources } from "@/lib/client-sources";
 import { NextRequest, NextResponse } from "next/server";
 import { fetchAllRows } from "@/lib/accounting";
 import { esGrupo, resumirGrupos } from "@/lib/clientes-grupos";
+import { calcularStats, esOrdenCliente, esOrdenPorStats, ordenarClientes, type StatsCliente } from "@/lib/clientes-stats";
 import { createAdminSupabase, getCurrentTenantId, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 
 export async function GET(req: NextRequest) {
@@ -40,23 +41,44 @@ export async function GET(req: NextRequest) {
     } catch { return NextResponse.json({ grupos: null }); }
   }
 
+  // Resumen por cliente (veces que vino, ticket, asistencia, total gastado). Con ids solo de esos clientes; sin ids, de todo el negocio.
+  const cargarStats = async (ids: string[] | null): Promise<Map<string, StatsCliente>> => {
+    const trozos = ids ? Array.from({ length: Math.ceil(ids.length / 100) }, (_, i) => ids.slice(i * 100, i * 100 + 100)) : [null];
+    const citas: any[] = [], ventas: any[] = [];
+    for (const t of trozos) {
+      const pedirCitas = (cols: string) => fetchAllRows<any>(() => { let q = supabase.from("appointments").select(`id, client_id, status${cols}`).eq("tenant_id", tenantId).not("client_id", "is", null); if (t) q = q.in("client_id", t); return q; });
+      citas.push(...await pedirCitas(", cancel_reason").catch(() => pedirCitas("")));
+      ventas.push(...await fetchAllRows<any>(() => { let q = supabase.from("transactions").select("id, client_id, total").eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed").not("client_id", "is", null); if (t) q = q.in("client_id", t); return q; }));
+    }
+    return calcularStats(citas, ventas);
+  };
+  const conStats = (lista: any[], m: Map<string, StatsCliente> | null) => (m ? lista.map((c) => ({ ...c, stats: m.get(c.id) || { visitas: 0, ventas: 0, gastado: 0, ticket: null, asistencia: null } })) : lista);
+
   const grupo = searchParams.get("grupo");
-  if (tenantId !== "ALL" && esGrupo(grupo)) {
+  const ordenPedido = searchParams.get("orden");
+  const orden = esOrdenCliente(ordenPedido) ? ordenPedido : "nombre";
+  const asc = searchParams.get("dir") !== "desc";
+  // Por grupo o por un criterio de resumen se arma todo en memoria (hay que conocer a todos para ordenarlos).
+  if (tenantId !== "ALL" && (esGrupo(grupo) || esOrdenPorStats(orden))) {
     try {
-      const act = await conActividad();
+      const act = esGrupo(grupo) && grupo !== "nuevo" ? await conActividad() : new Set<string>();
       const q = (search || "").toLowerCase();
-      const lista = (await todosLosClientes())
-        .filter((c: any) => (grupo === "nuevo" ? !c.imported_at : !!c.imported_at && (grupo === "activo") === act.has(c.id)))
-        .filter((c: any) => !q || [c.name, c.email, c.phone].some((v) => String(v || "").toLowerCase().includes(q)))
-        .sort((a: any, b: any) => String(a.name || "").localeCompare(String(b.name || ""), "es"));
-      return NextResponse.json({ clients: lista.slice(offset, offset + limit), total: lista.length, page, limit, totalPages: Math.ceil(lista.length / limit) });
+      let lista = (await todosLosClientes())
+        .filter((c: any) => !esGrupo(grupo) || (grupo === "nuevo" ? !c.imported_at : !!c.imported_at && (grupo === "activo") === act.has(c.id)))
+        .filter((c: any) => !q || [c.name, c.email, c.phone].some((v) => String(v || "").toLowerCase().includes(q)));
+      let stats: Map<string, StatsCliente> | null = null;
+      if (esOrdenPorStats(orden)) stats = await cargarStats(null);
+      lista = ordenarClientes(lista, stats || new Map(), orden, asc);
+      const pagina = lista.slice(offset, offset + limit);
+      if (!stats) stats = await cargarStats(pagina.map((c: any) => c.id)).catch(() => null);
+      return NextResponse.json({ clients: conStats(pagina, stats), total: lista.length, page, limit, totalPages: Math.ceil(lista.length / limit) });
     } catch {
       return NextResponse.json({ clients: [], total: 0, page, totalPages: 0 });
     }
   }
 
   // Build query
-  let query = supabase.from("clients").select("*", { count: "exact" }).order("name");
+  let query = supabase.from("clients").select("*", { count: "exact" }).order("name", { ascending: asc });
 
   // Only filter by tenant if not super_admin
   if (tenantId !== "ALL") {
@@ -75,9 +97,11 @@ export async function GET(req: NextRequest) {
 
   const total = count || 0;
   const totalPages = Math.ceil(total / limit);
+  let statsPagina: Map<string, StatsCliente> | null = null;
+  if (tenantId !== "ALL" && (data || []).length > 0) statsPagina = await cargarStats((data || []).map((c: any) => c.id)).catch(() => null);
 
   return NextResponse.json({
-    clients: data || [],
+    clients: conStats(data || [], statsPagina),
     total,
     page,
     limit,
