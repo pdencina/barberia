@@ -238,6 +238,7 @@ export default function ClienteDetailPage() {
   // Plan Lite: la ficha muestra solo nombre, celular y correo; el resto se ve borroso y anima a mejorar el plan. WhatsApp: 20 usos al mes.
   const lite = tenant?.plan === "lite";
   // «Fichas para el cliente» (notas, fotos y perfil) son de Starter hacia arriba.
+  const conVentas = !tenant?.plan || planPermite(tenant.plan, "ventas");   // sin Punto de Venta no hay compras que mostrar
   const conFichas = !tenant?.plan || planPermite(tenant.plan, "fichasCliente");
   const [limiteWa, setLimiteWa] = useState("");
   const abrirWhatsApp = async () => {
@@ -408,12 +409,12 @@ export default function ClienteDetailPage() {
       <div className={lite ? "relative" : undefined}>
       <div className={lite ? "pointer-events-none select-none opacity-90 blur-[7px]" : undefined} aria-hidden={lite || undefined}>
       {/* Metricas */}
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      {conVentas && <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total gastado" value={formatCurrency(stats.totalSpent)} Icon={Wallet} hero className="col-span-2 lg:col-span-1" hint={`${stats.totalVisits} visitas`} />
         <StatCard label="Ticket promedio" value={formatCurrency(stats.averageSpend)} Icon={TrendingUp} tone="violet" />
         <StatCard label="Visitas" value={stats.totalVisits} Icon={CalendarCheck} tone="teal" />
         <StatCard label="Asistencia" value={`${stats.attendanceRate}%`} Icon={Percent} tone={attendanceTone as any} hint={`${stats.totalNoShows} no asistió · ${stats.totalCancelled} canceladas`} />
-      </div>
+      </div>}
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Columna principal */}
@@ -567,7 +568,7 @@ export default function ClienteDetailPage() {
           </Panel>
 
           {/* Historial de compras */}
-          <Panel title={`Historial de compras (${transactions.length})`} flush>
+          {conVentas && <Panel title={`Historial de compras (${transactions.length})`} flush>
             <div className="max-h-[420px] divide-y divide-gray-50 overflow-y-auto px-5 pb-3">
               {transactions.length === 0 ? (
                 <p className="py-8 text-center text-sm text-brand-gray">Sin compras registradas</p>
@@ -588,7 +589,7 @@ export default function ClienteDetailPage() {
                 </div>
               ))}
             </div>
-          </Panel>
+          </Panel>}
         </div>
 
         {/* Columna lateral */}
