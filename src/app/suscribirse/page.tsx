@@ -62,7 +62,7 @@ export default function SuscribirsePage() {
         if (data?.[0]) {
           // Preseleccion desde la landing: /suscribirse?plan=pro&seats=6&cycle=anual
           const q = new URLSearchParams(window.location.search);
-          const wanted = (data as Plan[]).find((p) => p.plan === q.get("plan")) || data[0];
+          const wanted = (data as Plan[]).find((p) => p.plan === q.get("plan")) || (data as Plan[]).find((p) => p.plan !== "lite") || data[0];   // Lite nunca queda preseleccionado
           const included = wanted.included_professionals ?? wanted.max_professionals ?? 1;
           const seats = parseInt(q.get("seats") || "", 10);
           setSelectedPlan(wanted.plan);
@@ -93,7 +93,7 @@ export default function SuscribirsePage() {
       extraCount,
       totalMensual,
       totalAnual,
-      total: billingPeriod === "annual" ? totalAnual : totalMensual,
+      total: plan.plan === "lite" ? totalMensual : billingPeriod === "annual" ? totalAnual : totalMensual,
     };
   }, [plan, professionals, billingPeriod]);
 
@@ -193,7 +193,7 @@ export default function SuscribirsePage() {
                       <span className="text-sm font-medium text-brand-dark">{p.name}</span>
                     </div>
                     <span className="text-sm font-bold text-brand-dark">
-                      {fmt(p.price_clp)}/mes desde
+                      {p.plan === "lite" ? `${fmt(1000)} pago único` : `${fmt(p.price_clp)}/mes desde`}
                     </span>
                   </label>
                 ))}
@@ -201,7 +201,7 @@ export default function SuscribirsePage() {
             )}
           </div>
 
-          {plan && (
+          {plan && plan.plan !== "lite" && (
             <div className="flex items-center justify-between rounded-xl border border-gray-200 p-3">
               <div>
                 <p className="text-sm font-medium text-brand-dark">Profesionales</p>
@@ -231,6 +231,11 @@ export default function SuscribirsePage() {
             </div>
           )}
 
+          {plan?.plan === "lite" ? (
+            <p className="rounded-xl border border-brand-blue/30 bg-brand-blue/5 px-3 py-2 text-xs text-brand-dark">
+              <b>Plan Lite:</b> pagas <b>una sola vez</b>. Incluye Agenda, Oti con Billetera y horarios y breaks personalizados. Sin renovación.
+            </p>
+          ) : (
           <div className="flex rounded-xl border border-gray-200 p-1 bg-brand-light/50">
             <button
               type="button"
@@ -251,12 +256,13 @@ export default function SuscribirsePage() {
               Anual (20% dcto.)
             </button>
           </div>
+          )}
 
           {pricing && (
             <div className="rounded-xl border border-gray-200 p-4 bg-brand-light/40">
               <div className="flex items-baseline justify-between">
                 <span className="text-sm font-semibold text-brand-dark">
-                  Total {billingPeriod === "annual" ? "anual" : "mensual"}
+                  {plan?.plan === "lite" ? "Total (pago único)" : `Total ${billingPeriod === "annual" ? "anual" : "mensual"}`}
                 </span>
                 <span className="text-xl font-bold text-brand-blue">{fmt(pricing.total)}</span>
               </div>
@@ -316,7 +322,9 @@ export default function SuscribirsePage() {
           </button>
 
           <p className="text-[10px] text-brand-gray text-center">
-            {billingPeriod === "annual"
+            {plan?.plan === "lite"
+              ? "Pagas $1.000 una sola vez con Mercado Pago. No se renueva ni se cobra nada más."
+              : billingPeriod === "annual"
               ? "Pagas una sola vez por todo el año con Mercado Pago. Te avisaremos por email antes de que venza para que renueves cuando quieras."
               : "Autorizarás a Mercado Pago a cobrar tu suscripción automáticamente cada mes. Usa el mismo email de tu cuenta de Mercado Pago. Puedes cancelarla cuando quieras."}
           </p>

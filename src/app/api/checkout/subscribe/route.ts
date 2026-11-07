@@ -4,6 +4,7 @@ import { calculateSubscriptionAmount, validateProfessionals, type BillingPeriod 
 import { MP_API, getMpPublicUrl, createCheckoutPreference } from "@/lib/mercadopago";
 import { codigoValido, normalizarCodigo, esAutoReferido, PREMIO } from "@/lib/referidos";
 import { montoConDescuento } from "@/lib/referidos-beneficios";
+import { esLite } from "@/lib/plan-lite";
 
 // POST: A business fills /suscribirse and hits "Continuar al pago". This:
 //   1. Validates the plan + business data + professionals + billing period
@@ -45,8 +46,10 @@ async function handlePost(req: NextRequest) {
     return NextResponse.json({ error: "Identificador inválido (usa minúsculas, números y guiones)" }, { status: 400 });
   }
 
-  const billingPeriod: BillingPeriod = billing_period === "annual" ? "annual" : "monthly";
-  const professionals = Number.isFinite(Number(professionalsRaw)) ? Math.round(Number(professionalsRaw)) : 1;
+  // Plan Lite: pago ÚNICO de $1.000 (sin renovación). Se guarda como "annual" (pago único por Checkout Pro) pero el monto es el de un mes.
+  const lite = esLite(plan);
+  const billingPeriod: BillingPeriod = lite || billing_period === "annual" ? "annual" : "monthly";
+  const professionals = lite ? 1 : Number.isFinite(Number(professionalsRaw)) ? Math.round(Number(professionalsRaw)) : 1;
 
   const accessToken = process.env.MP_PLATFORM_ACCESS_TOKEN;
   if (!accessToken) {
@@ -97,7 +100,7 @@ async function handlePost(req: NextRequest) {
 
   // El monto SIEMPRE se calcula en el servidor — nunca se confia en un total que
   // venga del cliente. Incluye el IVA (19%) y, si aplica, el descuento anual (20%).
-  const { monto, frequency } = calculateSubscriptionAmount(planConfig, professionals, billingPeriod);
+  const { monto, frequency } = calculateSubscriptionAmount(planConfig, professionals, lite ? "monthly" : billingPeriod);
 
   // Referido (etapa 1: solo se registra, no cambia el cobro). Un codigo invalido o un auto-referido se ignoran en silencio: nunca bloquean el alta.
   let referrerTenantId: string | null = null;
@@ -165,7 +168,7 @@ async function handlePost(req: NextRequest) {
   if (billingPeriod === "annual") {
     const pref = await createCheckoutPreference({
       accessToken,
-      title: `re-booking — Plan ${planConfig.name} (anual)`,
+      title: lite ? `re-booking — Plan ${planConfig.name} (pago único)` : `re-booking — Plan ${planConfig.name} (anual)`,
       amount: monto,
       payerEmail: admin_email,
       externalReference: signupRequest.id,

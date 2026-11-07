@@ -359,6 +359,7 @@ export default function SuperAdminTenantsPage() {
                         title="Cambiar plan"
                         className={`px-2 py-0.5 rounded-full text-[10px] font-medium border-0 cursor-pointer disabled:opacity-50 ${planColors[t.plan] || ""}`}
                       >
+                        <option value="lite">lite</option>
                         <option value="basic">basic</option>
                         <option value="starter">starter</option>
                         <option value="pro">pro</option>
@@ -671,6 +672,7 @@ export default function SuperAdminTenantsPage() {
                   <label className="text-xs font-medium text-brand-gray block mb-1">Plan</label>
                   <select value={editForm.plan || ""} onChange={(e) => setEditForm({ ...editForm, plan: e.target.value })}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm">
+                    <option value="lite">Lite</option>
                     <option value="basic">Basic</option>
                     <option value="starter">Starter</option>
                     <option value="pro">Pro</option>

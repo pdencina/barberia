@@ -13,6 +13,7 @@ import { useNotificationCenter } from "@/lib/use-notification-center";
 import { NotificationBell } from "@/components/layout/notification-bell";
 import { Role } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
+import { esLite, liteIncluye } from "@/lib/plan-lite";
 import {
   LayoutDashboard, Wallet, DollarSign, ShoppingCart, Package, Users,
   Calendar, CalendarCheck, CalendarDays, MapPin, Receipt, BarChart3,
@@ -264,7 +265,8 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     // super_admin sin tenant activo (hasPlanFeature devuelve true sin tenant) ve todo.
     const planLocked =
       (!!item.feature && !hasPlanFeature(item.feature)) ||
-      (!!item.basicLocked && overrideTenant?.plan === "basic");
+      (!!item.basicLocked && overrideTenant?.plan === "basic") ||
+      (esLite(overrideTenant?.plan) && !liteIncluye(item.href));
     const locked = roleLocked || planLocked;
 
     // Para roles con whitelist explicita (receptionist/barber): un item bloqueado POR ROL
