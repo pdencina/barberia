@@ -691,7 +691,8 @@ export default function ConfiguracionPage() {
       )}
 
       {/* Publicidad: de que anuncio viene cada reserva por link (migracion 112, apagado por defecto) */}
-      {isAdmin && puedeCfg("publicidad") && (
+      {/* Escondida a pedido de Nico (8 nov). Vuelve con NEXT_PUBLIC_PUBLICIDAD_LEGACY=1; la pagina y los datos siguen intactos. */}
+      {process.env.NEXT_PUBLIC_PUBLICIDAD_LEGACY === "1" && isAdmin && puedeCfg("publicidad") && (
         <a href="/dashboard/origen-de-reservas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">
