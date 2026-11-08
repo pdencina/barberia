@@ -5,6 +5,7 @@ import { MP_API, getMpPublicUrl, createCheckoutPreference } from "@/lib/mercadop
 import { codigoValido, normalizarCodigo, esAutoReferido, PREMIO } from "@/lib/referidos";
 import { montoConDescuento } from "@/lib/referidos-beneficios";
 import { esLite } from "@/lib/plan-lite";
+import { sanitizeMarketing, sendCapiEvent } from "@/lib/meta-capi";
 
 // POST: A business fills /suscribirse and hits "Continuar al pago". This:
 //   1. Validates the plan + business data + professionals + billing period
@@ -32,6 +33,7 @@ async function handlePost(req: NextRequest) {
     professionals: professionalsRaw,
     billing_period,
     ref,
+    marketing: marketingRaw,
   } = body;
 
   if (plan === "enterprise") {
@@ -142,6 +144,22 @@ async function handlePost(req: NextRequest) {
 
   if (signupError || !signupRequest) {
     return NextResponse.json({ error: signupError?.message || "No se pudo iniciar el registro" }, { status: 500 });
+  }
+
+  // Medicion de anuncios: se guarda de que campana vino (migracion 149) y se avisa a Meta por el servidor (CAPI).
+  // Todo es opcional y tolerante: si falta la migracion o Meta falla, el alta y el cobro siguen igual.
+  const marketing = sanitizeMarketing(marketingRaw);
+  if (marketing) {
+    const { error: attrErr } = await supabase.from("signup_requests").update({ ad_attribution: marketing }).eq("id", signupRequest.id);
+    if (attrErr) console.error("[subscribe] atribucion sin guardar (falta migracion 149?):", attrErr.message);
+  }
+  const checkoutEventId = typeof (marketingRaw as any)?.checkout_event_id === "string" ? String((marketingRaw as any).checkout_event_id).slice(0, 80) : "";
+  if (checkoutEventId) {
+    await sendCapiEvent({
+      eventName: "InitiateCheckout", eventId: checkoutEventId, email: adminEmailNorm, phone: phone || null,
+      attribution: marketing, value: monto, contentName: plan,
+      userAgent: req.headers.get("user-agent") || undefined, ip: (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || undefined,
+    });
   }
 
   // Descuento del referido (solo plan MENSUAL y con NEXT_PUBLIC_REFERIDOS=1): primero se guarda el referido CON sus datos de descuento; si eso falla

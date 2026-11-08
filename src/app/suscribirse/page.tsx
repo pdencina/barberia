@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { netoMensualFor } from "@/lib/subscription-pricing";
+import MetaPixel from "@/components/meta-pixel";
+import { track, eventId, marketingPayload } from "@/lib/meta-pixel";
 
 interface Plan {
   plan: string;
@@ -130,6 +132,11 @@ export default function SuscribirsePage() {
 
     setSubmitting(true);
     try {
+      // Medición de anuncios (apagada si no hay Píxel). El servidor repite este evento con el mismo id (CAPI).
+      const checkoutId = eventId("checkout");
+      let marketing: Record<string, string> = {};
+      try { marketing = { ...marketingPayload(), checkout_event_id: checkoutId }; } catch {}
+      track("InitiateCheckout", { value: pricing?.total, currency: "CLP", content_name: selectedPlan }, checkoutId);
       const res = await fetch("/api/checkout/subscribe", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -140,6 +147,7 @@ export default function SuscribirsePage() {
           professionals,
           billing_period: billingPeriod,
           ...(ref ? { ref } : {}),
+          marketing,
         }),
       });
       const data = await res.json();
@@ -159,6 +167,8 @@ export default function SuscribirsePage() {
   };
 
   return (
+    <>
+    <MetaPixel viewContent="Planes re-booking" />
     <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
       <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-xl p-6 md:p-8">
         <div className="text-center mb-6">
@@ -331,5 +341,6 @@ export default function SuscribirsePage() {
         </form>
       </div>
     </div>
+    </>
   );
 }

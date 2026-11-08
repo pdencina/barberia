@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (!reqId) return NextResponse.json({ error: "req required" }, { status: 400 });
 
   const supabase = createAdminSupabase();
-  const { data } = await supabase.from("signup_requests").select("status").eq("id", reqId).single();
+  const { data } = await supabase.from("signup_requests").select("status, amount, plan").eq("id", reqId).single();
 
   let status = data?.status || "pending";
 
@@ -24,12 +24,14 @@ export async function GET(req: NextRequest) {
     try {
       const accessToken = process.env.MP_PLATFORM_ACCESS_TOKEN;
       if (accessToken) await handlePreapprovalUpdate(preapprovalId, accessToken, supabase);
-      const { data: again } = await supabase.from("signup_requests").select("status").eq("id", reqId).single();
+      const { data: again } = await supabase.from("signup_requests").select("status, amount, plan").eq("id", reqId).single();
       status = again?.status || status;
+      if (again) Object.assign(data || {}, again);
     } catch (e) {
       console.error("[subscribe/status] respaldo webhook fallo:", e);
     }
   }
 
-  return NextResponse.json({ status });
+  // amount/plan solo se usan para medir la venta en el navegador (Purchase); no son datos personales.
+  return NextResponse.json(status === "paid" ? { status, amount: (data as any)?.amount ?? null, plan: (data as any)?.plan ?? null } : { status });
 }

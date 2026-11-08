@@ -22,6 +22,7 @@ import {
   Heart, Bell, Zap, Image, Star, ChevronLeft, ChevronRight, ChevronDown,
   MessageCircle, Clock, FileText, UserCircle, PiggyBank, ClipboardList,
   Building2, ShieldCheck, Ticket, Percent, KeyRound, Truck, Briefcase, Plane, LifeBuoy, HandCoins, Gauge,
+  TrendingUp,
 } from "lucide-react";
 
 interface NavItem {
@@ -153,6 +154,7 @@ const sections: NavSection[] = [
     title: "Super Admin",
     items: [
       { name: "Empresas", href: "/dashboard/superadmin/tenants", icon: Building2, minRole: "super_admin" },
+      { name: "Campañas", href: "/dashboard/superadmin/campanas", icon: TrendingUp, minRole: "super_admin" },
       { name: "Reuniones", href: "/dashboard/superadmin/reuniones", icon: CalendarDays, minRole: "super_admin" },
       { name: "Auditoría", href: "/dashboard/superadmin/audit", icon: ShieldCheck, minRole: "super_admin" },
       { name: "Sesiones", href: "/dashboard/superadmin/sesiones", icon: Tablet, minRole: "super_admin" },

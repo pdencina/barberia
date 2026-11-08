@@ -3,6 +3,7 @@ import { provisionTenant } from "@/lib/tenant-provisioning";
 import { calculateSubscriptionAmount, type BillingPeriod } from "@/lib/subscription-pricing";
 import { mpGet, MP_API } from "@/lib/mercadopago";
 import { LITE_PERIODO_DIAS, esLite } from "@/lib/plan-lite";
+import { sendCapiEvent, sanitizeMarketing } from "@/lib/meta-capi";
 import { aplicarBeneficiosReferidos, repoSupabase, mpReal } from "@/lib/referidos-beneficios";
 
 // ---------------------------------------------------------------------------
@@ -37,6 +38,14 @@ export async function provisionFromSignup(signupRequest: any, supabase: any, mpP
     });
 
     await supabase.from("signup_requests").update({ status: "paid", tenant_id: tenant.id }).eq("id", signupRequest.id);
+    // Venta medida en Meta desde el servidor (CAPI). Mismo event_id que el navegador => se cuenta una sola vez. Nunca afecta el alta.
+    try {
+      await sendCapiEvent({
+        eventName: "Purchase", eventId: `purchase_${signupRequest.id}`,
+        email: signupRequest.admin_email, phone: signupRequest.phone, firstName: String(signupRequest.admin_name || "").split(" ")[0],
+        attribution: sanitizeMarketing(signupRequest.ad_attribution), value: Number(signupRequest.amount) || 0, contentName: signupRequest.plan,
+      });
+    } catch {}
     // Referido: queda "pagado" (el beneficio se aplica en una etapa posterior). Nunca afecta el alta.
     try {
       const { data: ref } = await supabase.from("referrals").update({ status: "pagado", referred_tenant_id: tenant.id, paid_at: new Date().toISOString() }).eq("referred_signup_id", signupRequest.id).eq("status", "pendiente").select("id, referrer_tenant_id").maybeSingle();
