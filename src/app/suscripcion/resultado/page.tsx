@@ -2,6 +2,8 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import MetaPixel from "@/components/meta-pixel";
+import { track, eventId } from "@/lib/meta-pixel";
 
 function SuscripcionResultadoContent() {
   const params = useSearchParams();
@@ -35,6 +37,11 @@ function SuscripcionResultadoContent() {
         const res = await fetch(`/api/checkout/subscribe/status?req=${reqId}${preapprovalId ? `&preapproval_id=${preapprovalId}` : ""}`);
         const data = await res.json();
         if (data.status === "paid") {
+          // Venta medida en Meta. El mismo event_id lo usa el servidor (CAPI): Meta la cuenta una sola vez.
+          if (reqId && typeof data.amount === "number") {
+            track("Purchase", { value: data.amount, currency: "CLP", content_name: data.plan || undefined }, eventId("purchase", reqId));
+            track("CompleteRegistration", { content_name: data.plan || undefined }, eventId("registration", reqId));
+          }
           setPaid(true);
           setChecking(false);
           clearInterval(interval);
@@ -52,6 +59,8 @@ function SuscripcionResultadoContent() {
   const failed = result === "failure" && !paid;
 
   return (
+    <>
+    <MetaPixel />
     <div className="min-h-screen flex items-center justify-center bg-brand-light p-4">
       <div className="w-full max-w-sm rounded-2xl border border-gray-200 bg-white shadow-xl p-6 md:p-8 text-center">
         <img src="/logo-icon.png" alt="re-booking" className="w-14 h-14 mx-auto mb-4" />
@@ -105,6 +114,7 @@ function SuscripcionResultadoContent() {
         )}
       </div>
     </div>
+    </>
   );
 }
 
