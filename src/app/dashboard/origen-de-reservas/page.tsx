@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Copy, CheckCircle2, Megaphone, Users, Percent } from "lucide-react";
+import { Copy, CheckCircle2, Megaphone, Users, Link2 } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
@@ -9,7 +9,7 @@ import { PageHeader, Panel, StatCard, Segmented, inputClass, primaryButton, ghos
 import { META_URL_PARAMETERS } from "@/lib/ad-tracking";
 
 interface CampaignRow { campaign: string; content: string; medium: string; bookings: number; completed: number; cancelled: number; clients: number; newClients: number }
-interface Report { days: number; totalLinkBookings: number; taggedBookings: number; untaggedBookings: number; paidBookings: number; newClientsTotal: number; campaigns: CampaignRow[] }
+interface Report { days: number; totalLinkBookings: number; taggedBookings: number; untaggedBookings: number; paidBookings: number; otherTaggedBookings: number; newClientsTotal: number; campaigns: CampaignRow[] }
 
 // "Publicidad": cuantos clientes reservan gracias a tus anuncios de Meta. Tres pasos para conectarlo y una tabla simple.
 export default function PublicidadPage() {
@@ -55,7 +55,8 @@ export default function PublicidadPage() {
   if (!isAdmin) return <div className="p-6 text-sm text-brand-gray">Solo el administrador puede ver esta sección.</div>;
 
   const paid = report?.paidBookings ?? 0;
-  const share = report && report.totalLinkBookings > 0 ? Math.round((paid / report.totalLinkBookings) * 100) : 0;
+  const otros = report?.otherTaggedBookings ?? 0;
+  const nombreMedio = (m: string) => (m === "paid" ? "Anuncio pagado" : m === "link_in_bio" || m === "organic_bio" ? "Link de Instagram" : m === "organic_story" ? "Historia o publicación" : m);
   const conectado = !!savedPixel;
 
   return (
@@ -67,9 +68,9 @@ export default function PublicidadPage() {
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="Reservas por anuncios" value={report ? paid : "—"} hint={`Últimos ${days} días`} Icon={Megaphone} tone="teal" />
+        <StatCard label="Reservas por anuncios pagados" value={report ? paid : "—"} hint={`Últimos ${days} días`} Icon={Megaphone} tone="teal" />
         <StatCard label="Clientes nuevos por anuncios" value={report ? report.newClientsTotal : "—"} hint="Primera vez que reservan" Icon={Users} tone="green" />
-        <StatCard label="De tus reservas online" value={report ? `${share}%` : "—"} hint="Las que vienen de un anuncio" Icon={Percent} tone="violet" />
+        <StatCard label="Por Instagram y otros links" value={report ? otros : "—"} hint="Sin pagar (biografía, historias)" Icon={Link2} tone="violet" />
       </div>
       {reportError && <p className="text-sm text-red-600">{reportError}</p>}
 
@@ -109,12 +110,13 @@ export default function PublicidadPage() {
           <div className={tableStyles.wrap}>
             <table className={tableStyles.table}>
               <thead className={tableStyles.thead}>
-                <tr><th className={tableStyles.th}>Campaña</th><th className={tableStyles.thRight}>Reservas</th><th className={tableStyles.thRight}>Clientes nuevos</th><th className={tableStyles.thRight}>Atendidas</th><th className={tableStyles.thRight}>Canceladas</th></tr>
+                <tr><th className={tableStyles.th}>Campaña</th><th className={tableStyles.th}>Origen</th><th className={tableStyles.thRight}>Reservas</th><th className={tableStyles.thRight}>Clientes nuevos</th><th className={tableStyles.thRight}>Atendidas</th><th className={tableStyles.thRight}>Canceladas</th></tr>
               </thead>
               <tbody className={tableStyles.tbody}>
                 {report.campaigns.map((c, i) => (
                   <tr key={i} className={tableStyles.tr}>
                     <td className={tableStyles.td}>{c.campaign}{c.content && <span className="ml-2 text-[11px] text-brand-gray">{c.content}</span>}</td>
+                    <td className={tableStyles.td}>{nombreMedio(c.medium)}</td>
                     <td className={tableStyles.tdRight}>{c.bookings}</td>
                     <td className={tableStyles.tdRight}>{c.newClients}</td>
                     <td className={tableStyles.tdRight}>{c.completed}</td>
