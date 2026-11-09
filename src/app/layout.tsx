@@ -29,8 +29,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es">
+    <html lang="es" suppressHydrationWarning>
       <head>
+        {/* Aplica el último tema conocido antes del primer pintado, solo en el panel: evita que la app parta con los colores normales y salte. */}
+        <script dangerouslySetInnerHTML={{ __html: `try{if(location.pathname.indexOf("/dashboard")===0){var t=localStorage.getItem("rb_theme");if(t&&/^[a-z-]+$/.test(t)){var r=document.documentElement;r.dataset.colorTheme=t;if(t==="dark"||t==="monochrome-dark")r.classList.add("dark")}}}catch(e){}` }} />
         <link rel="manifest" href="/manifest.json" />
         <link rel="icon" type="image/png" href="/logo-icon.png" />
         <link rel="apple-touch-icon" href="/logo-icon-circle.png" />
