@@ -53,7 +53,8 @@ let loaded = false;
 export function loadPixel(): boolean {
   if (typeof window === "undefined" || !pixelEnabled() || getConsent() !== "granted") return false;
   if (loaded || window.fbq) return true;
-  const f: any = (window.fbq = function () { (f.callMethod ? f.callMethod : f.queue.push).apply(f, arguments); });
+  // Ojo: este archivo corre en modo estricto; la receta oficial de Meta (queue.push.apply(f, ...)) revienta aquí.
+  const f: any = (window.fbq = function () { if (f.callMethod) f.callMethod.apply(f, arguments); else f.queue.push(arguments); });
   if (!window._fbq) window._fbq = f;
   f.push = f; f.loaded = true; f.version = "2.0"; f.queue = [];
   const s = document.createElement("script"); s.async = true; s.src = "https://connect.facebook.net/en_US/fbevents.js";
