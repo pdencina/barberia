@@ -76,7 +76,7 @@ document.addEventListener('click', function (e) {
     var f = window.fbq = function () { f.callMethod ? f.callMethod.apply(f, arguments) : f.queue.push(arguments); };
     if (!window._fbq) window._fbq = f; f.push = f; f.loaded = true; f.version = '2.0'; f.queue = [];
     var t = document.createElement('script'); t.async = true; t.src = 'https://connect.facebook.net/en_US/fbevents.js'; document.head.appendChild(t);
-    fbq('init', ID); fbq('track', 'PageView'); fbq('track', 'ViewContent', { content_name: 'Landing re-booking' });
+    fbq('set', 'autoConfig', false, ID); fbq('init', ID); fbq('track', 'PageView'); fbq('track', 'ViewContent', { content_name: 'Landing re-booking' });
   }
   // Clics: WhatsApp = Contact; botones de plan = Lead (interés). Solo cuentan si la persona aceptó las cookies.
   document.addEventListener('click', function (e) {

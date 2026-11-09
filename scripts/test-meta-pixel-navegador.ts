@@ -19,8 +19,8 @@ g.location = { search: "?utm_campaign=prueba&fbclid=ABC12345", pathname: "/suscr
   try { m.loadPixel(); m.track("PageView"); m.track("InitiateCheckout", { value: 100, currency: "CLP" }, "checkout_1"); } catch (e: any) { err = e.message; }
   t("no lanza errores (modo estricto)", err, "");
   t("agrega el script de Meta", added.length, 1);
-  t("encola init + 2 eventos", g.fbq.queue.length, 3);
-  t("evento con id de deduplicación", Array.from(g.fbq.queue[2]).slice(0, 4), ["track", "InitiateCheckout", { value: 100, currency: "CLP" }, { eventID: "checkout_1" }]);
+  t("encola autoConfig apagado + init + 2 eventos", [g.fbq.queue.length, Array.from(g.fbq.queue[0]).slice(0, 3)], [4, ["set", "autoConfig", false]]);
+  t("evento con id de deduplicación", Array.from(g.fbq.queue[3]).slice(0, 4), ["track", "InitiateCheckout", { value: 100, currency: "CLP" }, { eventID: "checkout_1" }]);
   const a = m.marketingPayload();
   t("atribución con utm y fbclid", [a.utm_campaign, a.fbclid], ["prueba", "ABC12345"]);
   m.setConsent("denied");

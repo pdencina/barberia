@@ -59,6 +59,8 @@ export function loadPixel(): boolean {
   f.push = f; f.loaded = true; f.version = "2.0"; f.queue = [];
   const s = document.createElement("script"); s.async = true; s.src = "https://connect.facebook.net/en_US/fbevents.js";
   document.head.appendChild(s);
+  // Apaga el rastreo automatico de Meta (clics en botones y campos de formularios): solo enviamos nuestros eventos.
+  window.fbq("set", "autoConfig", false, META_PIXEL_ID);
   window.fbq("init", META_PIXEL_ID);
   loaded = true;
   return true;
