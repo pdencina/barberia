@@ -236,6 +236,20 @@ export const CATALOGO: EntradaOti[] = [
     ruta: "/dashboard/ocupacion",
   },
   {
+    id: "publicidad",
+    titulo: "Publicidad (Píxel de Meta)",
+    para: "Administrador",
+    claves: ["publicidad", "pixel de meta", "meta pixel", "pixel", "anuncios", "campanas", "reservas por anuncios", "medir anuncios", "facebook ads", "instagram ads", "cuantos clientes vienen por publicidad"],
+    resumen: "«Publicidad» (dentro de Configuración) te muestra cuántas reservas llegan por tus anuncios de Meta. Pegas el número de tu Píxel, pegas un texto en cada anuncio y abajo ves los resultados por campaña. Tiene una guía paso a paso.",
+    pasos: [
+      "Entra a Configuración › Publicidad.",
+      "Paso 1: pega el número de tu Píxel de Meta y pulsa Guardar.",
+      "Paso 2: en cada anuncio de Meta, pega el texto en «Parámetros de URL» y usa tu link de reservas.",
+      "Abre «Guía paso a paso» si necesitas más detalle. Los resultados salen abajo, por campaña.",
+    ],
+    ruta: "/dashboard/origen-de-reservas",
+  },
+  {
     id: "mi-billetera",
     titulo: "Mi billetera",
     para: "Profesionales",

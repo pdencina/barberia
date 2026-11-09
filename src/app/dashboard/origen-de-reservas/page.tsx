@@ -7,6 +7,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader, Panel, StatCard, Segmented, inputClass, primaryButton, ghostButton, tableStyles } from "@/components/ui/premium";
 import { META_URL_PARAMETERS } from "@/lib/ad-tracking";
+import GuiaMeta from "@/components/publicidad/guia-meta";
 
 interface CampaignRow { campaign: string; content: string; medium: string; bookings: number; completed: number; cancelled: number; clients: number; newClients: number }
 interface Report { days: number; totalLinkBookings: number; taggedBookings: number; untaggedBookings: number; paidBookings: number; otherTaggedBookings: number; newClientsTotal: number; campaigns: CampaignRow[] }
@@ -102,6 +103,8 @@ export default function PublicidadPage() {
           </li>
         </ol>
       </Panel>
+
+      <GuiaMeta />
 
       <Panel title="Resultados por campaña" subtitle="Reservas hechas por tu link de reservas" flush>
         {report && report.campaigns.length === 0 ? (
