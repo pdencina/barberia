@@ -220,6 +220,22 @@ export const CATALOGO: EntradaOti[] = [
     ruta: "/dashboard/mi-billetera",
   },
   {
+    id: "gastos-personales-pantalla",
+    titulo: "Gastos personales (pantalla)",
+    para: "Profesionales",
+    claves: ["pantalla de gastos personales", "ver mis gastos personales", "lista de mis gastos personales"],
+    resumen: "«Mis gastos personales» (dentro de Mi Billetera) es una pantalla privada, solo tu la ves: tu sueldo, tu ahorro y en que gastas, con tus gastos anotados a mano o con Oti. Tambien tiene el atajo de voz.",
+    ruta: "/dashboard/mi-billetera/personal",
+  },
+  {
+    id: "ocupacion",
+    titulo: "Ocupación de profesionales",
+    para: "Administrador",
+    claves: ["ocupacion", "ocupacion de profesionales", "tiempo muerto", "horas sin cliente", "cuanto se ocupa cada profesional"],
+    resumen: "«Ocupación» muestra, de las horas que cada profesional esta disponible, cuantas tienen un cliente. Lo que sobra es tiempo muerto. Tiene el crecimiento mes a mes por modalidad; la meta es llegar al 50% o mas.",
+    ruta: "/dashboard/ocupacion",
+  },
+  {
     id: "mi-billetera",
     titulo: "Mi billetera",
     para: "Profesionales",

@@ -112,7 +112,7 @@ const t = (name: string, ok: boolean, extra = "") => {
     { ruta: "gallery", metodo: "POST", params: {} },
     { ruta: "gallery", metodo: "DELETE", params: {}, qs: `?id=${ID}` },
     { ruta: "gallery/upload", metodo: "POST", params: {} },
-    { ruta: "invite-codes", metodo: "POST", params: {} },
+    // POST invite-codes ya no existe: responde 410 sin tocar la base (los codigos de invitacion se eliminaron). Sigue probandose DELETE.
     { ruta: "invite-codes", metodo: "DELETE", params: {}, qs: `?id=${ID}` },
     { ruta: "waitlist", metodo: "PATCH", params: {} },
     { ruta: "waitlist/notify", metodo: "POST", params: {} },
