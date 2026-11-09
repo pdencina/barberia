@@ -13,6 +13,7 @@ g.location = { search: "?utm_campaign=prueba&fbclid=ABC12345", pathname: "/suscr
   const m = await import("../src/lib/meta-pixel");
   let fails = 0;
   const t = (n: string, got: unknown, want: unknown) => { if (JSON.stringify(got) !== JSON.stringify(want)) { fails++; console.log("FALLA", n, JSON.stringify(got), "esperado", JSON.stringify(want)); } else console.log("ok", n); };
+  t("ID del Pixel: solo digitos 8-20", [m.validPixelId("955315870712237"), m.validPixelId("abc"), m.validPixelId("123"), m.validPixelId("<script>")], [true, false, false, false]);
   t("sin permiso no carga", m.loadPixel(), false);
   m.setConsent("granted");
   let err = "";

@@ -25,10 +25,11 @@ export async function GET(req: NextRequest) {
 
   type Row = { campaign: string; content: string; medium: string; bookings: number; completed: number; cancelled: number; clients: Set<string> };
   const groups = new Map<string, Row>();
-  let untagged = 0;
+  let untagged = 0, paid = 0;
   for (const r of rows) {
     const a = r.ad_attribution as Record<string, string> | null;
     if (!a) { untagged++; continue; }
+    if (a.utm_medium === "paid" || a.fbclid) paid++; // anuncio pagado: lo marca el link o el clic de Meta
     const campaign = a.utm_campaign || "(sin campaña)";
     const content = a.utm_content || "";
     const medium = a.utm_medium || "";
@@ -43,6 +44,7 @@ export async function GET(req: NextRequest) {
 
   // Clientes NUEVOS por campana (origen fijado al crearse el cliente por link).
   const newByCampaign = new Map<string, number>();
+  let newClientsTotal = 0;
   try {
     const clients = await fetchAllRows<any>(() =>
       supabase.from("clients").select("id, first_ad_attribution").eq("tenant_id", c.tenantId!).not("first_ad_attribution", "is", null).gte("created_at", `${since}T00:00:00`),
@@ -50,6 +52,7 @@ export async function GET(req: NextRequest) {
     for (const cl of clients) {
       const camp = cl.first_ad_attribution?.utm_campaign || "(sin campaña)";
       newByCampaign.set(camp, (newByCampaign.get(camp) || 0) + 1);
+      newClientsTotal++;
     }
   } catch { /* sin la migracion 112 no hay clientes con origen */ }
 
@@ -62,6 +65,8 @@ export async function GET(req: NextRequest) {
     totalLinkBookings: rows.length,
     taggedBookings: rows.length - untagged,
     untaggedBookings: untagged,
+    paidBookings: paid,
+    newClientsTotal,
     campaigns,
   });
 }
