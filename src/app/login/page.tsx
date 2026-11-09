@@ -19,8 +19,53 @@ export default function LoginPage() {
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
   const [forgotLoading, setForgotLoading] = useState(false);
+  const [modo, setModo] = useState<"clave" | "codigo">("clave");
+  const [codigoEnviado, setCodigoEnviado] = useState(false);
+  const [codigo, setCodigo] = useState("");
+  const [aviso, setAviso] = useState("");
   const router = useRouter();
   const supabase = createClient();
+
+  const registrarSesion = (userId: string | undefined, userEmail: string) => {
+    const ua = navigator.userAgent;
+    const device = /Mobile|Android|iPhone/i.test(ua) ? "mobile" : /Tablet|iPad/i.test(ua) ? "tablet" : "desktop";
+    const browser = /Chrome/i.test(ua) ? "Chrome" : /Firefox/i.test(ua) ? "Firefox" : /Safari/i.test(ua) ? "Safari" : "Otro";
+    fetch("/api/auth/log-session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ userId, userEmail, device, browser }),
+    });
+  };
+
+  // Entrar con código de 6 dígitos al correo (alternativa a la clave; no cambia la clave).
+  const pedirCodigo = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    setError(""); setAviso(""); setLoading(true);
+    try {
+      const r = await fetch("/api/auth/otp/request", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) setError(d?.error || "No se pudo enviar el código");
+      else { setCodigoEnviado(true); setCodigo(""); setAviso("Si el correo tiene cuenta, te enviamos un código de 6 dígitos."); }
+    } catch { setError("No se pudo enviar el código"); }
+    setLoading(false);
+  };
+  const entrarConCodigo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError(""); setAviso(""); setLoading(true);
+    try {
+      const r = await fetch("/api/auth/otp/verify", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email, code: codigo }) });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok || !d?.token_hash) { setError(d?.error || "Código incorrecto o vencido"); setLoading(false); return; }
+      try { localStorage.removeItem("tenant_override"); } catch {}
+      clearAppCache();
+      await supabase.auth.signOut();
+      const { data, error: e2 } = await supabase.auth.verifyOtp({ token_hash: d.token_hash, type: "magiclink" });
+      if (e2) { setError("No se pudo iniciar la sesión. Pide un código nuevo."); setLoading(false); return; }
+      registrarSesion(data?.user?.id, email);
+      router.push("/dashboard");
+      router.refresh();
+    } catch { setError("No se pudo iniciar la sesión"); setLoading(false); }
+  };
 
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -55,15 +100,7 @@ export default function LoginPage() {
       setError("Credenciales incorrectas");
       setLoading(false);
     } else {
-      // Log session
-      const ua = navigator.userAgent;
-      const device = /Mobile|Android|iPhone/i.test(ua) ? "mobile" : /Tablet|iPad/i.test(ua) ? "tablet" : "desktop";
-      const browser = /Chrome/i.test(ua) ? "Chrome" : /Firefox/i.test(ua) ? "Firefox" : /Safari/i.test(ua) ? "Safari" : "Otro";
-      fetch("/api/auth/log-session", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: authData?.user?.id, userEmail: email, device, browser }),
-      });
+      registrarSesion(authData?.user?.id, email);
 
       router.push("/dashboard");
       router.refresh();
@@ -94,6 +131,37 @@ export default function LoginPage() {
           <p className="text-xs text-brand-gray uppercase tracking-[0.2em]">Todo tu negocio. Un solo sistema.</p>
         </div>
 
+        {modo === "codigo" ? (
+          <form onSubmit={codigoEnviado ? entrarConCodigo : pedirCodigo} className="space-y-4">
+            <div className="space-y-1.5">
+              <label htmlFor="email-codigo" className="text-xs font-medium text-brand-gray">Email</label>
+              <input id="email-codigo" type="email" placeholder="tu@email.com" value={email} onChange={(e) => setEmail(e.target.value)} required readOnly={codigoEnviado}
+                className="flex h-11 w-full rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-2 text-sm text-brand-dark placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
+            </div>
+            {codigoEnviado && (
+              <div className="space-y-1.5">
+                <label htmlFor="codigo" className="text-xs font-medium text-brand-gray">Código de 6 dígitos</label>
+                <input id="codigo" inputMode="numeric" autoComplete="one-time-code" maxLength={6} placeholder="000000" value={codigo} autoFocus
+                  onChange={(e) => setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))} required
+                  className="flex h-12 w-full rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-2 text-center text-2xl tracking-[0.4em] font-bold text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-blue focus:border-transparent focus:bg-white transition-all" />
+              </div>
+            )}
+            {aviso && <p className="text-xs text-brand-gray text-center bg-brand-light rounded-lg py-2 px-2">{aviso}</p>}
+            {error && <p className="text-xs text-red-500 text-center bg-red-50 rounded-lg py-2">{error}</p>}
+            <button type="submit" disabled={loading || (codigoEnviado && codigo.length !== 6)}
+              className="w-full h-11 rounded-xl bg-brand-blue text-white text-sm font-bold uppercase tracking-wider hover:bg-blue-700 disabled:opacity-70 transition-all shadow-lg shadow-blue-600/20 active:scale-[0.98]">
+              {loading ? "Un momento..." : codigoEnviado ? "Entrar" : "Enviarme un código"}
+            </button>
+            <div className="flex items-center justify-between pt-1 text-xs">
+              {codigoEnviado ? (
+                <button type="button" onClick={() => pedirCodigo()} disabled={loading} className="text-brand-gray hover:text-brand-blue">Reenviar código</button>
+              ) : <span />}
+              <button type="button" onClick={() => { setModo("clave"); setCodigoEnviado(false); setCodigo(""); setError(""); setAviso(""); }} className="text-brand-gray hover:text-brand-blue">
+                Entrar con mi clave
+              </button>
+            </div>
+          </form>
+        ) : (
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label htmlFor="email" className="text-xs font-medium text-brand-gray">
@@ -169,7 +237,14 @@ export default function LoginPage() {
               Olvidaste tu contraseña?
             </button>
           </div>
+          <div className="text-center">
+            <button type="button" onClick={() => { setModo("codigo"); setError(""); }}
+              className="text-xs font-semibold text-brand-blue hover:underline">
+              Entrar con un código al correo
+            </button>
+          </div>
         </form>
+        )}
 
         {/* Google Sign In — hidden for now (first phase). The OAuth flow isn't fully
             wired yet, so the button did nothing and only confused users. Re-enable by
