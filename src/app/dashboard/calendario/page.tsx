@@ -761,11 +761,31 @@ export default function CalendarioPage() {
     return `${h12}:${m.toString().padStart(2, "0")} ${period}`;
   };
 
+  // Ventanas abiertas (cliente, nueva cita, bloqueo, mover). Mientras alguna esté abierta, la grilla no reacciona a toques.
+  const overlayOpenRef = useRef(false);
+  overlayOpenRef.current = !!(showPopup || selectedApptId || editingBlock || pendingMove);
+  const anyOverlayOpen = overlayOpenRef.current;
+  const poppedByBack = useRef(false);
+  useEffect(() => {
+    if (!anyOverlayOpen) return;
+    // Botón "atrás" del celular: cierra la ventana en vez de sacar al usuario de la app.
+    try { window.history.pushState({ ...(window.history.state || {}), rbModal: 1 }, ""); } catch {}
+    const onPop = () => { poppedByBack.current = true; setShowPopup(false); setSelectedApptId(null); setEditingBlock(null); setPendingMove(null); };
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      // Al cerrar: el toque que cerró la ventana no debe marcar otro horario en la grilla.
+      ignoreUntil.current = Date.now() + 900;
+      if (!poppedByBack.current) { try { if (window.history.state?.rbModal) window.history.back(); } catch {} }
+      poppedByBack.current = false;
+    };
+  }, [anyOverlayOpen]);
+
   // Mouse handlers for drag-to-create
   // El celular dispara un "mouse" falso despues de cada toque: se ignora para que un toque corto no abra nada.
   const lastTouchAt = useRef(0);
   const handleMouseDown = (e: React.MouseEvent, barberId: string) => {
-    if (Date.now() - lastTouchAt.current < 1000 || Date.now() < ignoreUntil.current) return;
+    if (overlayOpenRef.current || Date.now() - lastTouchAt.current < 1000 || Date.now() < ignoreUntil.current) return;
     // Don't start drag-to-create if clicking on an existing appointment
     if ((e.target as HTMLElement).closest("[data-appointment]")) return;
     // Only left click
@@ -916,7 +936,7 @@ export default function CalendarioPage() {
 
   const handleTouchStart = (e: React.TouchEvent, barberId: string) => {
     lastTouchAt.current = Date.now();
-    if (Date.now() < ignoreUntil.current) return;
+    if (overlayOpenRef.current || Date.now() < ignoreUntil.current) return;
     if ((e.target as HTMLElement).closest("[data-appointment]")) return;
     const touch = e.touches[0];
     const rect = e.currentTarget.getBoundingClientRect();
@@ -1091,7 +1111,7 @@ export default function CalendarioPage() {
   // moving a cita after creating it didn't work at all on tablet/celular.
   const handleApptTouchStart = (e: React.TouchEvent, apptId: string) => {
     e.stopPropagation();
-    if (Date.now() < ignoreUntil.current) return;
+    if (overlayOpenRef.current || Date.now() < ignoreUntil.current) return;
     const touch = e.touches[0];
     moveTouchRef.current = { apptId, startClientX: touch.clientX, startClientY: touch.clientY, activated: false };
     moveLongPressTimer.current = setTimeout(() => {
