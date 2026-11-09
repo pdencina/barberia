@@ -134,6 +134,8 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
     // El tema del usuario manda; si no eligio uno, aplica el del negocio.
     const effective = normalizeTheme(userTheme ?? tenant?.theme);
     applyColorTheme(document.documentElement, effective);
+    // Guarda el tema para que la próxima vez se aplique antes de pintar (ver layout.tsx) y no haya salto de color.
+    if (userTheme || tenant?.theme) { try { localStorage.setItem("rb_theme", effective); } catch {} }
     return () => {
       clearColorTheme(document.documentElement);
     };
