@@ -132,8 +132,13 @@
   /* En celulares angostos no cabe "Comenzar ahora" junto a "Iniciar sesion" y las 3 lineas: el boton grande
      esta justo debajo en la portada y tambien dentro del menu. */
   @media (max-width: 480px) {
-    header > div > a[href="#precios"] { display: none !important; }
+    header > div { gap: 8px !important; padding-left: 12px !important; padding-right: 64px !important; }
+    header img { height: 24px !important; }
+    header [data-hdr-login] { font-size: 13.5px !important; }
+    header a[href="#precios"] { font-size: 14.5px !important; padding: 9px 13px !important; border-radius: 9px !important; }
   }
+  /* Celular: sin capa de paralaje (movia 4 capas al deslizar y daba tirones) */
+  @media (max-width: 1000px) { [data-decolayer] [data-plx] { will-change: auto !important; transform: none !important; } }
 </style>
 </helmet>
 
@@ -256,7 +261,7 @@
     </div>
   </div>
 
-  <header style="z-index: 1; position: sticky; top: 0; z-index: 40; backdrop-filter: blur(14px); background: rgba(250,248,245,.82); border-bottom: 1px solid #ECE6DD;">
+  <header style="z-index: 1; position: sticky; top: 0; z-index: 40; background: rgba(250,248,245,.97); border-bottom: 1px solid #ECE6DD;">
     <div style="max-width: 1200px; margin: 0 auto; padding: 14px 24px; display: flex; align-items: center; gap: 32px;">
       <img src="assets/logo-rebooking.png" alt="re-booking" style="height: 34px; width: auto; display: block;">
       <nav data-nav="" style="display: flex; gap: 18px; flex: 0 0 auto; white-space: nowrap; font-size: 14.5px; font-weight: 500; color: #46564F; margin-left: 8px;">
@@ -264,11 +269,10 @@
         <a href="#datos" style="flex: 0 0 auto; white-space: nowrap; color: #46564F;" style-hover="color:#0B9490">Datos</a>
         <a href="#flujo" style="flex: 0 0 auto; white-space: nowrap; color: #46564F;" style-hover="color:#0B9490">Cómo funciona</a>
         <a href="#integracion" style="flex: 0 0 auto; white-space: nowrap; color: #46564F;" style-hover="color:#0B9490">Integraciones</a>
-        <a href="#precios" style="flex: 0 0 auto; white-space: nowrap; color: #46564F;" style-hover="color:#0B9490">Precios</a>
       </nav>
       <div style="flex: 1;"></div>
       <a href="/login" data-hdr-login="" style="flex: 0 0 auto; white-space: nowrap; font-size: 14.5px; font-weight: 600; color: #10201F;" style-hover="color:#0B9490">Iniciar sesión</a>
-      <a href="#precios" style="flex: 0 0 auto; white-space: nowrap; font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 14.5px; font-weight: 600; color: #fff; background: #0A6E6B; padding: 11px 20px; border-radius: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 6px 16px -6px rgba(10,110,107,.6); transition: transform .16s ease, box-shadow .16s ease, background .16s ease; position: relative; overflow: hidden;" data-ripple="" style-hover="background:#0A6E6B;transform:translateY(-1px);box-shadow:0 10px 22px -8px rgba(10,110,107,.75)" style-active="transform:translateY(1px)">Comenzar ahora</a>
+      <a href="#precios" style="flex: 0 0 auto; white-space: nowrap; font-family: 'Bricolage Grotesque', Georgia, sans-serif; font-size: 17px; font-weight: 600; color: #fff; background: #0A6E6B; padding: 12px 26px; border-radius: 10px; box-shadow: 0 1px 0 rgba(255,255,255,.35) inset, 0 6px 16px -6px rgba(10,110,107,.6); transition: transform .16s ease, box-shadow .16s ease, background .16s ease; position: relative; overflow: hidden;" data-ripple="" style-hover="background:#0A6E6B;transform:translateY(-1px);box-shadow:0 10px 22px -8px rgba(10,110,107,.75)" style-active="transform:translateY(1px)">Precios</a>
     </div>
   </header>
 
@@ -2013,9 +2017,10 @@ class Component extends DCLogic {
       const y = window.scrollY;
       if (y !== lastY || this.reduced) {
         lastY = y;
-        if (!this.reduced) {
+        if (!this.reduced && window.innerWidth > 1000) {
           tiers.forEach((t, i) => {
-            const d = Math.max(-CAP, Math.min(CAP, (y * rates[i] * 0.16) % (CAP * 2) - CAP));
+            const ph = ((y * rates[i] * 0.16) % (CAP * 4) + CAP * 4) % (CAP * 4);
+            const d = ph < CAP * 2 ? ph - CAP : CAP * 3 - ph;
             t.style.transform = 'translate3d(0,' + d.toFixed(1) + 'px,0)';
           });
         }
