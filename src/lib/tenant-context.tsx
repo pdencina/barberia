@@ -131,15 +131,20 @@ export function TenantProvider({ children, serverTenantId }: { children: ReactNo
   // esa pantalla no se quede oscura por un tema que ya no aplica.
   useEffect(() => {
     if (typeof document === "undefined") return;
+    // Mientras no se conoce el tema (carga o recarga del negocio) no se toca nada: se queda el que ya está puesto
+    // (el guardado en layout.tsx). Antes se aplicaba "claro" y se limpiaba en cada cambio, y la pantalla parpadeaba.
+    if (!userTheme && !tenant?.theme) return;
     // El tema del usuario manda; si no eligio uno, aplica el del negocio.
     const effective = normalizeTheme(userTheme ?? tenant?.theme);
     applyColorTheme(document.documentElement, effective);
-    // Guarda el tema para que la próxima vez se aplique antes de pintar (ver layout.tsx) y no haya salto de color.
-    if (userTheme || tenant?.theme) { try { localStorage.setItem("rb_theme", effective); } catch {} }
-    return () => {
-      clearColorTheme(document.documentElement);
-    };
+    // Guarda el tema para que la próxima vez se aplique antes de pintar (ver layout.tsx).
+    try { localStorage.setItem("rb_theme", effective); } catch {}
   }, [userTheme, tenant?.theme]);
+
+  // Solo al salir del panel (ej. a /login) se quita el tema.
+  useEffect(() => {
+    return () => { if (typeof document !== "undefined") clearColorTheme(document.documentElement); };
+  }, []);
 
   const switchTenant = (tenantId: string, tenantName: string) => {
     localStorage.setItem("tenant_override", JSON.stringify({ tenantId, tenantName }));
