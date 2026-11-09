@@ -1,4 +1,5 @@
 import { variablesPlantillaRecordatorio } from "@/lib/agente/plantilla-recordatorio";
+import { getClientColorTheme } from "@/lib/client-theme";
 import { crearManejadorRecordatorios, crearRepositorioRecordatorios } from "@/lib/agente/recordatorios-whatsapp";
 import { crearAutorizadorInformeProgramado } from "@/lib/agente/informe-programado";
 import { enviarPlantilla, verificarConfiguracionWhatsApp } from "@/lib/agente/whatsapp-meta";
@@ -43,6 +44,7 @@ export const GET = crearManejadorRecordatorios({
       enviarCorreo: async cita => {
         if (!cita.client?.email) return { estado: "fallido" };
         await sendAppointmentReminder({
+          colorTheme: await getClientColorTheme(createAdminSupabase(), (cita as any).tenant_id),
           to: cita.client.email, clientName: cita.client.name,
           barberName: cita.barber?.name ?? "Tu profesional",
           serviceName: cita.services.map(s => s.service?.name).filter(Boolean).join(", ") || "Servicio",

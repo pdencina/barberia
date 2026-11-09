@@ -1,4 +1,5 @@
 import { getPlazoCambios } from "@/lib/cambio-cliente";
+import { getClientColorTheme } from "@/lib/client-theme";
 import { parseWallClock } from "@/lib/wallclock";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { cleanClientName } from "@/lib/client-name";
@@ -79,6 +80,7 @@ export async function emailClientAboutAppointment(supabase: any, appointmentId: 
     businessLogoUrl: tenant?.logo_url || null,
     changeHours,
     businessPhone: tenant?.phone || null,
+    colorTheme: await getClientColorTheme(supabase, a.tenant_id),
   };
   const { sendBookingConfirmation, sendAppointmentUpdated } = await import("@/lib/resend");
   if (kind === "created") await sendBookingConfirmation(params);

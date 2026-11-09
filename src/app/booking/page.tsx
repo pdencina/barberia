@@ -10,6 +10,7 @@ import { SuccessMark } from "@/components/ui/empty-state";
 import MetaPixel from "@/components/meta-pixel";
 import { track, eventId } from "@/lib/meta-pixel";
 import { textoPoliticaAbono } from "@/lib/deposit-policy";
+import { applyColorTheme, clearColorTheme, isAppTheme } from "@/lib/themes";
 
 interface Service {
   id: string;
@@ -103,6 +104,13 @@ export default function BookingPage() {
       .then(({ data }) => setHasSession(!!data?.user)).catch(() => {});
   }, []);
   useEffect(() => { captureAdParams(); }, []);
+  // Si el negocio activó "usar los colores del sistema", la página de reservas usa su tema (migración 151).
+  const colorTheme = (businessInfo as any)?.color_theme;
+  useEffect(() => {
+    if (!isAppTheme(colorTheme)) return;
+    applyColorTheme(document.documentElement, colorTheme);
+    return () => clearColorTheme(document.documentElement);
+  }, [colorTheme]);
   const preselectSlot = useRef<string>(""); // hora elegida en la vista por horario
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(30);

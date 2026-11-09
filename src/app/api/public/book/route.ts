@@ -1,4 +1,5 @@
 import { getPlazoCambios } from "@/lib/cambio-cliente";
+import { getClientColorTheme } from "@/lib/client-theme";
 import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
 import { isTenantSuspended, isBarberTenantSuspended, TENANT_SUSPENDED_MESSAGE } from "@/lib/tenant-suspension";
@@ -232,6 +233,7 @@ export async function POST(req: NextRequest) {
       const allowed = !tenantId || (await tryConsumeQuota(tenantId, "email", "confirmation"));
       if (allowed) {
         await sendBookingConfirmation({
+          colorTheme: await getClientColorTheme(supabase, tenantId),
           to: clientEmail,
           clientName,
           barberName: barber?.name || "Tu profesional",

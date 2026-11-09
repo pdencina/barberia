@@ -4,6 +4,8 @@ import { getResendClient } from "@/lib/resend-client";
 import { couponDiscountText } from "@/lib/retention-message";
 import { receiptThanksHtml } from "@/lib/receipt-thanks";
 import type { CorreoLinks } from "@/lib/post-service-links";
+import { applyMailTheme } from "@/lib/mail-theme";
+import type { AppTheme } from "@/lib/themes";
 
 interface SendReceiptParams {
   to: string;
@@ -233,6 +235,8 @@ function mailRow(label: string, value: string, strong = false): string {
 }
 
 interface SendBookingConfirmationParams {
+  // Tema de colores del negocio si activó "usar los colores del sistema" (tenants.client_theme_enabled). Sin valor: colores de siempre.
+  colorTheme?: AppTheme | null;
   // Teléfono del NEGOCIO (tenants.phone) para la línea «¿Dudas?». Sin valor no se muestra ninguno (nunca un número de otro negocio).
   businessPhone?: string | null;
   // Horas de anticipación hasta las que el cliente puede cancelar o modificar (tenants.client_change_hours). Sin valor, el correo no menciona plazo.
@@ -291,7 +295,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
     from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
     subject: `Cita confirmada - ${serviceName} con ${barberName} | re-booking`,
-    html,
+    html: applyMailTheme(html, params.colorTheme),
   });
   // El cliente de Resend no lanza error cuando rechaza un envío: sin esto el rechazo pasaba en silencio.
   if (enviado?.error) console.error("Resend rechazó la confirmación de cita:", enviado.error.message);
@@ -300,6 +304,8 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 
 // Aviso al cliente cuando el equipo cambia su cita (hora, profesional o servicios). Mismo formato que la confirmacion.
 interface SendAppointmentUpdatedParams {
+  // Tema de colores del negocio si activó "usar los colores del sistema" (tenants.client_theme_enabled). Sin valor: colores de siempre.
+  colorTheme?: AppTheme | null;
   // Teléfono del NEGOCIO (tenants.phone) para la línea «¿Dudas?». Sin valor no se muestra ninguno (nunca un número de otro negocio).
   businessPhone?: string | null;
   // Horas de anticipación hasta las que el cliente puede cancelar o modificar (tenants.client_change_hours). Sin valor, el correo no menciona plazo.
@@ -358,7 +364,7 @@ export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParam
     from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
     subject: `Cita modificada - ${serviceName} con ${barberName} | re-booking`,
-    html,
+    html: applyMailTheme(html, params.colorTheme),
   });
 }
 
@@ -440,6 +446,8 @@ export async function sendRetentionEmail(params: SendRetentionEmailParams) {
 
 
 interface SendAppointmentReminderParams {
+  // Tema de colores del negocio si activó "usar los colores del sistema" (tenants.client_theme_enabled). Sin valor: colores de siempre.
+  colorTheme?: AppTheme | null;
   // Teléfono del NEGOCIO (tenants.phone) para la línea «¿Dudas?». Sin valor no se muestra ninguno (nunca un número de otro negocio).
   businessPhone?: string | null;
   to: string;
@@ -487,7 +495,7 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
     from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
     to,
     subject: `Recordatorio: ${serviceName} manana a las ${timeStr} | re-booking`,
-    html,
+    html: applyMailTheme(html, params.colorTheme),
   });
 }
 
