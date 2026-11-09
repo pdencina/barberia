@@ -1,159 +1,130 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Copy } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Copy, CheckCircle2, Megaphone, Users, Percent } from "lucide-react";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
-import { PageHeader, Panel, inputClass, primaryButton, ghostButton, tableStyles } from "@/components/ui/premium";
-import { AD_MEDIUMS, META_URL_PARAMETERS, buildTrackedLink } from "@/lib/ad-tracking";
+import { PageHeader, Panel, StatCard, Segmented, inputClass, primaryButton, ghostButton, tableStyles } from "@/components/ui/premium";
+import { META_URL_PARAMETERS } from "@/lib/ad-tracking";
 
 interface CampaignRow { campaign: string; content: string; medium: string; bookings: number; completed: number; cancelled: number; clients: number; newClients: number }
-interface Report { days: number; totalLinkBookings: number; taggedBookings: number; untaggedBookings: number; campaigns: CampaignRow[] }
+interface Report { days: number; totalLinkBookings: number; taggedBookings: number; untaggedBookings: number; paidBookings: number; newClientsTotal: number; campaigns: CampaignRow[] }
 
+// "Publicidad": cuantos clientes reservan gracias a tus anuncios de Meta. Tres pasos para conectarlo y una tabla simple.
 export default function PublicidadPage() {
   const { role } = useAuth();
   const { tenant } = useTenant();
   const { showToast } = useToast();
   const isAdmin = role === "admin" || role === "super_admin";
 
-  const [enabled, setEnabled] = useState<boolean | null>(null);
-  const [migrationMissing, setMigrationMissing] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [days, setDays] = useState<"30" | "90">("30");
   const [report, setReport] = useState<Report | null>(null);
   const [reportError, setReportError] = useState("");
-  const [days, setDays] = useState(90);
+  const [pixel, setPixel] = useState("");
+  const [savedPixel, setSavedPixel] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
-  const [medium, setMedium] = useState("paid");
-  const [campaign, setCampaign] = useState("");
-  const [content, setContent] = useState("");
-  const [term, setTerm] = useState("");
+  const bookingLink = typeof window !== "undefined" && tenant?.slug ? `${window.location.origin}/${tenant.slug}` : "";
 
-  const baseUrl = typeof window !== "undefined" && tenant?.slug ? `${window.location.origin}/${tenant.slug}` : "";
-  const link = useMemo(
-    () => (baseUrl && campaign.trim() ? buildTrackedLink(baseUrl, { medium, campaign, content, term }) : ""),
-    [baseUrl, medium, campaign, content, term],
-  );
-
-  const loadSetting = async () => {
-    const d = await fetch("/api/settings/origen-de-reservas", { cache: "no-store" }).then((r) => r.json()).catch(() => ({}));
-    setEnabled(!!d.enabled);
-    setMigrationMissing(!!d.migrationMissing);
-  };
-  const loadReport = async (n: number) => {
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch("/api/settings/meta-pixel", { cache: "no-store" }).then((r) => r.json()).then((d) => { setSavedPixel(d.pixelId || null); setPixel(d.pixelId || ""); }).catch(() => {});
+  }, [isAdmin]);
+  useEffect(() => {
+    if (!isAdmin) return;
     setReportError("");
-    const r = await fetch(`/api/origen-de-reservas/reporte?days=${n}`, { cache: "no-store" });
-    const d = await r.json().catch(() => ({}));
-    if (!r.ok) { setReport(null); setReportError(d.error || "No se pudo cargar el reporte"); return; }
-    setReport(d);
-  };
-  useEffect(() => { if (isAdmin) { loadSetting(); } }, [isAdmin]);
-  useEffect(() => { if (isAdmin) { loadReport(days); } }, [isAdmin, days]);
+    fetch(`/api/origen-de-reservas/reporte?days=${days}`, { cache: "no-store" }).then(async (r) => {
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) { setReport(null); setReportError(d.error || "No se pudo cargar"); return; }
+      setReport(d);
+    }).catch(() => setReportError("No se pudo cargar"));
+  }, [isAdmin, days]);
 
-  const toggle = async (next: boolean) => {
+  const savePixel = async () => {
     setSaving(true);
-    const r = await fetch("/api/settings/origen-de-reservas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ enabled: next }) });
+    const r = await fetch("/api/settings/meta-pixel", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pixelId: pixel }) });
     const d = await r.json().catch(() => ({}));
     setSaving(false);
     if (!r.ok) { showToast(d.error || "No se pudo guardar", "error"); return; }
-    setEnabled(next);
-    showToast(next ? "Seguimiento de publicidad activado" : "Seguimiento de publicidad apagado", "success");
+    setSavedPixel(d.pixelId || null);
+    showToast(d.pixelId ? "Píxel conectado" : "Píxel desconectado", "success");
   };
   const copy = (text: string, msg: string) => { navigator.clipboard.writeText(text); showToast(msg, "success"); };
 
   if (!isAdmin) return <div className="p-6 text-sm text-brand-gray">Solo el administrador puede ver esta sección.</div>;
 
+  const paid = report?.paidBookings ?? 0;
+  const share = report && report.totalLinkBookings > 0 ? Math.round((paid / report.totalLinkBookings) * 100) : 0;
+  const conectado = !!savedPixel;
+
   return (
     <div className="p-3 md:p-6 space-y-4 max-w-4xl animate-fade-in">
-      <PageHeader title="Publicidad" subtitle="Saber de qué anuncio viene cada reserva por link" />
+      <PageHeader title="Publicidad" subtitle="Cuántos clientes reservan gracias a tus anuncios de Meta" />
 
-      <Panel title="Seguimiento" subtitle="Apagado por defecto. Al activarlo, las reservas por link guardan el anuncio o publicación de donde vino el cliente.">
-        <label className="flex items-start gap-3 cursor-pointer">
-          <input type="checkbox" checked={!!enabled} disabled={enabled === null || saving} onChange={(e) => toggle(e.target.checked)} className="mt-1 h-4 w-4 rounded border-gray-300" />
-          <span>
-            <span className="block text-sm font-medium text-brand-dark">Guardar el origen de las reservas (campaña y anuncio)</span>
-            <span className="block text-xs text-brand-gray">Solo se guardan las etiquetas del link (utm) y el identificador de clic de Meta. No se guardan datos personales extra.</span>
-          </span>
-        </label>
-        {migrationMissing && <p className="mt-2 text-xs text-red-600">Falta aplicar la migración 112 en la base de datos.</p>}
+      <div className="flex justify-end">
+        <Segmented size="sm" value={days} onChange={setDays} options={[{ value: "30", label: "30 días" }, { value: "90", label: "90 días" }]} />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard label="Reservas por anuncios" value={report ? paid : "—"} hint={`Últimos ${days} días`} Icon={Megaphone} tone="teal" />
+        <StatCard label="Clientes nuevos por anuncios" value={report ? report.newClientsTotal : "—"} hint="Primera vez que reservan" Icon={Users} tone="green" />
+        <StatCard label="De tus reservas online" value={report ? `${share}%` : "—"} hint="Las que vienen de un anuncio" Icon={Percent} tone="violet" />
+      </div>
+      {reportError && <p className="text-sm text-red-600">{reportError}</p>}
+
+      <Panel title="Conecta tus anuncios en 3 pasos" subtitle={conectado ? "Tu Píxel está conectado. Revisa que el paso 2 esté hecho en tus anuncios." : "Toma unos 5 minutos. Se hace una sola vez."}>
+        <ol className="space-y-5 text-sm text-brand-dark">
+          <li>
+            <p className="font-semibold">1. Pega el número de tu Píxel de Meta {conectado && <CheckCircle2 className="ml-1 inline h-4 w-4 text-emerald-600" />}</p>
+            <p className="mt-1 text-xs text-brand-gray">En Meta abre <span className="font-medium">Administrador de eventos</span>, entra a tu Píxel y copia el número (son 15 o 16 dígitos). Así Meta sabrá cuándo alguien reserva.</p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <input value={pixel} onChange={(e) => setPixel(e.target.value.replace(/\D/g, ""))} inputMode="numeric" placeholder="Ej: 955315870712237" className={inputClass} />
+              <button type="button" onClick={savePixel} disabled={saving || pixel === (savedPixel || "")} className={`${primaryButton} sm:flex-shrink-0`}>Guardar</button>
+            </div>
+          </li>
+          <li>
+            <p className="font-semibold">2. En cada anuncio, pega este texto</p>
+            <p className="mt-1 text-xs text-brand-gray">En Meta, dentro del anuncio busca <span className="font-medium">Parámetros de URL</span> y pega esto. Así sabemos de qué campaña viene cada reserva. El anuncio debe llevar a tu link de reservas:</p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input readOnly value={bookingLink} className={`${inputClass} text-xs`} />
+              <button type="button" onClick={() => copy(bookingLink, "Link copiado")} className={`${ghostButton} sm:flex-shrink-0`}><Copy className="h-4 w-4" /> Copiar link</button>
+            </div>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center">
+              <input readOnly value={META_URL_PARAMETERS} className={`${inputClass} font-mono text-xs`} />
+              <button type="button" onClick={() => copy(META_URL_PARAMETERS, "Texto copiado")} className={`${ghostButton} sm:flex-shrink-0`}><Copy className="h-4 w-4" /> Copiar texto</button>
+            </div>
+          </li>
+          <li>
+            <p className="font-semibold">3. Listo: aquí abajo verás los resultados</p>
+            <p className="mt-1 text-xs text-brand-gray">Cada reserva que llegue desde un anuncio aparecerá en la tabla. También la verás en el Administrador de anuncios de Meta como «Programar» (Schedule). Las personas que rechacen las cookies no se cuentan en Meta, pero sí aquí.</p>
+          </li>
+        </ol>
       </Panel>
 
-      <Panel title="Generar link con etiquetas" subtitle="Usa este link en el anuncio, en la biografía de Instagram o en una publicación. Así sabremos de dónde viene cada reserva.">
-        <div className="grid gap-3 md:grid-cols-2">
-          <div>
-            <label className="mb-1 block text-xs font-medium text-brand-gray">Dónde lo vas a poner</label>
-            <select value={medium} onChange={(e) => setMedium(e.target.value)} className={inputClass}>
-              {AD_MEDIUMS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
-            </select>
+      <Panel title="Resultados por campaña" subtitle="Reservas hechas por tu link de reservas" flush>
+        {report && report.campaigns.length === 0 ? (
+          <p className="px-5 pb-5 text-sm text-brand-gray">Todavía no hay reservas que vengan de un anuncio. Cuando completes los pasos de arriba y llegue la primera, aparecerá aquí.</p>
+        ) : report ? (
+          <div className={tableStyles.wrap}>
+            <table className={tableStyles.table}>
+              <thead className={tableStyles.thead}>
+                <tr><th className={tableStyles.th}>Campaña</th><th className={tableStyles.thRight}>Reservas</th><th className={tableStyles.thRight}>Clientes nuevos</th><th className={tableStyles.thRight}>Atendidas</th><th className={tableStyles.thRight}>Canceladas</th></tr>
+              </thead>
+              <tbody className={tableStyles.tbody}>
+                {report.campaigns.map((c, i) => (
+                  <tr key={i} className={tableStyles.tr}>
+                    <td className={tableStyles.td}>{c.campaign}{c.content && <span className="ml-2 text-[11px] text-brand-gray">{c.content}</span>}</td>
+                    <td className={tableStyles.tdRight}>{c.bookings}</td>
+                    <td className={tableStyles.tdRight}>{c.newClients}</td>
+                    <td className={tableStyles.tdRight}>{c.completed}</td>
+                    <td className={tableStyles.tdRight}>{c.cancelled}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-brand-gray">Campaña (obligatorio)</label>
-            <input value={campaign} onChange={(e) => setCampaign(e.target.value)} placeholder="ej: agenda barberos octubre" className={inputClass} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-brand-gray">Anuncio o publicación (opcional)</label>
-            <input value={content} onChange={(e) => setContent(e.target.value)} placeholder="ej: reel corte clasico" className={inputClass} />
-          </div>
-          <div>
-            <label className="mb-1 block text-xs font-medium text-brand-gray">Conjunto de anuncios (opcional)</label>
-            <input value={term} onChange={(e) => setTerm(e.target.value)} placeholder="ej: hombres 18-35 puente alto" className={inputClass} />
-          </div>
-        </div>
-        <div className="mt-3 flex flex-col gap-2 md:flex-row md:items-center">
-          <input readOnly value={link || "Escribe la campaña para generar el link"} className={`${inputClass} font-mono text-xs`} />
-          <button type="button" disabled={!link} onClick={() => copy(link, "Link copiado")} className={`${primaryButton} md:flex-shrink-0`}><Copy className="h-4 w-4" /> Copiar</button>
-        </div>
-        <details className="mt-3 text-xs text-brand-gray">
-          <summary className="cursor-pointer font-medium text-brand-dark">Para anuncios de Meta: parámetros automáticos</summary>
-          <p className="mt-2">En Ads Manager, dentro del anuncio, pega esto en «Parámetros de URL». Meta pone solo el nombre de la campaña, el conjunto y el anuncio, y la reserva guarda ese origen. El link del anuncio debe ser el de reservas: <span className="font-mono">{baseUrl || "(tu link de reservas)"}</span></p>
-          <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
-            <input readOnly value={META_URL_PARAMETERS} className={`${inputClass} font-mono text-xs`} />
-            <button type="button" onClick={() => copy(META_URL_PARAMETERS, "Parámetros copiados")} className={`${ghostButton} md:flex-shrink-0`}><Copy className="h-4 w-4" /> Copiar</button>
-          </div>
-        </details>
-      </Panel>
-
-      <Panel title="Reservas por campaña" subtitle="Reservas hechas por el link de reservas del negocio"
-flush>
-        <div className="flex items-center gap-2 px-5 pb-3">
-          <label className="text-xs text-brand-gray" htmlFor="ad-days">Período</label>
-          <select id="ad-days" value={days} onChange={(e) => setDays(Number(e.target.value))} className="rounded-lg border border-gray-200 bg-white px-2 py-1 text-xs">
-            <option value="30">Últimos 30 días</option>
-            <option value="90">Últimos 90 días</option>
-            <option value="180">Últimos 180 días</option>
-          </select>
-        </div>
-        {reportError && <p className="px-5 pb-4 text-sm text-red-600">{reportError}</p>}
-        {report && (
-          <>
-            <p className="px-5 pb-3 text-xs text-brand-gray">
-              {report.totalLinkBookings} reservas por link; {report.taggedBookings} con origen de anuncio y {report.untaggedBookings} sin etiqueta (link sin utm, o seguimiento apagado).
-            </p>
-            {report.campaigns.length === 0 ? (
-              <p className="px-5 pb-5 text-sm text-brand-gray">Todavía no hay reservas con origen de anuncio. Activa el seguimiento y usa los links con etiquetas.</p>
-            ) : (
-              <div className={tableStyles.wrap}>
-                <table className={tableStyles.table}>
-                  <thead className={tableStyles.thead}>
-                    <tr><th className={tableStyles.th}>Campaña</th><th className={tableStyles.th}>Anuncio</th><th className={tableStyles.thRight}>Reservas</th><th className={tableStyles.thRight}>Completadas</th><th className={tableStyles.thRight}>Canceladas</th><th className={tableStyles.thRight}>Clientes nuevos</th></tr>
-                  </thead>
-                  <tbody className={tableStyles.tbody}>
-                    {report.campaigns.map((c, i) => (
-                      <tr key={i} className={tableStyles.tr}>
-                        <td className={tableStyles.td}>{c.campaign}<span className="ml-2 text-[11px] text-brand-gray">{c.medium}</span></td>
-                        <td className={tableStyles.td}>{c.content || "-"}</td>
-                        <td className={tableStyles.tdRight}>{c.bookings}</td>
-                        <td className={tableStyles.tdRight}>{c.completed}</td>
-                        <td className={tableStyles.tdRight}>{c.cancelled}</td>
-                        <td className={tableStyles.tdRight}>{c.newClients}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </>
-        )}
+        ) : null}
       </Panel>
     </div>
   );

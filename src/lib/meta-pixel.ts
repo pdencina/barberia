@@ -5,7 +5,8 @@ export const CONSENT_KEY = "rb_meta_consent"; // "granted" | "denied"
 const ATTR_KEY = "rb_mkt_attr";
 const UTM = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term", "utm_id", "fbclid"];
 
-export const pixelEnabled = () => /^\d{8,20}$/.test(META_PIXEL_ID);
+export const validPixelId = (id?: string | null) => /^\d{8,20}$/.test((id || "").trim());
+export const pixelEnabled = (id: string = META_PIXEL_ID) => validPixelId(id);
 
 function ls(op: "get" | "set", key: string, val?: string): string | null {
   try { if (op === "set") { window.localStorage.setItem(key, val || ""); return null; } return window.localStorage.getItem(key); } catch { return null; }
@@ -49,25 +50,31 @@ export function marketingPayload(): Record<string, string> {
 
 declare global { interface Window { fbq?: any; _fbq?: any } }
 
-let loaded = false;
-export function loadPixel(): boolean {
-  if (typeof window === "undefined" || !pixelEnabled() || getConsent() !== "granted") return false;
-  if (loaded || window.fbq) return true;
-  // Ojo: este archivo corre en modo estricto; la receta oficial de Meta (queue.push.apply(f, ...)) revienta aquí.
-  const f: any = (window.fbq = function () { if (f.callMethod) f.callMethod.apply(f, arguments); else f.queue.push(arguments); });
-  if (!window._fbq) window._fbq = f;
-  f.push = f; f.loaded = true; f.version = "2.0"; f.queue = [];
-  const s = document.createElement("script"); s.async = true; s.src = "https://connect.facebook.net/en_US/fbevents.js";
-  document.head.appendChild(s);
-  // Apaga el rastreo automatico de Meta (clics en botones y campos de formularios): solo enviamos nuestros eventos.
-  window.fbq("set", "autoConfig", false, META_PIXEL_ID);
-  window.fbq("init", META_PIXEL_ID);
-  loaded = true;
+const started = new Set<string>();
+let stubReady = false;
+// Carga Meta una sola vez y registra cada Pixel (el de re-booking o el de un negocio). Sin permiso o sin ID valido no hace nada.
+export function loadPixel(id: string = META_PIXEL_ID): boolean {
+  if (typeof window === "undefined" || !pixelEnabled(id) || getConsent() !== "granted") return false;
+  if (!stubReady && !window.fbq) {
+    // Ojo: este archivo corre en modo estricto; la receta oficial de Meta (queue.push.apply(f, ...)) revienta aqui.
+    const f: any = (window.fbq = function () { if (f.callMethod) f.callMethod.apply(f, arguments); else f.queue.push(arguments); });
+    if (!window._fbq) window._fbq = f;
+    f.push = f; f.loaded = true; f.version = "2.0"; f.queue = [];
+    const s = document.createElement("script"); s.async = true; s.src = "https://connect.facebook.net/en_US/fbevents.js";
+    document.head.appendChild(s);
+  }
+  stubReady = true;
+  if (!started.has(id)) {
+    // Apaga el rastreo automatico de Meta (clics en botones y campos de formularios): solo enviamos nuestros eventos.
+    window.fbq("set", "autoConfig", false, id);
+    window.fbq("init", id);
+    started.add(id);
+  }
   return true;
 }
 
-// Evento estándar de Meta. No hace nada si el píxel está apagado o no hay permiso.
-export function track(name: string, params?: Record<string, unknown>, id?: string) {
-  if (!loadPixel()) return;
-  window.fbq("track", name, params || {}, id ? { eventID: id } : undefined);
+// Evento estandar SOLO para ese Pixel (trackSingle: nunca se cruza con el Pixel de otro negocio).
+export function track(name: string, params?: Record<string, unknown>, id?: string, pixelId: string = META_PIXEL_ID) {
+  if (!loadPixel(pixelId)) return;
+  window.fbq("trackSingle", pixelId, name, params || {}, id ? { eventID: id } : undefined);
 }

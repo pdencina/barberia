@@ -14,7 +14,7 @@ import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
 import { notify } from "@/lib/notify";
 import { limpiarHoldsVencidos } from "@/lib/deposit-hold";
 import { cleanClientName } from "@/lib/client-name";
-import { sanitizeAttribution, isAdTrackingEnabled } from "@/lib/ad-tracking";
+import { sanitizeAttribution } from "@/lib/ad-tracking";
 
 const isValidEmail = (e: unknown) => typeof e === "string" && /^\S+@\S+\.\S+$/.test(e.trim());
 
@@ -120,7 +120,9 @@ export async function POST(req: NextRequest) {
 
   // Origen del anuncio (migracion 112): solo se guarda si el negocio activo el seguimiento. Si falta la migracion, no pasa nada.
   const adAttr = sanitizeAttribution(body.adAttribution);
-  const trackAds = !!adAttr && (await isAdTrackingEnabled(supabase, tenantId));
+  // Ya no hay interruptor: si el link trae etiquetas de anuncio, se guardan siempre (son solo utm y fbclid, sin datos personales).
+  // Si falta la migracion 112 el guardado falla en silencio y la reserva sigue igual.
+  const trackAds = !!adAttr;
 
   let clientId: string;
   let clientIsNew = false;

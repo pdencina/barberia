@@ -21,6 +21,8 @@ function toPublic(t: any) {
     booking_view_mode: t.booking_view_mode ?? "professional",
     booking_window_days: t.booking_window_days ?? null,
     booking_show_profile_direct: !!t.booking_show_profile_direct,
+    // Pixel propio del negocio (migracion 150). Solo el ID numerico, que es publico por naturaleza.
+    meta_pixel_id: /^\d{8,20}$/.test(String(t.meta_pixel_id || "")) ? String(t.meta_pixel_id) : null,
   };
 }
 
