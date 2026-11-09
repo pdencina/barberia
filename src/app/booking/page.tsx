@@ -7,6 +7,8 @@ import BusinessProfile, { type BusinessInfo } from "@/components/booking/busines
 import TimeFirstFlow, { type TimePick } from "@/components/booking/time-first-flow";
 import { formatCurrency } from "@/lib/utils";
 import { SuccessMark } from "@/components/ui/empty-state";
+import MetaPixel from "@/components/meta-pixel";
+import { track, eventId } from "@/lib/meta-pixel";
 import { textoPoliticaAbono } from "@/lib/deposit-policy";
 
 interface Service {
@@ -434,6 +436,14 @@ export default function BookingPage() {
   // (Preferencias de reservas), la presentacion se muestra igual arriba de los servicios.
   const showProfile = !!businessInfo?.name && (step === "barber" || (step === "service" && directEntry && !!businessInfo.booking_show_profile_direct));
 
+  // Medicion de anuncios del NEGOCIO (solo si conecto su Pixel y la persona acepto cookies): reserva confirmada = Schedule.
+  // No se manda nombre del servicio ni del cliente. El id evita contarla doble si la pantalla se recarga.
+  const pixelDelNegocio = businessInfo?.meta_pixel_id || null;
+  useEffect(() => {
+    if (step !== "confirmed" || !pixelDelNegocio) return;
+    track("Schedule", undefined, eventId("schedule", appointmentId || undefined), pixelDelNegocio);
+  }, [step, pixelDelNegocio]); // eslint-disable-line react-hooks/exhaustive-deps
+
   if (businessSuspended) {
     return (
       <div className="min-h-screen bg-brand-light flex items-center justify-center p-4">
@@ -447,6 +457,7 @@ export default function BookingPage() {
 
   return (
     <div className="min-h-screen bg-brand-light text-brand-dark">
+      {pixelDelNegocio && <MetaPixel pixelId={pixelDelNegocio} business={businessName || "Este negocio"} viewContent="Reserva online" />}
       {pago && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">
           <div className="w-full max-w-sm space-y-4 rounded-2xl bg-white p-6 text-center shadow-2xl">
