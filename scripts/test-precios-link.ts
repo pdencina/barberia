@@ -1,0 +1,10 @@
+import { preciosDestino } from "../src/lib/precios-link";
+let fails = 0;
+const t = (n: string, got: unknown, want: unknown) => { if (JSON.stringify(got) !== JSON.stringify(want)) { fails++; console.log("FALLA", n, JSON.stringify(got), "esperado", JSON.stringify(want)); } else console.log("ok", n); };
+t("sin parametros: marca creador y va a #precios", preciosDestino(new URLSearchParams("")), "/landing?utm_source=creador&utm_medium=contenido&utm_campaign=precios#precios");
+t("el nombre del creador manda sobre el defecto", preciosDestino(new URLSearchParams("utm_campaign=juan")), "/landing?utm_source=creador&utm_medium=contenido&utm_campaign=juan#precios");
+t("conserva fbclid", preciosDestino(new URLSearchParams("fbclid=ABC")).includes("fbclid=ABC"), true);
+t("ignora parametros ajenos", preciosDestino(new URLSearchParams("x=1&<script>=2")).includes("script"), false);
+t("recorta valores largos", preciosDestino(new URLSearchParams("utm_campaign=" + "a".repeat(500))).length < 400, true);
+console.log(fails ? `${fails} fallas` : "TODO OK");
+process.exit(fails ? 1 : 0);
