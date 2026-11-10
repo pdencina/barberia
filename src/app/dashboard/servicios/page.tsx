@@ -248,7 +248,7 @@ export default function ServiciosPage() {
     fetchServices();
   };
 
-  const durationOptions = (current: number, internal?: boolean) => {
+  const durationOptions = (current: number, internal?: boolean | null) => {
     const base = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
     for (let m = 75; m <= 360; m += 15) base.push(m);
     if (internal) base.unshift(0);
