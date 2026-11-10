@@ -38,6 +38,14 @@
     {
       "path": "/api/cron/abono-limpieza",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/cron/empresas-reporte-semanal",
+      "schedule": "0 12 * * 1"
+    },
+    {
+      "path": "/api/cron/empresas-campanas",
+      "schedule": "*/15 * * * *"
     }
   ]
 }
