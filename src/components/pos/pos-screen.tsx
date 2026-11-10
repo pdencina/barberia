@@ -588,6 +588,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
 
   const processCheckout = async () => {
     setProcessing(true);
+    setShowTipModal(false); // un aviso de propina de la venta anterior no debe quedar colgado
     try {
       const payments = splitMode
         ? splitPayments.filter((p) => parseInt(p.amount) > 0).map((p) => ({ method: p.method, amount: parseInt(p.amount) }))
@@ -641,14 +642,15 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
         setSplitChargeProgress("");
         setSuccessAmount(total);
 
+        // La venta ya quedó guardada: el flujo termina aquí (celebración, contador, caja).
+        // La propina es un extra opcional en un aviso aparte que NO bloquea nada.
+        setShowSuccessModal(true); setSaleCounter((n) => n + 1);
+        setTimeout(() => setShowSuccessModal(false), 4000);
         if ((hadCardPayment || ledgerOn) && result.transactionId) {
           setLastTransactionId(result.transactionId);
           setTipKind(hadCardPayment ? "card" : "cash");
           setTipInput("");
           setShowTipModal(true);
-        } else {
-          setShowSuccessModal(true); setSaleCounter((n) => n + 1);
-          setTimeout(() => setShowSuccessModal(false), 4000);
         }
       }
     } catch (err) {
@@ -672,8 +674,6 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
     }
     setShowTipModal(false);
     setLastTransactionId(null);
-    setShowSuccessModal(true); setSaleCounter((n) => n + 1);
-    setTimeout(() => setShowSuccessModal(false), 4000);
   };
 
   return (
@@ -1424,13 +1424,15 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
           tip on the terminal itself. This is purely informational: nothing is charged
           again from here, we just record what the client added on the machine. */}
       {showTipModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl p-6 w-full max-w-sm shadow-2xl text-center">
-            <div className="text-3xl mb-3">{tipKind === "card" ? "💳" : "💵"}</div>
+        <div className="fixed bottom-4 right-4 left-4 sm:left-auto z-40 flex justify-end pointer-events-none">
+          <div className="pointer-events-auto relative bg-white rounded-2xl p-5 w-full max-w-sm shadow-2xl border border-gray-200 text-center">
+            <button type="button" onClick={() => { setShowTipModal(false); setLastTransactionId(null); }} aria-label="Cerrar" className="absolute top-2 right-3 text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-green-600 mb-1">Venta registrada ✓</p>
+            <div className="text-3xl mb-2">{tipKind === "card" ? "💳" : "💵"}</div>
             <h3 className="text-lg font-bold text-brand-dark">{tipKind === "card" ? "Cliente agrego propina?" : "¿El cliente dejó propina?"}</h3>
             <p className="text-sm text-brand-gray mt-1 mb-4">
               {tipKind === "card"
-                ? "Preguntale al cliente si agrego propina en la maquina. Esto solo se registra, no se cobra de nuevo."
+                ? "Preguntale al cliente si agrego propina en la maquina. Es opcional: la venta ya quedó registrada."
                 : "Se registra para el profesional que atendió. No se suma al cobro."}
               {ledgerOn && " Va 100% al profesional."}
             </p>
@@ -1448,7 +1450,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
               className="w-full border rounded-xl px-3 py-2.5 text-sm text-center mb-4" />
             <button onClick={() => recordTip(parseInt(tipInput) || 0)}
               className="w-full py-2.5 bg-brand-blue text-white rounded-xl font-medium hover:bg-brand-blue/90">
-              {parseInt(tipInput) > 0 ? `Registrar propina de ${formatCurrency(parseInt(tipInput))}` : "Continuar sin propina"}
+              {parseInt(tipInput) > 0 ? `Registrar propina de ${formatCurrency(parseInt(tipInput))}` : "Sin propina"}
             </button>
           </div>
         </div>
