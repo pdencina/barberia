@@ -7,7 +7,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { PageHeader, Panel, Segmented, inputClass } from "@/components/ui/premium";
 import { Spinner } from "@/components/ui/spinner";
 import { DemandaGraficos } from "@/components/demanda/graficos";
-import { DIAS, horariosFlojos, nivelesPorDia, nivelesPorHora, nivelCelda, type DemandMap, type Nivel } from "@/lib/demand-map";
+import { DIAS, horariosFlojos, nivelesPorDia, nivelesPorHora, nivelCelda, estaAbierta, valorCelda, resumenHorario, type DemandMap, type Nivel } from "@/lib/demand-map";
 
 const NOMBRE_DIA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 const cap = (t: string) => t.charAt(0).toUpperCase() + t.slice(1);
@@ -51,7 +51,11 @@ export default function DemandaPage() {
   }, [isAdmin, weeks, barberId, tenant?.id]);
 
   const celda = useMemo(() => new Map((mapa?.cells || []).map((c) => [`${c.dow}-${c.hour}`, c.avg])), [mapa]);
-  const maxCelda = useMemo(() => Math.max(1, ...(mapa?.cells || []).map((c) => c.avg)), [mapa]);
+  // Cada celda se compara con las demás celdas del horario de ESTE negocio (solo las horas en que atiende).
+  const celdaDe = useMemo(() => new Map((mapa?.cells || []).map((c) => [`${c.dow}-${c.hour}`, c])), [mapa]);
+  const maxCelda = useMemo(() => { const v = (mapa?.cells || []).filter((c) => estaAbierta(mapa!, c.dow, c.hour)).map((c) => valorCelda(c)); return v.length ? Math.max(...v) || 1 : 1; }, [mapa]);
+  const colsDias = mapa && (mapa.abiertas || []).some((k) => k.startsWith("7-")) ? 7 : 6; // el domingo solo aparece si el negocio atiende ese día
+  const horarioTxt = useMemo(() => (mapa ? resumenHorario(mapa) : ""), [mapa]);
   const dias = useMemo(() => (mapa ? nivelesPorDia(mapa) : new Map()), [mapa]);
   const horas = useMemo(() => (mapa ? nivelesPorHora(mapa) : []), [mapa]);
   const flojos = useMemo(() => (mapa ? horariosFlojos(mapa, descanso, 6) : []), [mapa, descanso]);
@@ -78,6 +82,11 @@ export default function DemandaPage() {
         <Segmented value={vista} onChange={setVista} options={[{ value: "detalle", label: "Ver detalle" }, { value: "graficos", label: "📊 Ver en gráficos" }]} />
       </div>
 
+      {mapa && horarioTxt && (
+        <p className="rounded-xl border border-gray-100 bg-white px-3 py-2 text-xs text-brand-dark">
+          <b>Horario considerado:</b> {horarioTxt}. {mapa.fuente === "horarios" ? "Sale de cuándo hay reservas cada día, descontando las colaciones, bloqueos y vacaciones de tu equipo. Lo que queda fuera de ese horario no se cuenta como demanda baja." : "Sale de las horas en que hay reservas cada día. Lo que queda fuera de ese horario no se cuenta como demanda baja."}
+        </p>
+      )}
       <p className="text-xs text-brand-gray">Se mide el tiempo que ocupa cada cita: una cita larga cuenta en todas las horas que dura, así los servicios largos no aparecen como «poca demanda» las horas siguientes a su inicio.</p>
 
       {error && <p className="rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{error}</p>}
@@ -146,15 +155,17 @@ export default function DemandaPage() {
           {vista === "detalle" && <Panel title="Día y hora, en colores" subtitle="Cada cuadro es un día a una hora. Pasa el cursor (o toca) para ver cuántas reservas por semana.">
             <div className="overflow-x-auto">
               <table className="w-full min-w-[420px] border-separate border-spacing-1 text-center text-xs">
-                <thead><tr><th className="w-12" />{DIAS.slice(0, 6).map((d) => <th key={d} className="pb-1 font-semibold text-brand-dark">{d}</th>)}</tr></thead>
+                <thead><tr><th className="w-12" />{DIAS.slice(0, colsDias).map((d) => <th key={d} className="pb-1 font-semibold text-brand-dark">{d}</th>)}</tr></thead>
                 <tbody>
                   {mapa.horas.map((h) => (
                     <tr key={h}>
                       <th className={`pr-1 text-right font-medium text-brand-gray ${descanso.includes(h) ? "line-through opacity-50" : ""}`}>{hh(h)}</th>
-                      {DIAS.slice(0, 6).map((_, i) => {
-                        const dow = i + 1, v = celda.get(`${dow}-${h}`) ?? 0, n = nivelCelda(v, maxCelda);
-                        const cerrado = dias.get(dow)?.nivel === "cerrado";
-                        return <td key={dow} title={`${NOMBRE_DIA[i]} ${hh(h)}: ${num(v)} reservas por semana`} className={`h-8 rounded-md ${cerrado || descanso.includes(h) ? "bg-gray-100 dark:bg-gray-800" : COLOR[n].celda}`} />;
+                      {DIAS.slice(0, colsDias).map((_, i) => {
+                        const dow = i + 1, v = celda.get(`${dow}-${h}`) ?? 0, c = celdaDe.get(`${dow}-${h}`);
+                        const abierta = estaAbierta(mapa, dow, h), n = nivelCelda(valorCelda(c), maxCelda);
+                        const cerrado = dias.get(dow)?.nivel === "cerrado" || !abierta;
+                        const ocup = c?.disp && c.disp > 0 ? ` · ${Math.round(Math.min(1, (c.ocupado || 0) / c.disp) * 100)}% del tiempo ocupado` : "";
+                        return <td key={dow} title={cerrado ? `${NOMBRE_DIA[i]} ${hh(h)}: fuera del horario de atención` : `${NOMBRE_DIA[i]} ${hh(h)}: ${num(v)} reservas por semana${ocup}`} className={`h-8 rounded-md ${cerrado ? "bg-gray-100/60 dark:bg-gray-800/60" : descanso.includes(h) ? "bg-gray-100 dark:bg-gray-800" : COLOR[n].celda}`} />;
                       })}
                     </tr>
                   ))}
@@ -163,7 +174,7 @@ export default function DemandaPage() {
             </div>
             <div className="mt-3 flex flex-wrap items-center gap-4 text-[11px] text-brand-gray">
               {(["fuerte", "normal", "flojo"] as Nivel[]).map((n) => <span key={n} className="inline-flex items-center gap-1"><span className={`inline-block h-3 w-3 rounded ${COLOR[n].barra}`} /> {COLOR[n].etiqueta}</span>)}
-              <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-gray-200" /> Descanso o sin atención</span>
+              <span className="inline-flex items-center gap-1"><span className="inline-block h-3 w-3 rounded bg-gray-200" /> Fuera del horario, descanso o sin atención</span>
             </div>
           </Panel>}
 
