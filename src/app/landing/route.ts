@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readFileSync } from "fs";
 import { join } from "path";
+import { isEmpresasEnabled } from "@/lib/empresas/flag";
 
 // Serve the approved static marketing landing (Nico's delivery, with the Oti art) at
 // /landing. We READ and RETURN the HTML directly instead of redirecting to
@@ -42,6 +43,15 @@ export function GET() {
     .replaceAll('<a href="/suscribirse" data-subscribe="" data-ripple="" style="display: block; text-align: center; font-family: \'Bricolage Grotesque\', Georgia, sans-serif; font-size: 15px; font-weight: 600; margin-top: 18px; padding: 13px 20px; border-radius: 12px; position: relative; overflow: hidden; background: #fff; color: #14403E; border: 1px solid #DFD8CE; transition: transform .16s ease, background .16s ease, border-color .16s ease;" style-hover="border-color:#0A6E6B;transform:translateY(-2px)" style-active="transform:translateY(0)">Elegir Enterprise', '<a href="#" data-ripple="" style="display: block; text-align: center; font-family: \'Bricolage Grotesque\', Georgia, sans-serif; font-size: 15px; font-weight: 600; margin-top: 18px; padding: 13px 20px; border-radius: 12px; position: relative; overflow: hidden; background: #fff; color: #14403E; border: 1px solid #DFD8CE; transition: transform .16s ease, background .16s ease, border-color .16s ease;" style-hover="border-color:#0A6E6B;transform:translateY(-2px)" style-active="transform:translateY(0)">Elegir Enterprise')
     // Every remaining placeholder CTA (Comenzar ahora, Elegir plan, final CTA) → sales WhatsApp.
     .replaceAll('href="#"', waHref);
+
+  // Menu de 3 rayitas: "Empresas" lleva al login del panel de empresas. Solo aparece con Empresas encendido (ver flag.ts),
+  // para no mostrar en produccion un enlace a una pagina que todavia no esta activa.
+  if (isEmpresasEnabled()) {
+    html = html.replace(
+      '<a href="/login">Iniciar sesión</a>',
+      '<a href="/login">Iniciar sesión</a>\n  <a href="/empresa/login">Empresas</a>'
+    );
+  }
 
   // Build /suscribirse?plan=&seats=&cycle= from the plan card at click time.
   const subscribeScript = `<script>
