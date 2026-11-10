@@ -70,7 +70,7 @@ export async function POST(req: NextRequest) {
     };
   });
 
-  const totalDuration = resolvedServices.reduce((sum, s) => sum + s.duration, 0);
+  const totalDuration = Math.max(5, resolvedServices.reduce((sum, s) => sum + s.duration, 0)); // si todo dura 0 min, bloque mínimo de 5
   const totalPrice = resolvedServices.reduce((sum, s) => sum + s.price, 0);
   const serviceNames = resolvedServices.map((s) => s.name).join(" + ");
 

@@ -123,7 +123,7 @@ export default function BookingPage() {
 
   // Computed totals
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
-  const totalDuration = selectedServices.reduce((sum, s) => sum + s.duration, 0);
+  const totalDuration = Math.max(5, selectedServices.reduce((sum, s) => sum + s.duration, 0));
 
   const [closedDays, setClosedDays] = useState<number[]>([]);
   // Fechas puntuales en que el profesional esta de vacaciones.
