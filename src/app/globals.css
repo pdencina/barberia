@@ -597,3 +597,19 @@ html.rb-app a[href^="/suscribirse"],
 html.rb-app .rb-hide-in-app {
   display: none !important;
 }
+
+/* Ventanas emergentes: si el contenido es más alto que la pantalla (celulares), la ventana se desliza y se llega a los botones de abajo.
+   Antes quedaba cortada arriba y abajo. Se alinea arriba con margen automático: centrada si cabe, desde arriba si no. Respeta el notch. */
+[class*="fixed"][class*="inset-0"][class*="bg-black"]:not([class*="items-end"]):not([class*="lg:hidden"]) {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  align-items: flex-start !important;
+  padding-top: max(1rem, env(safe-area-inset-top));
+  padding-bottom: max(1rem, env(safe-area-inset-bottom));
+}
+[class*="fixed"][class*="inset-0"][class*="bg-black"]:not([class*="items-end"]):not([class*="lg:hidden"]) > * {
+  margin-top: auto;
+  margin-bottom: auto;
+}
+
