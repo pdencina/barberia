@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { canSeeOrder, roleCan, type Capability } from "@/lib/empresas/capabilities";
 import { badRequest, cleanText, dbErrorResponse, isUuid, notFound, readJson } from "@/lib/empresas/errors";
 import { requireCompany } from "@/lib/empresas/guard";
+import { faltaMigracion } from "@/lib/empresas/settings";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +19,15 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
   const g = await requireCompany();
   if (!g.ok) return g.response;
   if (!isUuid(params.id)) return notFound();
-  const { data, error } = await createAdminSupabase().from("company_orders")
-    .select("id, status, notes, created_by, created_at, confirmed_at, prepared_at, dispatched_at, delivered_at, cancelled_at, cancel_reason, customer:company_customers(name), warehouse:company_warehouses(name), items:company_order_items(product_id, quantity, unit_price, product:company_products(name, sku))")
+  const cols = "id, status, notes, created_by, created_at, confirmed_at, prepared_at, dispatched_at, delivered_at, cancelled_at, cancel_reason, warehouse:company_warehouses(name), items:company_order_items(product_id, quantity, unit_price, product:company_products(name, sku))";
+  const read = (extra: string) => createAdminSupabase().from("company_orders").select(`${cols}, ${extra}`)
     .eq("id", params.id).eq("tenant_id", g.tenantId).maybeSingle();
+  let { data, error } = await read("source, customer:company_customers(name, assigned_seller_id)");
+  if (error && faltaMigracion(error)) ({ data, error } = await read("customer:company_customers(name)"));
   if (error) return dbErrorResponse(error, "pedido GET");
-  if (!data || !canSeeOrder(g.role, g.userId, data)) return notFound();
-  return NextResponse.json({ order: data });
+  const order = data as any;
+  if (!order || !canSeeOrder(g.role, g.userId, { ...order, assignedSellerId: order.customer?.assigned_seller_id })) return notFound();
+  return NextResponse.json({ order });
 }
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
@@ -35,10 +39,11 @@ export async function POST(req: Request, { params }: { params: { id: string } })
   if (!Object.prototype.hasOwnProperty.call(ACTION_CAPABILITY, action)) return badRequest("La acción no es válida.");
 
   const admin = createAdminSupabase();
-  const { data: order, error: readError } = await admin.from("company_orders").select("created_by, status")
-    .eq("id", params.id).eq("tenant_id", g.tenantId).maybeSingle();
+  let { data: order, error: readError } = await admin.from("company_orders").select("created_by, status, customer:company_customers(assigned_seller_id)")
+    .eq("id", params.id).eq("tenant_id", g.tenantId).maybeSingle() as { data: any; error: any };
+  if (readError && faltaMigracion(readError)) ({ data: order, error: readError } = await admin.from("company_orders").select("created_by, status").eq("id", params.id).eq("tenant_id", g.tenantId).maybeSingle());
   if (readError) return dbErrorResponse(readError, "pedido acción");
-  if (!order || !canSeeOrder(g.role, g.userId, order)) return notFound();
+  if (!order || !canSeeOrder(g.role, g.userId, { ...order, assignedSellerId: order.customer?.assigned_seller_id })) return notFound();
   if (!roleCan(g.role, ACTION_CAPABILITY[action])) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   const args = { p_tenant_id: g.tenantId, p_order_id: params.id, p_user_id: g.userId };

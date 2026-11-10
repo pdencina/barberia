@@ -9,12 +9,20 @@ import type { Capability, CompanyRole } from "@/lib/empresas/capabilities";
 
 const ROLE_LABEL: Record<CompanyRole, string> = { owner: "Dueño", seller: "Vendedor", warehouse: "Bodega" };
 
-const NAV: { href: string; label: string; needs?: Capability }[] = [
+// hides: el vendedor ve "Mi cola"; el dueño ve "Cartera" (la misma página, con la vista de todos).
+const NAV: { href: string; label: string; needs?: Capability; hides?: Capability }[] = [
   { href: "/empresa", label: "Stock", needs: "stock.ver" },
+  { href: "/empresa/cartera", label: "Mi cola", needs: "gestiones.registrar", hides: "cartera.ver_todas" },
   { href: "/empresa/pedidos", label: "Pedidos" },
   { href: "/empresa/conteos", label: "Conteos", needs: "conteos.ver" },
   { href: "/empresa/productos", label: "Productos", needs: "productos.ver" },
   { href: "/empresa/clientes", label: "Clientes", needs: "clientes.ver" },
+  { href: "/empresa/cartera", label: "Cartera", needs: "cartera.ver_todas" },
+  { href: "/empresa/reporte", label: "Reporte", needs: "reporte.ver" },
+  { href: "/empresa/campanas", label: "Campañas", needs: "campanas.gestionar" },
+  { href: "/empresa/importar", label: "Importar", needs: "importar" },
+  { href: "/empresa/equipo", label: "Equipo", needs: "usuarios.gestionar" },
+  { href: "/empresa/config", label: "Configuración", needs: "config.editar" },
 ];
 
 const CompanyContext = createContext<{ role: CompanyRole; capabilities: readonly Capability[] }>({ role: "seller", capabilities: [] });
@@ -48,10 +56,10 @@ export function CompanyShell({ tenantName, role, capabilities, children }: {
             <button onClick={signOut} className="text-sm text-gray-600 underline">Salir</button>
           </div>
           <nav className="mx-auto flex max-w-6xl gap-1 overflow-x-auto px-4 pb-2">
-            {NAV.filter((n) => !n.needs || capabilities.includes(n.needs)).map((n) => {
+            {NAV.filter((n) => (!n.needs || capabilities.includes(n.needs)) && (!n.hides || !capabilities.includes(n.hides))).map((n) => {
               const active = n.href === "/empresa" ? pathname === "/empresa" : pathname.startsWith(n.href);
               return (
-                <Link key={n.href} href={n.href} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${active ? "bg-brand-blue text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                <Link key={n.label} href={n.href} className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${active ? "bg-brand-blue text-white" : "text-gray-600 hover:bg-gray-100"}`}>
                   {n.label}
                 </Link>
               );

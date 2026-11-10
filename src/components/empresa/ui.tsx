@@ -20,6 +20,15 @@ export async function api<T = any>(path: string, body?: unknown): Promise<T> {
   return data as T;
 }
 
+export async function apiPatch<T = any>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`/api/empresa/${path}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || "No se pudo completar la acción.");
+  return data as T;
+}
+
+export const errorText = (e: unknown, fallback = "No se pudo completar la acción.") => (e instanceof Error ? e.message : fallback);
+
 export function useApi<T = any>(path: string) {
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState("");
@@ -59,4 +68,5 @@ export function Table({ head, children }: { head: string[]; children: React.Reac
 export const ORDER_STATUS: Record<string, string> = {
   draft: "Borrador", confirmed: "Confirmado", prepared: "Preparado", dispatched: "Despachado", delivered: "Entregado", cancelled: "Cancelado",
 };
+export const ROLE_LABEL: Record<string, string> = { owner: "Dueño", seller: "Vendedor", warehouse: "Bodega" };
 export const COUNT_STATUS: Record<string, string> = { open: "Abierto", closed: "Cerrado", cancelled: "Cancelado" };

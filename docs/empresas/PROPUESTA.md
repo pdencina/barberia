@@ -162,3 +162,18 @@ Sección 15 de `AGENTS.md`: Codex escribe en ramas `codex/*` con ficha de tarea,
 **Decisiones técnicas:** el permiso sale de `company_members`, nunca de `profiles.role` (los usuarios de empresa llevan `client`, sin valores nuevos). Bodega cuenta a ciegas y el dueño cierra; los ajustes directos son del dueño. El vendedor ve todos los clientes y solo sus pedidos hasta que exista la cartera (Etapa 2).
 **Datos de demo:** `npx tsx scripts/empresas-demo.ts` (solo pruebas, pide la clave en la Terminal).
 **Falta en la Etapa 1:** importación desde Excel (espera formato de Felipe) y gestión de usuarios desde el panel.
+
+## 11. Etapas 1 a 4 construidas (10 nov. 2026)
+
+**HECHO, probado en `rebooking-pruebas` y local** (`scripts/test-empresas-etapas.ts` 111/111, `scripts/test-empresas-logica.ts`, `test-empresas-rutas` y `test-empresas-capacidades` sin regresiones). Migraciones **158** (configuración, cartera, gestiones, reporte), **159** (portal) y **160** (campañas), juntas en `entrega-produccion/SQL-EMPRESAS-ETAPAS.sql`. Todo lo que sale hacia afuera viene **apagado** por empresa.
+
+| Etapa | Qué hay | Dónde |
+|---|---|---|
+| 1 | Importar productos (con stock inicial) y clientes desde Excel/CSV, con revisión antes de guardar; nunca borra ni deja en blanco. Equipo: crear cuentas, cambiar rol, desactivar, cambiar contraseña; siempre queda un dueño | `/empresa/importar`, `/empresa/equipo`, `src/lib/empresas/import.ts` |
+| 2 | Cartera por vendedor; cola obligatoria (solo se anota el cliente que toca; saltar exige motivo; el dueño destraba); reporte semanal en pantalla y por correo los lunes (si se activa) | `/empresa/cartera`, `/empresa/reporte`, `src/lib/empresas/cartera.ts`, cron `empresas-reporte-semanal` |
+| 3 | Portal de distribuidores con su propia cuenta: catálogo con disponibilidad (o cantidad exacta), pedido en borrador y comprobante por correo a su vendedor (o a los dueños) | `/socios`, `/empresa/config`, `src/lib/empresas/partner.ts` |
+| 4 | Campañas programadas por WhatsApp a clientes con permiso, respetando bajas, una vez por persona. **Envío real bloqueado**: sin `EMPRESAS_WHATSAPP_SEND=1` todo queda "simulado" | `/empresa/campanas`, cron `empresas-campanas`, `src/lib/empresas/campanas.ts` |
+
+**Decisiones tomadas por defecto (las preguntas a Felipe siguen abiertas; todo se cambia en Configuración):** llamar a cada cliente cada 30 días; "no contestó" reintenta a los 2 días, hasta 3 veces; el distribuidor ve solo "disponible/agotado" y precios de lista; el vendedor ve su cartera más los clientes sin vendedor (para que un cliente que llama nunca quede bloqueado); un pedido cuenta como "vendió".
+
+**Pendiente:** precios propios por distribuidor; variables en las plantillas de WhatsApp (hoy van sin variables); número de WhatsApp Business de la empresa y plantillas aprobadas por Meta; devoluciones de lo despachado; si un pedido del portal falla al guardar sus productos, el borrador vacío no se cancela solo (el distribuidor no es miembro).

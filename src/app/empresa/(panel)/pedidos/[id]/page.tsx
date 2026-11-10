@@ -44,7 +44,7 @@ export default function PedidoPage({ params }: { params: { id: string } }) {
       {order && (
         <>
           <div className={`${CARD} grid gap-1 text-sm text-brand-dark sm:grid-cols-3`}>
-            <p><b>Cliente:</b> {order.customer?.name}</p>
+            <p><b>Cliente:</b> {order.customer?.name}{order.source === "portal" && " (pedido hecho por el distribuidor en el portal)"}</p>
             <p><b>Bodega:</b> {order.warehouse?.name}</p>
             <p><b>Estado:</b> {ORDER_STATUS[order.status] || order.status}</p>
             {order.cancel_reason && <p className="sm:col-span-3"><b>Motivo:</b> {order.cancel_reason}</p>}
