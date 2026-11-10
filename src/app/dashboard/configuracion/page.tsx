@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { ThemePicker } from "@/components/settings/theme-picker";
+import { ClientThemePreview } from "@/components/settings/client-theme-preview";
 import { type AppTheme, THEMES, normalizeTheme } from "@/lib/themes";
 import { BookingRuleCard } from "@/components/settings/booking-rule-card";
 import { planPermite, type Capacidad } from "@/lib/plan-access";
@@ -75,6 +76,8 @@ export default function ConfiguracionPage() {
   // actual y avisarle al servidor cuando cambia.
   const [theme, setTheme] = useState<AppTheme>("light");
   const [savingTheme, setSavingTheme] = useState(false);
+  const [clientTheme, setClientTheme] = useState(false);
+  const [savingClientTheme, setSavingClientTheme] = useState(false);
 
   // Calendario "profesionales agrupados" (solo negocios de 2 a 4 profesionales). Lo lee y lo
   // guarda /api/settings/calendar-view; si el negocio no cumple el rango, la tarjeta no aparece.
@@ -320,6 +323,9 @@ export default function ConfiguracionPage() {
         setLogoUrl((tenantRow as any).logo_url || null);
         setTheme(normalizeTheme((tenantRow as any).theme));
       }
+      // Aparte para que funcione aunque falte la migración 151.
+      supabase.from("tenants").select("client_theme_enabled").eq("id", resolvedTenantId).maybeSingle()
+        .then(({ data, error }) => { if (!error && data) setClientTheme(!!(data as any).client_theme_enabled); });
 
       {
         // Fetch deposit settings
@@ -415,6 +421,21 @@ export default function ConfiguracionPage() {
   const copyLink = () => {
     navigator.clipboard.writeText(bookingUrl);
     showToast("Link copiado!", "success");
+  };
+
+  const handleClientThemeToggle = async (next: boolean) => {
+    if (!tenantId || savingClientTheme) return;
+    setClientTheme(next);
+    setSavingClientTheme(true);
+    try {
+      const res = await fetch("/api/settings/theme", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId, clientThemeEnabled: next }) });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || ""); }
+      showToast(next ? "Página de reservas y correos con los colores del sistema" : "Página de reservas y correos con los colores de siempre", "success");
+    } catch (e: any) {
+      setClientTheme(!next);
+      showToast(e?.message || "No se pudo guardar", "error");
+    }
+    setSavingClientTheme(false);
   };
 
   const handleThemeChange = async (next: AppTheme) => {
@@ -1296,6 +1317,20 @@ export default function ConfiguracionPage() {
           <p className="text-xs text-brand-gray">
             Este cambio aplica a todo el sistema para {businessData.name || "tu negocio"}: colores, tarjetas y el logo de re-booking se adaptan automaticamente.
           </p>
+          <div className="rounded-xl border border-gray-200 dark:border-white/10 p-4 space-y-3">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-bold text-brand-dark">Colores para tus clientes</h3>
+                <p className="text-xs text-brand-gray mt-0.5">Que la página de reservas y los correos de confirmación y recordatorio usen estos mismos colores. Mira abajo cómo se verían.</p>
+              </div>
+              <button type="button" role="switch" aria-checked={clientTheme} disabled={savingClientTheme} onClick={() => handleClientThemeToggle(!clientTheme)}
+                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${clientTheme ? "bg-brand-blue" : "bg-gray-300"}`}>
+                <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${clientTheme ? "left-[22px]" : "left-0.5"}`} />
+              </button>
+            </div>
+            <ClientThemePreview theme={theme} businessName={businessData.name} />
+            <p className="text-[11px] text-brand-gray">{clientTheme ? "Activado: tus clientes ya ven estos colores." : "Desactivado: tus clientes ven los colores de siempre (verde azulado)."} Los correos de otro tipo (boletas, avisos del equipo) no cambian.</p>
+          </div>
           {/* Aviso "tema oscuro parcial" retirado (Nico, 29-sep): la cobertura ya es completa. */}
         </div>
       )}

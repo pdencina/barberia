@@ -10,6 +10,7 @@ import { SuccessMark } from "@/components/ui/empty-state";
 import MetaPixel from "@/components/meta-pixel";
 import { track, eventId } from "@/lib/meta-pixel";
 import { textoPoliticaAbono } from "@/lib/deposit-policy";
+import { applyColorTheme, clearColorTheme, isAppTheme } from "@/lib/themes";
 
 interface Service {
   id: string;
@@ -103,6 +104,13 @@ export default function BookingPage() {
       .then(({ data }) => setHasSession(!!data?.user)).catch(() => {});
   }, []);
   useEffect(() => { captureAdParams(); }, []);
+  // Si el negocio activó "usar los colores del sistema", la página de reservas usa su tema (migración 151).
+  const colorTheme = (businessInfo as any)?.color_theme;
+  useEffect(() => {
+    if (!isAppTheme(colorTheme)) return;
+    applyColorTheme(document.documentElement, colorTheme);
+    return () => clearColorTheme(document.documentElement);
+  }, [colorTheme]);
   const preselectSlot = useRef<string>(""); // hora elegida en la vista por horario
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(30);
@@ -488,7 +496,7 @@ export default function BookingPage() {
       )}
 
       {/* Header: logo y nombre del negocio integrados (con la presentacion visible solo dice "Agendar hora") */}
-      <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/90 px-4 py-2.5 backdrop-blur">
+      <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/90 dark:border-white/10 dark:bg-brand-white px-4 py-2.5 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           {showProfile ? (
             <p className="flex-1 text-xs font-medium uppercase tracking-widest text-brand-blue">Agendar hora</p>

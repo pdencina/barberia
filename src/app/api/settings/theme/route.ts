@@ -17,6 +17,17 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({} as any));
+
+  // Interruptor "usar los colores del sistema en la página de reservas y los correos" (migración 151).
+  if (typeof body?.clientThemeEnabled === "boolean") {
+    const { tenantId: tid, denied: den } = await resolveTenantForRequest(body.tenantId);
+    if (den) return NextResponse.json({ error: "No autorizado para ese negocio" }, { status: 403 });
+    if (!tid || tid === "ALL") return NextResponse.json({ error: "No se pudo determinar el negocio" }, { status: 400 });
+    const { error: e2 } = await createAdminSupabase().from("tenants").update({ client_theme_enabled: body.clientThemeEnabled }).eq("id", tid);
+    if (e2) return NextResponse.json({ error: e2.code === "42703" ? "Falta aplicar la migración 151." : "No se pudo guardar" }, { status: e2.code === "42703" ? 503 : 500 });
+    return NextResponse.json({ success: true, clientThemeEnabled: body.clientThemeEnabled });
+  }
+
   if (!isAppTheme(body?.theme)) return NextResponse.json({ error: "Tema inválido" }, { status: 400 });
   const theme = body.theme;
 

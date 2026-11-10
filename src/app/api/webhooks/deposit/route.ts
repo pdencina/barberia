@@ -1,4 +1,5 @@
 import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
+import { getClientColorTheme } from "@/lib/client-theme";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { tryConsumeQuota } from "@/lib/message-quota";
@@ -277,6 +278,7 @@ export async function POST(req: NextRequest) {
           const serviceNames = (await supabase.from("services").select("name").in("id", serviceIds)).data?.map((s) => s.name).join(" + ") || "";
 
           await sendBookingConfirmation({
+            colorTheme: await getClientColorTheme(supabase, tenantId),
             to: clientEmail,
             clientName,
             barberName: barber?.name || "Tu profesional",

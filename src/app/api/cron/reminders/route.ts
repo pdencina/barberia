@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getClientColorTheme } from "@/lib/client-theme";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { sendAppointmentReminder } from "@/lib/resend";
 import { telefonoDeNegocio } from "@/lib/contacto-negocio";
@@ -93,6 +94,7 @@ export async function GET(req: NextRequest) {
         const allowed = !tenantId || (await tryConsumeQuota(tenantId, "email", "reminder", appt.id));
         if (allowed) {
           await sendAppointmentReminder({
+            colorTheme: await getClientColorTheme(supabase, tenantId),
             to: client.email,
             clientName: client.name,
             barberName: barber?.name || "Tu profesional",
