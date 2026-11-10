@@ -496,7 +496,7 @@ export default function BookingPage() {
       )}
 
       {/* Header: logo y nombre del negocio integrados (con la presentacion visible solo dice "Agendar hora") */}
-      <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/90 px-4 py-2.5 backdrop-blur">
+      <div className="sticky top-0 z-30 border-b border-gray-100 bg-white/90 dark:border-white/10 dark:bg-brand-white px-4 py-2.5 backdrop-blur">
         <div className="mx-auto flex max-w-2xl items-center gap-3">
           {showProfile ? (
             <p className="flex-1 text-xs font-medium uppercase tracking-widest text-brand-blue">Agendar hora</p>
