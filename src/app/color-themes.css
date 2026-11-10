@@ -1003,3 +1003,6 @@ html[data-color-theme="rose"] article[id^="agenda-"] .bg-brand-blue\/10 {
 html[data-color-theme="dark"] .bg-brand-blue,
 html[data-color-theme="dark"] .bg-brand-blue .text-white,
 html[data-color-theme="dark"] .bg-brand-blue svg { color:#0b1216; }
+
+/* En Rosa y los blanco/negro las tarjetas con degradado pasan a ser tarjetas normales; el texto que forzaba blanco con !important (ej. "sin datos" de WhatsApp indicadores) se volvía invisible. */
+html:is([data-color-theme="rose"], [data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) [class*="bg-gradient-"]:not(.agenda-day-summary) [class*="!text-white"] * { color:hsl(var(--foreground)) !important; }
