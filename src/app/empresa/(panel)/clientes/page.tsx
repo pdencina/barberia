@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useCan } from "@/components/empresa/shell";
-import { api, apiPatch, BUTTON, CARD, errorText, INPUT, Message, Table, TD, Title, useApi } from "@/components/empresa/ui";
+import { api, apiPatch, BUTTON, CARD, errorText, INPUT, Message, Table, TD, Title, useApi, waLink } from "@/components/empresa/ui";
 
 const EMPTY = { name: "", taxId: "", contactName: "", phone: "", email: "", city: "", customerType: "client", whatsappOptIn: false };
 
@@ -68,7 +68,10 @@ export default function ClientesPage() {
             <td className={TD}>{c.name}</td>
             <td className={TD}>{c.tax_id || "-"}</td>
             <td className={TD}>{c.contact_name || "-"}</td>
-            <td className={TD}>{c.phone || "-"}</td>
+            <td className={TD}>
+              {c.phone || "-"}
+              {waLink(c.phone) && <a className="ml-2 text-xs font-semibold text-green-700 underline" href={waLink(c.phone)!} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
+            </td>
             <td className={TD}>{c.city || "-"}</td>
             <td className={TD}>
               {assign ? (

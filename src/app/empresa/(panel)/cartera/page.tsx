@@ -3,11 +3,12 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useCan } from "@/components/empresa/shell";
-import { api, BUTTON, BUTTON_LIGHT, CARD, errorText, INPUT, Message, Table, TD, Title, useApi } from "@/components/empresa/ui";
+import { api, BUTTON, BUTTON_LIGHT, CARD, errorText, INPUT, Message, Table, TD, Title, useApi, waLink } from "@/components/empresa/ui";
 import { RESULT_LABEL, type ActivityResult } from "@/lib/empresas/cartera";
 
 const fecha = (ms: number | string) => new Date(ms).toLocaleDateString("es-CL", { day: "numeric", month: "short", year: "numeric" });
-const mañana = () => new Date(Date.now() + 86400e3 - 3 * 3600e3).toISOString().slice(0, 10);
+const enDias = (n: number) => new Date(Date.now() + n * 86400e3 - 3 * 3600e3).toISOString().slice(0, 10);
+const mañana = () => enDias(1);
 
 // Cola obligatoria: el vendedor resuelve el cliente que toca antes de pasar al siguiente.
 function MiCola({ sellerId }: { sellerId?: string }) {
@@ -15,16 +16,16 @@ function MiCola({ sellerId }: { sellerId?: string }) {
   const [notes, setNotes] = useState("");
   const [callbackOn, setCallbackOn] = useState(mañana());
   const [skipReason, setSkipReason] = useState("");
-  const [mode, setMode] = useState<"" | "callback" | "skipped">("");
+  const [mode, setMode] = useState<"" | "callback" | "skipped" | "no_answer">("");
   const [msg, setMsg] = useState<{ error?: string; ok?: string }>({});
   const [busy, setBusy] = useState(false);
   const current = data?.current;
 
-  const save = async (result: ActivityResult) => {
+  const save = async (result: ActivityResult, retryOn?: string) => {
     setBusy(true);
     setMsg({});
     try {
-      await api("gestiones", { customerId: current.customerId, result, notes, callbackOn: result === "callback" ? callbackOn : undefined, skipReason: result === "skipped" ? skipReason : undefined });
+      await api("gestiones", { customerId: current.customerId, result, notes, callbackOn: result === "callback" ? callbackOn : result === "no_answer" ? retryOn : undefined, skipReason: result === "skipped" ? skipReason : undefined });
       setMsg({ ok: `Anotado: ${RESULT_LABEL[result]}.` });
       setNotes(""); setSkipReason(""); setMode("");
       reload();
@@ -55,6 +56,7 @@ function MiCola({ sellerId }: { sellerId?: string }) {
             </p>
             <div className="mt-1 flex flex-wrap gap-3 text-sm">
               {current.customer?.phone && <a className="font-semibold text-brand-blue underline" href={`tel:${current.customer.phone}`}>{current.customer.phone}</a>}
+              {waLink(current.customer?.phone) && <a className="font-semibold text-green-700 underline" href={waLink(current.customer.phone)!} target="_blank" rel="noopener noreferrer">WhatsApp</a>}
               {current.customer?.email && <a className="text-brand-blue underline" href={`mailto:${current.customer.email}`}>{current.customer.email}</a>}
             </div>
           </div>
@@ -69,12 +71,21 @@ function MiCola({ sellerId }: { sellerId?: string }) {
           <textarea aria-label="Notas" className={`${INPUT} h-20 py-2`} placeholder="Notas del llamado (opcional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
           <div className="flex flex-wrap gap-2">
             <button disabled={busy} className={BUTTON} onClick={() => save("sold")}>Vendió</button>
-            <button disabled={busy} className={BUTTON_LIGHT} onClick={() => save("no_answer")}>No contestó</button>
+            <button disabled={busy} className={BUTTON_LIGHT} onClick={() => setMode(mode === "no_answer" ? "" : "no_answer")}>No contestó</button>
             <button disabled={busy} className={BUTTON_LIGHT} onClick={() => setMode(mode === "callback" ? "" : "callback")}>Volver a llamar</button>
             <button disabled={busy} className={BUTTON_LIGHT} onClick={() => save("not_interested")}>Sin interés</button>
             <button disabled={busy} className={BUTTON_LIGHT} onClick={() => setMode(mode === "skipped" ? "" : "skipped")}>Saltar</button>
             <Link href="/empresa/pedidos" className={`${BUTTON_LIGHT} inline-flex items-center`}>Tomar pedido</Link>
           </div>
+          {mode === "no_answer" && (
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-gray-600">¿Cuándo insistir?</span>
+              {([["Mañana", 1], ["En 2 días", 2], ["En una semana", 7], ["En un mes", 30]] as const).map(([label, n]) => (
+                <button key={n} disabled={busy} className={BUTTON_LIGHT} onClick={() => save("no_answer", enDias(n))}>{label}</button>
+              ))}
+              <input aria-label="Otra fecha para reintentar" type="date" className={`${INPUT} w-auto`} min={mañana()} onChange={(e) => e.target.value && save("no_answer", e.target.value)} />
+            </div>
+          )}
           {mode === "callback" && (
             <div className="flex flex-wrap items-center gap-2">
               <input aria-label="Fecha para volver a llamar" type="date" className={`${INPUT} w-auto`} value={callbackOn} min={mañana()} onChange={(e) => setCallbackOn(e.target.value)} />

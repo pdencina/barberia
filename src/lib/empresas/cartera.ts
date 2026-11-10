@@ -26,7 +26,8 @@ const callbackTime = (d: string) => Date.parse(`${d}T04:00:00Z`);
  * - Vendió / sin interés: un ciclo después (contactEveryDays).
  * - Volver a llamar: en la fecha acordada.
  * - Saltado: al día siguiente (saltarse exige motivo y aparece en el reporte).
- * - No contestó: reintenta cada noAnswerRetryDays hasta maxNoAnswerAttempts seguidos; después, un ciclo desde el primer intento.
+ * - No contestó: en la fecha que eligió el vendedor; si no eligió, cada noAnswerRetryDays hasta maxNoAnswerAttempts seguidos
+ *   y después un ciclo desde el primer intento.
  * Un pedido del cliente cuenta como "vendió".
  */
 export function nextDueAt(activities: Activity[], settings: CarteraSettings, createdAt: string): number {
@@ -43,6 +44,8 @@ export function nextDueAt(activities: Activity[], settings: CarteraSettings, cre
     case "skipped":
       return lastAt + DAY;
     case "no_answer": {
+      // Felipe: la insistencia queda a criterio del vendedor. Si eligió cuándo reintentar, manda esa fecha.
+      if (last.callbackOn) return callbackTime(last.callbackOn);
       let streak = 0;
       let firstOfStreak = lastAt;
       for (const a of sorted) {
