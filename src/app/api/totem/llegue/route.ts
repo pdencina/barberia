@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { negocioDelTotem, normalizarCodigo, hoyChile, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { notify } from "@/lib/notify";
 
 // POST {codigo, appointmentId, code}: el cliente avisa que llego. Marca arrived_at y avisa al profesional.
@@ -15,9 +15,9 @@ export async function POST(req: NextRequest) {
   const code = normalizarCodigo(body.code);
   if (!body.appointmentId || code.length !== 5) return NextResponse.json({ error: "Falta el código" }, { status: 400 });
 
-  const { data: a } = await supabase.from("appointments")
+  const { data: a } = await soloDiaDelTotem(supabase.from("appointments")
     .select("id, status, barber_id, arrived_at, checkin_code, client:clients(name)")
-    .eq("id", body.appointmentId).eq("tenant_id", t.id).eq("date", hoyChile()).maybeSingle();
+    .eq("id", body.appointmentId).eq("tenant_id", t.id)).maybeSingle();
   if (!a || (a as any).checkin_code !== code || !["scheduled", "confirmed", "in_progress"].includes((a as any).status)) {
     return NextResponse.json({ error: "No encontramos tu cita" }, { status: 404 });
   }

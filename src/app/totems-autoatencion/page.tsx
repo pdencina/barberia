@@ -8,7 +8,7 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesion: todo pasa por /api/totem/* con el codigo corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 
 type Pantalla = "inicio" | "codigo" | "cita" | "sinhora" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
-interface Cita { id: string; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
+interface Cita { id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
 interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; info: { title: string; body: string }[] }
 
@@ -229,6 +229,7 @@ function Totem() {
           <div className="space-y-6">
             {citas.map((c) => (
               <div key={c.id} className="rounded-3xl bg-white/10 p-8">
+                {c.fecha && <p className="mb-2 text-2xl font-semibold text-amber-300">📅 {new Date(`${c.fecha}T12:00:00`).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })} (modo pruebas)</p>}
                 <p className="text-6xl font-extrabold">{c.hora}</p>
                 <p className="mt-3 text-3xl font-semibold">{c.servicio}</p>
                 <p className="mt-1 text-2xl opacity-70">con {c.profesional || "tu profesional"} · {c.cliente}</p>

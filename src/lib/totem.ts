@@ -24,6 +24,18 @@ export function hoyChile(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
 
+// MODO PRUEBAS (10 nov 2026, a pedido de Nico): el tótem también encuentra citas de los próximos 30 días, no solo las de hoy.
+// Para volver a la regla real (solo citas de HOY), poner false.
+export const TOTEM_PRUEBAS_OTRO_DIA = true;
+
+// Limita una consulta de citas al día que corresponde (hoy; en modo pruebas, hoy y los próximos 30 días).
+export function soloDiaDelTotem(q: any): any {
+  const hoy = hoyChile();
+  if (!TOTEM_PRUEBAS_OTRO_DIA) return q.eq("date", hoy);
+  const hasta = new Date(`${hoy}T12:00:00Z`); hasta.setUTCDate(hasta.getUTCDate() + 30);
+  return q.gte("date", hoy).lte("date", hasta.toISOString().slice(0, 10));
+}
+
 export function primerNombre(n: string | null | undefined): string {
   return String(n || "").trim().split(/\s+/)[0] || "";
 }

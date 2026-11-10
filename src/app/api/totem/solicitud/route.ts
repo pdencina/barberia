@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { negocioDelTotem, normalizarCodigo, hoyChile, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { notify } from "@/lib/notify";
 
 // POST {codigo, tipo: "pago"|"producto", code?, productos?: [{id, cantidad}]}: el cliente pide pagar o llevarse un producto.
@@ -16,7 +16,7 @@ export async function POST(req: NextRequest) {
   let barberId: string | null = null;
   const code = normalizarCodigo(body.code);
   if (code.length === 5) {
-    const { data: a } = await supabase.from("appointments").select("barber_id, client:clients(name)").eq("tenant_id", t.id).eq("date", hoyChile()).eq("checkin_code", code).maybeSingle();
+    const { data: a } = await soloDiaDelTotem(supabase.from("appointments").select("barber_id, client:clients(name)").eq("tenant_id", t.id).eq("checkin_code", code)).order("date").limit(1).maybeSingle();
     if (a) { quien = primerNombre((a as any).client?.name) || quien; barberId = (a as any).barber_id || null; }
   }
 
