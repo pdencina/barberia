@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import AnalisisEmbudo, { type Analisis } from "@/components/vendedores/analisis";
 
-type Datos = { nombre: string; stats: { iniciados: number; pagados: number; ingresos: number; conversion: number; ventas: { fecha: string | null; plan: string | null; monto: number }[] } };
+type Datos = { nombre: string; analisis: Analisis | null; stats: { iniciados: number; pagados: number; ingresos: number; conversion: number; ventas: { fecha: string | null; plan: string | null; monto: number }[] } };
 const clp = (n: number) => "$" + Math.round(n).toLocaleString("es-CL");
 
 export default function VendedorPage() {
@@ -48,6 +49,7 @@ export default function VendedorPage() {
                 </ul>
               )}
             </div>
+            <AnalisisEmbudo a={d.analisis} />
           </>
         )}
       </div>

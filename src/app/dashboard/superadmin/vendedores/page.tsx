@@ -5,6 +5,7 @@ import { Copy } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { PageHeader, Panel, inputClass, primaryButton, ghostButton, tableStyles } from "@/components/ui/premium";
 import { slugifyAd } from "@/lib/ad-tracking";
+import AnalisisEmbudo, { type Analisis } from "@/components/vendedores/analisis";
 
 type Stats = { iniciados: number; pagados: number; ingresos: number; conversion: number };
 type Vendedor = { id: string; name: string; slug: string; token: string; active: boolean; stats: Stats };
@@ -18,9 +19,11 @@ export default function VendedoresPage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [saving, setSaving] = useState(false);
+  const [analisis, setAnalisis] = useState<Analisis | null>(null);
+  const [filtro, setFiltro] = useState("");
 
-  const load = () => fetch("/api/superadmin/vendedores", { cache: "no-store" }).then((r) => r.json()).then((d) => { setRows(d.vendedores || []); setMigracion(d.migracion !== false); }).catch(() => setRows([]));
-  useEffect(() => { load(); }, []);
+  const load = () => fetch(`/api/superadmin/vendedores${filtro ? `?slug=${filtro}` : ""}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { setRows(d.vendedores || []); setMigracion(d.migracion !== false); setAnalisis(d.analisis || null); }).catch(() => setRows([]));
+  useEffect(() => { load(); }, [filtro]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const copy = (t: string, m: string) => { navigator.clipboard.writeText(t); showToast(m, "success"); };
   const crear = async () => {
@@ -76,6 +79,14 @@ export default function VendedoresPage() {
             </table>
           </div>
         ) : <p className="px-5 pb-5 text-sm text-brand-gray">Cargando...</p>}
+      </Panel>
+
+      <Panel title="Análisis de ventas" subtitle="Dónde se queda la gente, cuándo llega y con qué aparato. Elige un vendedor o mira todos (incluye a los creadores de contenido).">
+        <select value={filtro} onChange={(e) => setFiltro(e.target.value)} className={`${inputClass} mb-3 max-w-xs`}>
+          <option value="">Todos</option>
+          {(rows || []).map((v) => <option key={v.id} value={v.slug}>{v.name}</option>)}
+        </select>
+        <AnalisisEmbudo a={analisis} />
       </Panel>
     </div>
   );

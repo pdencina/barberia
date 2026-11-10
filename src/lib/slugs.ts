@@ -4,7 +4,7 @@ export const LARGO_MIN = 3, LARGO_MAX = 40;
 // Nombres que ya son direcciones de re-booking (o lo serán): un negocio no puede llamarse así porque la dirección ya tiene otro uso.
 export const RESERVADOS = new Set([
   "api", "auth", "b", "booking", "cambiar-clave", "cancel", "dashboard", "eliminar-cuenta", "galeria", "landing", "login", "portal", "privacidad", "pro",
-  "ranking", "registro", "reset-password", "review", "signup", "suscribirse", "suscripcion", "terminos",
+  "ranking", "registro", "reset-password", "review", "signup", "suscribirse", "suscripcion", "terminos", "vendedor",
   "admin", "app", "www", "soporte", "ayuda", "precios", "contacto", "blog", "empresa", "empresas", "socios", "static", "public", "assets", "images", "img", "icons",
   "favicon", "robots", "sitemap", "manifest", "sw", "next", "_next", "re-booking", "rebooking", "oti", "mi-negocio", "demo", "test", "null", "undefined",
 ]);
