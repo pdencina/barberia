@@ -15,6 +15,7 @@ async function socios<T = any>(path: string, body?: unknown): Promise<T> {
 
 export default function CatalogoPage() {
   const [products, setProducts] = useState<any[] | null>(null);
+  const [tier, setTier] = useState<{ name: string; discountPct: number } | null>(null);
   const [cart, setCart] = useState<Record<string, string>>({});
   const [notes, setNotes] = useState("");
   const [search, setSearch] = useState("");
@@ -23,7 +24,7 @@ export default function CatalogoPage() {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    socios<{ products: any[] }>("catalogo").then((d) => setProducts(d.products)).catch((e) => setMsg({ error: e.message }));
+    socios<{ products: any[]; tier: any }>("catalogo").then((d) => { setProducts(d.products); setTier(d.tier); }).catch((e) => setMsg({ error: e.message }));
   }, []);
 
   const lines = useMemo(() => Object.entries(cart).map(([id, q]) => ({ productId: id, quantity: Number(q) })).filter((l) => Number.isInteger(l.quantity) && l.quantity > 0), [cart]);
@@ -66,6 +67,7 @@ export default function CatalogoPage() {
   return (
     <div className="space-y-4">
       <Title>Catálogo</Title>
+      {tier && <p className="rounded-lg bg-teal-50 px-3 py-2 text-sm text-teal-900">Tu precio: <b>{tier.name}</b> ({tier.discountPct}% de descuento sobre el precio de lista).</p>}
       <Message {...msg} />
       <input aria-label="Buscar producto" className={`${INPUT} sm:w-80`} placeholder="Buscar producto, SKU o categoría" value={search} onChange={(e) => setSearch(e.target.value)} />
       <Table head={["Producto", "SKU", ...(showPrices ? ["Precio"] : []), "Stock", "Cantidad"]}>
@@ -73,7 +75,12 @@ export default function CatalogoPage() {
           <tr key={p.id}>
             <td className={TD}>{p.name}{p.category && <span className="block text-xs text-gray-500">{p.category}</span>}</td>
             <td className={TD}>{p.sku || "-"}</td>
-            {showPrices && <td className={TD}>{p.price != null ? clp(p.price) : "-"}</td>}
+            {showPrices && (
+              <td className={TD}>
+                {p.price != null ? clp(p.price) : "-"}
+                {p.listPrice != null && <span className="ml-1 text-xs text-gray-400 line-through">{clp(p.listPrice)}</span>}
+              </td>
+            )}
             <td className={TD}>
               {p.inStock ? <span className="text-green-700">{"available" in p ? p.available : "Disponible"}</span> : <span className="text-gray-400">Agotado</span>}
             </td>

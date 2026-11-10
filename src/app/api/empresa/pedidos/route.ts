@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { BODEGA_ORDER_STATUSES, roleCan } from "@/lib/empresas/capabilities";
 import { badRequest, cleanText, dbErrorResponse, isUuid, readJson } from "@/lib/empresas/errors";
 import { requireCompany } from "@/lib/empresas/guard";
+import { customerDiscount, priceWithTier } from "@/lib/empresas/precios";
 import { faltaMigracion } from "@/lib/empresas/settings";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
@@ -67,6 +68,8 @@ export async function POST(req: Request) {
   const catalog = new Map((products || []).map((p) => [p.id, p]));
   if (raw.some((item) => !catalog.get(item.productId)?.active)) return badRequest("Hay un producto que no existe o está inactivo.");
 
+  // Precio con el tramo del cliente (mayorista), calculado en el servidor.
+  const { discountPct } = await customerDiscount(admin, g.tenantId, body!.customerId as string);
   const { data: order, error } = await admin.from("company_orders").insert({
     tenant_id: g.tenantId,
     customer_id: body?.customerId,
@@ -81,7 +84,7 @@ export async function POST(req: Request) {
     tenant_id: g.tenantId,
     product_id: item.productId,
     quantity: item.quantity,
-    unit_price: catalog.get(item.productId)?.list_price ?? null,
+    unit_price: priceWithTier(catalog.get(item.productId)?.list_price, discountPct),
   })));
   if (itemsError) {
     await admin.rpc("company_order_cancel", { p_tenant_id: g.tenantId, p_order_id: order.id, p_user_id: g.userId, p_reason: "No se pudieron guardar los productos" });

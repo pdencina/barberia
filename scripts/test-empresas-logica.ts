@@ -5,6 +5,7 @@ import { parseCustomers, parseNumber, parseProducts } from "../src/lib/empresas/
 import { runDueCampaigns, type CampaignRepo, type SendStatus } from "../src/lib/empresas/campanas";
 import { stockView } from "../src/lib/empresas/partner";
 import { hashContactoWhatsApp } from "../src/lib/agente/whatsapp-meta";
+import { FELIPE_TIERS, previousMonthRange, priceWithTier, suggestTier, type PriceTier } from "../src/lib/empresas/precios";
 
 let fails = 0;
 const ok = (name: string, cond: boolean, extra?: unknown) => {
@@ -30,6 +31,9 @@ const tres = [act("a", "no_answer", T0), act("a", "no_answer", T0 + 2 * DAY), ac
 ok("no contestó 3 veces: un ciclo desde el primer intento", nextDueAt(tres, S, iso(0)) === T0 + 30 * DAY);
 ok("no contestó tras una venta: cuenta solo la racha", nextDueAt([act("a", "sold", T0 - 40 * DAY), act("a", "no_answer", T0)], S, iso(0)) === T0 + 2 * DAY);
 ok("el orden de llegada no importa", nextDueAt([act("a", "sold", T0), act("a", "no_answer", T0 - DAY)], S, iso(0)) === T0 + 30 * DAY);
+
+ok("no contestó con fecha elegida por el vendedor manda esa fecha", nextDueAt([act("a", "no_answer", T0, { callbackOn: "2026-11-20" })], S, iso(0)) === Date.parse("2026-11-20T04:00:00Z"));
+ok("la fecha elegida gana aunque sea el 3er intento", nextDueAt([...tres.slice(0, 2), act("a", "no_answer", T0 + 4 * DAY, { callbackOn: "2026-11-07" })], S, iso(0)) === Date.parse("2026-11-07T04:00:00Z"));
 
 console.log("\n# Cola obligatoria");
 const customers = [
@@ -90,6 +94,26 @@ const clis = parseCustomers([
 ok("cliente: RUT sin puntos y tipo distribuidor", clis.items[0].taxId === "12345678-9" && clis.items[0].customerType === "distributor", clis.items[0]);
 ok("cliente: correo en minúsculas", clis.items[0].email === "uno@mail.cl");
 ok("cliente: RUT repetido (con o sin puntos) se avisa", clis.errors.length === 1 && clis.items.length === 1, clis.errors);
+
+ok("Bsale: producto + variante", parseProducts([["Producto", "Variante", "SKU", "Precio Venta Bruto", "Precio Neto"], ["Shampoo", "500 ml", "S1", "11.900", "10.000"]]).items[0]?.name === "Shampoo 500 ml");
+ok("Bsale: prefiere el precio bruto", parseProducts([["Producto", "Precio Neto", "Precio Venta Bruto"], ["X", "10.000", "11.900"]]).items[0]?.listPrice === 11900);
+const optin = parseCustomers([["Nombre", "Teléfono", "Acepta WhatsApp"], ["Uno", "+56911111111", "Sí"], ["Dos", "+56922222222", "no"]]);
+ok("permiso de WhatsApp desde el archivo", optin.items[0].whatsappOptIn === true && optin.items[1].whatsappOptIn === false && optin.items[0].phone === "+56911111111", optin.items);
+
+console.log("\n# Tramos de precio (Felipe)");
+const tiers: PriceTier[] = FELIPE_TIERS.map((t, i) => ({ ...t, id: `t${i}`, active: true }));
+ok("5% menos sobre $10.000 = $9.500", priceWithTier(10000, 5) === 9500);
+ok("7% de $8.990 se redondea a pesos", priceWithTier(8990, 7) === 8361);
+ok("sin tramo = precio de lista", priceWithTier("12000", 0) === 12000 && priceWithTier(null, 5) === null);
+ok("descuento fuera de rango se limita", priceWithTier(1000, 150) === 100 && priceWithTier(1000, -5) === 1000);
+ok("$1,5 MM sugiere Mayorista 1", suggestTier(tiers, 1_500_000)?.name === "Mayorista 1");
+ok("justo $2 MM sugiere el de más descuento (Mayorista 2)", suggestTier(tiers, 2_000_000)?.name === "Mayorista 2");
+ok("$8 MM sugiere Mayorista 4", suggestTier(tiers, 8_000_000)?.name === "Mayorista 4");
+ok("$5,5 MM cae en el hueco: sin sugerencia", suggestTier(tiers, 5_500_000) === null);
+ok("$500 mil no llega a mayorista", suggestTier(tiers, 500_000) === null);
+const pm = previousMonthRange(Date.parse("2026-11-10T15:00:00Z"));
+ok("mes anterior = octubre en hora de Chile", pm.from === "2026-10-01T03:00:00.000Z" && pm.to === "2026-11-01T03:00:00.000Z", pm);
+ok("en enero el mes anterior es diciembre", previousMonthRange(Date.parse("2026-01-05T15:00:00Z")).from === "2025-12-01T03:00:00.000Z");
 
 console.log("\n# Portal: qué ve del stock");
 ok("modo disponible no muestra la cantidad", JSON.stringify(stockView(7, "availability")) === JSON.stringify({ inStock: true }));

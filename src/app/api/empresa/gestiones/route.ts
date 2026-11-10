@@ -57,11 +57,12 @@ export async function POST(req: Request) {
   const skipReason = cleanText(body?.skipReason, 500);
   if (result === "skipped" && !skipReason) return badRequest("Para saltar un cliente escribe el motivo.");
   let callbackOn: string | null = null;
-  if (result === "callback") {
+  // "Volver a llamar" exige fecha; en "No contestó" es opcional (el vendedor decide cuándo insistir).
+  if (result === "callback" || (result === "no_answer" && body?.callbackOn)) {
     const d = typeof body?.callbackOn === "string" ? body.callbackOn : "";
     const t = Date.parse(`${d}T12:00:00Z`);
     if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || !Number.isFinite(t) || t < Date.now() - 36 * 3600e3 || t > Date.now() + 366 * 86400e3) {
-      return badRequest("Elige una fecha para volver a llamar.");
+      return badRequest(result === "callback" ? "Elige una fecha para volver a llamar." : "La fecha para reintentar no es válida.");
     }
     callbackOn = d;
   }

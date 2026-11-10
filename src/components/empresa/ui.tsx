@@ -27,6 +27,16 @@ export async function apiPatch<T = any>(path: string, body: unknown): Promise<T>
   return data as T;
 }
 
+// Enlace para abrir un chat de WhatsApp con el cliente desde el teléfono del vendedor (Chile: 9 dígitos → +56).
+export function waLink(phone: string | null | undefined, text?: string): string | null {
+  let d = String(phone || "").replace(/\D/g, "");
+  if (d.startsWith("00")) d = d.slice(2);
+  if (d.length === 9 && d.startsWith("9")) d = "56" + d;
+  else if (d.length === 8) d = "569" + d;
+  if (d.length < 10 || d.length > 15) return null;
+  return `https://wa.me/${d}${text ? `?text=${encodeURIComponent(text)}` : ""}`;
+}
+
 export const errorText = (e: unknown, fallback = "No se pudo completar la acción.") => (e instanceof Error ? e.message : fallback);
 
 export function useApi<T = any>(path: string) {

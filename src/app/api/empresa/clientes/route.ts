@@ -9,8 +9,9 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 export const dynamic = "force-dynamic";
 
 const BASE_COLUMNS = "id, name, tax_id, contact_name, phone, email, address, city, customer_type, active";
-// Columnas de las migraciones 158 (cartera) y 160 (permiso de WhatsApp). Si faltan, se lee sin ellas.
-const COLUMNS = `${BASE_COLUMNS}, assigned_seller_id, whatsapp_opt_in`;
+// Columnas de las migraciones 158 (cartera), 160 (permiso de WhatsApp) y 161 (tramo de precio). Si faltan, se lee sin ellas.
+const MID_COLUMNS = `${BASE_COLUMNS}, assigned_seller_id, whatsapp_opt_in`;
+const COLUMNS = `${MID_COLUMNS}, price_tier_id`;
 
 // El vendedor ve su cartera y los clientes sin vendedor; el dueño (y bodega no entra aquí), todos.
 export async function GET() {
@@ -18,13 +19,18 @@ export async function GET() {
   if (!g.ok) return g.response;
   const admin = createAdminSupabase();
   const all = roleCan(g.role, "cartera.ver_todas");
+  const read = (columns: string) => fetchAllRows(() => {
+    let q = admin.from("company_customers").select(columns).eq("tenant_id", g.tenantId);
+    if (!all) q = q.or(`assigned_seller_id.is.null,assigned_seller_id.eq.${g.userId}`);
+    return q.order("name");
+  });
   try {
-    const rows = await fetchAllRows(() => {
-      let q = admin.from("company_customers").select(COLUMNS).eq("tenant_id", g.tenantId);
-      if (!all) q = q.or(`assigned_seller_id.is.null,assigned_seller_id.eq.${g.userId}`);
-      return q.order("name");
-    });
-    return NextResponse.json({ customers: rows });
+    try {
+      return NextResponse.json({ customers: await read(COLUMNS) });
+    } catch (e: any) {
+      if (!faltaMigracion(e)) throw e;
+      return NextResponse.json({ customers: await read(MID_COLUMNS) });
+    }
   } catch (e: any) {
     if (!faltaMigracion(e)) return dbErrorResponse(e, "clientes GET");
     // Sin la 158 todavía no hay cartera: todos ven todos, como antes.
@@ -65,7 +71,7 @@ export async function POST(req: Request) {
     row.whatsapp_opt_in_at = new Date().toISOString();
   }
   const admin = createAdminSupabase();
-  let { data, error } = await admin.from("company_customers").insert(row).select(COLUMNS).single();
+  let { data, error } = await admin.from("company_customers").insert(row).select(MID_COLUMNS).single();
   if (error && faltaMigracion(error)) {
     // Sin las migraciones nuevas se crea como antes, sin cartera ni permiso.
     delete row.assigned_seller_id; delete row.whatsapp_opt_in; delete row.whatsapp_opt_in_at;

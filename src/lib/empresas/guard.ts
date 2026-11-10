@@ -67,7 +67,7 @@ export async function requireCompany(capability?: Capability): Promise<{ ok: fal
     case "anon": return { ok: false, response: json("No autenticado", 401) };
     case "not_member": return { ok: false, response: json("No autorizado", 403) };
     case "suspended": return { ok: false, response: json("La cuenta de la empresa está suspendida.", 402, "tenant_suspended") };
-    case "missing_migration": return { ok: false, response: json("Falta aplicar la migración 125.", 503) };
+    case "missing_migration": return { ok: false, response: json("Falta aplicar la migración 153.", 503) };
     case "error": return { ok: false, response: json("Error interno", 500) };
   }
   if (capability && !roleCan(found.context.role, capability)) {

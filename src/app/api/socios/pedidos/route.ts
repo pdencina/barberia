@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { badRequest, cleanText, dbErrorResponse, isUuid, readJson } from "@/lib/empresas/errors";
 import { sendPortalReceipt } from "@/lib/empresas/comprobante";
 import { portalWarehouse, requirePartner } from "@/lib/empresas/partner";
+import { customerDiscount, priceWithTier } from "@/lib/empresas/precios";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -50,13 +51,14 @@ export async function POST(req: Request) {
   const catalog = new Map((products || []).map((x) => [x.id, x]));
   if (raw.some((item) => !catalog.get(item.productId)?.active)) return badRequest("Hay un producto que ya no está disponible.");
 
+  const { discountPct } = await customerDiscount(admin, p.tenantId, p.customerId);
   const { data: order, error } = await admin.from("company_orders").insert({
     tenant_id: p.tenantId, customer_id: p.customerId, warehouse_id: wh, notes, created_by: p.userId, source: "portal",
   }).select("id").single();
   if (error) return dbErrorResponse(error, "socios pedidos POST");
   const { error: itemsError } = await admin.from("company_order_items").insert(raw.map((item) => ({
     order_id: order.id, tenant_id: p.tenantId, product_id: item.productId, quantity: item.quantity,
-    unit_price: catalog.get(item.productId)?.list_price ?? null,
+    unit_price: priceWithTier(catalog.get(item.productId)?.list_price, discountPct),
   })));
   if (itemsError) {
     await admin.rpc("company_order_cancel", { p_tenant_id: p.tenantId, p_order_id: order.id, p_user_id: p.userId, p_reason: "No se pudieron guardar los productos" });
@@ -65,7 +67,7 @@ export async function POST(req: Request) {
 
   const lines = raw.map((item) => {
     const x = catalog.get(item.productId)!;
-    return { name: x.name, sku: x.sku, quantity: item.quantity, unitPrice: x.list_price };
+    return { name: x.name, sku: x.sku, quantity: item.quantity, unitPrice: priceWithTier(x.list_price, discountPct) };
   });
   const receipt = await sendPortalReceipt(admin, { tenantId: p.tenantId, companyName: p.tenantName, customerId: p.customerId, customerName: p.customerName, orderId: order.id, lines, notes });
   return NextResponse.json({
