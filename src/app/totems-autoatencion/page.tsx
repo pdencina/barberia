@@ -121,7 +121,7 @@ function Totem() {
     const { ok, d } = await post("registro", { name: nombre, phone: celular, email: correo, marketingConsent: acepta });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos registrarte"); return; }
-    setGracias("¡Gracias! Ya avisamos que llegaste. Te atenderemos en un momento.");
+    setGracias(d.codigo ? `¡Gracias! Ya avisamos que llegaste. Tu código personal es ${d.codigo}: guárdalo, es siempre el mismo.` : "¡Gracias! Ya avisamos que llegaste. Te atenderemos en un momento.");
     setPantalla("gracias");
   };
 
