@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Panel } from "@/components/ui/premium";
-import { DIAS, type DemandMap, type Nivel } from "@/lib/demand-map";
+import { DIAS, estaAbierta, type DemandMap, type Nivel } from "@/lib/demand-map";
 
 const NIVEL_HEX: Record<Nivel, string> = { fuerte: "#10b981", normal: "#38bdf8", flojo: "#fbbf24" };
 const NIVEL_TXT: Record<Nivel, string> = { fuerte: "Alta", normal: "Media", flojo: "Baja" };
@@ -109,13 +109,15 @@ function LineasPorDia({ mapa, dias, celda }: Pick<Props, "mapa" | "dias" | "celd
         {ticks.map((t) => (<g key={t}><line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="stroke-gray-200 dark:stroke-gray-700" strokeDasharray={t === 0 ? "0" : "3 4"} /><text x={L - 6} y={y(t) + 3.5} textAnchor="end" className="fill-brand-gray" style={{ fontSize: 10 }}>{num(t)}</text></g>))}
         {mapa.horas.map((h, i) => <text key={h} x={x(i)} y={H - 10} textAnchor="middle" className="fill-brand-gray" style={{ fontSize: 10 }}>{h}</text>)}
         {diasVisibles.map((dow) => {
-          const d = mapa.horas.map((h, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(celda.get(`${dow}-${h}`) ?? 0).toFixed(1)}`).join(" ");
+          // La línea solo existe en las horas en que ese día se atiende: fuera de su horario se corta (no cae a 0 como si fuera demanda baja).
+          let previo = false;
+          const d = mapa.horas.map((h, i) => { const ab = estaAbierta(mapa, dow, h); const seg = `${ab ? (previo ? "L" : "M") : ""}${ab ? `${x(i).toFixed(1)},${y(celda.get(`${dow}-${h}`) ?? 0).toFixed(1)}` : ""}`; previo = ab; return seg; }).join(" ");
           const apagado = resaltado !== null && resaltado !== dow;
           return (
             <g key={dow} opacity={apagado ? 0.15 : 1}>
               <title>{NOMBRE_DIA[dow - 1]}</title>
               <path d={d} fill="none" stroke={DIA_HEX[dow - 1]} strokeWidth={resaltado === dow ? 3.5 : 2.2} strokeLinejoin="round" strokeLinecap="round" />
-              {mapa.horas.map((h, i) => <circle key={h} cx={x(i)} cy={y(celda.get(`${dow}-${h}`) ?? 0)} r={resaltado === dow ? 4 : 2.6} fill={DIA_HEX[dow - 1]}><title>{`${NOMBRE_DIA[dow - 1]} ${hh(h)}: ${num(celda.get(`${dow}-${h}`) ?? 0)} reservas por semana`}</title></circle>)}
+              {mapa.horas.map((h, i) => estaAbierta(mapa, dow, h) && <circle key={h} cx={x(i)} cy={y(celda.get(`${dow}-${h}`) ?? 0)} r={resaltado === dow ? 4 : 2.6} fill={DIA_HEX[dow - 1]}><title>{`${NOMBRE_DIA[dow - 1]} ${hh(h)}: ${num(celda.get(`${dow}-${h}`) ?? 0)} reservas por semana`}</title></circle>)}
             </g>
           );
         })}

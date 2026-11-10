@@ -1,5 +1,6 @@
 // Mapa de demanda. Uso: npx tsx scripts/test-demand-map.ts
-import { construirMapa, horariosFlojos, diaSemana, horaDe, nivelesPorDia, nivelesPorHora, minutosPorHora } from "../src/lib/demand-map";
+import { construirMapa, horariosFlojos, diaSemana, horaDe, nivelesPorDia, nivelesPorHora, minutosPorHora, estaAbierta, resumenHorario } from "../src/lib/demand-map";
+import { disponibilidadPorDiaHora } from "../src/lib/disponibilidad";
 let fallos = 0;
 const ok = (c: boolean, n: string) => { if (!c) { fallos++; console.log("FALLA:", n); } else console.log("ok:", n); };
 
@@ -59,4 +60,71 @@ const lun = m4.cells.filter((c) => c.dow === 1);
 ok(lun.length === 3 && Math.abs(lun[0].avg - lun[1].avg) < 1e-9 && Math.abs(lun[1].avg - lun[2].avg) < 1e-9, "lunes: las horas 9, 10 y 11 tienen la misma carga (antes solo la 9 tenía datos)");
 ok(Math.abs(m4.cells.find((c) => c.dow === 1 && c.hour === 10)!.avg - m4.cells.find((c) => c.dow === 2 && c.hour === 10)!.avg) < 1e-9, "una hora ocupada por una cita larga pesa igual que una ocupada por una corta");
 ok(nivelesPorDia(m4).get(1)!.nivel !== "flojo" && nivelesPorHora(m4).every((h) => h.nivel !== "flojo"), "el lunes (servicios largos) ya no sale como día flojo ni las horas 10 y 11 como flojas");
-console.log(fallos ? `\n${fallos} fallas` : "\nTodo bien"); process.exit(fallos ? 1 : 0);
+console.log(fallos ? `\n${fallos} fallas` : "\nTodo bien"); 
+const semana = (dows: number[]) => { const out: string[] = []; for (let w = 0; w < 4; w++) for (const dow of dows) { const d = new Date(Date.UTC(2026, 9, 19 + w * 7 + (dow - 1))); out.push(d.toISOString().slice(0, 10)); } return out; };
+// ---- Cada negocio con SU horario (caso Estudio Levels: lun-vie 10 a 20, sábado 9 a 17, colación 14 a 15 el lunes) ----
+{
+  const hor = (barber_id: string, dow: number, a: string, z: string, extra: any = {}) => ({ barber_id, day_of_week: dow, is_working: true, start_time: a, end_time: z, ...extra });
+  const horarios: any[] = [];
+  for (const dow of [1, 2, 3, 4, 5]) horarios.push(hor("p1", dow, "10:00", "20:00"), hor("p2", dow, "10:00", "20:00"));
+  horarios[0] = hor("p1", 1, "10:00", "20:00", { break_start: "14:00", break_end: "15:00" }); // colación del lunes
+  horarios.push(hor("p1", 6, "09:00", "17:00"), hor("p2", 6, "09:00", "17:00"));
+  const desde = "2026-10-19", hasta = "2026-11-15"; // 4 semanas completas
+  const disp = disponibilidadPorDiaHora({ proIds: ["p1", "p2"], horarios, descansos: [], bloqueos: [], vacaciones: [], desde, hasta });
+  ok(disp["1-10"] === 8 && disp["6-9"] === 8 && !disp["6-17"] && !disp["1-9"] && !disp["1-20"], "disponibilidad: lun 10 sí, sáb 9 sí, sáb 17 no, lun 9 y 20 no");
+  ok(disp["1-14"] === 4, "disponibilidad: la colación (14 a 15 del lunes de p1) no cuenta (solo p2 trabaja esa hora)");
+  const filas: any[] = [];
+  for (const d of semana([1, 2, 3, 4, 5])) for (const h of [10, 11, 12, 13, 15, 16, 17, 18, 19]) filas.push({ date: d, start_time: `${d}T${h}:00:00+00:00`.replace("T1:", "T01:"), end_time: `${d}T${h + 1}:00:00+00:00`, status: "completed" });
+  for (const d of semana([6])) for (const h of [9, 10, 11, 12, 13, 14, 15, 16]) filas.push({ date: d, start_time: `${d}T${String(h).padStart(2, "0")}:00:00+00:00`, end_time: `${d}T${String(h + 1).padStart(2, "0")}:00:00+00:00`, status: "completed" });
+  const mp = construirMapa(filas, 4, desde, hasta, disp);
+  ok(mp.fuente === "horarios", "usa los horarios del equipo");
+  ok(estaAbierta(mp, 6, 9) && !estaAbierta(mp, 6, 17) && !estaAbierta(mp, 1, 9) && estaAbierta(mp, 1, 19) && !estaAbierta(mp, 1, 20), "abierto: sáb 9 sí, sáb 17 no, lun 9 no, lun 19 sí, lun 20 no");
+  ok(!estaAbierta(mp, 7, 12), "el domingo no se atiende");
+  ok(mp.horas[0] === 9 && mp.horas[mp.horas.length - 1] === 19, `las filas van de 9 a 19 (${mp.horas[0]}..${mp.horas[mp.horas.length - 1]})`);
+  ok(resumenHorario(mp) === "Lun a Vie 10:00–20:00 · Sáb 09:00–17:00", `resumen del horario: ${resumenHorario(mp)}`);
+  const flojos = horariosFlojos(mp, [], 40);
+  ok(flojos.every((f) => estaAbierta(mp, f.dow, f.hour)), "ningún horario flojo cae fuera del horario de ese día");
+  ok(!flojos.some((f) => f.dow === 6 && f.hour >= 17) && !flojos.some((f) => f.dow === 1 && f.hour === 9), "no sugiere promocionar a las 17 o 18 del sábado, ni el lunes a las 9");
+  const horasNiv = nivelesPorHora(mp);
+  ok(horasNiv.find((h) => h.hour === 9)!.avg > 0, "las 9 se promedian solo con el sábado (único día que abre a esa hora, no se diluye con lunes a viernes)");
+}
+// ---- Un negocio con otros horarios y servicios largos (tipo Looky): lo abierto lo marca SU horario, no el de otro ----
+{
+  const horarios: any[] = [1, 2, 3, 4, 5, 6].map((dow) => ({ barber_id: "a", day_of_week: dow, is_working: true, start_time: "08:00", end_time: "19:00" }));
+  const disp = disponibilidadPorDiaHora({ proIds: ["a"], horarios, descansos: [], bloqueos: [], vacaciones: [], desde: "2026-10-19", hasta: "2026-11-15" });
+  const mp = construirMapa([{ date: "2026-10-20", start_time: "2026-10-20T09:00:00+00:00", end_time: "2026-10-20T12:00:00+00:00", status: "completed" }], 4, "2026-10-19", "2026-11-15", disp);
+  ok(estaAbierta(mp, 2, 8) && estaAbierta(mp, 2, 18) && !estaAbierta(mp, 2, 19) && estaAbierta(mp, 6, 8), "otro negocio: abre a las 8 y cierra a las 19, también el sábado");
+  ok(resumenHorario(mp) === "Lun a Sáb 08:00–19:00", `resumen: ${resumenHorario(mp)}`);
+}
+// ---- Sin horarios cargados: cada día toma su propio rango según las reservas ----
+{
+  const r: any[] = []; const f = (date: string, h: number, n: number) => { for (let i = 0; i < n; i++) r.push({ date, start_time: `${date}T${String(h).padStart(2, "0")}:00:00+00:00`, end_time: `${date}T${String(h + 1).padStart(2, "0")}:00:00+00:00`, status: "completed" }); };
+  for (const d of ["2026-10-19", "2026-10-26"]) { for (const h of [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]) f(d, h, 4); }           // lunes 10 a 20
+  for (const d of ["2026-10-24", "2026-10-31"]) { for (const h of [9, 10, 11, 12, 13, 14, 15, 16]) f(d, h, 4); }                   // sábado 9 a 17
+  const mp = construirMapa(r, 2, "2026-10-19", "2026-11-01");
+  ok(mp.fuente === "reservas" && estaAbierta(mp, 6, 9) && !estaAbierta(mp, 6, 17) && !estaAbierta(mp, 1, 9) && estaAbierta(mp, 1, 19), "sin horarios: lunes 10-20 y sábado 9-17 por separado");
+  ok(!horariosFlojos(mp, [], 40).some((x) => x.dow === 6 && x.hour >= 17), "sin horarios: tampoco sugiere horas fuera de lo que ese día atiende");
+}
+
+// ---- Los horarios cargados son MÁS amplios que lo que se atiende de verdad (caso real: horario hasta las 23, se cierra a las 20) ----
+{
+  const horarios: any[] = [1, 2, 3, 4, 5].map((dow) => ({ barber_id: "a", day_of_week: dow, is_working: true, start_time: "10:00", end_time: "23:00" }));
+  horarios.push({ barber_id: "a", day_of_week: 0, is_working: true, start_time: "12:00", end_time: "18:00" }); // domingo configurado, pero sin reservas
+  const desde = "2026-10-19", hasta = "2026-11-15";
+  const disp = disponibilidadPorDiaHora({ proIds: ["a"], horarios, descansos: [], bloqueos: [], vacaciones: [], desde, hasta });
+  const filas: any[] = [];
+  for (const d of semana([1, 2, 3, 4, 5])) for (const h of [10, 11, 12, 13, 14, 15, 16, 17, 18, 19]) filas.push({ date: d, start_time: `${d}T${String(h).padStart(2, "0")}:00:00+00:00`, end_time: `${d}T${String(h + 1).padStart(2, "0")}:00:00+00:00`, status: "completed" });
+  const mp = construirMapa(filas, 4, desde, hasta, disp);
+  ok(estaAbierta(mp, 1, 19) && !estaAbierta(mp, 1, 20) && !estaAbierta(mp, 1, 22), "horario cargado hasta las 23 pero solo hay reservas hasta las 20: el horario termina a las 20");
+  ok(!estaAbierta(mp, 7, 13), "un domingo configurado pero sin reservas no se considera abierto");
+  ok(resumenHorario(mp) === "Lun a Vie 10:00–20:00", `resumen: ${resumenHorario(mp)}`);
+  ok(mp.horas[mp.horas.length - 1] === 19, "las filas del mapa terminan a las 19 (no llegan a las 22)");
+  // Colación: queda dentro del rango pero fuera del horario si nadie atiende esa hora y no hay reservas.
+  const h2: any[] = [1].map((dow) => ({ barber_id: "a", day_of_week: dow, is_working: true, start_time: "10:00", end_time: "20:00", break_start: "14:00", break_end: "15:00" }));
+  const d2 = disponibilidadPorDiaHora({ proIds: ["a"], horarios: h2, descansos: [], bloqueos: [], vacaciones: [], desde, hasta });
+  const f2: any[] = []; for (const d of semana([1])) for (const h of [10, 11, 12, 13, 15, 16, 17, 18, 19]) f2.push({ date: d, start_time: `${d}T${String(h).padStart(2, "0")}:00:00+00:00`, end_time: `${d}T${String(h + 1).padStart(2, "0")}:00:00+00:00`, status: "completed" });
+  const m2 = construirMapa(f2, 4, desde, hasta, d2);
+  ok(!estaAbierta(m2, 1, 14) && estaAbierta(m2, 1, 13) && estaAbierta(m2, 1, 15), "la colación de las 14 queda fuera del horario (no es demanda baja)");
+  ok(!horariosFlojos(m2, [], 40).some((f) => f.hour === 14), "y no se sugiere promocionar la hora de colación");
+}
+process.exit(fallos ? 1 : 0);
