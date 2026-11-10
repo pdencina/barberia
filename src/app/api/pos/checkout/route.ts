@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { todayInChile } from "@/lib/utils";
 import { checkTotalsPure, checkAgainstCatalog } from "@/lib/checkout-check";
+import { buscarAbonosDisponibles, marcarAbonosAplicados, type AbonoDisponible } from "@/lib/abonos-disponibles";
 
 export async function POST(req: NextRequest) {
   // SEGURIDAD: antes cualquiera (sin sesion) podia registrar ventas. Ahora hace falta sesion y el
@@ -28,15 +29,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
-  // Abono pagado al reservar: se vuelve a verificar con la cita (nunca se confia en el navegador). El navegador ya
-  // lo incluyo en "discount" para que el total sea lo que falta cobrar.
+  // Abono pagado al reservar: se vuelve a verificar en el servidor (nunca se confía en el navegador). El navegador ya lo incluyó
+  // en "discount" para que el total sea lo que falta cobrar. Vale el abono de la cita o el que la clienta pagó por otra cita
+  // suya (o con su correo) si la cambió; cada abono se descuenta una sola vez (migración 152).
   const abono = Math.max(0, Number(body.abono) || 0);
+  const abonoPagos: string[] = Array.isArray(body.abonoPagos) ? body.abonoPagos.map((x: any) => String(x)).slice(0, 20) : [];
+  let abonosUsados: AbonoDisponible[] = [];
   if (abono > 0) {
-    const { data: appt } = appointmentId
-      ? await supabase.from("appointments").select("tenant_id, deposit_amount, deposit_status").eq("id", appointmentId).maybeSingle()
-      : { data: null };
-    const real = appt && appt.tenant_id === tenantId && appt.deposit_status === "paid" ? Number(appt.deposit_amount) || 0 : 0;
-    if (abono > real) return NextResponse.json({ error: "El abono no corresponde a esta cita" }, { status: 400 });
+    const disp = await buscarAbonosDisponibles(supabase, { tenantId: tenantId as string, clientId: clientId || null, appointmentId: appointmentId || null });
+    const elegidos = abonoPagos.length ? disp.filter((x) => abonoPagos.includes(x.paymentId)) : disp.filter((x) => !!appointmentId && x.citaId === appointmentId);
+    const real = elegidos.reduce((sum, x) => sum + x.monto, 0);
+    if (abono > real) return NextResponse.json({ error: "El abono no corresponde a esta cita o ya se descontó" }, { status: 400 });
+    abonosUsados = elegidos;
   }
 
   // Validate coupon
@@ -91,6 +95,9 @@ export async function POST(req: NextRequest) {
   }
   if (error || !tx) return NextResponse.json({ error: error?.message || "No se pudo registrar la venta" }, { status: 500 });
 
+  // El abono usado queda anotado como aplicado a esta venta (no se descuenta otra vez).
+  if (abonosUsados.length) await marcarAbonosAplicados(supabase, abonosUsados.map((x) => x.paymentId), tx.id);
+
   // Log in audit
   const clientName = clientId
     ? await supabase.from("clients").select("name").eq("id", clientId).single().then((r) => r.data?.name || "")
@@ -104,7 +111,7 @@ export async function POST(req: NextRequest) {
     description: `Venta $${total.toLocaleString("es-CL")} — ${items.map((i: any) => i.name).join(", ")}${clientName ? ` — ${clientName}` : ""} (${primaryMethod})`,
     user_id: barberId,
     user_name: barberName,
-    metadata: { total, subtotal, discount, abono, paymentMethod: primaryMethod, clientId, items: items.length },
+    metadata: { total, subtotal, discount, abono, abonoPagos: abonosUsados.map((x) => x.paymentId), paymentMethod: primaryMethod, clientId, items: items.length },
   });
 
   // MODO COMPARACION (no cambia ni rechaza la venta): el servidor recalcula los totales y los compara con

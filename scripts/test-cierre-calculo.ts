@@ -51,4 +51,18 @@ t("profesional único: una sola persona atiende (también una administradora que
   assert.equal(profesionalUnico([{ id: "a", role: "barber", active: true }, { id: "b", role: "barber", active: false }]), "a");
   assert.equal(atiendeClientes({ id: "x", role: "receptionist", active: true }), false);
 });
+t("abono: la venta de noviembre no muestra el abono como descuento (reservó 30 oct con $10.000, se atiende el 5 nov, servicio $30.000)", () => {
+  // En noviembre solo se cobran $20.000; los $10.000 ya entraron como abono en octubre.
+  const r = repartirVentas([{ id: "n", total: 20000, abono: 10000, lineas: [S("Corte + barba", 30000)] }]);
+  assert.equal(r.serviciosLista, 30000); assert.equal(r.descuentos, 0); assert.equal(r.serviciosCobrado, 30000);
+  assert.equal(r.totalVentas, 20000); assert.equal(r.abonosAplicados, 10000); assert.equal(cuadra(r).ok, true);
+});
+t("abono + descuento real: solo el descuento aparece como descuento", () => {
+  const r = repartirVentas([{ id: "n", total: 15000, abono: 10000, lineas: [S("Corte", 30000)] }]); // $5.000 de descuento real
+  assert.equal(r.descuentos, 5000); assert.equal(r.serviciosCobrado, 25000); assert.equal(r.abonosAplicados, 10000); assert.equal(cuadra(r).ok, true);
+});
+t("sin abono todo sigue igual (abonosAplicados = 0)", () => {
+  const r = repartirVentas([{ id: "a", total: 12000, lineas: [S("Corte", 12000)] }]);
+  assert.equal(r.abonosAplicados, 0); assert.equal(r.descuentos, 0); assert.equal(cuadra(r).ok, true);
+});
 process.exit(fails ? 1 : 0);

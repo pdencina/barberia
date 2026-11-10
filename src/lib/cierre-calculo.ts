@@ -7,7 +7,8 @@
 // diferencia se reparte en proporción al precio de lista de cada línea (descuentos y ajustes); si suman menos, lo que falta queda «sin detalle».
 
 export interface LineaVenta { description: string; total: number; quantity: number; tipo: "servicio" | "producto" }
-export interface VentaCierre { id: string; total: number; lineas: LineaVenta[] }
+// abono: parte del precio que la clienta ya había pagado al reservar (otro momento, otro mes). `total` es solo lo cobrado en esta venta.
+export interface VentaCierre { id: string; total: number; lineas: LineaVenta[]; abono?: number }
 
 export interface FilaReparto { nombre: string; cantidad: number; lista: number; cobrado: number; descuentos: number }
 export interface ResultadoReparto {
@@ -19,7 +20,8 @@ export interface ResultadoReparto {
   productosCobrado: number;
   descuentos: number;             // lista - cobrado (servicios y productos)
   sinDetalle: number;             // ventas sin líneas, o parte del total que las líneas no explican
-  totalVentas: number;            // suma de los totales de las ventas (= Movimiento total)
+  totalVentas: number;            // lo cobrado en las ventas del mes (sin los abonos pagados antes)
+  abonosAplicados: number;        // parte de esas ventas que la clienta ya había pagado como abono (no es descuento ni egreso)
   ventasAjustadas: { id: string; total: number; lineas: number; diferencia: number }[]; // lista no coincide con lo cobrado
 }
 
@@ -27,10 +29,13 @@ const r = (n: number) => Math.round(n * 100) / 100;
 
 export function repartirVentas(ventas: VentaCierre[]): ResultadoReparto {
   const svc = new Map<string, FilaReparto>(), prod = new Map<string, FilaReparto>();
-  const res: ResultadoReparto = { servicios: [], productos: [], serviciosLista: 0, serviciosCobrado: 0, productosLista: 0, productosCobrado: 0, descuentos: 0, sinDetalle: 0, totalVentas: 0, ventasAjustadas: [] };
+  const res: ResultadoReparto = { servicios: [], productos: [], serviciosLista: 0, serviciosCobrado: 0, productosLista: 0, productosCobrado: 0, descuentos: 0, sinDetalle: 0, totalVentas: 0, abonosAplicados: 0, ventasAjustadas: [] };
   for (const v of ventas) {
-    const total = Number(v.total) || 0;
-    res.totalVentas += total;
+    const cobradoMes = Number(v.total) || 0;
+    const abono = Math.max(0, Number(v.abono) || 0);
+    // El servicio se reparte a su precio completo (lo cobrado hoy + lo abonado antes): así el abono no se ve como descuento.
+    const total = cobradoMes + abono;
+    res.totalVentas += cobradoMes; res.abonosAplicados += abono;
     const lineas = v.lineas.filter((l) => Number(l.total) > 0 || Number(l.quantity) > 0);
     const suma = lineas.reduce((s, l) => s + (Number(l.total) || 0), 0);
     if (lineas.length === 0 || suma <= 0) { res.sinDetalle += total; continue; }
@@ -55,14 +60,14 @@ export function repartirVentas(ventas: VentaCierre[]): ResultadoReparto {
   res.serviciosLista = r(res.serviciosLista); res.serviciosCobrado = r(res.serviciosCobrado);
   res.productosLista = r(res.productosLista); res.productosCobrado = r(res.productosCobrado);
   res.descuentos = r(res.serviciosLista + res.productosLista - res.serviciosCobrado - res.productosCobrado);
-  res.sinDetalle = r(res.sinDetalle); res.totalVentas = r(res.totalVentas);
+  res.sinDetalle = r(res.sinDetalle); res.totalVentas = r(res.totalVentas); res.abonosAplicados = r(res.abonosAplicados);
   return res;
 }
 
 // «Resumen que cuadra»: lista − descuentos = cobrado; cobrado de servicios + productos + sin detalle = movimiento total.
 export function cuadra(res: ResultadoReparto): { ok: boolean; diferencia: number } {
   const suma = res.serviciosCobrado + res.productosCobrado + res.sinDetalle;
-  const diferencia = r(res.totalVentas - suma);
+  const diferencia = r(res.totalVentas + res.abonosAplicados - suma);
   return { ok: Math.abs(diferencia) <= 1, diferencia };
 }
 

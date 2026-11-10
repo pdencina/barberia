@@ -32,7 +32,7 @@ interface ReportData {
   incomeByMethod: Array<{ method: string; total: number; count: number }>;
   topServices: Array<{ name: string; count: number; total: number; lista?: number; descuentos?: number }>;
   topProducts: Array<{ name: string; count: number; total: number; lista?: number; descuentos?: number }>;
-  resumenCuadra?: { serviciosLista: number; descuentos: number; serviciosCobrado: number; productosCobrado: number; sinDetalle: number; totalIngresos: number; cuadra: boolean; diferencia: number; ventasAjustadas: number; ventasSinProfesional: number; montoSinProfesional: number };
+  resumenCuadra?: { serviciosLista: number; descuentos: number; serviciosCobrado: number; productosCobrado: number; sinDetalle: number; totalIngresos: number; cuadra: boolean; diferencia: number; ventasAjustadas: number; ventasSinProfesional: number; montoSinProfesional: number; abonosAplicados?: number; cobradoEnElMes?: number; abonosRecibidos?: number };
   expensesDetail: Array<{ name: string; count: number; total: number }>;
 }
 
@@ -46,6 +46,7 @@ const paymentMethodLabels: Record<string, string> = {
   debit_card: "Debito",
   credit_card: "Credito",
   transfer: "Transferencia",
+  abono: "Abonos (reservas pagadas)",
 };
 
 export default function ReportesPage() {
@@ -218,6 +219,10 @@ export default function ReportesPage() {
               ["= Servicios cobrados", data.resumenCuadra.serviciosCobrado, true],
               ["+ Productos cobrados", data.resumenCuadra.productosCobrado, false],
               ...(data.resumenCuadra.sinDetalle > 0 ? [["+ Ventas sin detalle de servicio o producto", data.resumenCuadra.sinDetalle, false]] : []),
+              // Abonos: lo que la clienta pagó al reservar entra el mes en que lo pagó; en la venta no es un descuento.
+              ...((data.resumenCuadra.abonosAplicados || 0) > 0 ? [["− Pagado antes como abono (ya contado cuando se recibió)", -(data.resumenCuadra.abonosAplicados || 0), false]] : []),
+              ...((data.resumenCuadra.abonosAplicados || 0) > 0 || (data.resumenCuadra.abonosRecibidos || 0) > 0 ? [["= Cobrado en el mes", data.resumenCuadra.cobradoEnElMes ?? 0, true]] : []),
+              ...((data.resumenCuadra.abonosRecibidos || 0) > 0 ? [["+ Abonos recibidos en el mes (reservas pagadas este mes)", data.resumenCuadra.abonosRecibidos || 0, false]] : []),
               ["= Movimiento total (ingresos)", data.resumenCuadra.totalIngresos, true],
             ] as [string, number, boolean][]).map(([nombre, monto, fuerte]) => (
               <div key={nombre} className={`flex items-center justify-between gap-3 ${fuerte ? "border-t border-gray-100 pt-1.5 font-bold text-brand-dark" : "text-brand-gray"}`}>

@@ -1,4 +1,5 @@
 import { accountingColumnsAvailable, fetchMonthTx } from "@/lib/accounting";
+import { fetchAbonosRecibidos, sumarAbonos } from "@/lib/abonos-mes";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { chileDayBoundsUtc, todayInChile } from "@/lib/utils";
@@ -37,16 +38,17 @@ export async function GET(req: NextRequest) {
       const endDate = chileDayBoundsUtc(last).endUtc; // límite superior exclusivo
       const mr = { first, last, startIso: startDate, endIso: endDate };
 
-      const [incomeTx, expenseTx] = await Promise.all([
+      const [incomeTx, expenseTx, abonos] = await Promise.all([
         fetchMonthTx(supabase, { select: "total", type: "income", range: mr, scope: scoped, acc }),
         fetchMonthTx(supabase, { select: "total", type: "expense", range: mr, scope: scoped, acc }),
+        fetchAbonosRecibidos(supabase, scoped, startDate, endDate), // los abonos son ingreso del mes en que se recibieron
       ]);
 
       return {
         month,
         year,
         label: `${monthNames[month - 1]} ${year}`,
-        income: (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0),
+        income: (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0) + sumarAbonos(abonos),
         expenses: (expenseTx || []).reduce((s: number, t: any) => s + Number(t.total), 0),
       };
     })

@@ -19,6 +19,8 @@ interface SendReceiptParams {
   }>;
   subtotal: number;
   discount: number;
+  // Abono que la clienta ya había pagado al reservar: no es un descuento, se muestra aparte. `discount` es solo el descuento real.
+  prepaid?: number;
   total: number;
   paymentMethod: string;
   date: Date;
@@ -44,6 +46,7 @@ export async function sendReceipt(params: SendReceiptParams) {
     items,
     subtotal,
     discount,
+    prepaid,
     total,
     paymentMethod,
     date,
@@ -159,6 +162,10 @@ export async function sendReceipt(params: SendReceiptParams) {
           ${discount > 0 ? `<tr>
             <td align="right" style="padding:3px 0;font-size:14px;color:${ACCENT};">Descuento</td>
             <td align="right" width="130" style="padding:3px 0;font-size:14px;color:${ACCENT};font-weight:600;">-${money(discount)}</td>
+          </tr>` : ""}
+          ${prepaid && prepaid > 0 ? `<tr>
+            <td align="right" style="padding:3px 0;font-size:14px;color:${ACCENT};">Abono pagado al reservar</td>
+            <td align="right" width="130" style="padding:3px 0;font-size:14px;color:${ACCENT};font-weight:600;">-${money(prepaid)}</td>
           </tr>` : ""}
           <tr>
             <td align="right" style="padding:14px 0 0 0;font-size:14px;color:#111827;font-weight:700;">Total pagado</td>
