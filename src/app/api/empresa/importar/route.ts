@@ -140,13 +140,16 @@ async function importCustomers(admin: Admin, g: { tenantId: string }, rows: unkn
   if (dryRun) {
     return NextResponse.json({
       dryRun: true, create: toCreate.length, update: toUpdate.length, errors: errors.slice(0, 200),
+      optIn: plan.filter((p) => p.it.whatsappOptIn).length,
       preview: plan.slice(0, 15).map((p) => ({ row: p.it.row, name: p.it.name, taxId: p.it.taxId, phone: p.it.phone, seller: p.it.seller, action: p.id ? "actualizar" : "crear" })),
     });
   }
 
+  // El permiso de WhatsApp solo se ENCIENDE desde el archivo (nunca se quita): quitarlo es decisión del cliente, en el panel.
   const fields = (p: (typeof plan)[number]) => pick({
     name: p.it.name, contact_name: p.it.contactName, phone: p.it.phone, email: p.it.email, address: p.it.address, city: p.it.city,
     assigned_seller_id: p.seller,
+    ...(p.it.whatsappOptIn ? { whatsapp_opt_in: true, whatsapp_opt_in_at: new Date().toISOString() } : {}),
   });
   for (let i = 0; i < toCreate.length; i += 500) {
     const chunk = toCreate.slice(i, i + 500);

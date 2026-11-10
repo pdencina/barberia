@@ -4,12 +4,12 @@
 export type ImportKind = "productos" | "clientes";
 
 export type ProductRow = {
-  row: number; sku: string | null; name: string; description: string | null; category: string | null; unit: string | null;
+  row: number; sku: string | null; name: string; variant?: string | null; description: string | null; category: string | null; unit: string | null;
   listPrice: number | null; cost: number | null; minStock: number | null; stock: number | null; warehouse: string | null;
 };
 export type CustomerRow = {
   row: number; name: string; taxId: string | null; contactName: string | null; phone: string | null; email: string | null;
-  address: string | null; city: string | null; customerType: "client" | "distributor"; seller: string | null;
+  address: string | null; city: string | null; customerType: "client" | "distributor"; seller: string | null; whatsappOptIn?: boolean;
 };
 export type RowError = { row: number; message: string };
 
@@ -26,13 +26,15 @@ const cell = (v: unknown, max = 300): string | null => {
 };
 
 // Cada campo: títulos aceptados (ya normalizados). Se busca primero coincidencia exacta y después "empieza con".
+// Incluye los títulos de las exportaciones de Bsale (Producto, Variante, SKU, Precio Venta Bruto, Sucursal, Razón Social...).
 const PRODUCT_HEADERS: Record<keyof Omit<ProductRow, "row">, string[]> = {
-  sku: ["sku", "codigo", "cod", "codigo producto", "referencia", "ref", "codigo interno"],
+  sku: ["sku", "codigo", "cod", "codigo producto", "referencia", "ref", "codigo interno", "codigo sku"],
   name: ["nombre", "producto", "nombre producto", "articulo", "item"],
+  variant: ["variante", "nombre variante"],
   description: ["descripcion", "detalle"],
   category: ["categoria", "familia", "linea", "tipo"],
   unit: ["unidad", "unidad medida", "um", "formato"],
-  listPrice: ["precio", "precio venta", "precio lista", "precio unitario", "valor", "pvp"],
+  listPrice: ["precio venta bruto", "precio bruto", "precio publico", "precio", "precio venta", "precio lista", "precio unitario", "valor", "pvp"],
   cost: ["costo", "costo unitario", "precio costo", "precio compra"],
   minStock: ["stock minimo", "minimo", "stock min", "min"],
   stock: ["stock", "cantidad", "existencia", "saldo", "stock actual", "unidades"],
@@ -48,6 +50,7 @@ const CUSTOMER_HEADERS: Record<keyof Omit<CustomerRow, "row">, string[]> = {
   city: ["ciudad", "comuna", "region"],
   customerType: ["tipo", "tipo cliente", "segmento"],
   seller: ["vendedor", "ejecutivo", "vendedor asignado"],
+  whatsappOptIn: ["permiso whatsapp", "acepta whatsapp", "acepta ofertas", "recibe whatsapp", "recibe ofertas", "opt in", "autoriza whatsapp"],
 };
 
 function mapHeaders<K extends string>(header: unknown[], spec: Record<K, string[]>): Partial<Record<K, number>> {
@@ -108,8 +111,11 @@ export function parseProducts(rows: unknown[][]): { items: ProductRow[]; errors:
       if (seenSku.has(key)) { errors.push({ row, message: `SKU repetido en el archivo: ${sku}.` }); return; }
       seenSku.add(key);
     }
+    // Bsale exporta producto y variante por separado: "Shampoo" + "500 ml" → "Shampoo 500 ml".
+    const variant = cell(get("variant"), 100);
+    const fullName = variant && !/^(unica|única|default|-)$/i.test(variant) ? `${name} ${variant}`.slice(0, 200) : name;
     items.push({
-      row, sku, name,
+      row, sku, name: fullName,
       description: cell(get("description"), 1000), category: cell(get("category"), 100), unit: cell(get("unit"), 40),
       listPrice: nums.listPrice, cost: nums.cost, minStock: nums.minStock, stock: nums.stock, warehouse: cell(get("warehouse"), 120),
     });
@@ -146,6 +152,7 @@ export function parseCustomers(rows: unknown[][]): { items: CustomerRow[]; error
       address: cell(get("address"), 300), city: cell(get("city"), 100),
       customerType: /distrib|mayor|revend/.test(tipo) ? "distributor" : "client",
       seller: cell(get("seller"), 200),
+      whatsappOptIn: /^(si|sí|s|x|1|true|ok|acepta)$/i.test(String(get("whatsappOptIn") ?? "").trim()),
     });
   });
   return { items, errors, missing: [] };
