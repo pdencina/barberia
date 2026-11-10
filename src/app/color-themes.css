@@ -881,7 +881,7 @@ html:is([data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) .
 html:is([data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) .bg-amber-50\/70,
 html:is([data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) .bg-emerald-50\/50,
 html:is([data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) .bg-red-50\/60,
-html:is([data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) .hover\:bg-blue-50\/50:hover { background-color:hsl(var(--primary));color:hsl(var(--primary-foreground)); }
+html:is([data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) .hover\:bg-blue-50\/50:hover { background-color:hsl(var(--secondary));color:hsl(var(--secondary-foreground)); }
 
 html:is([data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) .bg-amber-500\/10,
 html:is([data-color-theme="monochrome"], [data-color-theme="monochrome-dark"]) .bg-amber-500\/15,
@@ -998,3 +998,8 @@ html[data-color-theme="rose"] article[id^="agenda-"] > .bg-brand-blue {
 html[data-color-theme="rose"] article[id^="agenda-"] .bg-brand-blue\/10 {
   background-color:hsl(var(--primary) / .12);
 }
+
+/* Tema Oscuro: el acento es un turquesa claro; con texto blanco el contraste era 2:1 (botones, pestañas, píldoras). Texto oscuro = legible. */
+html[data-color-theme="dark"] .bg-brand-blue,
+html[data-color-theme="dark"] .bg-brand-blue .text-white,
+html[data-color-theme="dark"] .bg-brand-blue svg { color:#0b1216; }
