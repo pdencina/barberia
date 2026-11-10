@@ -663,6 +663,18 @@ export default function ConfiguracionPage() {
         </a>
       )}
 
+      {/* Tótem de autoatención (migración 162): apagado por defecto */}
+      {isAdmin && (
+        <a href="/dashboard/configuracion/totem" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
+          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><ImageIcon className="h-5 w-5" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="font-bold text-brand-dark">Tótem de autoatención</p>
+            <p className="text-xs text-brand-gray">Pantalla en el local para avisar llegada, registrarse, pedir productos e informarse</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+
       </div>
 
       <div className={tab === "negocio" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
