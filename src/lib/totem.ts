@@ -72,11 +72,11 @@ export async function negocioDelTotem(supabase: ReturnType<typeof createAdminSup
   if (s.length !== 7) return null;
   const { data } = await supabase
     .from("tenants")
-    .select("id, name, slug, logo_url, phone, active, status, kiosk_enabled, kiosk_info")
+    .select("id, name, slug, logo_url, phone, active, status, kiosk_enabled, kiosk_unlocked, kiosk_info")
     .eq("kiosk_code", s)
     .eq("active", true)
     .maybeSingle();
-  if (!data || (data as any).status === "suspended" || !(data as any).kiosk_enabled) return null;
+  if (!data || (data as any).status === "suspended" || !(data as any).kiosk_enabled || !(data as any).kiosk_unlocked) return null; // servicio aparte: debe estar desbloqueado Y encendido
   return data as any;
 }
 

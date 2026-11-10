@@ -48,6 +48,13 @@ export default function ConfiguracionPage() {
   const [hours, setHours] = useState<DaySchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Tótem de autoatención: servicio aparte; la tarjeta solo aparece si el negocio lo tiene desbloqueado.
+  const [totemDesbloqueado, setTotemDesbloqueado] = useState(false);
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetch(`/api/settings/totem${tenant?.id ? `?tenantId=${tenant.id}` : ""}`).then((r) => r.json()).then((d) => setTotemDesbloqueado(!!d?.desbloqueado)).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdmin, tenant?.id]);
   const [tab, setTab] = useState<"negocio" | "horario" | "reservas" | "mensajes" | "equipo" | "cuenta">("negocio");
   // Plan Lite: solo datos del negocio, horario, barra inferior, apariencia y privacidad; lo demás aparece bloqueado.
   const { tenant: tenantLite } = useTenant();
@@ -664,7 +671,7 @@ export default function ConfiguracionPage() {
       )}
 
       {/* Tótem de autoatención (migración 162): apagado por defecto */}
-      {isAdmin && (
+      {isAdmin && totemDesbloqueado && (
         <a href="/dashboard/configuracion/totem" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
           <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><ImageIcon className="h-5 w-5" /></div>
           <div className="min-w-0 flex-1">

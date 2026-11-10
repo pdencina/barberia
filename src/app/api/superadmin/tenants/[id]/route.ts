@@ -56,6 +56,8 @@ const EDITABLE_FIELDS = [
   // Rubro del negocio y carga de documentos en la ficha de cliente (Nico, 28-sep,
   // migracion 078).
   "business_category",
+  // Tótem de autoatención: servicio aparte con costo mensual; solo el superadmin lo desbloquea (migración 164).
+  "kiosk_unlocked",
 ] as const;
 
 // PATCH: editar datos de una empresa (Punto de Pablo, 25-sep). El slug NO es editable
