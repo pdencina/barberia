@@ -70,12 +70,10 @@ export function ipDe(req: Request): string {
 export async function negocioDelTotem(supabase: ReturnType<typeof createAdminSupabase>, codigo: unknown) {
   const s = normalizarCodigoNegocio(codigo);
   if (s.length !== 7) return null;
-  const { data } = await supabase
-    .from("tenants")
-    .select("id, name, slug, logo_url, phone, active, status, kiosk_enabled, kiosk_unlocked, kiosk_info")
-    .eq("kiosk_code", s)
-    .eq("active", true)
-    .maybeSingle();
+  const cols = "id, name, slug, logo_url, phone, active, status, kiosk_enabled, kiosk_unlocked, kiosk_info";
+  let r: { data: any; error: any } = await supabase.from("tenants").select(`${cols}, kiosk_pay_qr_enabled`).eq("kiosk_code", s).eq("active", true).maybeSingle();
+  if (r.error) r = await supabase.from("tenants").select(cols).eq("kiosk_code", s).eq("active", true).maybeSingle(); // migración 165 aún no aplicada
+  const data = r.data;
   if (!data || (data as any).status === "suspended" || !(data as any).kiosk_enabled || !(data as any).kiosk_unlocked) return null; // servicio aparte: debe estar desbloqueado Y encendido
   return data as any;
 }

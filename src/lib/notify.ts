@@ -11,7 +11,7 @@ export type NotifyKind =
   | "appointment_new" | "appointment_changed" | "client_arrived"
   | "planilla_created" | "planilla_approved"
   | "announcement" | "cash_problem" | "supply_request"
-  | "cash_closed" | "cash_mismatch" | "deposit_conflict";
+  | "cash_closed" | "cash_mismatch" | "deposit_conflict" | "kiosk_payment";
 
 // `essential`: no se puede silenciar. `generic`: texto para pantalla bloqueada (sin nombres ni montos).
 export const NOTIFY_KINDS: Record<NotifyKind, { label: string; essential: boolean; generic: { title: string; body: string } }> = {
@@ -24,6 +24,7 @@ export const NOTIFY_KINDS: Record<NotifyKind, { label: string; essential: boolea
   cash_problem:        { label: "Problemas de caja", essential: true, generic: { title: "Se reportó un problema de caja", body: "Revísalo en la app." } },
   supply_request:      { label: "Solicitudes de insumos", essential: false, generic: { title: "Nueva solicitud de insumos", body: "Revísala en la app." } },
   cash_closed:         { label: "Cierre de caja (cuadró)", essential: false, generic: { title: "Se cerró una caja", body: "Abre la app para ver el detalle." } },
+  kiosk_payment:       { label: "Pagos hechos desde el tótem", essential: true, generic: { title: "Un cliente pagó desde el tótem", body: "Abre la app para ver el detalle." } },
   deposit_conflict:    { label: "Abono pagado con horario ocupado", essential: true, generic: { title: "Un abono necesita tu atención", body: "Revísalo en la app." } },
   cash_mismatch:       { label: "Cierre de caja con diferencia", essential: true, generic: { title: "Una caja cerró con diferencia", body: "Revísala en la app." } },
 };
