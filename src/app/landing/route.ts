@@ -97,6 +97,47 @@ document.addEventListener('click', function (e) {
 </script>`;
   html = html.includes("</body>") ? html.replace("</body>", anchorScript + "</body>") : html + anchorScript;
 
+  // Embudo de ventas: SOLO para visitas que llegan por un link de vendedor o creador (utm_source=vendedor|creador). Anonimo:
+  // id de visita al azar, sin IP ni datos personales. No corre si la persona rechazo las cookies. Nunca rompe la pagina.
+  const embudoScript = `<script>
+(function () {
+  try {
+    var K = 'rb_mkt_attr', V = 'rb_visit', C = 'rb_meta_consent';
+    function g(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
+    function s(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+    var q = new URLSearchParams(location.search), a = {}, any = false;
+    ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','utm_id','fbclid'].forEach(function (k) { var v = q.get(k); if (v) { a[k] = v.slice(0, 200); any = true; } });
+    if (any) { a.landing = '/landing'; s(K, JSON.stringify(a)); }
+    if (g(C) === 'denied') return;
+    var at = {}; try { at = JSON.parse(g(K) || '{}'); } catch (_) {}
+    var src = String(at.utm_source || '').toLowerCase();
+    if (src !== 'vendedor' && src !== 'creador') return;
+    var vid = g(V);
+    if (!/^[a-f0-9]{16,40}$/.test(vid || '')) { vid = Array.prototype.map.call(crypto.getRandomValues(new Uint8Array(16)), function (b) { return ('0' + b.toString(16)).slice(-2); }).join(''); s(V, vid); }
+    function send(step, plan) {
+      var body = JSON.stringify({ visit: vid, source: src, campaign: at.utm_campaign || '', step: step, plan: plan });
+      try { if (navigator.sendBeacon) navigator.sendBeacon('/api/public/embudo', new Blob([body], { type: 'application/json' })); else fetch('/api/public/embudo', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true }); } catch (_) {}
+    }
+    send('landing_view');
+    var tries = 0, visto = false;
+    (function esperar() {
+      var el = document.getElementById('precios');
+      if (el && 'IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (es) { es.forEach(function (e) { if (e.isIntersecting && !visto) { visto = true; send('precios_view'); io.disconnect(); } }); }, { threshold: 0.25 });
+        io.observe(el);
+      } else if (++tries < 40) setTimeout(esperar, 250);
+    })();
+    document.addEventListener('click', function (e) {
+      var a2 = e.target.closest && e.target.closest('a[data-subscribe]'); if (!a2) return;
+      var card = a2.closest('[data-plan]'), plan = '';
+      try { plan = (JSON.parse(card.getAttribute('data-checkout') || '{}').plan) || ''; } catch (_) {}
+      send('plan_click', plan);
+    }, true);
+  } catch (_) {}
+})();
+</script>`;
+  html = html.includes("</body>") ? html.replace("</body>", embudoScript + "</body>") : html + embudoScript;
+
   // Píxel de Meta: solo si NEXT_PUBLIC_META_PIXEL_ID tiene un número. Sin él, la landing queda exactamente igual que antes.
   const pixelId = (process.env.NEXT_PUBLIC_META_PIXEL_ID || "").trim();
   if (/^\d{8,20}$/.test(pixelId)) {

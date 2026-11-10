@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { slugifyAd } from "@/lib/ad-tracking";
 import { statsDeVendedor } from "@/lib/vendedores";
+import { analisisEmbudo } from "@/lib/embudo-server";
 
 export const dynamic = "force-dynamic";
 
@@ -11,14 +12,17 @@ async function soloSuperAdmin() {
   return role === "super_admin";
 }
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   if (!(await soloSuperAdmin())) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   const supabase = createAdminSupabase();
   const { data: sellers, error } = await supabase.from("sellers").select("id, name, slug, token, active, created_at").order("created_at", { ascending: false });
   if (error) return NextResponse.json({ migracion: false, vendedores: [] });
   const { data: rows } = await supabase.from("signup_requests").select("status, amount, plan, created_at, ad_attribution").not("ad_attribution", "is", null).limit(5000);
   const vendedores = (sellers || []).map((s: any) => ({ ...s, stats: statsDeVendedor((rows as any[]) || [], s.slug) }));
-  return NextResponse.json({ migracion: true, vendedores });
+  // Analisis del embudo: de todos los vendedores y creadores, o de uno (?slug=juan).
+  const slug = new URL(req.url).searchParams.get("slug");
+  const analisis = await analisisEmbudo(supabase, slug && /^[a-z0-9-]{2,40}$/.test(slug) ? slug : null, ((rows as any[]) || []) as any);
+  return NextResponse.json({ migracion: true, vendedores, analisis });
 }
 
 export async function POST(req: NextRequest) {

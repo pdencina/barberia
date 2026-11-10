@@ -4,6 +4,7 @@ import { useState, useEffect, useMemo } from "react";
 import { netoMensualFor } from "@/lib/subscription-pricing";
 import MetaPixel from "@/components/meta-pixel";
 import { track, eventId, marketingPayload } from "@/lib/meta-pixel";
+import { pasoEmbudo } from "@/lib/embudo-client";
 
 interface Plan {
   plan: string;
@@ -117,6 +118,9 @@ export default function SuscribirsePage() {
   const slugify = (v: string) =>
     v.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
+  // Embudo de ventas (solo visitas por link de vendedor o creador): abrio el formulario y empezo a llenarlo.
+  useEffect(() => { pasoEmbudo("checkout_open"); }, []);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
@@ -132,6 +136,7 @@ export default function SuscribirsePage() {
 
     setSubmitting(true);
     try {
+      pasoEmbudo("pay_click", selectedPlan);
       // Medición de anuncios (apagada si no hay Píxel). El servidor repite este evento con el mismo id (CAPI).
       const checkoutId = eventId("checkout");
       let marketing: Record<string, string> = {};
@@ -154,6 +159,7 @@ export default function SuscribirsePage() {
       setSubmitting(false);
 
       if (!res.ok) {
+        pasoEmbudo("pay_error");
         setError(data.error || "No se pudo iniciar el pago");
         return;
       }
@@ -178,7 +184,7 @@ export default function SuscribirsePage() {
         </div>
 
         {refValido && <p className="mb-3 rounded-xl border border-brand-blue/30 bg-brand-blue/5 px-3 py-2 text-sm text-brand-dark">Llegaste por la invitación de otro negocio de re-booking: tienes 50% de descuento en tus primeros 2 meses (plan mensual).</p>}
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} onFocusCapture={(ev) => { const t = ev.target as unknown as HTMLInputElement; if (!["text", "email", "tel"].includes(t.type)) return; if (!(window as any).__rbFormStarted) { (window as any).__rbFormStarted = true; pasoEmbudo("form_started"); } }} className="space-y-4">
           <div>
             <label className="text-xs font-medium text-brand-dark mb-1.5 block">Plan</label>
             {loadingPlans ? (
