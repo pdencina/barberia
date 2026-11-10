@@ -7,10 +7,10 @@ import { Qr } from "@/components/totem/qr";
 // Totem de autoatencion (pantalla vertical tactil en el local). Pensado para 1080x1920 (o 1920x1080 girada).
 // Sin sesion: todo pasa por /api/totem/* con el codigo corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 
-type Pantalla = "inicio" | "codigo" | "cita" | "sinhora" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
+type Pantalla = "inicio" | "codigo" | "cita" | "pagoqr" | "sinhora" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
 interface Cita { id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
-interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; info: { title: string; body: string }[] }
+interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; pagoQr?: boolean; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -35,19 +35,20 @@ function Totem() {
   const [acepta, setAcepta] = useState(false);
   const [carrito, setCarrito] = useState<Record<string, number>>({});
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
+  const [pagoQr, setPagoQr] = useState<{ id: string; url: string; monto: number; abono: number } | null>(null);
   const ultimo = useRef(Date.now());
   const pantallaRef = useRef<Pantalla>("inicio");
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setNombre(""); setCelular(""); setCorreo(""); setAcepta(false); setCarrito({}); setGracias(""); setModo("llegue");
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setNombre(""); setCelular(""); setCorreo(""); setAcepta(false); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null);
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
   useEffect(() => {
     const tocar = () => { ultimo.current = Date.now(); };
     window.addEventListener("pointerdown", tocar);
-    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
+    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : pantallaRef.current === "pagoqr" ? 180_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
     return () => { window.removeEventListener("pointerdown", tocar); clearInterval(t); };
   }, [inicio]);
 
@@ -115,6 +116,28 @@ function Totem() {
     setGracias("Listo, avisamos para que te cobren. Un momento por favor.");
     setPantalla("gracias");
   };
+
+  const crearPagoQr = async (c: Cita) => {
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("pago-qr", { appointmentId: c.id, code });
+    setCargando(false);
+    if (!ok) { setMsg(d.error || "No pudimos crear el pago"); return; }
+    setPagoQr({ id: d.id, url: d.url, monto: d.monto, abono: d.abono });
+    setPantalla("pagoqr");
+  };
+
+  // Mientras se muestra el QR, se pregunta cada 3 s si ya se pagó.
+  useEffect(() => {
+    if (pantalla !== "pagoqr" || !pagoQr || !codigo) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoQr.id}`);
+        const d = await r.json();
+        if (d.estado === "paid") { setGracias("¡Pago recibido! Gracias. Ya avisamos a tu profesional."); setPantalla("gracias"); }
+      } catch { /* se reintenta */ }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [pantalla, pagoQr, codigo]);
 
   const registrar = async () => {
     setCargando(true); setMsg("");
@@ -235,7 +258,10 @@ function Totem() {
                 <p className="mt-1 text-2xl opacity-70">con {c.profesional || "tu profesional"} · {c.cliente}</p>
                 <div className="mt-6">
                   {modo === "pagar"
-                    ? <button className={principal} disabled={cargando} onClick={() => pedirPagar(c)}>Quiero pagar ahora</button>
+                    ? <div className="space-y-4">
+                        {info.pagoQr && <button className={principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "📱 Pagar desde mi celular (QR)"}</button>}
+                        <button className={info.pagoQr ? "w-full rounded-3xl bg-white/10 px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{info.pagoQr ? "Prefiero pagar con el equipo" : "Quiero pagar ahora"}</button>
+                      </div>
                     : c.llego
                       ? <p className="rounded-2xl bg-emerald-500/20 p-5 text-center text-2xl text-emerald-200">Ya avisamos que llegaste ✓</p>
                       : <button className={principal} disabled={cargando} onClick={() => llegue(c)}>Ya llegué</button>}
@@ -269,6 +295,18 @@ function Totem() {
         <section className="flex flex-1 flex-col">
           <div className="mb-4 flex gap-4"><button onClick={() => setPantalla("nohora")} className="rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">← Atrás</button><button onClick={inicio} className="rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">Ir al inicio</button></div>
           <iframe src={info.reservaPantalla} title="Reservar" className="w-full flex-1 rounded-3xl bg-white" style={{ minHeight: "70vh" }} />
+        </section>
+      )}
+
+      {pantalla === "pagoqr" && pagoQr && (
+        <section className="flex flex-1 flex-col items-center text-center">
+          <div className="self-start">{volver}</div>
+          <h2 className="mb-2 text-5xl font-extrabold">Paga con tu celular</h2>
+          <p className="mb-8 text-3xl font-bold text-emerald-300">{plata(pagoQr.monto)}</p>
+          <Qr valor={pagoQr.url} tamano={460} />
+          <p className="mt-8 max-w-xl text-2xl opacity-80">Abre la cámara de tu celular, apunta al código y paga con Mercado Pago. Esta pantalla se actualiza sola cuando se confirme.</p>
+          {pagoQr.abono > 0 && <p className="mt-3 text-xl opacity-60">Ya descontamos tu abono de {plata(pagoQr.abono)}.</p>}
+          <p className="mt-6 text-lg opacity-50">El código vence en 10 minutos.</p>
         </section>
       )}
 

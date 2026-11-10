@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     reserva: t.slug ? `https://www.re-booking.cl/${t.slug}` : null,
     reservaPantalla: t.slug ? `/booking?tenant=${encodeURIComponent(t.slug)}&kiosko=1` : null,
     productos,
+    pagoQr: !!t.kiosk_pay_qr_enabled,
     info: limpiarSecciones(t.kiosk_info),
   });
 }

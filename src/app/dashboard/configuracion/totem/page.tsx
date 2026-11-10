@@ -18,18 +18,20 @@ export default function ConfiguracionTotemPage() {
   const [info, setInfo] = useState<Seccion[]>([]);
   const [faltaMigracion, setFaltaMigracion] = useState(false);
   const [desbloqueado, setDesbloqueado] = useState(true);
+  const [pagoQr, setPagoQr] = useState(false);
+  const [mpListo, setMpListo] = useState(false);
   const tq = tenant?.id ? `?tenantId=${tenant.id}` : "";
 
   useEffect(() => {
     fetch(`/api/settings/totem${tq}`).then((r) => r.json()).then((d) => {
       if (d.error) return;
-      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion);
+      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [tq]);
 
   const guardar = async () => {
     setSaving(true);
-    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info }) });
+    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr }) });
     const d = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) return showToast(d.error || "No se pudo guardar", "error");
@@ -57,6 +59,15 @@ export default function ConfiguracionTotemPage() {
           <label className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
             <span><span className="block font-bold text-brand-dark">Activar el tótem</span><span className="text-xs text-brand-gray">Apagado: la dirección del tótem no abre.</span></span>
             <input type="checkbox" className="h-5 w-5" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          </label>
+
+          <label className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
+            <span>
+              <span className="block font-bold text-brand-dark">Pago por QR desde el celular</span>
+              <span className="text-xs text-brand-gray">El cliente escribe su código y paga el saldo de su cita escaneando un QR (Mercado Pago). Cuando paga, avisamos al profesional y a administración. La venta la registras tú en el POS como Mercado Pago.</span>
+              {!mpListo && <span className="mt-1 block text-xs font-semibold text-amber-600">Primero conecta Mercado Pago en «Cobros online»: sin eso el QR no puede crearse.</span>}
+            </span>
+            <input type="checkbox" className="mt-1 h-5 w-5 flex-shrink-0" checked={pagoQr} onChange={(e) => setPagoQr(e.target.checked)} />
           </label>
 
           <div className="space-y-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
