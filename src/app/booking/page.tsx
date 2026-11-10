@@ -105,7 +105,9 @@ export default function BookingPage() {
   }, []);
   useEffect(() => { captureAdParams(); }, []);
   // Si el negocio activó "usar los colores del sistema", la página de reservas usa su tema (migración 151).
-  const colorTheme = (businessInfo as any)?.color_theme;
+  // vista_tema: el administrador abre su página con un tema para verla antes de activarlo (solo cambia la vista).
+  const vistaTema = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("vista_tema") : null;
+  const colorTheme = isAppTheme(vistaTema) ? vistaTema : (businessInfo as any)?.color_theme;
   useEffect(() => {
     if (!isAppTheme(colorTheme)) return;
     applyColorTheme(document.documentElement, colorTheme);
