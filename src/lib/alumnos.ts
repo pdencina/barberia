@@ -74,6 +74,20 @@ export function calcular(scores: any): { ok: true; scores: Record<string, number
   return { ok: true, scores: out, total, average: Math.round((total / 7) * 100) / 100 };
 }
 
+// Notas parciales (borrador): solo claves conocidas con enteros 1 a 7. Devuelve la suma de lo puesto.
+export function parcial(scores: any): { scores: Record<string, number>; total: number } | null {
+  if (!scores || typeof scores !== "object") return { scores: {}, total: 0 };
+  const out: Record<string, number> = {};
+  let total = 0;
+  for (const c of CRITERIOS) {
+    const v = scores[c.key];
+    if (v === undefined || v === null) continue;
+    if (!Number.isInteger(v) || v < 1 || v > 7) return null;
+    out[c.key] = v; total += v;
+  }
+  return { scores: out, total };
+}
+
 export function fechaCL(iso: string): string {
   return new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", dateStyle: "long", timeStyle: "short" });
 }

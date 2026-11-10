@@ -10,6 +10,7 @@ export async function GET(_: Request, { params }: { params: { id: string } }) {
   const sb = createAdminSupabase();
   const { data: ev } = await sb.from("course_evaluations").select("*, course_students(first_name,last_name)").eq("id", params.id).eq("tenant_id", tenantAlumnos()).maybeSingle();
   if (!ev) return NextResponse.json({ error: "No encontrada" }, { status: 404 });
+  if (ev.status === "borrador") return NextResponse.json({ error: "Termina la evaluación antes." }, { status: 400 });
   const al = ev.course_students as any;
   const nombre = `${al.first_name} ${al.last_name}`.trim();
   const pdf = await pdfEvaluacion(ev, nombre);
