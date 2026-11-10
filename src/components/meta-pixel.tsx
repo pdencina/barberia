@@ -10,6 +10,8 @@ export default function MetaPixel({ viewContent, pixelId, business }: { viewCont
 
   useEffect(() => {
     if (!pixelEnabled(id)) return;
+    // En el tótem del local (pantalla compartida, ?kiosko=1) no se pide ni se guarda consentimiento de cookies ni se mide.
+    if (new URLSearchParams(window.location.search).get("kiosko")) return;
     captureAttribution();
     const c = getConsent();
     if (c === null) setAsk(true);

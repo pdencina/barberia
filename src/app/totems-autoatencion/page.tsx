@@ -2,14 +2,15 @@
 
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
+import { Qr } from "@/components/totem/qr";
 
 // Totem de autoatencion (pantalla vertical tactil en el local). Pensado para 1080x1920 (o 1920x1080 girada).
 // Sin sesion: todo pasa por /api/totem/* con el codigo corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 
-type Pantalla = "inicio" | "codigo" | "cita" | "sinhora" | "pagar" | "productos" | "info" | "gracias";
+type Pantalla = "inicio" | "codigo" | "cita" | "sinhora" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
 interface Cita { id: string; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
-interface Info { negocio: { name: string; logo_url: string | null }; productos: Producto[]; info: { title: string; body: string }[] }
+interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -35,6 +36,8 @@ function Totem() {
   const [carrito, setCarrito] = useState<Record<string, number>>({});
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
   const ultimo = useRef(Date.now());
+  const pantallaRef = useRef<Pantalla>("inicio");
+  useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
     setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setNombre(""); setCelular(""); setCorreo(""); setAcepta(false); setCarrito({}); setGracias(""); setModo("llegue");
@@ -44,7 +47,7 @@ function Totem() {
   useEffect(() => {
     const tocar = () => { ultimo.current = Date.now(); };
     window.addEventListener("pointerdown", tocar);
-    const t = setInterval(() => { if (Date.now() - ultimo.current > 60_000) { ultimo.current = Date.now(); inicio(); } }, 5_000);
+    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
     return () => { window.removeEventListener("pointerdown", tocar); clearInterval(t); };
   }, [inicio]);
 
@@ -188,7 +191,7 @@ function Totem() {
         <section className="flex flex-1 flex-col justify-center gap-6">
           <h1 className="mb-6 text-6xl font-extrabold leading-tight">Bienvenido 👋<br /><span className="text-4xl font-semibold opacity-80">¿Cómo te podemos ayudar?</span></h1>
           <button className={boton} onClick={() => { setModo("llegue"); setPantalla("codigo"); }}>📅 Tengo hora<span className="mt-1 block text-xl font-normal opacity-70">Avisa que llegaste con tu código</span></button>
-          <button className={boton} onClick={() => setPantalla("sinhora")}>✍️ No tengo hora<span className="mt-1 block text-xl font-normal opacity-70">Regístrate y te recibimos</span></button>
+          <button className={boton} onClick={() => setPantalla("nohora")}>✍️ No tengo hora<span className="mt-1 block text-xl font-normal opacity-70">Reserva aquí o desde tu celular</span></button>
           <button className={boton} onClick={() => { setModo("pagar"); setPantalla("codigo"); }}>💳 Quiero pagar<span className="mt-1 block text-xl font-normal opacity-70">Avisa para que te cobren</span></button>
           {info.productos.length > 0 && <button className={boton} onClick={() => setPantalla("productos")}>🥤 Comprar un producto<span className="mt-1 block text-xl font-normal opacity-70">Bebidas, energéticas y más</span></button>}
           {info.info.length > 0 && <button className={boton} onClick={() => setPantalla("info")}>ℹ️ Cursos, promociones y planes<span className="mt-1 block text-xl font-normal opacity-70">Conoce lo que tenemos para ti</span></button>}
@@ -243,9 +246,34 @@ function Totem() {
         </section>
       )}
 
-      {pantalla === "sinhora" && (
+      {pantalla === "nohora" && (
         <section className="flex flex-1 flex-col">
           {volver}
+          <h2 className="mb-2 text-5xl font-extrabold">Reserva tu hora</h2>
+          <p className="mb-8 text-2xl opacity-70">Elige cómo prefieres hacerlo.</p>
+          <div className="space-y-6">
+            {info.reservaPantalla && <button className={boton} onClick={() => setPantalla("reservar")}>🖥️ Reservar en esta pantalla<span className="mt-1 block text-xl font-normal opacity-70">Elige servicio, profesional y hora aquí mismo</span></button>}
+            {info.reserva && (
+              <div className="flex items-center gap-8 rounded-3xl bg-white/10 p-8">
+                <Qr valor={info.reserva} tamano={280} />
+                <div><p className="text-3xl font-bold">📱 Reservar desde tu celular</p><p className="mt-3 text-2xl opacity-70">Abre la cámara de tu celular y apunta al código. Reservas desde ahí, sin escribir nada más aquí.</p></div>
+              </div>
+            )}
+            <button className={boton} onClick={() => setPantalla("sinhora")}>🙋 Solo avisar que llegué<span className="mt-1 block text-xl font-normal opacity-70">Déjanos tus datos y te recibimos</span></button>
+          </div>
+        </section>
+      )}
+
+      {pantalla === "reservar" && info.reservaPantalla && (
+        <section className="flex flex-1 flex-col">
+          <div className="mb-4 flex gap-4"><button onClick={() => setPantalla("nohora")} className="rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">← Atrás</button><button onClick={inicio} className="rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">Ir al inicio</button></div>
+          <iframe src={info.reservaPantalla} title="Reservar" className="w-full flex-1 rounded-3xl bg-white" style={{ minHeight: "70vh" }} />
+        </section>
+      )}
+
+      {pantalla === "sinhora" && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => setPantalla("nohora")} className="mb-8 self-start rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">← Atrás</button>
           <h2 className="mb-2 text-5xl font-extrabold">Regístrate</h2>
           <p className="mb-8 text-2xl opacity-70">Te recibimos en un momento y te ofrecemos una hora.</p>
           <label className="mb-2 text-2xl font-semibold">Tu nombre</label>

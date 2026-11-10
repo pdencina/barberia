@@ -260,6 +260,9 @@ interface SendBookingConfirmationParams {
   businessLogoUrl?: string | null;
 }
 
+// El código de llegada del tótem NO se muestra en los correos hasta que Nico lo indique (10 nov 2026). Para activarlo: poner true.
+const MOSTRAR_CODIGO_LLEGADA_EN_CORREO = false;
+
 export async function sendBookingConfirmation(params: SendBookingConfirmationParams) {
   const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl, changeHours, businessPhone } = params;
 
@@ -280,7 +283,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
 
   // Código corto para avisar tu llegada en el tótem del local (lo asigna la base al crear la cita; migración 162). Sin él, el correo sale igual.
   let checkinCode: string | null = null;
-  if (appointmentId) {
+  if (appointmentId && MOSTRAR_CODIGO_LLEGADA_EN_CORREO) {
     try {
       const { createAdminSupabase } = await import("@/lib/supabase/server");
       const r = await createAdminSupabase().from("appointments").select("checkin_code").eq("id", appointmentId).maybeSingle();
