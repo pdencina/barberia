@@ -54,8 +54,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
     update.assigned_seller_id = body.sellerId;
   }
+  if (body.priceTierId !== undefined) {
+    if (!roleCan(g.role, "config.editar")) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    if (body.priceTierId !== null) {
+      if (!isUuid(body.priceTierId)) return badRequest("Elige un tramo.");
+      const { data: tier, error: tierError } = await admin.from("company_price_tiers").select("id").eq("tenant_id", g.tenantId).eq("id", body.priceTierId).eq("active", true).maybeSingle();
+      if (tierError) return faltaMigracion(tierError) ? missingMigration(161) : dbErrorResponse(tierError, "cliente PATCH tramo");
+      if (!tier) return badRequest("Ese tramo no existe.");
+    }
+    update.price_tier_id = body.priceTierId;
+  }
   if (Object.keys(update).length === 0) return badRequest("No hay cambios.");
   const { error } = await admin.from("company_customers").update(update).eq("tenant_id", g.tenantId).eq("id", params.id);
-  if (error) return faltaMigracion(error) ? missingMigration(160) : dbErrorResponse(error, "cliente PATCH");
+  if (error) return faltaMigracion(error) ? missingMigration(update.price_tier_id !== undefined ? 161 : 160) : dbErrorResponse(error, "cliente PATCH");
   return NextResponse.json({ ok: true });
 }
