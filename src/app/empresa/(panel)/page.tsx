@@ -14,6 +14,8 @@ import { formatCurrency } from "@/lib/utils";
 
 const corto = (n: number) => (Math.abs(n) >= 1e6 ? `$${(n / 1e6).toFixed(1).replace(".", ",")} MM` : Math.abs(n) >= 1e3 ? `$${Math.round(n / 1e3)} mil` : `$${n}`);
 const OCULTO = "$ ••••••";
+// Montos de 10 millones o más se muestran abreviados ($12,3 MM) para que quepan en la tarjeta.
+const grande = (n: number) => (Math.abs(n) >= 1e7 ? corto(n) : formatCurrency(n));
 
 // Dashboard del dueño: cómo rinden sus marcas. Los demás roles entran directo a Stock.
 export default function EmpresaDashboardPage() {
@@ -68,20 +70,20 @@ function DashboardDueno() {
                   {hide ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               }
-              value={hide ? OCULTO : <AnimatedNumber value={t.revenue} format={formatCurrency} />}
+              value={hide ? OCULTO : <AnimatedNumber value={t.revenue} format={grande} />}
               Icon={Wallet}
               delta={{ value: t.revenueChange, suffix: "vs período anterior" }}
-              footnote={t.pendingOrders > 0 ? `Por despachar: ${money(t.pendingValue)} (${t.pendingOrders} pedidos)` : undefined}
+              footnote={t.pendingOrders > 0 ? `Por despachar: ${hide ? "••••" : corto(t.pendingValue)}` : undefined}
             />
             <StatCard compact label="Margen bruto" Icon={PiggyBank} tone="green"
-              value={hide ? OCULTO : <AnimatedNumber value={t.margin} format={formatCurrency} />}
+              value={hide ? OCULTO : <AnimatedNumber value={t.margin} format={grande} />}
               delta={{ value: t.marginChange, suffix: t.marginPct === null ? "" : `· ${t.marginPct}% de margen` }} />
             <StatCard compact label="Unidades vendidas" Icon={Package} tone="violet"
               value={<AnimatedNumber value={t.units} />} delta={{ value: t.unitsChange }} />
             <StatCard compact label="Pedidos" Icon={Receipt} tone="amber"
               value={<AnimatedNumber value={t.orders} />} delta={{ value: t.ordersChange, suffix: `· ticket ${hide ? "••••" : corto(t.avgTicket)}` }} />
             <StatCard compact label="Stock valorizado" Icon={Boxes} tone="slate"
-              value={hide ? OCULTO : <AnimatedNumber value={t.stockAtCost} format={formatCurrency} />}
+              value={hide ? OCULTO : <AnimatedNumber value={t.stockAtCost} format={grande} />}
               hint={`${t.stockUnits.toLocaleString("es-CL")} unidades · ${t.lowStock} bajo mínimo`} />
           </div>
 
