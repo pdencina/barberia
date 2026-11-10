@@ -155,6 +155,7 @@ const sections: NavSection[] = [
     items: [
       { name: "Empresas", href: "/dashboard/superadmin/tenants", icon: Building2, minRole: "super_admin" },
       { name: "Campañas", href: "/dashboard/superadmin/campanas", icon: TrendingUp, minRole: "super_admin" },
+      { name: "Vendedores", href: "/dashboard/superadmin/vendedores", icon: Users, minRole: "super_admin" },
       { name: "Reuniones", href: "/dashboard/superadmin/reuniones", icon: CalendarDays, minRole: "super_admin" },
       { name: "Auditoría", href: "/dashboard/superadmin/audit", icon: ShieldCheck, minRole: "super_admin" },
       { name: "Sesiones", href: "/dashboard/superadmin/sesiones", icon: Tablet, minRole: "super_admin" },
