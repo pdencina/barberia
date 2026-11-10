@@ -3,13 +3,13 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, hoyChile, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { notify } from "@/lib/notify";
 
-// POST {slug, appointmentId, code}: el cliente avisa que llego. Marca arrived_at y avisa al profesional.
+// POST {codigo, appointmentId, code}: el cliente avisa que llego. Marca arrived_at y avisa al profesional.
 // El codigo corto es la prueba: sin el (o si no calza con la cita) no se hace nada.
 export async function POST(req: NextRequest) {
   if (demasiadosIntentos(`llegue:${ipDe(req)}`, 15)) return NextResponse.json({ error: "Muchos intentos. Espera un momento." }, { status: 429 });
   const supabase = createAdminSupabase();
   const body = await req.json().catch(() => ({}));
-  const t = await negocioDelTotem(supabase, body.slug);
+  const t = await negocioDelTotem(supabase, body.codigo);
   if (!t) return NextResponse.json({ error: "Totem no disponible" }, { status: 404 });
 
   const code = normalizarCodigo(body.code);

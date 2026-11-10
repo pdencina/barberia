@@ -16,7 +16,10 @@ const NUMEROS = "23456789".split("");
 const plata = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 
 function Totem() {
-  const slug = useSearchParams().get("negocio") || "";
+  const params = useSearchParams();
+  const [codigo, setCodigo] = useState<string | null>(null); // null = aún leyendo el equipo; "" = sin configurar
+  const [escrito, setEscrito] = useState("");
+  const [tocesLogo, setTocesLogo] = useState(0);
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
   const [pantalla, setPantalla] = useState<Pantalla>("inicio");
@@ -51,16 +54,33 @@ function Totem() {
     return () => clearTimeout(t);
   }, [pantalla, inicio]);
 
+  // El código del negocio se escribe UNA vez en el equipo y queda guardado: al encender, abre directo en el inicio.
   useEffect(() => {
-    if (!slug) { setError("Falta el negocio en la dirección del tótem."); return; }
-    fetch(`/api/totem/info?slug=${encodeURIComponent(slug)}`).then(async (r) => {
-      if (!r.ok) { setError("Este tótem no está disponible. Avisa a quien te atiende."); return; }
+    let guardado = "";
+    try { guardado = localStorage.getItem("totem_codigo") || ""; } catch { /* sin almacenamiento: se pedirá cada vez */ }
+    const url = (params.get("codigo") || "").toUpperCase().replace(/[^A-Z0-9]/g, "");
+    setCodigo(url || guardado);
+  }, [params]);
+
+  useEffect(() => {
+    if (!codigo) return;
+    setError(""); setInfo(null);
+    fetch(`/api/totem/info?codigo=${encodeURIComponent(codigo)}`).then(async (r) => {
+      if (!r.ok) {
+        try { localStorage.removeItem("totem_codigo"); } catch { /* */ }
+        setMsg("Ese código no existe o el tótem está apagado. Revísalo en Configuración > Tótem de autoatención.");
+        setEscrito("");
+        setCodigo("");
+        return;
+      }
+      try { localStorage.setItem("totem_codigo", codigo); } catch { /* */ }
+      setMsg("");
       setInfo(await r.json());
     }).catch(() => setError("Sin conexión. Avisa a quien te atiende."));
-  }, [slug]);
+  }, [codigo]);
 
   const post = async (ruta: string, cuerpo: Record<string, any>) => {
-    const r = await fetch(`/api/totem/${ruta}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ slug, ...cuerpo }) });
+    const r = await fetch(`/api/totem/${ruta}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo, ...cuerpo }) });
     const d = await r.json().catch(() => ({}));
     return { ok: r.ok, d };
   };
@@ -119,6 +139,32 @@ function Totem() {
     <button onClick={inicio} className="mb-8 rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">← Volver al inicio</button>
   );
 
+  // Pantalla de configuración del equipo (primera vez o código inválido).
+  if (codigo === null) return <main className={`flex min-h-screen items-center justify-center text-2xl ${colorFondo}`}>Cargando…</main>;
+  if (codigo === "") {
+    const teclas = [...LETRAS, ...NUMEROS];
+    return (
+      <div className="min-h-screen bg-[#0f1115]">
+        <main className={`mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-12 py-12 ${colorFondo}`}>
+          <h1 className="mb-3 text-5xl font-extrabold">Configurar este tótem</h1>
+          <p className="mb-8 text-2xl opacity-70">Escribe el código del negocio (7 letras o números). Lo encuentras en re-booking, en Configuración &gt; Tótem de autoatención. Se guarda en este equipo y no se vuelve a pedir.</p>
+          <div className="mb-8 flex justify-center gap-3">
+            {Array.from({ length: 7 }).map((_, i) => (
+              <div key={i} className="flex h-24 w-20 items-center justify-center rounded-2xl bg-white/10 text-5xl font-extrabold">{escrito[i] || ""}</div>
+            ))}
+          </div>
+          {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
+          <div className="grid grid-cols-6 gap-3">
+            {teclas.map((k) => (
+              <button key={k} onClick={() => { setMsg(""); setEscrito((c) => (c.length < 7 ? c + k : c)); }} className="rounded-2xl bg-white/10 py-7 text-4xl font-bold active:bg-white/25">{k}</button>
+            ))}
+            <button onClick={() => setEscrito((c) => c.slice(0, -1))} className="col-span-2 rounded-2xl bg-white/15 py-7 text-3xl font-bold active:bg-white/25">⌫ Borrar</button>
+          </div>
+          <div className="mt-8"><button className={principal} disabled={escrito.length !== 7} onClick={() => setCodigo(escrito)}>Abrir tótem</button></div>
+        </main>
+      </div>
+    );
+  }
   if (error) return <main className={`flex min-h-screen items-center justify-center p-10 text-center text-3xl ${colorFondo}`}>{error}</main>;
   if (!info) return <main className={`flex min-h-screen items-center justify-center text-2xl ${colorFondo}`}>Cargando…</main>;
 
@@ -127,7 +173,12 @@ function Totem() {
   return (
     <div className="min-h-screen bg-[#0f1115]">
     <main className={`mx-auto flex min-h-screen w-full max-w-[1080px] flex-col select-none px-12 py-12 ${colorFondo}`} style={{ touchAction: "manipulation" }}>
-      <header className="mb-10 flex items-center gap-5">
+      <header className="mb-10 flex items-center gap-5" onClick={() => {
+        // Personal del local: 5 toques seguidos al nombre del negocio vuelven a pedir el código.
+        const n = tocesLogo + 1; setTocesLogo(n);
+        setTimeout(() => setTocesLogo(0), 3000);
+        if (n >= 5) { try { localStorage.removeItem("totem_codigo"); } catch { /* */ } setEscrito(""); setCodigo(""); inicio(); }
+      }}>
         {info.negocio.logo_url && /* eslint-disable-next-line @next/next/no-img-element */ <img src={info.negocio.logo_url} alt="" className="h-20 w-20 rounded-2xl object-cover" />}
         <p className="text-3xl font-bold opacity-90">{info.negocio.name}</p>
       </header>

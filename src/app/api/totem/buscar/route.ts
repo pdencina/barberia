@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, celular9, hoyChile, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 
-// POST {slug, code?, phone?}: citas de HOY de ese negocio que calzan con el codigo corto (o, de respaldo, el celular).
+// POST {codigo, code?, phone?}: citas de HOY de ese negocio que calzan con el codigo corto (o, de respaldo, el celular).
 // Solo devuelve primer nombre, hora, servicio y profesional: nunca telefono ni correo.
 export async function POST(req: NextRequest) {
   if (demasiadosIntentos(`buscar:${ipDe(req)}`, 25)) return NextResponse.json({ error: "Muchos intentos. Espera un momento." }, { status: 429 });
   const supabase = createAdminSupabase();
   const body = await req.json().catch(() => ({}));
-  const t = await negocioDelTotem(supabase, body.slug);
+  const t = await negocioDelTotem(supabase, body.codigo);
   if (!t) return NextResponse.json({ error: "Totem no disponible" }, { status: 404 });
 
   const code = normalizarCodigo(body.code);

@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, limpiarSecciones } from "@/lib/totem";
 
-// GET ?slug=: datos publicos para pintar el totem (nombre, logo, productos a la venta y textos informativos).
+// GET ?codigo=: datos publicos para pintar el totem (nombre, logo, productos a la venta y textos informativos).
 export async function GET(req: NextRequest) {
   const supabase = createAdminSupabase();
-  const t = await negocioDelTotem(supabase, new URL(req.url).searchParams.get("slug"));
+  const t = await negocioDelTotem(supabase, new URL(req.url).searchParams.get("codigo"));
   if (!t) return NextResponse.json({ error: "Totem no disponible" }, { status: 404 });
 
   const { data: prods } = await supabase

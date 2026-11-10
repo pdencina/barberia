@@ -10,6 +10,16 @@ export function normalizarCodigo(raw: unknown): string {
   return String(raw ?? "").toUpperCase().split("").filter((c) => CODE_ALPHABET.includes(c)).join("").slice(0, 5);
 }
 
+// Codigo del negocio (7 caracteres del mismo alfabeto).
+export function normalizarCodigoNegocio(raw: unknown): string {
+  return String(raw ?? "").toUpperCase().split("").filter((c) => CODE_ALPHABET.includes(c)).join("").slice(0, 7);
+}
+export function generarCodigoNegocio(): string {
+  let c = "";
+  for (let i = 0; i < 7; i++) c += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)];
+  return c;
+}
+
 export function hoyChile(): string {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 }
@@ -45,13 +55,13 @@ export function ipDe(req: Request): string {
 }
 
 // Negocio por slug con el totem encendido. Devuelve null si no existe, esta suspendido o no activó el totem.
-export async function negocioDelTotem(supabase: ReturnType<typeof createAdminSupabase>, slug: unknown) {
-  const s = String(slug || "").trim().toLowerCase();
-  if (!s || s.length > 80) return null;
+export async function negocioDelTotem(supabase: ReturnType<typeof createAdminSupabase>, codigo: unknown) {
+  const s = normalizarCodigoNegocio(codigo);
+  if (s.length !== 7) return null;
   const { data } = await supabase
     .from("tenants")
     .select("id, name, slug, logo_url, phone, active, status, kiosk_enabled, kiosk_info")
-    .eq("slug", s)
+    .eq("kiosk_code", s)
     .eq("active", true)
     .maybeSingle();
   if (!data || (data as any).status === "suspended" || !(data as any).kiosk_enabled) return null;

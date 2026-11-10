@@ -3,13 +3,13 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, celular9, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { notify } from "@/lib/notify";
 
-// POST {slug, name, phone, marketingConsent?}: cliente SIN hora que se registra en el totem. Se crea (o reutiliza) su ficha por celular
+// POST {codigo, name, phone, marketingConsent?}: cliente SIN hora que se registra en el totem. Se crea (o reutiliza) su ficha por celular
 // y se avisa a recepcion/administracion para que lo reciban. No crea cita.
 export async function POST(req: NextRequest) {
   if (demasiadosIntentos(`registro:${ipDe(req)}`, 8)) return NextResponse.json({ error: "Muchos intentos. Espera un momento." }, { status: 429 });
   const supabase = createAdminSupabase();
   const body = await req.json().catch(() => ({}));
-  const t = await negocioDelTotem(supabase, body.slug);
+  const t = await negocioDelTotem(supabase, body.codigo);
   if (!t) return NextResponse.json({ error: "Totem no disponible" }, { status: 404 });
 
   const name = String(body.name || "").trim().replace(/\s+/g, " ").slice(0, 80);

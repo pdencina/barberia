@@ -8,6 +8,24 @@ ALTER TABLE appointments ADD COLUMN IF NOT EXISTS checkin_code text;
 ALTER TABLE appointments ADD COLUMN IF NOT EXISTS arrived_at timestamptz;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS kiosk_enabled boolean NOT NULL DEFAULT false;
 ALTER TABLE tenants ADD COLUMN IF NOT EXISTS kiosk_info jsonb NOT NULL DEFAULT '[]'::jsonb;
+-- Codigo del negocio para el totem (7 letras/numeros sin O/0/I/1): se escribe una sola vez en el equipo, en re-booking.cl/totems-autoatencion.
+ALTER TABLE tenants ADD COLUMN IF NOT EXISTS kiosk_code text;
+CREATE UNIQUE INDEX IF NOT EXISTS tenants_kiosk_code_uq ON tenants (kiosk_code) WHERE kiosk_code IS NOT NULL;
+DO $$
+DECLARE r record; c text; alfabeto constant text := 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+BEGIN
+  FOR r IN SELECT id FROM tenants WHERE kiosk_code IS NULL LOOP
+    LOOP
+      c := '';
+      FOR i IN 1..7 LOOP c := c || substr(alfabeto, 1 + floor(random() * length(alfabeto))::int, 1); END LOOP;
+      BEGIN
+        UPDATE tenants SET kiosk_code = c WHERE id = r.id;
+        EXIT;
+      EXCEPTION WHEN unique_violation THEN NULL;
+      END;
+    END LOOP;
+  END LOOP;
+END $$;
 
 CREATE UNIQUE INDEX IF NOT EXISTS appointments_checkin_code_dia_uq
   ON appointments (tenant_id, date, checkin_code) WHERE checkin_code IS NOT NULL;
@@ -52,6 +70,7 @@ UPDATE appointments SET checkin_code = public.generar_checkin_code(tenant_id, da
 -- Verificacion: debe mostrar columnas, disparador y citas futuras sin codigo = 0.
 SELECT
   (SELECT count(*) FROM information_schema.columns WHERE table_name='appointments' AND column_name IN ('checkin_code','arrived_at')) AS columnas_citas_2,
-  (SELECT count(*) FROM information_schema.columns WHERE table_name='tenants' AND column_name IN ('kiosk_enabled','kiosk_info')) AS columnas_negocio_2,
+  (SELECT count(*) FROM information_schema.columns WHERE table_name='tenants' AND column_name IN ('kiosk_enabled','kiosk_info','kiosk_code')) AS columnas_negocio_3,
+  (SELECT count(*) FROM tenants WHERE kiosk_code IS NULL) AS negocios_sin_codigo_0,
   (SELECT count(*) FROM pg_trigger WHERE tgname='appointments_checkin_code') AS disparador_1,
   (SELECT count(*) FROM appointments WHERE checkin_code IS NULL AND status IN ('scheduled','confirmed') AND date >= (now() AT TIME ZONE 'America/Santiago')::date) AS futuras_sin_codigo_0;

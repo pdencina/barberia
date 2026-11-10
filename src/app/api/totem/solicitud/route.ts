@@ -3,13 +3,13 @@ import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, hoyChile, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { notify } from "@/lib/notify";
 
-// POST {slug, tipo: "pago"|"producto", code?, productos?: [{id, cantidad}]}: el cliente pide pagar o llevarse un producto.
+// POST {codigo, tipo: "pago"|"producto", code?, productos?: [{id, cantidad}]}: el cliente pide pagar o llevarse un producto.
 // El totem NO cobra todavia: avisa al equipo para que lo cobre (mismo POS de siempre). Los precios los toma el servidor.
 export async function POST(req: NextRequest) {
   if (demasiadosIntentos(`solicitud:${ipDe(req)}`, 10)) return NextResponse.json({ error: "Muchos intentos. Espera un momento." }, { status: 429 });
   const supabase = createAdminSupabase();
   const body = await req.json().catch(() => ({}));
-  const t = await negocioDelTotem(supabase, body.slug);
+  const t = await negocioDelTotem(supabase, body.codigo);
   if (!t) return NextResponse.json({ error: "Totem no disponible" }, { status: 404 });
 
   let quien = "Un cliente";
