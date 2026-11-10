@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { tenantAlumnos } from "@/lib/alumnos";
 
+export const dynamic = "force-dynamic";
+
 // Público: solo nombres (sin códigos) para la primera pantalla «¿Quién evalúa?».
 export async function GET() {
   const { data } = await createAdminSupabase().from("course_evaluators").select("id,name")

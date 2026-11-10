@@ -10,13 +10,16 @@ export async function GET() {
   const sb = createAdminSupabase();
   const [{ data: alumnos }, { data: evals }] = await Promise.all([
     sb.from("course_students").select("*").eq("tenant_id", tenantAlumnos()).eq("active", true).order("class_date", { nullsFirst: false }),
-    sb.from("course_evaluations").select("student_id,average,created_at").eq("tenant_id", tenantAlumnos()).order("created_at", { ascending: false }),
+    sb.from("course_evaluations").select("student_id,average,created_at,status").eq("tenant_id", tenantAlumnos()).order("created_at", { ascending: false }),
   ]);
-  const por: Record<string, { n: number; ultima: number }> = {};
-  for (const e of evals || []) { const x = (por[e.student_id] ||= { n: 0, ultima: Number(e.average) }); x.n++; }
+  const por: Record<string, { n: number; ultima: number; borr: number }> = {};
+  for (const e of evals || []) {
+    const x = (por[e.student_id] ||= { n: 0, ultima: 0, borr: 0 });
+    if (e.status === "borrador") x.borr++; else { if (!x.n) x.ultima = Number(e.average); x.n++; }
+  }
   return NextResponse.json({
     evaluador: ev.name,
-    alumnos: (alumnos || []).map((a) => ({ ...a, evaluaciones: por[a.id]?.n || 0, ultimo_promedio: por[a.id]?.ultima ?? null })),
+    alumnos: (alumnos || []).map((a) => ({ ...a, evaluaciones: por[a.id]?.n || 0, borradores: por[a.id]?.borr || 0, ultimo_promedio: por[a.id]?.n ? por[a.id].ultima : null })),
   });
 }
 

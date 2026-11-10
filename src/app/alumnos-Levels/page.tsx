@@ -1,9 +1,10 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CRITERIOS_UI as CRITERIOS } from "./criterios";
 
-type Alumno = { id: string; first_name: string; last_name: string; email: string | null; class_date: string | null; evaluaciones: number; ultimo_promedio: number | null };
-type Ev = { id: string; evaluator_name: string; scores: Record<string, number>; total: number; average: number; comments: string | null; created_at: string; emailed_at: string | null };
+type Alumno = { id: string; first_name: string; last_name: string; email: string | null; class_date: string | null; evaluaciones: number; borradores: number; ultimo_promedio: number | null };
+type Ev = { id: string; evaluator_name: string; scores: Record<string, number>; total: number; average: number; comments: string | null; created_at: string; emailed_at: string | null; status: "borrador" | "final"; edited_by: string | null };
+type Form = { id: string | null; status: "borrador" | "final"; scores: Record<string, number>; comments: string; dirty: boolean };
 
 const card = "rounded-2xl bg-neutral-900 border border-neutral-800";
 const btn = "rounded-xl px-5 py-4 text-lg font-semibold active:scale-95 transition disabled:opacity-40";
@@ -23,7 +24,15 @@ export default function Page() {
   const [alumnos, setAlumnos] = useState<Alumno[]>([]);
   const [sel, setSel] = useState<Alumno | null>(null);
   const [hist, setHist] = useState<Ev[]>([]);
-  const [form, setForm] = useState<{ scores: Record<string, number>; comments: string } | null>(null);
+  const [form, setFormState] = useState<Form | null>(null);
+  const [guardado, setGuardado] = useState("");
+  const formRef = useRef<Form | null>(null);
+  const selRef = useRef<Alumno | null>(null);
+  const cadena = useRef<Promise<void>>(Promise.resolve());
+  const timer = useRef<any>(null);
+  const ignorarAtras = useRef(false);
+  const setForm = (f: Form | null) => { formRef.current = f; setFormState(f); };
+  selRef.current = sel;
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
@@ -35,6 +44,16 @@ export default function Page() {
     if (r.status === 401) { setSesion(null); return; }
     setSesion(r.evaluador); setAlumnos(r.alumnos || []);
   }
+  useEffect(() => {
+    const atras = async () => {
+      if (ignorarAtras.current) { ignorarAtras.current = false; return; }
+      if (formRef.current) { await guardarYa(); setForm(null); setGuardado(""); if (selRef.current) abrir(selRef.current, true); }
+      else if (selRef.current) { setSel(null); setListo(null); setMsg(""); cargarAlumnos(); }
+    };
+    window.addEventListener("popstate", atras);
+    return () => window.removeEventListener("popstate", atras);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   useEffect(() => { api("/api/alumnos/evaluadores").then((r) => setEv(r.evaluadores || [])); cargarAlumnos(); }, []);
 
   async function entrar() {
@@ -44,18 +63,59 @@ export default function Page() {
     if (!r.ok) { setMsg(r.error || "No se pudo entrar."); return; }
     setCodigo(""); await cargarAlumnos();
   }
-  async function salir() { await api("/api/alumnos/logout", { method: "POST" }); setSesion(null); setQuien(null); setSel(null); setForm(null); setListo(null); }
-  async function abrir(a: Alumno) {
-    setSel(a); setForm(null); setListo(null); setMsg(""); setEmail(a.email || "");
+  async function salir() { await api("/api/alumnos/logout", { method: "POST" }); await guardarYa(); setSesion(null); setQuien(null); setSel(null); setForm(null); setListo(null); }
+  async function abrir(a: Alumno, mantener = false) {
+    if (!mantener) history.pushState({ n: 1 }, "");
+    setSel(a); setForm(null); setMsg(""); if (!mantener) setListo(null); setEmail((e) => (mantener && e ? e : a.email || ""));
     const r = await api(`/api/alumnos/alumnos/${a.id}`); setHist(r.evaluaciones || []);
   }
-  async function guardar() {
-    if (!form || !sel) return;
+  // Autoguardado: cada cambio se guarda solo (borrador). Las llamadas van en fila para no crear 2 borradores.
+  function guardarYa(): Promise<void> {
+    clearTimeout(timer.current);
+    cadena.current = cadena.current.then(async () => {
+      const f = formRef.current, al = selRef.current;
+      if (!f || !al || !f.dirty) return;
+      if (!f.id && !Object.keys(f.scores).length && !f.comments.trim()) return;
+      const body = JSON.stringify({ student_id: al.id, scores: f.scores, comments: f.comments });
+      const r = f.id ? await api(`/api/alumnos/evaluaciones/${f.id}`, { method: "PATCH", body }) : await api("/api/alumnos/evaluaciones", { method: "POST", body });
+      if (!r.ok) { setGuardado("⚠ No se pudo guardar. Revisa tu conexión."); return; }
+      const cur = formRef.current;
+      if (cur) {
+        const igual = cur.comments === f.comments && JSON.stringify(cur.scores) === JSON.stringify(f.scores);
+        formRef.current = { ...cur, id: r.evaluacion.id, dirty: !igual }; // si cambió mientras guardaba, queda pendiente
+        if (!igual) guardarYa();
+      }
+      setGuardado("Guardado ✔");
+    });
+    return cadena.current;
+  }
+  function cambiar(patch: Partial<Form> | ((f: Form) => Partial<Form>)) {
+    const act = formRef.current!; // siempre sobre el estado más reciente (toques rápidos)
+    const f = { ...act, ...(typeof patch === "function" ? patch(act) : patch), dirty: true };
+    setForm(f); setGuardado("Guardando…");
+    clearTimeout(timer.current); timer.current = setTimeout(guardarYa, 600);
+  }
+  async function terminar() {
+    const f = formRef.current; if (!f || !sel) return;
     setBusy(true); setMsg("");
-    const r = await api("/api/alumnos/evaluaciones", { method: "POST", body: JSON.stringify({ student_id: sel.id, ...form }) });
+    await guardarYa();
+    const id = formRef.current?.id;
+    const body = JSON.stringify({ student_id: sel.id, scores: f.scores, comments: f.comments, finalizar: true });
+    const r = id ? await api(`/api/alumnos/evaluaciones/${id}`, { method: "PATCH", body }) : await api("/api/alumnos/evaluaciones", { method: "POST", body });
     setBusy(false);
     if (!r.ok) { setMsg(r.error); return; }
-    setListo(r.evaluacion); setForm(null); cargarAlumnos(); abrir(sel).then(() => setListo(r.evaluacion));
+    setForm(null); setGuardado(""); cargarAlumnos();
+    ignorarAtras.current = true; history.back(); // quita el paso del formulario del historial
+    abrir(sel, true).then(() => setListo(r.evaluacion));
+  }
+  async function descartar(h: Ev) {
+    if (!confirm("¿Descartar este borrador? No se puede deshacer.")) return;
+    await api(`/api/alumnos/evaluaciones/${h.id}`, { method: "DELETE" });
+    abrir(sel!, true); cargarAlumnos();
+  }
+  function editar(h: Ev) {
+    history.pushState({ n: 2 }, ""); setMsg(""); setListo(null); setGuardado("");
+    setForm({ id: h.id, status: h.status, scores: h.scores || {}, comments: h.comments || "", dirty: false });
   }
   async function enviar(ev: Ev) {
     setBusy(true); setMsg("");
@@ -108,7 +168,7 @@ export default function Page() {
     const completo = CRITERIOS.every((c) => form.scores[c.key]);
     const suma = CRITERIOS.reduce((s, c) => s + (form.scores[c.key] || 0), 0);
     return shell(<div>
-      <button onClick={() => setForm(null)} className="text-neutral-400 mb-3">← Volver</button>
+      <button onClick={() => history.back()} className="text-neutral-400 mb-3 py-2 pr-4">← Volver (se guarda solo)</button>
       <h2 className="text-xl font-semibold">{sel.first_name} {sel.last_name}</h2>
       <p className="text-neutral-400 mb-1">Evalúa: <b className="text-white">{sesion}</b></p>
       <p className="text-neutral-500 text-sm mb-4">1 = Deficiente · 3 = Básico · 5 = Bueno · 7 = Excelente</p>
@@ -118,27 +178,30 @@ export default function Page() {
             <p className="font-semibold text-lg">{c.nombre}</p><p className="text-neutral-400 text-sm mb-3">{c.desc}</p>
             <div className="grid grid-cols-7 gap-2">
               {[1, 2, 3, 4, 5, 6, 7].map((n) => (
-                <button key={n} onClick={() => setForm({ ...form, scores: { ...form.scores, [c.key]: n } })}
+                <button key={n} onClick={() => cambiar((f) => ({ scores: { ...f.scores, [c.key]: n } }))}
                   className={`h-14 rounded-xl text-xl font-bold active:scale-95 ${form.scores[c.key] === n ? "bg-[#0F8B8D]" : "bg-neutral-800"}`}>{n}</button>
               ))}
             </div>
           </div>))}
         <div className={`${card} p-4`}>
           <p className="font-semibold mb-2">Comentarios del instructor</p>
-          <textarea rows={5} value={form.comments} onChange={(e) => setForm({ ...form, comments: e.target.value })}
+          <textarea rows={5} value={form.comments} onChange={(e) => cambiar({ comments: e.target.value })}
             className="w-full rounded-xl bg-black border border-neutral-700 p-3 text-lg" placeholder="Observaciones..." />
         </div>
         <div className={`${card} p-4 text-lg`}>Suma: <b>{suma} / 49</b> · Promedio: <b className="text-[#0F8B8D]">{completo ? (suma / 7).toFixed(2) : "—"} / 7</b></div>
         {msg && <p className="text-red-400">{msg}</p>}
-        <button disabled={!completo || busy} onClick={guardar} className={`${btn} bg-[#0F8B8D]`}>Guardar evaluación</button>
+        {guardado && <p className={guardado.startsWith("⚠") ? "text-red-400" : "text-neutral-400 text-sm"}>{guardado}</p>}
+        {form.status === "final"
+          ? <button onClick={() => history.back()} className={`${btn} bg-[#0F8B8D]`}>Listo, volver</button>
+          : <button disabled={!completo || busy} onClick={terminar} className={`${btn} bg-[#0F8B8D]`}>{completo ? "Terminar evaluación" : "Faltan notas para terminar"}</button>}
       </div></div>);
   }
 
   // 4) Alumno: historial / recién guardada
   if (sel) return shell(<div>
-    <button onClick={() => { setSel(null); setListo(null); setMsg(""); }} className="text-neutral-400 mb-3">← Alumnos</button>
+    <button onClick={() => history.back()} className="text-neutral-400 mb-3 py-2 pr-4">← Alumnos</button>
     <h2 className="text-2xl font-semibold mb-4">{sel.first_name} {sel.last_name}</h2>
-    <button onClick={() => { setForm({ scores: {}, comments: "" }); setListo(null); setMsg(""); }} className={`${btn} bg-[#0F8B8D] w-full mb-5`}>+ Nueva evaluación</button>
+    <button onClick={() => { history.pushState({ n: 2 }, ""); setForm({ id: null, status: "borrador", scores: {}, comments: "", dirty: false }); setListo(null); setMsg(""); setGuardado(""); }} className={`${btn} bg-[#0F8B8D] w-full mb-5`}>+ Nueva evaluación</button>
     <div className={`${card} p-4 mb-5`}>
       <label className="text-neutral-400 text-sm">Correo del alumno (para enviarle la evaluación)</label>
       <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="alumno@correo.com" className="w-full rounded-xl bg-black border border-neutral-700 p-3 text-lg mt-1" />
@@ -150,16 +213,24 @@ export default function Page() {
       {hist.length === 0 && <p className="text-neutral-500">Aún no tiene evaluaciones.</p>}
       {hist.map((h) => (
         <div key={h.id} className={`${card} p-4 ${listo?.id === h.id ? "ring-2 ring-[#0F8B8D]" : ""}`}>
-          <div className="flex justify-between"><b>Evaluó: {h.evaluator_name}</b><span className="text-[#0F8B8D] font-bold text-xl">{Number(h.average).toFixed(2)}</span></div>
-          <p className="text-neutral-400 text-sm">{fecha(h.created_at)} · Suma {h.total}/49{h.emailed_at ? " · enviado por correo" : ""}</p>
+          <div className="flex justify-between"><b>Evaluó: {h.evaluator_name}</b>{h.status === "borrador" ? <span className="text-amber-400 font-semibold">EN CURSO</span> : <span className="text-[#0F8B8D] font-bold text-xl">{Number(h.average).toFixed(2)}</span>}</div>
+          <p className="text-neutral-400 text-sm">{fecha(h.created_at)} · {h.status === "borrador" ? `Notas puestas: ${Object.keys(h.scores || {}).length}/7` : `Suma ${h.total}/49`}{h.edited_by ? ` · editada por ${h.edited_by}` : ""}{h.emailed_at ? " · enviado por correo" : ""}</p>
           <div className="grid grid-cols-2 gap-x-4 text-sm mt-2 text-neutral-300">
-            {CRITERIOS.map((c) => <div key={c.key} className="flex justify-between"><span>{c.nombre}</span><b>{h.scores[c.key]}</b></div>)}
+            {CRITERIOS.map((c) => <div key={c.key} className="flex justify-between"><span>{c.nombre}</span><b>{h.scores?.[c.key] ?? "–"}</b></div>)}
           </div>
           {h.comments && <p className="mt-2 text-neutral-300 whitespace-pre-wrap">{h.comments}</p>}
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <button disabled={busy || !email} onClick={() => enviar(h)} className={`${btn} bg-neutral-800`}>Enviar por correo</button>
-            <Pdf id={h.id} />
-          </div>
+          {h.status === "borrador" ? (
+            <div className="grid grid-cols-2 gap-3 mt-3">
+              <button onClick={() => editar(h)} className={`${btn} bg-[#0F8B8D]`}>Continuar</button>
+              <button onClick={() => descartar(h)} className={`${btn} bg-neutral-800 text-red-300`}>Descartar</button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-3 gap-3 mt-3">
+              <button onClick={() => editar(h)} className={`${btn} bg-neutral-800`}>Editar</button>
+              <button disabled={busy || !email} onClick={() => enviar(h)} className={`${btn} bg-neutral-800`}>Correo</button>
+              <Pdf id={h.id} />
+            </div>
+          )}
         </div>))}
     </div></div>);
 
@@ -170,7 +241,7 @@ export default function Page() {
       {alumnos.map((a) => (
         <button key={a.id} onClick={() => abrir(a)} className={`${card} p-4 text-left active:scale-[0.98] flex justify-between items-center`}>
           <span><b className="text-lg">{a.first_name} {a.last_name}</b>{a.class_date && <span className="block text-sm text-neutral-500">{a.class_date.split("-").reverse().join("/")}</span>}</span>
-          <span className="text-sm text-neutral-400">{a.evaluaciones > 0 ? `${a.evaluaciones} eval. · ${a.ultimo_promedio?.toFixed(2)}` : "sin evaluar"}</span>
+          <span className="text-sm text-neutral-400">{a.borradores > 0 && <b className="text-amber-400">en curso · </b>}{a.evaluaciones > 0 ? `${a.evaluaciones} eval. · ${a.ultimo_promedio?.toFixed(2)}` : "sin evaluar"}</span>
         </button>))}
     </div>
     {nuevo ? (<div className={`${card} p-4 mt-4 grid gap-2`}>
