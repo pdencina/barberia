@@ -162,7 +162,7 @@ export default function MensajesWhatsAppPage() {
       </Card>
 
       <Card title="Así se vería" desc={cfg.deposit_enabled || cfg.info_enabled || cfg.welcome_enabled ? "Con todas las casillas marcadas, con datos de ejemplo." : "Con datos de ejemplo."}>
-        <div className="flex items-start gap-2 rounded-2xl bg-[#E7FFDB] p-3 text-sm text-gray-800">
+        <div className="flex items-start gap-2 rounded-2xl bg-[#E7FFDB] p-3 text-sm text-[#111b21]">
           <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-[#25D366]" />
           <p className="whitespace-pre-wrap">{preview}</p>
         </div>

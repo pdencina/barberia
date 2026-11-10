@@ -364,7 +364,7 @@ export default function RetencionPage() {
           ))}
         </div>
         {!msgPreview ? <p className="text-sm text-brand-gray"><Eye className="mr-1 inline h-4 w-4" />Preparando vista previa…</p> : previewTab === "whatsapp" ? (
-          <div className="max-w-md rounded-2xl rounded-tl-sm bg-[#E7FFDB] p-3 text-sm text-gray-800 shadow-sm">
+          <div className="max-w-md rounded-2xl rounded-tl-sm bg-[#E7FFDB] p-3 text-sm text-[#111b21] shadow-sm">
             <p className="whitespace-pre-wrap break-words">{msgPreview.whatsapp}</p>
           </div>
         ) : (

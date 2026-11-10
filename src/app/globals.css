@@ -327,6 +327,15 @@
    al tema claro. Botones solidos (bg-indigo-600, text-white, etc.) no se tocan.
    --------------------------------------------------------------------------- */
 .dark .bg-white{background-color:hsl(222 20% 11%)}
+/* Fondos blancos translúcidos (bg-white/50, /80, /90, /95): sin esto quedaban grises claros con texto claro en el tema Oscuro. */
+.dark .bg-white\/50,.dark .bg-white\/60,.dark .bg-white\/70,.dark .bg-white\/75,.dark .bg-white\/80,.dark .bg-white\/90,.dark .bg-white\/95{background-color:hsl(222 20% 11% / 0.92)}
+/* Tintes translúcidos claros (bg-red-50/60, etc.): en el tema Oscuro se ven como un tinte suave, igual que sus versiones sin transparencia. */
+.dark .bg-red-50\/60{background-color:hsl(0 70% 50%/0.1)}
+.dark .bg-amber-50\/60,.dark .bg-amber-50\/70{background-color:hsl(38 70% 50%/0.1)}
+.dark .bg-green-50\/30{background-color:hsl(142 70% 50%/0.1)}
+.dark .bg-emerald-50\/50{background-color:hsl(160 70% 50%/0.1)}
+.dark .bg-blue-50\/50,.dark .hover\:bg-blue-50\/50:hover{background-color:hsl(217 70% 55%/0.12)}
+.dark .bg-gray-50\/50,.dark .bg-gray-50\/60,.dark .bg-gray-50\/70,.dark .hover\:bg-gray-50\/50:hover,.dark .hover\:bg-gray-50\/70:hover{background-color:hsl(222 18% 14% / 0.7)}
 .dark .bg-gray-50{background-color:hsl(222 18% 14%)}
 .dark .bg-gray-100{background-color:hsl(222 16% 17%)}
 .dark .bg-gray-200{background-color:hsl(222 14% 22%)}
