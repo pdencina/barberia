@@ -248,6 +248,32 @@ export default function ServiciosPage() {
     fetchServices();
   };
 
+  const durationOptions = (current: number, internal?: boolean | null) => {
+    const base = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
+    for (let m = 75; m <= 360; m += 15) base.push(m);
+    if (internal) base.unshift(0);
+    if (!base.includes(current)) base.push(current);
+    return base.sort((a, b) => a - b);
+  };
+
+  const changeDuration = async (s: Service, minutes: number) => {
+    if (minutes === s.duration) return;
+    const prev = s.duration;
+    setServices((list) => list.map((x) => (x.id === s.id ? { ...x, duration: minutes } : x)));
+    const res = await fetch(`/api/services/${s.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ duration: minutes }),
+    });
+    if (!res.ok) {
+      setServices((list) => list.map((x) => (x.id === s.id ? { ...x, duration: prev } : x)));
+      const err = await res.json().catch(() => ({}));
+      showToast(err.error || "No se pudo cambiar el tiempo", "error");
+      return;
+    }
+    showToast(`Tiempo de "${s.name.trim()}": ${minutes} min`, "success");
+  };
+
   const toggleActive = async (s: Service) => {
     if (s.active) {
       const ok = await confirm({
@@ -566,9 +592,18 @@ export default function ServiciosPage() {
                           <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-2 flex-wrap">
                               <p className="font-medium text-brand-dark text-sm md:text-base truncate">{s.name}</p>
-                              <span className="px-2 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] md:text-xs font-medium flex-shrink-0">
-                                {s.duration} min
-                              </span>
+                              <select
+                                value={s.duration}
+                                onChange={(e) => changeDuration(s, parseInt(e.target.value))}
+                                onMouseDown={(e) => e.stopPropagation()}
+                                onTouchStart={(e) => e.stopPropagation()}
+                                title="Cambiar el tiempo del servicio"
+                                className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[10px] md:text-xs font-medium flex-shrink-0 border-0 cursor-pointer focus:outline-none focus:ring-1 focus:ring-blue-300"
+                              >
+                                {durationOptions(s.duration, s.internal_only).map((m) => (
+                                  <option key={m} value={m}>{m} min</option>
+                                ))}
+                              </select>
                               {s.internal_only && <span className="px-2 py-0.5 bg-brand-light text-brand-gray rounded text-[10px] md:text-xs font-semibold flex-shrink-0" title="Solo se cobra en el Punto de Venta">Interno</span>}
                             </div>
                             {s.description && (
