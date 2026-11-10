@@ -1,4 +1,6 @@
 import { armarEnlacesCorreo, type TenantLinks } from "@/lib/post-service-links";
+import { getClientColorTheme } from "@/lib/client-theme";
+import { applyMailTheme } from "@/lib/mail-theme";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { verifyCron } from "@/lib/cron-auth";
@@ -69,11 +71,12 @@ export async function GET(req: NextRequest) {
       const { getResendClient } = await import("@/lib/resend-client");
       const resend = getResendClient();
 
+      const colorTheme = await getClientColorTheme(supabase, appt.tenant_id);
       await resend.emails.send({
         from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>",
         to: client.email,
         subject: links.subject,
-        html: `
+        html: applyMailTheme(`
 <!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"></head>
@@ -115,7 +118,7 @@ export async function GET(req: NextRequest) {
     </div>
   </div>
 </body>
-</html>`,
+</html>`, colorTheme),
       });
 
       // Mark as sent

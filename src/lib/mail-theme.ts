@@ -20,12 +20,14 @@ export function applyMailTheme(html: string, theme?: AppTheme | string | null): 
   if (t === "light") return html;
   const p = MAIL_PALETTES[t];
   // Dos pasadas con marcas intermedias: si no, un color nuevo (ej. el acento blanco) se volvería a reemplazar.
-  const map: [RegExp, keyof MailPalette][] = [
-    [/color:#FFFFFF/g, "onAccent"], [/#0F8B8D/gi, "accent"], [/#F4F6F8/gi, "page"], [/#FFFFFF/gi, "card"], [/#E5E7EB/gi, "border"],
-    [/#EEF0F2/gi, "line"], [/#111827/gi, "text"], [/#374151/gi, "text2"], [/#6B7280/gi, "muted"], [/#F9FAFB/gi, "soft"], [/#F3F4F6/gi, "soft2"],
+  const map: [RegExp, string][] = [
+    [/color:\s?(?:#FFFFFF|white)/gi, "color:@@onAccent@@"], [/background:\s?white/gi, "background:@@card@@"],
+    [/#1F2937/gi, "@@text@@"], [/#F5F7FA/gi, "@@page@@"], [/#0F8B8D/gi, "@@accent@@"], [/#F4F6F8/gi, "@@page@@"], [/#FFFFFF/gi, "@@card@@"],
+    [/#E5E7EB/gi, "@@border@@"], [/#EEF0F2/gi, "@@line@@"], [/#111827/gi, "@@text@@"], [/#374151/gi, "@@text2@@"], [/#6B7280/gi, "@@muted@@"],
+    [/#F9FAFB/gi, "@@soft@@"], [/#F3F4F6/gi, "@@soft2@@"],
   ];
   let h = html;
-  for (const [re, key] of map) h = h.replace(re, key === "onAccent" ? "color:@@onAccent@@" : `@@${key}@@`);
+  for (const [re, rep] of map) h = h.replace(re, rep);
   h = h.replace(/@@(\w+)@@/g, (_, k: string) => p[k as keyof MailPalette]);
   // Logo del sistema según el tema: rosado en Rosa, blanco (sin caja) en los dos oscuros.
   const logo = "https://www.re-booking.cl/logo-horizontal.png";
