@@ -11,8 +11,23 @@ export const pixelEnabled = (id: string = META_PIXEL_ID) => validPixelId(id);
 function ls(op: "get" | "set", key: string, val?: string): string | null {
   try { if (op === "set") { window.localStorage.setItem(key, val || ""); return null; } return window.localStorage.getItem(key); } catch { return null; }
 }
-export const getConsent = (): "granted" | "denied" | null => { const v = ls("get", CONSENT_KEY); return v === "granted" || v === "denied" ? v : null; };
-export const setConsent = (v: "granted" | "denied") => ls("set", CONSENT_KEY, v);
+// La respuesta se guarda también en una cookie de 1 año válida para re-booking.cl y www.re-booking.cl: el almacenamiento local se borra
+// (Safari lo limpia a los 7 días, otro dominio o una ventana privada parten de cero) y el aviso volvía a aparecer a cada rato.
+const consentCookie = (): string | null => { const m = typeof document !== "undefined" ? document.cookie.match(new RegExp("(?:^|; )" + CONSENT_KEY + "=([^;]*)")) : null; return m ? decodeURIComponent(m[1]) : null; };
+function writeConsentCookie(v: string) {
+  try {
+    const host = window.location.hostname;
+    const dom = /(^|\.)re-booking\.cl$/.test(host) ? "; Domain=.re-booking.cl" : "";
+    document.cookie = `${CONSENT_KEY}=${v}; Max-Age=31536000; Path=/; SameSite=Lax${dom}${window.location.protocol === "https:" ? "; Secure" : ""}`;
+  } catch { /* sin cookies: queda el almacenamiento local */ }
+}
+export const getConsent = (): "granted" | "denied" | null => {
+  const v = ls("get", CONSENT_KEY) || consentCookie();
+  if (v !== "granted" && v !== "denied") return null;
+  if (!ls("get", CONSENT_KEY)) ls("set", CONSENT_KEY, v); // se recupera el almacenamiento local desde la cookie
+  return v;
+};
+export const setConsent = (v: "granted" | "denied") => { ls("set", CONSENT_KEY, v); writeConsentCookie(v); return null; };
 
 // Id único por evento: el mismo número lo usa el servidor (CAPI) para que Meta no cuente doble.
 export const eventId = (name: string, key?: string) => `${name}_${key || Math.random().toString(36).slice(2) + Date.now().toString(36)}`;
