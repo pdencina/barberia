@@ -122,15 +122,15 @@ const people = [
 ];
 (async () => {
 const sim = await campaignRun({}, people);
-ok("sin EMPRESAS_WHATSAPP_SEND no se llama a Meta", sim.sends === 0 && sim.done.get("1") === "simulated", [...sim.done]);
+ok("sin EMPRESAS_WHATSAPP_SEND no se llama a Meta", sim.sends === 0 && sim.done.get("1") === "simulated", Array.from(sim.done));
 ok("sin celular se omite", sim.done.get("2") === "skipped_no_phone");
 ok("respeta la audiencia (distribuidor fuera)", !sim.done.has("3"));
 ok("la campaña termina", sim.status === "done");
 ok("una segunda ejecución no repite", sim.again.campaigns === 0 && sim.sends === 0);
 const real = await campaignRun({ EMPRESAS_WHATSAPP_SEND: "1", AGENTE_CONTACT_HASH_SALT: "sal", WHATSAPP_ACCESS_TOKEN: "t", WHATSAPP_API_VERSION: "v21.0" }, people);
-ok("con todo configurado se envía una vez por persona", real.sends === 1 && real.done.get("1") === "sent", [...real.done]);
+ok("con todo configurado se envía una vez por persona", real.sends === 1 && real.done.get("1") === "sent", Array.from(real.done));
 const baja = await campaignRun({ EMPRESAS_WHATSAPP_SEND: "1", AGENTE_CONTACT_HASH_SALT: "sal", WHATSAPP_ACCESS_TOKEN: "t", WHATSAPP_API_VERSION: "v21.0" }, people, [hashContactoWhatsApp("sal", "t1", "56911111111")]);
-ok("quien se dio de baja no recibe", baja.sends === 0 && baja.done.get("1") === "skipped_optout", [...baja.done]);
+ok("quien se dio de baja no recibe", baja.sends === 0 && baja.done.get("1") === "skipped_optout", Array.from(baja.done));
 
 console.log(fails ? `\n${fails} prueba(s) MAL` : "\nTodo OK");
 process.exit(fails ? 1 : 0);
