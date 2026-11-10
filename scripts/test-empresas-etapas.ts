@@ -253,6 +253,50 @@ async function main() {
   ok("se cancela una programada", (await post(`/api/empresa/campanas/${camp2.body.campaign.id}`, owner.cookie, { action: "cancel" })).body?.status === "cancelled");
   ok("otra empresa no la cancela", (await post(`/api/empresa/campanas/${camp2.body.campaign.id}`, ownerB.cookie, { action: "cancel" })).status === 409);
 
+  console.log("\n# Respuestas de Felipe: tramos de precio, reintento y WhatsApp");
+  const put = (p: string, c: string | undefined, b: unknown) => call("PUT", p, c, b);
+  ok("vendedor no edita tramos", (await put("/api/empresa/precios", seller.cookie, { tiers: [] })).status === 403);
+  const tiersBefore = (await get("/api/empresa/precios", owner.cookie)).body?.tiers || [];
+  const sv = await put("/api/empresa/precios", owner.cookie, { tiers: [
+    ...tiersBefore.filter((t: any) => t.active).map((t: any) => ({ id: t.id, name: t.name, discountPct: t.discountPct, minAmount: t.minAmount, maxAmount: t.maxAmount })),
+    { name: `Mayorista prueba ${tag}`, discountPct: 10, minAmount: 6000000, maxAmount: 10000000 },
+  ] });
+  ok("dueño guarda tramos", sv.status === 200, sv);
+  ok("tramo con máximo menor que el mínimo se rechaza", (await put("/api/empresa/precios", owner.cookie, { tiers: [{ name: "Malo", discountPct: 5, minAmount: 10, maxAmount: 1 }] })).status === 400);
+  const precios = await get("/api/empresa/precios", owner.cookie);
+  const tier = precios.body.tiers.find((t: any) => t.name === `Mayorista prueba ${tag}`);
+  ok("el tramo nuevo aparece y el distribuidor sale en la lista", !!tier && precios.body.distributors.some((d: any) => d.customerId === dist), precios.body);
+  ok("dueño asigna el tramo al distribuidor", (await patch(`/api/empresa/clientes/${dist}`, owner.cookie, { priceTierId: tier.id })).status === 200);
+  ok("vendedor no asigna tramos", (await patch(`/api/empresa/clientes/${dist}`, seller.cookie, { priceTierId: null })).status === 403);
+  const distB = (await post("/api/empresa/clientes", ownerB.cookie, { name: `Dist B ${tag}`, customerType: "distributor" })).body?.customer?.id;
+  if (distB) createdCustomers.push(distB);
+  ok("otra empresa no usa ese tramo", (await patch(`/api/empresa/clientes/${distB}`, ownerB.cookie, { priceTierId: tier.id })).status === 400);
+  await patch(`/api/empresa/socios/${socio.body.partner.userId}`, owner.cookie, { active: true });
+  const cat2 = await get("/api/socios/catalogo", partner);
+  const it2 = cat2.body?.products?.find((x: any) => x.id === prod.id);
+  ok("el portal muestra el precio con 10% menos", it2?.price === 4500 && it2?.listPrice === 5000 && cat2.body.tier?.discountPct === 10, it2);
+  const pp = await post("/api/socios/pedidos", partner, { items: [{ productId: prod.id, quantity: 1 }] });
+  const ppLine = await must("l", admin.from("company_order_items").select("unit_price").eq("order_id", pp.body.order.id).single()) as any;
+  ok("el pedido del portal guarda el precio mayorista", Number(ppLine.unit_price) === 4500, ppLine);
+  const op = await post("/api/empresa/pedidos", owner.cookie, { customerId: dist, warehouseId: a.wh1, items: [{ productId: prod.id, quantity: 1 }] });
+  const opLine = await must("l", admin.from("company_order_items").select("unit_price").eq("order_id", op.body.order.id).single()) as any;
+  ok("el pedido del vendedor también usa el tramo", Number(opLine.unit_price) === 4500, opLine);
+  const c3 = await mk(`Reintento ${tag}`, seller2.id);
+  const cola2 = await get("/api/empresa/cartera", seller2.cookie);
+  const cur2 = cola2.body.current?.customerId;
+  const fecha = new Date(Date.now() + 5 * 86400e3).toISOString().slice(0, 10);
+  ok("no contestó con fecha elegida por el vendedor", (await post("/api/empresa/gestiones", seller2.cookie, { customerId: cur2, result: "no_answer", callbackOn: fecha })).status === 201);
+  const act2 = await must("a", admin.from("company_customer_activities").select("callback_on").eq("customer_id", cur2).order("created_at", { ascending: false }).limit(1).single()) as any;
+  ok("la fecha quedó guardada", act2.callback_on === fecha, act2);
+  ok("ese cliente sale de la cola hasta la fecha", !(await get("/api/empresa/cartera", seller2.cookie)).body.queue.some((q: any) => q.customerId === cur2));
+  ok("fecha de reintento inválida se rechaza", (await post("/api/empresa/gestiones", seller2.cookie, { customerId: (await get("/api/empresa/cartera", seller2.cookie)).body.current?.customerId ?? c3, result: "no_answer", callbackOn: "2020-01-01" })).status === 400);
+  const ci = await post("/api/empresa/importar", owner.cookie, { kind: "clientes", dryRun: false, rows: [["Razón social", "Teléfono", "Acepta WhatsApp"], [`Con permiso ${tag}`, "+56944444444", "Sí"]] });
+  const cust = await must("c", admin.from("company_customers").select("id, whatsapp_opt_in").eq("tenant_id", a.tenantId).eq("name", `Con permiso ${tag}`).single()) as any;
+  createdCustomers.push(cust.id);
+  ok("importar con 'Acepta WhatsApp' marca el permiso", ci.status === 200 && cust.whatsapp_opt_in === true, cust);
+  // Los tramos de prueba quedan inactivos para no ensuciar Configuración.
+  await admin.from("company_price_tiers").update({ active: false }).eq("id", tier.id);
+
   // Dejar la configuración como estaba.
   if (before) await admin.from("company_settings").update({ portal_enabled: before.portal_enabled, portal_stock_mode: before.portal_stock_mode, portal_warehouse_id: before.portal_warehouse_id }).eq("tenant_id", a.tenantId);
   else await admin.from("company_settings").delete().eq("tenant_id", a.tenantId);

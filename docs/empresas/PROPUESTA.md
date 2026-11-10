@@ -177,3 +177,21 @@ Sección 15 de `AGENTS.md`: Codex escribe en ramas `codex/*` con ficha de tarea,
 **Decisiones tomadas por defecto (las preguntas a Felipe siguen abiertas; todo se cambia en Configuración):** llamar a cada cliente cada 30 días; "no contestó" reintenta a los 2 días, hasta 3 veces; el distribuidor ve solo "disponible/agotado" y precios de lista; el vendedor ve su cartera más los clientes sin vendedor (para que un cliente que llama nunca quede bloqueado); un pedido cuenta como "vendió".
 
 **Pendiente:** precios propios por distribuidor; variables en las plantillas de WhatsApp (hoy van sin variables); número de WhatsApp Business de la empresa y plantillas aprobadas por Meta; devoluciones de lo despachado; si un pedido del portal falla al guardar sus productos, el borrador vacío no se cancela solo (el distribuidor no es miembro).
+
+## 12. Respuestas de Felipe (10 nov. 2026) y cambios
+
+| # | Respuesta | Qué se hizo |
+|---|---|---|
+| 1 | Hoy usan **Bsale**; el cambio será progresivo | El importador reconoce las exportaciones de Bsale (Producto + Variante, SKU, Precio Venta Bruto, Sucursal, Razón Social...). **Riesgo:** mientras convivan los dos sistemas, el stock no va a cuadrar en ninguno. Recomendación: elegir un día de corte, hacer una toma de inventario y desde ese día registrar las salidas solo en re-booking. Una sincronización con la API de Bsale es posible, pero queda para después |
+| 2 | Sacan productos el encargado de bodega y cualquier administrador | Ya era así: roles Bodega y Dueño (administrador) mueven stock; el vendedor no |
+| 3 | La insistencia queda a criterio del vendedor | "No contestó" pide cuándo reintentar (mañana, 2 días, una semana, un mes u otra fecha). Si no elige, se usa lo de Configuración. La cola sigue siendo obligatoria |
+| 4 | Distribuidor ve solo "disponible". Precios por tramos: público, Mayorista 1 (1-2 MM, -5%), 2 (2-3 MM, -7%), 3 (3-5 MM, -9%), 4 (6-10 MM, -10%) | Migración **161**: tramos de precio por empresa (Configuración), tramo asignado a cada cliente, y sugerencia según las compras despachadas del mes anterior. El precio con descuento se calcula en el servidor y se guarda en el pedido (portal y vendedor) |
+| 5 | Los clientes aceptan ofertas por WhatsApp; la empresa y cada vendedor tienen número | Importar con columna "Acepta WhatsApp" marca el permiso. Botón "WhatsApp" en la cola y en Clientes: abre el chat desde el teléfono del propio vendedor. Las campañas automáticas salen del número de la empresa |
+
+**Preguntas nuevas para Felipe:**
+1. ¿Qué tramo corresponde entre $5 y $6 millones, y sobre $10 millones?
+2. Los millones de los tramos, ¿son compras **del mes** (eso se asumió), del año, o el monto de **cada pedido**?
+3. ¿El tramo lo decide él a mano (así quedó, con sugerencia) o debe cambiar solo cada mes?
+4. ¿Los precios de Bsale están con o sin IVA? re-booking usa el precio de lista tal cual se cargue.
+
+**Ojo con los números de los vendedores:** un número conectado a la API de WhatsApp (para envíos automáticos) deja de funcionar en la app normal de WhatsApp. Por eso los envíos automáticos van solo desde el número de la empresa, y los vendedores usan el botón que abre su propio WhatsApp.
