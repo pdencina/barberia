@@ -59,3 +59,9 @@ export async function readJson(req: Request): Promise<Record<string, unknown> | 
     return null;
   }
 }
+
+// El código tolera que falte una migración: avisa cuál en vez de fallar con un error interno.
+export const missingMigration = (n: number) => NextResponse.json({ error: `Falta aplicar la migración ${n}.` }, { status: 503 });
+
+export const isEmail = (v: unknown): v is string =>
+  typeof v === "string" && v.length <= 254 && /^[^\s@<>;,]+@[^\s@<>;,]+\.[^\s@<>;,]+$/.test(v);
