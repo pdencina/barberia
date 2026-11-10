@@ -1,6 +1,7 @@
 import { loadCustomSources } from "@/lib/client-sources";
 import { repartirVentas } from "@/lib/cierre-calculo";
 import { accountingColumnsAvailable, fetchMonthTx } from "@/lib/accounting";
+import { fetchAbonosRecibidos, sumarAbonos, prepaidColumnAvailable } from "@/lib/abonos-mes";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 import { todayInChile, chileDayBoundsUtc } from "@/lib/utils";
@@ -96,10 +97,9 @@ export async function GET(req: NextRequest) {
   const acc = await accountingColumnsAvailable(supabase);
   const rng = (r: { first: string; last: string; startUtc: string; endUtc: string }) =>
     ({ first: r.first, last: r.last, startIso: r.startUtc, endIso: r.endUtc });
-  const income: any[] = await fetchMonthTx(supabase, {
-    select: "id, total, subtotal, discount, payment_method, barber_id, client_id, coupon_id, created_at",
-    type: "income", range: rng(cur), scope: scoped, acc,
-  });
+  const colsIncome = "id, total, subtotal, discount, payment_method, barber_id, client_id, coupon_id, created_at";
+  const prepaidOk = await prepaidColumnAvailable(supabase); // prepaid_amount: migración 135
+  const income: any[] = await fetchMonthTx(supabase, { select: colsIncome + (prepaidOk ? ", prepaid_amount" : ""), type: "income", range: rng(cur), scope: scoped, acc });
   const expenses: any[] = await fetchMonthTx(supabase, {
     select: "id, total", type: "expense", range: rng(cur), scope: scoped, acc,
   });
@@ -112,17 +112,20 @@ export async function GET(req: NextRequest) {
     .gte("created_at", prev.startUtc).lt("created_at", prev.endUtc));
 
   const sum = (rows: any[]) => rows.reduce((s, t) => s + Number(t.total), 0);
-  const totalIncome = sum(income);
+  // Abonos recibidos al reservar: ingreso del mes en que se pagaron (la venta posterior trae solo lo que faltaba).
+  const abonosCur = await fetchAbonosRecibidos(supabase, scoped, cur.startUtc, cur.endUtc);
+  const abonosPrev = await fetchAbonosRecibidos(supabase, scoped, prev.startUtc, prev.endUtc);
+  const totalIncome = sum(income) + sumarAbonos(abonosCur);
   const totalExpenses = sum(expenses);
   const netProfit = totalIncome - totalExpenses;
   const margin = totalIncome > 0 ? Math.round((netProfit / totalIncome) * 100) : 0;
-  const prevIncome = sum(prevIncomeTx || []);
+  const prevIncome = sum(prevIncomeTx || []) + sumarAbonos(abonosPrev);
   const prevExpenses = sum(prevExpenseTx || []);
   const prevNet = prevIncome - prevExpenses;
   const salesCount = income.length;
-  const avgTicket = salesCount > 0 ? totalIncome / salesCount : 0;
+  const avgTicket = salesCount > 0 ? sum(income) / salesCount : 0; // ticket de las ventas (sin los abonos, que no son ventas)
   const prevSales = (prevIncomeTx || []).length;
-  const prevAvgTicket = prevSales > 0 ? prevIncome / prevSales : 0;
+  const prevAvgTicket = prevSales > 0 ? sum(prevIncomeTx || []) / prevSales : 0;
 
   // Citas del mes por estado y origen.
   const { data: apptRows } = await scoped(supabase
@@ -171,8 +174,10 @@ export async function GET(req: NextRequest) {
   const promoClients = sourceMap["promotion"] || 0;
 
   // Promociones / cupones usados en ventas.
-  const discounted = income.filter((t) => Number(t.discount) > 0 || t.coupon_id);
-  const totalDiscount = discounted.reduce((s, t) => s + Number(t.discount || 0), 0);
+  // El abono pagado al reservar viaja dentro de `discount` en la venta, pero NO es un descuento: se separa.
+  const descReal = (t: any) => Math.max(0, Number(t.discount || 0) - Math.max(0, Number(t.prepaid_amount) || 0));
+  const discounted = income.filter((t) => descReal(t) > 0 || t.coupon_id);
+  const totalDiscount = discounted.reduce((s, t) => s + descReal(t), 0);
   const couponIds = Array.from(new Set(discounted.map((t) => t.coupon_id).filter(Boolean))) as string[];
   const couponRows = await inChunks<any>(couponIds, (c) => supabase.from("coupons").select("id, code, description").in("id", c));
   const couponInfo = Object.fromEntries(couponRows.map((c) => [c.id, c]));
@@ -182,7 +187,7 @@ export async function GET(req: NextRequest) {
     const label = couponInfo[t.coupon_id]?.code || "Cupón";
     if (!couponMap[label]) couponMap[label] = { uses: 0, discount: 0, revenue: 0 };
     couponMap[label].uses++;
-    couponMap[label].discount += Number(t.discount || 0);
+    couponMap[label].discount += descReal(t);
     couponMap[label].revenue += Number(t.total);
   }
   const couponList = Object.entries(couponMap).sort((a, b) => b[1].uses - a[1].uses).slice(0, 5);
@@ -201,7 +206,7 @@ export async function GET(req: NextRequest) {
     arr.push({ description: it.description, total: Number(it.total) || 0, quantity: Number(it.quantity) || 1, tipo });
     lineasPorVenta.set(it.transaction_id, arr);
   }
-  const reparto = repartirVentas(income.map((t: any) => ({ id: t.id, total: Number(t.total) || 0, lineas: lineasPorVenta.get(t.id) || [] })));
+  const reparto = repartirVentas(income.map((t: any) => ({ id: t.id, total: Number(t.total) || 0, abono: Number(t.prepaid_amount) || 0, lineas: lineasPorVenta.get(t.id) || [] })));
   const servicesRevenue = reparto.serviciosCobrado;
   const productsRevenue = reparto.productosCobrado;
   const topServices: [string, { total: number; count: number }][] = reparto.servicios.slice(0, 5).map((f) => [f.nombre, { total: f.cobrado, count: f.cantidad }]);
@@ -215,8 +220,9 @@ export async function GET(req: NextRequest) {
     if (!methodMap[m]) methodMap[m] = { total: 0, count: 0 };
     methodMap[m].total += Number(t.total); methodMap[m].count++;
   }
+  if (abonosCur.length) methodMap["abono"] = { total: sumarAbonos(abonosCur), count: abonosCur.length };
   const paymentLabels: Record<string, string> = {
-    cash: "Efectivo", debit_card: "Débito", credit_card: "Crédito", transfer: "Transferencia", mixed: "Mixto",
+    cash: "Efectivo", debit_card: "Débito", credit_card: "Crédito", transfer: "Transferencia", mixed: "Mixto", abono: "Abonos (reservas pagadas)",
   };
   const methodRows = Object.entries(methodMap).sort((a, b) => b[1].total - a[1].total);
 

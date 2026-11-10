@@ -8,7 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { formatCurrency } from "@/lib/utils";
 import { ETIQUETA_ESTADO, type EstadoAbono } from "@/lib/abonos";
 
-interface Item { paymentId: string; monto: number; estado: EstadoAbono; detalle: string; pagador: string | null; fecha: string; cita: null | { id: string; fecha: string; hora: string; estado: string; cliente: string | null; profesional: string | null } }
+interface Item { aplicado?: boolean | null; paymentId: string; monto: number; estado: EstadoAbono; detalle: string; pagador: string | null; fecha: string; cita: null | { id: string; fecha: string; hora: string; estado: string; cliente: string | null; profesional: string | null } }
 interface Datos { items: Item[]; totales: { recibido: number; por_devolver: number; devuelto: number; intentosNoAprobados: number }; migrationMissing?: boolean }
 const COLOR: Record<EstadoAbono, string> = { recibido: "bg-brand-blue/10 text-brand-blue", por_devolver: "bg-brand-dark text-white", devuelto: "bg-gray-100 text-gray-600", no_aprobado: "bg-gray-100 text-gray-500" };
 const fecha = (iso: string) => new Intl.DateTimeFormat("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso)).replace(",", "");
@@ -64,7 +64,7 @@ export default function AbonosPage() {
                 {visibles.map((i) => (
                   <div key={i.paymentId} className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm">
                     <div className="min-w-0">
-                      <p className="font-semibold text-brand-dark">{i.cita?.cliente || i.pagador || "Cliente"} <span className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${COLOR[i.estado]}`}>{ETIQUETA_ESTADO[i.estado]}</span></p>
+                      <p className="font-semibold text-brand-dark">{i.cita?.cliente || i.pagador || "Cliente"} <span className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${COLOR[i.estado]}`}>{ETIQUETA_ESTADO[i.estado]}</span>{i.estado === "recibido" && <span className={`ml-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${i.aplicado ? "bg-gray-100 text-gray-600" : "bg-brand-blue/10 text-brand-blue"}`}>{i.aplicado ? "Descontado en la venta" : "Por descontar al cobrar"}</span>}</p>
                       <p className="text-xs text-brand-gray">{i.cita ? <>Cita {dmy(i.cita.fecha)} {i.cita.hora} · {i.cita.profesional || "—"}{i.cita.estado === "cancelled" ? " · cancelada" : ""}</> : i.estado === "no_aprobado" ? <span title={i.detalle}>Intento sin aprobar ({i.detalle.replace(/^.*?:/, "").replace(/_/g, " ")})</span> : "Sin cita asociada"} · pagado {fecha(i.fecha)}</p>
                     </div>
                     <div className="flex items-center gap-3">

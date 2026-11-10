@@ -103,6 +103,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const [appointmentId, setAppointmentId] = useState<string | null>(null);
   // Abono pagado al reservar (Mercado Pago): se resta de lo que falta cobrar.
   const [abono, setAbono] = useState(0);
+  const [abonoPagos, setAbonoPagos] = useState<string[]>([]); // pagos de Mercado Pago que cubren ese abono (se verifican en el servidor)
   const [clientSearch, setClientSearch] = useState("");
   // Alta rapida de cliente desde el POS (Nico, 29-sep): si el nombre escrito no existe.
   const [addingClient, setAddingClient] = useState(false);
@@ -226,7 +227,6 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
         const preAppt = sp.get("appointmentId");
         if (preAppt) {
           setAppointmentId(preAppt);
-          fetch(`/api/appointments/${preAppt}/abono`).then((r) => r.json()).then((d) => setAbono(Number(d?.abono) || 0)).catch(() => {});
         }
         if (preBarber) setSelectedBarber(preBarber);
         if (preClient) {
@@ -304,6 +304,19 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   // itself asks the client for a tip when they pay with debit/credit, and that tip is
   // only recorded here afterwards (informational) — never bundled into "total" or sent
   // to MercadoPago as part of the charge. See tipAmount / tip modal below.
+  // Abono ya pagado por la clienta: se busca por la cita y por el cliente elegido (nombre o correo), así se reconoce aunque haya
+  // cambiado la hora o la cita. Se vuelve a verificar al cobrar.
+  useEffect(() => {
+    if (!selectedClient && !appointmentId) { setAbono(0); setAbonoPagos([]); return; }
+    let vivo = true;
+    const url = appointmentId && !selectedClient ? `/api/appointments/${appointmentId}/abono` : `/api/abonos/disponible?clientId=${selectedClient}${appointmentId ? `&appointmentId=${appointmentId}` : ""}`;
+    fetch(url).then((r) => r.json()).then((d) => {
+      if (!vivo) return;
+      setAbono(Number(d?.abono) || 0);
+      setAbonoPagos(Array.isArray(d?.abonos) ? d.abonos.map((x: any) => String(x.paymentId)) : []);
+    }).catch(() => {});
+    return () => { vivo = false; };
+  }, [selectedClient, appointmentId]);
   const abonoAplicado = Math.min(abono, Math.max(0, subtotal - discount));
   const total = subtotal - discount - abonoAplicado;
   const [showTipModal, setShowTipModal] = useState(false);
@@ -592,6 +605,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
           couponCode: couponCode || null,
           discount: discount + abonoAplicado,
           abono: abonoAplicado,
+          abonoPagos: abonoAplicado > 0 ? abonoPagos : [],
           subtotal,
           total,
           redeemedPoints: redeemedPoints || 0,
@@ -604,6 +618,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
         const result = await res.json();
         setAppointmentId(null);
         setAbono(0);
+        setAbonoPagos([]);
         // Was any part of this sale paid by card? The terminal asks for a tip itself
         // when that happens, so we ask the cashier to record it afterwards — we never
         // charge the tip ourselves, only log what the client added on the machine.

@@ -48,7 +48,9 @@ export async function POST(req: NextRequest) {
         total: Number(item.total),
       })),
       subtotal: Number(tx.subtotal),
-      discount: Number(tx.discount),
+      // El abono viaja dentro de `discount` en la venta: en la boleta se muestra aparte, no como descuento.
+      discount: Math.max(0, Number(tx.discount) - Math.max(0, Number((tx as any).prepaid_amount) || 0)),
+      prepaid: Math.max(0, Number((tx as any).prepaid_amount) || 0),
       total: Number(tx.total),
       paymentMethod: tx.payment_method,
       date: new Date(tx.created_at),

@@ -5,7 +5,7 @@ export function clasificarAbono(status: string | null | undefined): EstadoAbono 
   const s = String(status ?? "");
   if (s === "approved") return "recibido";
   if (s === "needs_refund") return "por_devolver";
-  if (s === "refunded") return "devuelto";
+  if (s === "refunded" || s.startsWith("refunded:")) return "devuelto"; // Mercado Pago lo guarda como «refunded:refunded»
   return "no_aprobado"; // «rejected:…», «pending:…», «cancelled:…»…
 }
 

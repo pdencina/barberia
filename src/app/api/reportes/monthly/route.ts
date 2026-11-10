@@ -1,4 +1,5 @@
 import { accountingColumnsAvailable, fetchMonthTx } from "@/lib/accounting";
+import { fetchAbonosRecibidos, sumarAbonos, prepaidColumnAvailable } from "@/lib/abonos-mes";
 import { repartirVentas, cuadra, profesionalUnico, type VentaCierre } from "@/lib/cierre-calculo";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
@@ -64,6 +65,7 @@ export async function GET(req: NextRequest) {
   // Ingresos y egresos por fecha contable ("Corresponde al mes"); ver src/lib/accounting.ts.
   const acc = await accountingColumnsAvailable(supabase);
   const mr = { first: firstDayStr, last: lastDayStr, startIso: startDate, endIso: endDate };
+  const prepaidOk = await prepaidColumnAvailable(supabase);
 
   // Las consultas que no dependen entre si se lanzan juntas (antes eran 5 viajes seguidos a la base).
   // transaction_items has NO tenant_id column, so it must be scoped through the
@@ -72,7 +74,8 @@ export async function GET(req: NextRequest) {
   // first and filter items by them.
   const [incomeTx, expenseTx, { count: appointmentsCompleted }, { count: newClients }, { data: tenantTxIds }] = await Promise.all([
     // Income / expense transactions (todas las filas, por fecha contable)
-    fetchMonthTx(supabase, { select: "id, total, payment_method, barber_id", type: "income", range: mr, scope: tf, acc }),
+    // prepaid_amount (migración 135): parte de la venta que la clienta ya había pagado como abono. Si falta la columna, se lee sin ella.
+    fetchMonthTx(supabase, { select: "id, total, payment_method, barber_id" + (prepaidOk ? ", prepaid_amount" : ""), type: "income", range: mr, scope: tf, acc }),
     fetchMonthTx(supabase, { select: "id, total", type: "expense", range: mr, scope: tf, acc }),
     // Appointments completed
     tf(supabase
@@ -95,7 +98,18 @@ export async function GET(req: NextRequest) {
       .lt("created_at", endDate)),
   ]);
 
-  const totalIncome = (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
+  // ABONOS: lo pagado al reservar es ingreso del mes en que se recibió (no del mes en que se atiende la cita). La venta posterior
+  // trae solo lo que faltaba cobrar, así nada se cuenta dos veces. Un abono devuelto no es ingreso.
+  const abonosMes = await fetchAbonosRecibidos(supabase, tf, startDate, endDate);
+  const abonosTotal = sumarAbonos(abonosMes);
+  const abonoBarber = new Map<string, string | null>();
+  const apptIdsAbono = Array.from(new Set(abonosMes.map((a) => a.appointment_id).filter(Boolean))) as string[];
+  if (apptIdsAbono.length) {
+    const ap = await inChunks(apptIdsAbono, (c) => supabase.from("appointments").select("id, barber_id").in("id", c));
+    for (const a of ap || []) abonoBarber.set(a.id, a.barber_id || null);
+  }
+
+  const totalIncome = (incomeTx || []).reduce((s: number, t: any) => s + Number(t.total), 0) + abonosTotal;
   const totalExpenses = (expenseTx || []).reduce((s: number, t: any) => s + Number(t.total), 0);
 
   // Income by payment method
@@ -107,6 +121,9 @@ export async function GET(req: NextRequest) {
     methodMap[m].count++;
   }
 
+  // Los abonos del mes forman su propio rubro («Abonos») entre los medios de pago.
+  if (abonosMes.length) methodMap["abono"] = { total: abonosTotal, count: abonosMes.length };
+
   // Income by barber
   const barberMap: Record<string, { total: number; count: number }> = {};
   for (const t of incomeTx || []) {
@@ -114,6 +131,15 @@ export async function GET(req: NextRequest) {
     if (!barberMap[t.barber_id]) barberMap[t.barber_id] = { total: 0, count: 0 };
     barberMap[t.barber_id].total += Number(t.total);
     barberMap[t.barber_id].count++;
+  }
+
+  // El abono se atribuye al profesional de la cita; si no se sabe cuál, queda como ingreso de la casa.
+  let abonosSinProfesional = 0;
+  for (const a of abonosMes) {
+    const b = a.appointment_id ? abonoBarber.get(a.appointment_id) : null;
+    if (!b) { abonosSinProfesional += Number(a.amount) || 0; continue; }
+    if (!barberMap[b]) barberMap[b] = { total: 0, count: 0 };
+    barberMap[b].total += Number(a.amount) || 0; barberMap[b].count++;
   }
 
   const incomeIds = (incomeTx || []).map((t: any) => t.id).filter(Boolean) as string[];
@@ -198,7 +224,7 @@ export async function GET(req: NextRequest) {
   }
   // Add transactions without barber to commission (house sales)
   const noBarberIncome = (incomeTx || []).filter((t: any) => !t.barber_id).reduce((s: number, t: any) => s + Number(t.total), 0);
-  incomeCommission += noBarberIncome;
+  incomeCommission += noBarberIncome + abonosSinProfesional;
 
   // Servicios y productos: lo realmente cobrado de cada venta se reparte entre sus líneas (descuentos incluidos), así
   // «Top servicios» + «Top productos» suman el Movimiento total. Ver src/lib/cierre-calculo.ts.
@@ -210,7 +236,7 @@ export async function GET(req: NextRequest) {
     arr.push({ description: it.description, total: Number(it.total) || 0, quantity: Number(it.quantity) || 1, tipo });
     lineasPorVenta.set(it.transaction_id, arr);
   }
-  const reparto = repartirVentas((incomeTx || []).map((t: any) => ({ id: t.id, total: Number(t.total) || 0, lineas: lineasPorVenta.get(t.id) || [] })));
+  const reparto = repartirVentas((incomeTx || []).map((t: any) => ({ id: t.id, total: Number(t.total) || 0, abono: Number(t.prepaid_amount) || 0, lineas: lineasPorVenta.get(t.id) || [] })));
   const verificacion = cuadra(reparto);
 
   // Punto 18 (Pablo): "incorporar egresos manuales al cierre mensual" — el total ya
@@ -230,6 +256,7 @@ export async function GET(req: NextRequest) {
     period: { month, year },
     summary: {
       totalIncome,
+      abonosRecibidos: abonosTotal, // ya incluidos en totalIncome (rubro «Abonos»)
       totalExpenses,
       netProfit: totalIncome - totalExpenses,
       incomeCommission,
@@ -249,7 +276,8 @@ export async function GET(req: NextRequest) {
     // Resumen que cuadra: servicios a lista − descuentos = servicios cobrados; + productos + sin detalle = Movimiento total.
     resumenCuadra: {
       serviciosLista: reparto.serviciosLista, descuentos: reparto.descuentos, serviciosCobrado: reparto.serviciosCobrado,
-      productosCobrado: reparto.productosCobrado, sinDetalle: reparto.sinDetalle, totalIngresos: reparto.totalVentas,
+      productosCobrado: reparto.productosCobrado, sinDetalle: reparto.sinDetalle, totalIngresos: reparto.totalVentas + abonosTotal,
+      abonosAplicados: reparto.abonosAplicados, cobradoEnElMes: reparto.totalVentas, abonosRecibidos: abonosTotal,
       cuadra: verificacion.ok, diferencia: verificacion.diferencia, ventasAjustadas: reparto.ventasAjustadas.length,
       ventasSinProfesional: unico ? 0 : sinProfesional.length, montoSinProfesional: unico ? 0 : sinProfesionalTotal,
     },
