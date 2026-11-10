@@ -13,7 +13,7 @@ export async function publicAvailability(req: NextRequest, own?: { appointmentId
   const { searchParams } = new URL(req.url);
   const barberId = searchParams.get("barberId");
   const date = searchParams.get("date");
-  const duration = parseInt(searchParams.get("duration") || "45");
+  const duration = Math.max(5, parseInt(searchParams.get("duration") || "45") || 0); // un servicio de 0 min igual ocupa un bloque mínimo
 
   if (!barberId || !date) {
     return NextResponse.json({ error: "barberId and date required" }, { status: 400 });

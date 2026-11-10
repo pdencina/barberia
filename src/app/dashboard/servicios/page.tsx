@@ -248,10 +248,9 @@ export default function ServiciosPage() {
     fetchServices();
   };
 
-  const durationOptions = (current: number, internal?: boolean | null) => {
-    const base = [5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
+  const durationOptions = (current: number, _internal?: boolean | null) => {
+    const base = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 60];
     for (let m = 75; m <= 360; m += 15) base.push(m);
-    if (internal) base.unshift(0);
     if (!base.includes(current)) base.push(current);
     return base.sort((a, b) => a - b);
   };
@@ -808,8 +807,8 @@ export default function ServiciosPage() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-brand-gray mb-1">Duracion (min){form.internal ? <span className="font-normal text-gray-400"> · 0 si no ocupa tiempo</span> : null}</label>
-                  <input type="number" required min={form.internal ? 0 : 5} step={form.internal ? 1 : 5} value={form.duration}
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Duracion (min)<span className="font-normal text-gray-400"> · 0 si no suma tiempo</span></label>
+                  <input type="number" required min={0} step={form.internal ? 1 : 5} value={form.duration}
                     onChange={(e) => setForm({ ...form, duration: e.target.value })}
                     placeholder={form.internal ? "0" : "30"}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />

@@ -8,7 +8,8 @@ export const DURACION_MINIMA_PUBLICA = 5;
 export function errorDuracion(duration: unknown, internal: boolean): string | null {
   const d = Number(duration);
   if (!Number.isFinite(d) || !Number.isInteger(d) || d < 0 || d > 1440) return "La duración debe ser un número entero de minutos";
-  if (!internal && d < DURACION_MINIMA_PUBLICA) return `Un servicio público debe durar al menos ${DURACION_MINIMA_PUBLICA} minutos. Si es un extra que solo se cobra, márcalo como interno.`;
+  // 0 minutos es válido también en servicios públicos (ej. cejas que no suman tiempo al combinarse).
+  // Si la reserva completa suma 0, se usa DURACION_MINIMA_PUBLICA como bloque mínimo.
   return null;
 }
 
