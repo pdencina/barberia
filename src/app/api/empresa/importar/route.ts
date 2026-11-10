@@ -3,6 +3,7 @@ import { fetchAllRows } from "@/lib/accounting";
 import { loadMembers } from "@/lib/empresas/cartera-data";
 import { badRequest, dbErrorResponse, isUuid, readJson } from "@/lib/empresas/errors";
 import { requireCompany } from "@/lib/empresas/guard";
+import { BRAND_COLORS } from "@/lib/empresas/dashboard";
 import { MAX_IMPORT_ROWS, parseCustomers, parseProducts, type RowError } from "@/lib/empresas/import";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
@@ -70,17 +71,35 @@ async function importProducts(admin: Admin, g: { tenantId: string; userId: strin
   const toCreate = plan.filter((p) => !p.id);
   const toUpdate = plan.filter((p) => p.id);
   const withStock = plan.filter((p) => p.wh);
+  // Marcas del archivo (columna "Marca"): se usan las existentes y se crean las que falten (sin la 162, se ignoran).
+  const brandNames = Array.from(new Set(plan.map((p) => p.it.brand).filter((b): b is string => !!b)));
+  const brandId = new Map<string, string>();
+  let newBrands: string[] = [];
+  if (brandNames.length) {
+    const { data: existingBrands, error: bErr } = await admin.from("company_brands").select("id, name").eq("tenant_id", g.tenantId);
+    if (!bErr) {
+      for (const b of existingBrands || []) brandId.set(b.name.toLowerCase(), b.id);
+      newBrands = brandNames.filter((n) => !brandId.has(n.toLowerCase()));
+    }
+  }
 
   if (dryRun) {
     return NextResponse.json({
-      dryRun: true, create: toCreate.length, update: toUpdate.length, stockRows: withStock.length, errors: errors.slice(0, 200),
+      dryRun: true, create: toCreate.length, update: toUpdate.length, stockRows: withStock.length, newBrands, errors: errors.slice(0, 200),
       preview: plan.slice(0, 15).map((p) => ({ row: p.it.row, sku: p.it.sku, name: p.it.name, price: p.it.listPrice, stock: p.it.stock, action: p.id ? "actualizar" : "crear" })),
     });
   }
 
+  for (let i = 0; i < newBrands.length; i++) {
+    const name = newBrands[i];
+    const { data: b } = await admin.from("company_brands").insert({ tenant_id: g.tenantId, name, color: BRAND_COLORS[(brandId.size + i) % BRAND_COLORS.length], sort: brandId.size + i })
+      .select("id").single();
+    if (b) brandId.set(name.toLowerCase(), b.id);
+  }
   const fields = (it: (typeof plan)[number]["it"]) => pick({
     name: it.name, description: it.description, category: it.category, unit: it.unit,
     list_price: it.listPrice, cost: it.cost, min_stock: it.minStock,
+    brand_id: it.brand ? brandId.get(it.brand.toLowerCase()) : undefined,
   });
   for (let i = 0; i < toCreate.length; i += 500) {
     const chunk = toCreate.slice(i, i + 500);
@@ -110,7 +129,7 @@ async function importProducts(admin: Admin, g: { tenantId: string; userId: strin
     else stockApplied++;
   });
 
-  return NextResponse.json({ dryRun: false, created: toCreate.length, updated: toUpdate.length, stockApplied, stockSkipped, errors: errors.slice(0, 200) });
+  return NextResponse.json({ dryRun: false, created: toCreate.length, updated: toUpdate.length, stockApplied, stockSkipped, newBrands: newBrands.length, errors: errors.slice(0, 200) });
 }
 
 async function importCustomers(admin: Admin, g: { tenantId: string }, rows: unknown[][], dryRun: boolean) {

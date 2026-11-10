@@ -5,6 +5,7 @@ import { parseCustomers, parseNumber, parseProducts } from "../src/lib/empresas/
 import { runDueCampaigns, type CampaignRepo, type SendStatus } from "../src/lib/empresas/campanas";
 import { stockView } from "../src/lib/empresas/partner";
 import { hashContactoWhatsApp } from "../src/lib/agente/whatsapp-meta";
+import { buildDashboard, lastMonths, NO_BRAND, periodRanges } from "../src/lib/empresas/dashboard";
 import { FELIPE_TIERS, previousMonthRange, priceWithTier, suggestTier, type PriceTier } from "../src/lib/empresas/precios";
 
 let fails = 0;
@@ -114,6 +115,47 @@ ok("$500 mil no llega a mayorista", suggestTier(tiers, 500_000) === null);
 const pm = previousMonthRange(Date.parse("2026-11-10T15:00:00Z"));
 ok("mes anterior = octubre en hora de Chile", pm.from === "2026-10-01T03:00:00.000Z" && pm.to === "2026-11-01T03:00:00.000Z", pm);
 ok("en enero el mes anterior es diciembre", previousMonthRange(Date.parse("2026-01-05T15:00:00Z")).from === "2025-12-01T03:00:00.000Z");
+
+console.log("\n# Dashboard por marca");
+const NOW = Date.parse("2026-11-10T15:00:00Z");
+const pmonth = periodRanges("month", NOW);
+ok("mes: desde el 1 de noviembre (Chile)", new Date(pmonth.from).toISOString() === "2026-11-01T03:00:00.000Z", pmonth);
+ok("mes anterior: el mismo tramo de octubre", new Date(pmonth.prevFrom).toISOString() === "2026-10-01T03:00:00.000Z" && pmonth.prevTo - pmonth.prevFrom === NOW - pmonth.from);
+const p30 = periodRanges("30d", NOW);
+ok("30 días y los 30 anteriores", p30.to - p30.from === 30 * DAY && p30.from - p30.prevFrom === 30 * DAY);
+const pyear = periodRanges("year", NOW);
+ok("año: desde el 1 de enero vs el mismo tramo del año pasado", new Date(pyear.from).toISOString() === "2026-01-01T03:00:00.000Z" && new Date(pyear.prevFrom).toISOString() === "2025-01-01T03:00:00.000Z");
+const ms = lastMonths(NOW, 6);
+ok("6 meses: de junio a noviembre", ms.length === 6 && ms[0].key === "2026-06" && ms[5].key === "2026-11", ms.map((x) => x.key));
+const brandsD = [{ id: "b1", name: "Nishman", color: "#000000", active: true }, { id: "b2", name: "Viggo", color: "#111111", active: true }, { id: "b3", name: "Rovra", color: "#222222", active: true }];
+const productsD = [
+  { id: "p1", name: "Cera", sku: "C1", brandId: "b1", cost: 4000, listPrice: 9000, minStock: 5, active: true },
+  { id: "p2", name: "Pomada", sku: "P1", brandId: "b2", cost: null, listPrice: 10000, minStock: 50, active: true },
+  { id: "p3", name: "Sin marca", sku: null, brandId: null, cost: 1000, listPrice: 2000, minStock: 0, active: true },
+];
+const ord = (id: string, at: string, items: [string, number, number][], cust = "c1") => ({ id, customerId: cust, customerName: cust === "c1" ? "Barbería Uno" : "Barbería Dos", dispatchedAt: at, items: items.map(([productId, quantity, unitPrice]) => ({ productId, quantity, unitPrice })) });
+const ordersD = [
+  ord("o1", "2026-11-05T15:00:00Z", [["p1", 10, 9000], ["p2", 2, 10000]]),
+  ord("o2", "2026-11-08T15:00:00Z", [["p1", 5, 8500]], "c2"),
+  ord("o3", "2026-10-04T15:00:00Z", [["p1", 10, 9000]]), // mes anterior, dentro del tramo comparable
+  ord("o4", "2026-10-25T15:00:00Z", [["p3", 3, 2000]]),  // mes anterior, fuera del tramo (después del día 10)
+];
+const dash = buildDashboard({ now: NOW, period: "month", brandFilter: null, brands: brandsD, products: productsD, orders: ordersD,
+  stock: [{ productId: "p1", quantity: 20, reserved: 2 }, { productId: "p2", quantity: 10, reserved: 0 }], pending: [ord("o5", "2026-11-09T15:00:00Z", [["p1", 1, 9000]])] });
+ok("ventas del mes = 90.000 + 20.000 + 42.500", dash.totals.revenue === 152500, dash.totals);
+ok("margen solo con costo conocido: (90.000+42.500) − 15×4.000", dash.totals.margin === 72500 && dash.totals.marginPct === 54.7, dash.totals);
+ok("unidades, pedidos y clientes", dash.totals.units === 17 && dash.totals.orders === 2 && dash.totals.customers === 2);
+ok("variación vs el mismo tramo del mes anterior (90.000)", dash.totals.revenueChange === 69.4, dash.totals.revenueChange);
+ok("stock valorizado a costo y bajo mínimo", dash.totals.stockAtCost === 80000 && dash.totals.lowStock === 1 && dash.totals.stockUnits === 30, dash.totals);
+ok("pendiente por despachar", dash.totals.pendingValue === 9000 && dash.totals.pendingOrders === 1);
+const nish = dash.brands.find((b) => b.id === "b1")!;
+ok("Nishman primera, con su participación", dash.brands[0].id === "b1" && nish.revenue === 132500 && nish.share === 86.9, dash.brands);
+ok("marca sin ventas igual aparece (Rovra en 0)", dash.brands.some((b) => b.id === "b3" && b.revenue === 0));
+ok("sin costo: margen % de la marca es null", dash.brands.find((b) => b.id === "b2")!.marginPct === null);
+ok("gráfico: octubre y noviembre por marca", dash.monthly.find((m) => m.key === "2026-11")!.values.b1 === 132500 && dash.monthly.find((m) => m.key === "2026-10")!.values[NO_BRAND] === 6000, dash.monthly);
+ok("top producto y top cliente", dash.topProducts[0].id === "p1" && dash.topCustomers[0].id === "c1");
+const solo = buildDashboard({ now: NOW, period: "month", brandFilter: "b2", brands: brandsD, products: productsD, orders: ordersD, stock: [], pending: [] });
+ok("filtro por marca: solo Viggo", solo.totals.revenue === 20000 && solo.brands.length === 1 && solo.brands[0].id === "b2", solo.brands);
 
 console.log("\n# Portal: qué ve del stock");
 ok("modo disponible no muestra la cantidad", JSON.stringify(stockView(7, "availability")) === JSON.stringify({ inStock: true }));

@@ -6,7 +6,7 @@ import { api, BUTTON, BUTTON_LIGHT, CARD, errorText, INPUT, Message, Table, TD, 
 type Kind = "productos" | "clientes";
 
 const AYUDA: Record<Kind, string> = {
-  productos: "Sirve la exportación de productos de Bsale. Columnas que reconozco: Nombre o Producto (obligatoria), Variante, SKU o Código, Descripción, Categoría, Unidad, Precio (o Precio Venta Bruto), Costo, Stock mínimo, Stock y Bodega o Sucursal. El stock se carga solo si el producto aún no tiene stock en esa bodega; para corregir un stock existente usa una toma de inventario.",
+  productos: "Sirve la exportación de productos de Bsale. Columnas que reconozco: Nombre o Producto (obligatoria), Variante, Marca (crea las que falten), SKU o Código, Descripción, Categoría, Unidad, Precio (o Precio Venta Bruto), Costo, Stock mínimo, Stock y Bodega o Sucursal. El stock se carga solo si el producto aún no tiene stock en esa bodega; para corregir un stock existente usa una toma de inventario.",
   clientes: "Sirve la exportación de clientes de Bsale. Columnas que reconozco: Nombre o Razón social (obligatoria), RUT, Contacto, Teléfono o Celular, Correo, Dirección, Ciudad o Comuna, Tipo (distribuidor/cliente), Vendedor (su correo o nombre) y Acepta WhatsApp (sí/no).",
 };
 
@@ -85,6 +85,7 @@ export default function ImportarPage() {
           <p className="text-sm text-brand-dark">
             Se crearán <b>{preview.create}</b> y se completarán <b>{preview.update}</b> {kind}.
             {kind === "productos" && <> Filas con stock inicial: <b>{preview.stockRows}</b>.</>}
+            {kind === "productos" && preview.newBrands?.length > 0 && <> Marcas nuevas: <b>{preview.newBrands.join(", ")}</b>.</>}
             {kind === "clientes" && preview.optIn > 0 && <> Con permiso de WhatsApp: <b>{preview.optIn}</b>.</>} Nada se borra.
           </p>
           <Table head={["Fila", kind === "productos" ? "SKU" : "RUT", "Nombre", kind === "productos" ? "Precio" : "Celular", kind === "productos" ? "Stock" : "Vendedor", "Acción"]}>

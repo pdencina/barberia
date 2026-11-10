@@ -195,3 +195,11 @@ Sección 15 de `AGENTS.md`: Codex escribe en ramas `codex/*` con ficha de tarea,
 4. ¿Los precios de Bsale están con o sin IVA? re-booking usa el precio de lista tal cual se cargue.
 
 **Ojo con los números de los vendedores:** un número conectado a la API de WhatsApp (para envíos automáticos) deja de funcionar en la app normal de WhatsApp. Por eso los envíos automáticos van solo desde el número de la empresa, y los vendedores usan el botón que abre su propio WhatsApp.
+
+## 13. Dashboard del dueño por marca (10 nov. 2026)
+
+Pedido de Nico: que Felipe vea cómo rinde cada una de sus marcas (Nishman, Pro Rapid, Viggo, Starke, Kings Armours, Rovra) y pueda crear otras. Migración **162** (`company_brands`, `company_products.brand_id`). `/empresa` es ahora el **Dashboard** del dueño (los demás roles van a `/empresa/stock`). Indicadores: ventas, margen bruto ($ y %), unidades, pedidos y ticket promedio, stock valorizado a costo y productos bajo mínimo, pedidos por despachar; por marca: participación, variación vs período anterior, margen, clientes y stock; gráfico de 6 meses apilado por marca; top productos y top clientes. Períodos: este mes, 30 días, 3 meses, este año. Página **Marcas** (crear, renombrar, color, desactivar) y columna "Marca" en Productos y en el importador (crea las que falten).
+
+**Definiciones:** venta = pedido despachado o entregado, a la fecha de despacho, con el precio guardado; margen = venta − costo ACTUAL del producto (el pedido no guarda el costo histórico; productos sin costo no entran al margen).
+
+**En producción (Falcons):** 162 aplicada; datos ficticios: 6 marcas, 30 productos "(demo)", 15 clientes "(demo)", pedidos entregados de junio a noviembre (`notes = 'demo-historial'`) y 4 pendientes (`'demo-pendiente'`). Para limpiar: cancelar/ocultar esos pedidos y desactivar productos y clientes "(demo)".

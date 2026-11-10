@@ -4,7 +4,7 @@
 export type ImportKind = "productos" | "clientes";
 
 export type ProductRow = {
-  row: number; sku: string | null; name: string; variant?: string | null; description: string | null; category: string | null; unit: string | null;
+  row: number; sku: string | null; name: string; variant?: string | null; brand?: string | null; description: string | null; category: string | null; unit: string | null;
   listPrice: number | null; cost: number | null; minStock: number | null; stock: number | null; warehouse: string | null;
 };
 export type CustomerRow = {
@@ -31,6 +31,7 @@ const PRODUCT_HEADERS: Record<keyof Omit<ProductRow, "row">, string[]> = {
   sku: ["sku", "codigo", "cod", "codigo producto", "referencia", "ref", "codigo interno", "codigo sku"],
   name: ["nombre", "producto", "nombre producto", "articulo", "item"],
   variant: ["variante", "nombre variante"],
+  brand: ["marca", "linea de marca", "fabricante"],
   description: ["descripcion", "detalle"],
   category: ["categoria", "familia", "linea", "tipo"],
   unit: ["unidad", "unidad medida", "um", "formato"],
@@ -115,7 +116,7 @@ export function parseProducts(rows: unknown[][]): { items: ProductRow[]; errors:
     const variant = cell(get("variant"), 100);
     const fullName = variant && !/^(unica|única|default|-)$/i.test(variant) ? `${name} ${variant}`.slice(0, 200) : name;
     items.push({
-      row, sku, name: fullName,
+      row, sku, name: fullName, brand: cell(get("brand"), 80),
       description: cell(get("description"), 1000), category: cell(get("category"), 100), unit: cell(get("unit"), 40),
       listPrice: nums.listPrice, cost: nums.cost, minStock: nums.minStock, stock: nums.stock, warehouse: cell(get("warehouse"), 120),
     });
