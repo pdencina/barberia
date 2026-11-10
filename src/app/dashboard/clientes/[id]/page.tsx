@@ -23,6 +23,7 @@ interface ClientData {
     notes: string | null;
     created_at: string;
     marketing_consent?: boolean | null;
+  checkin_code?: string | null;
     do_not_contact?: boolean | null;
     tenant_id?: string | null;
     acquisition_source?: string | null;
@@ -310,6 +311,12 @@ export default function ClienteDetailPage() {
                   <Phone className="h-3.5 w-3.5 text-brand-gray" strokeWidth={1.75} />
                   {client.phone || <span className="text-brand-gray">Sin teléfono</span>}
                 </span>
+                {client.checkin_code && (
+                  <span className="inline-flex items-center gap-1.5" title="Código fijo del cliente para el tótem del local">
+                    <span className="text-xs text-brand-gray">Código tótem</span>
+                    <span className="font-mono font-bold tracking-widest">{client.checkin_code}</span>
+                  </span>
+                )}
                 <span className="inline-flex min-w-0 items-center gap-1.5">
                   <Mail className="h-3.5 w-3.5 flex-shrink-0 text-brand-gray" strokeWidth={1.75} />
                   <span className="truncate">{client.email || <span className="text-brand-gray">Sin email</span>}</span>

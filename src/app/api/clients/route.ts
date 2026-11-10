@@ -66,7 +66,7 @@ export async function GET(req: NextRequest) {
       const q = (search || "").toLowerCase();
       let lista = (await todosLosClientes())
         .filter((c: any) => !esGrupo(grupo) || (grupo === "nuevo" ? !c.imported_at : !!c.imported_at && (grupo === "activo") === act.has(c.id)))
-        .filter((c: any) => !q || [c.name, c.email, c.phone].some((v) => String(v || "").toLowerCase().includes(q)));
+        .filter((c: any) => !q || [c.name, c.email, c.phone, c.checkin_code].some((v) => String(v || "").toLowerCase().includes(q)));
       let stats: Map<string, StatsCliente> | null = null;
       if (esOrdenPorStats(orden)) stats = await cargarStats(null);
       lista = ordenarClientes(lista, stats || new Map(), orden, asc);

@@ -19,14 +19,18 @@ export async function POST(req: NextRequest) {
   const email = String(body.email || "").trim().toLowerCase().slice(0, 120);
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return NextResponse.json({ error: "Escribe tu correo (ej. nombre@gmail.com)" }, { status: 400 });
 
-  const { data: existente } = await supabase.from("clients").select("id, name, email").eq("tenant_id", t.id).ilike("phone", `%${phone}`).order("created_at").limit(1).maybeSingle();
+  const { data: existente } = await supabase.from("clients").select("id, name, email, checkin_code").eq("tenant_id", t.id).ilike("phone", `%${phone}`).order("created_at").limit(1).maybeSingle();
   let nombreFicha = (existente as any)?.name || name;
+  let codigoCliente: string | null = null;
   if (!existente) {
     const row: Record<string, any> = { name, phone: `+56${phone}`, email, tenant_id: t.id, acquisition_source: "walk_in" };
     const consent = { marketing_consent: body.marketingConsent === true, marketing_consent_at: new Date().toISOString() };
-    let r: any = await supabase.from("clients").insert({ ...row, ...consent }).select("id").single();
-    if (r.error && /marketing_consent/i.test(r.error.message)) r = await supabase.from("clients").insert(row).select("id").single();
+    let r: any = await supabase.from("clients").insert({ ...row, ...consent }).select("id, checkin_code").single();
+    if (r.error && /marketing_consent/i.test(r.error.message)) r = await supabase.from("clients").insert(row).select("id, checkin_code").single();
     if (r.error) return NextResponse.json({ error: "No pudimos registrarte. Avisa a quien te atiende." }, { status: 500 });
+    codigoCliente = r.data?.checkin_code || null;
+  } else {
+    codigoCliente = (existente as any).checkin_code || null;
   }
 
   // Cliente que ya existía sin correo: se lo completamos (nunca se pisa uno que ya tenía).
@@ -36,5 +40,5 @@ export async function POST(req: NextRequest) {
     tenantId: t.id, kind: "client_arrived", roles: ["admin", "receptionist"],
     title: "Cliente sin hora en el tótem", body: `${primerNombre(nombreFicha)} llegó sin hora y se registró. Recíbelo y ofrécele una hora.`, url: "/dashboard/recepcion",
   }).catch(() => {});
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, codigo: codigoCliente });
 }

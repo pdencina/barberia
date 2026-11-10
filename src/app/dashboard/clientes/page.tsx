@@ -22,6 +22,7 @@ interface Client {
   email: string;
   phone: string;
   notes: string;
+  checkin_code?: string | null;
   created_at?: string;
   stats?: StatsCliente;
 }
@@ -412,6 +413,7 @@ export default function ClientesPage() {
               <Titulo o="nombre" className="text-left">Nombre</Titulo>
               <th className="text-left p-4 font-medium text-gray-600">Email</th>
               <th className="text-left p-4 font-medium text-gray-600">Telefono</th>
+              <th className="text-left p-4 font-medium text-gray-600" title="Código fijo del cliente para el tótem">Código</th>
               {conStats && <Titulo o="visitas" className="text-right">Veces que vino</Titulo>}
               {conStats && <Titulo o="ticket" className="text-right">Ticket promedio</Titulo>}
               {conStats && <Titulo o="asistencia" className="text-right">Asistencia</Titulo>}
@@ -420,7 +422,7 @@ export default function ClientesPage() {
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={conStats ? 8 : 4}><Spinner /></td></tr>
+              <tr><td colSpan={conStats ? 9 : 5}><Spinner /></td></tr>
             ) : clients.length === 0 ? (
               <tr><td colSpan={conStats ? 8 : 4} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
             ) : clients.map((c) => (
@@ -438,6 +440,7 @@ export default function ClientesPage() {
                 </td>
                 <td className="p-4">{c.email || "-"}</td>
                 <td className="p-4">{c.phone || "-"}</td>
+                <td className="p-4 font-mono tracking-widest text-brand-dark">{c.checkin_code || "-"}</td>
                 {conStats && (<>
                 <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats ? c.stats.visitas : "-"}</td>
                 <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats?.ticket != null ? formatCurrency(c.stats.ticket) : "-"}</td>
