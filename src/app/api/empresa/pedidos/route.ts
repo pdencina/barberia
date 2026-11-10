@@ -2,26 +2,36 @@ import { NextResponse } from "next/server";
 import { BODEGA_ORDER_STATUSES, roleCan } from "@/lib/empresas/capabilities";
 import { badRequest, cleanText, dbErrorResponse, isUuid, readJson } from "@/lib/empresas/errors";
 import { requireCompany } from "@/lib/empresas/guard";
+import { faltaMigracion } from "@/lib/empresas/settings";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
 
+const LIST = "id, status, notes, created_by, created_at, customer:company_customers(name), warehouse:company_warehouses(name), items:company_order_items(quantity)";
+
 export async function GET() {
   const g = await requireCompany();
   if (!g.ok) return g.response;
-  let q = createAdminSupabase().from("company_orders")
-    .select("id, status, notes, created_by, created_at, customer:company_customers(name), warehouse:company_warehouses(name), items:company_order_items(quantity)")
+  const admin = createAdminSupabase();
+  const build = (columns: string) => admin.from("company_orders").select(columns)
     .eq("tenant_id", g.tenantId).order("created_at", { ascending: false }).limit(200);
+  let q = build(`${LIST}, source`);
   if (roleCan(g.role, "pedidos.ver_todos")) {
     // sin filtro
   } else if (roleCan(g.role, "pedidos.ver_propios")) {
-    q = q.eq("created_by", g.userId);
+    // Sus pedidos y los de su cartera (incluidos los del portal de distribuidores). Sin la 158, solo los suyos.
+    const { data: mine, error: mineError } = await admin.from("company_customers").select("id").eq("tenant_id", g.tenantId).eq("assigned_seller_id", g.userId);
+    const ids = mineError ? [] : (mine || []).map((c) => c.id);
+    q = ids.length ? q.or(`created_by.eq.${g.userId},customer_id.in.(${ids.join(",")})`) : q.eq("created_by", g.userId);
   } else if (roleCan(g.role, "pedidos.ver_bodega")) {
     q = q.in("status", [...BODEGA_ORDER_STATUSES]);
   } else {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
-  const { data, error } = await q;
+  let { data, error } = await q;
+  if (error && faltaMigracion(error) && roleCan(g.role, "pedidos.ver_todos")) ({ data, error } = await build(LIST));
+  if (error && faltaMigracion(error) && roleCan(g.role, "pedidos.ver_propios")) ({ data, error } = await build(LIST).eq("created_by", g.userId));
+  if (error && faltaMigracion(error) && roleCan(g.role, "pedidos.ver_bodega")) ({ data, error } = await build(LIST).in("status", [...BODEGA_ORDER_STATUSES]));
   if (error) return dbErrorResponse(error, "pedidos GET");
   return NextResponse.json({ orders: data });
 }
@@ -44,6 +54,13 @@ export async function POST(req: Request) {
   }
 
   const admin = createAdminSupabase();
+  // Un vendedor no puede tomar pedidos de un cliente que está en la cartera de otro.
+  if (!roleCan(g.role, "cartera.ver_todas")) {
+    const { data: customer, error: customerError } = await admin.from("company_customers").select("assigned_seller_id")
+      .eq("tenant_id", g.tenantId).eq("id", body!.customerId).maybeSingle();
+    if (customerError && !faltaMigracion(customerError)) return dbErrorResponse(customerError, "pedidos POST cliente");
+    if (customer?.assigned_seller_id && customer.assigned_seller_id !== g.userId) return badRequest("Ese cliente está en la cartera de otro vendedor.");
+  }
   const { data: products, error: productsError } = await admin.from("company_products").select("id, list_price, active")
     .eq("tenant_id", g.tenantId).in("id", Array.from(ids));
   if (productsError) return dbErrorResponse(productsError, "pedidos POST productos");
