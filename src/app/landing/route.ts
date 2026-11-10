@@ -44,12 +44,21 @@ export function GET() {
     // Every remaining placeholder CTA (Comenzar ahora, Elegir plan, final CTA) → sales WhatsApp.
     .replaceAll('href="#"', waHref);
 
-  // Menu de 3 rayitas: "Empresas" lleva al login del panel de empresas. Solo aparece con Empresas encendido (ver flag.ts),
+  // "Empresas" lleva al login del panel de empresas: en el menu de 3 rayitas (celular) y en la barra de arriba (PC, donde no
+  // hay 3 rayitas; bajo 1000px se oculta porque ya esta en el menu). Solo aparece con Empresas encendido (ver flag.ts),
   // para no mostrar en produccion un enlace a una pagina que todavia no esta activa.
   if (isEmpresasEnabled()) {
     html = html.replace(
       '<a href="/login">Iniciar sesión</a>',
       '<a href="/login">Iniciar sesión</a>\n  <a href="/empresa/login">Empresas</a>'
+    );
+    const hdrLogin =
+      '<a href="/login" data-hdr-login="" style="flex: 0 0 auto; white-space: nowrap; font-size: 14.5px; font-weight: 600; color: #10201F;" style-hover="color:#0B9490">Iniciar sesión</a>';
+    html = html.replace(
+      hdrLogin,
+      '<style>@media (max-width: 1000px) { header [data-hdr-empresas] { display: none !important; } }</style>' +
+        '<a href="/empresa/login" data-hdr-empresas="" style="flex: 0 0 auto; white-space: nowrap; font-size: 14.5px; font-weight: 600; color: #10201F;" style-hover="color:#0B9490">Empresas</a>\n      ' +
+        hdrLogin
     );
   }
 
