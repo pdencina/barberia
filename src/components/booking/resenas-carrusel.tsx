@@ -6,7 +6,7 @@ import type { ResenaDestacada } from "@/lib/resenas-destacadas";
 interface Datos { items: ResenaDestacada[]; googleUrl: string | null; googleRating: number | null; googleTotal: number | null }
 
 const Estrellas = ({ n }: { n: number }) => (
-  <span className="text-[13px] tracking-tight text-brand-blue" aria-label={`${n} de 5 estrellas`}>{"★".repeat(n)}<span className="text-gray-200">{"★".repeat(5 - n)}</span></span>
+  <span className="text-[13px] tracking-tight text-brand-blue" aria-label={`${n} de 5 estrellas`}>{"★".repeat(n)}<span className="text-brand-gray opacity-30">{"★".repeat(5 - n)}</span></span>
 );
 
 const LogoGoogle = () => (
