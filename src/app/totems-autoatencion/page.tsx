@@ -30,13 +30,14 @@ function Totem() {
   const [cargando, setCargando] = useState(false);
   const [nombre, setNombre] = useState("");
   const [celular, setCelular] = useState("");
+  const [correo, setCorreo] = useState("");
   const [acepta, setAcepta] = useState(false);
   const [carrito, setCarrito] = useState<Record<string, number>>({});
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
   const ultimo = useRef(Date.now());
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setNombre(""); setCelular(""); setAcepta(false); setCarrito({}); setGracias(""); setModo("llegue");
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setNombre(""); setCelular(""); setCorreo(""); setAcepta(false); setCarrito({}); setGracias(""); setModo("llegue");
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
@@ -114,7 +115,7 @@ function Totem() {
 
   const registrar = async () => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("registro", { name: nombre, phone: celular, marketingConsent: acepta });
+    const { ok, d } = await post("registro", { name: nombre, phone: celular, email: correo, marketingConsent: acepta });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos registrarte"); return; }
     setGracias("¡Gracias! Ya avisamos que llegaste. Te atenderemos en un momento.");
@@ -251,12 +252,14 @@ function Totem() {
           <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className="mb-6 rounded-2xl bg-white/10 px-6 py-6 text-3xl outline-none focus:ring-4 focus:ring-emerald-400" autoComplete="off" />
           <label className="mb-2 text-2xl font-semibold">Tu celular</label>
           <input value={celular} onChange={(e) => setCelular(e.target.value.replace(/[^\d+ ]/g, ""))} inputMode="tel" maxLength={16} placeholder="9 1234 5678" className="mb-6 rounded-2xl bg-white/10 px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-emerald-400" autoComplete="off" />
+          <label className="mb-2 text-2xl font-semibold">Tu correo</label>
+          <input value={correo} onChange={(e) => setCorreo(e.target.value.replace(/\s/g, ""))} type="email" inputMode="email" maxLength={120} placeholder="nombre@gmail.com" className="mb-6 rounded-2xl bg-white/10 px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-emerald-400" autoComplete="off" autoCapitalize="none" />
           <label className="mb-8 flex items-start gap-4 text-xl opacity-80">
             <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} className="mt-1 h-8 w-8" />
             Acepto recibir promociones del negocio (opcional).
           </label>
           {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
-          <button className={principal} disabled={cargando || nombre.trim().length < 2 || celular.replace(/\D/g, "").length < 9} onClick={registrar}>{cargando ? "Enviando…" : "Avisar que llegué"}</button>
+          <button className={principal} disabled={cargando || nombre.trim().length < 2 || celular.replace(/\D/g, "").length < 9 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo)} onClick={registrar}>{cargando ? "Enviando…" : "Avisar que llegué"}</button>
         </section>
       )}
 
