@@ -11,11 +11,13 @@ const ROLE_LABEL: Record<CompanyRole, string> = { owner: "Dueño", seller: "Vend
 
 // hides: el vendedor ve "Mi cola"; el dueño ve "Cartera" (la misma página, con la vista de todos).
 const NAV: { href: string; label: string; needs?: Capability; hides?: Capability }[] = [
-  { href: "/empresa", label: "Stock", needs: "stock.ver" },
+  { href: "/empresa", label: "Dashboard", needs: "reporte.ver" },
+  { href: "/empresa/stock", label: "Stock", needs: "stock.ver" },
   { href: "/empresa/cartera", label: "Mi cola", needs: "gestiones.registrar", hides: "cartera.ver_todas" },
   { href: "/empresa/pedidos", label: "Pedidos" },
   { href: "/empresa/conteos", label: "Conteos", needs: "conteos.ver" },
   { href: "/empresa/productos", label: "Productos", needs: "productos.ver" },
+  { href: "/empresa/marcas", label: "Marcas", needs: "productos.editar" },
   { href: "/empresa/clientes", label: "Clientes", needs: "clientes.ver" },
   { href: "/empresa/cartera", label: "Cartera", needs: "cartera.ver_todas" },
   { href: "/empresa/reporte", label: "Reporte", needs: "reporte.ver" },

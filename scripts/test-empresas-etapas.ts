@@ -297,6 +297,32 @@ async function main() {
   // Los tramos de prueba quedan inactivos para no ensuciar Configuración.
   await admin.from("company_price_tiers").update({ active: false }).eq("id", tier.id);
 
+  console.log("\n# Marcas y dashboard del dueño");
+  ok("vendedor no ve el dashboard", (await get("/api/empresa/dashboard", seller.cookie)).status === 403);
+  ok("bodega no ve el dashboard", (await get("/api/empresa/dashboard", bodega.cookie)).status === 403);
+  ok("vendedor no crea marcas", (await post("/api/empresa/marcas", seller.cookie, { name: "X" })).status === 403);
+  const mk1 = await post("/api/empresa/marcas", owner.cookie, { name: `Marca prueba ${tag}` });
+  ok("dueño crea una marca", mk1.status === 201 && /^#[0-9A-F]{6}$/i.test(mk1.body.brand.color), mk1);
+  ok("nombre repetido se rechaza", (await post("/api/empresa/marcas", owner.cookie, { name: `Marca prueba ${tag}` })).status === 409);
+  const brandId = mk1.body.brand.id;
+  ok("otra empresa no usa esa marca en sus productos", (await post("/api/empresa/productos", ownerB.cookie, { name: `Prod B ${tag}`, brandId })).status === 400);
+  ok("otra empresa no edita la marca", (await patch(`/api/empresa/marcas/${brandId}`, ownerB.cookie, { name: "Robada" })).status === 404);
+  ok("dueño asigna la marca al producto", (await patch(`/api/empresa/productos/${prod.id}`, owner.cookie, { brandId })).status === 200);
+  ok("los productos traen su marca", (await get("/api/empresa/productos", seller.cookie)).body.products.find((p: any) => p.id === prod.id)?.brand_id === brandId);
+  const dOrder = await post("/api/empresa/pedidos", owner.cookie, { customerId: c1, warehouseId: a.wh1, items: [{ productId: prod.id, quantity: 2 }] });
+  for (const action of ["confirm", "prepare", "dispatch"]) await post(`/api/empresa/pedidos/${dOrder.body.order.id}`, owner.cookie, { action });
+  const dsh = await get(`/api/empresa/dashboard?period=30d&brand=${brandId}`, owner.cookie);
+  const row = dsh.body?.brands?.find((b: any) => b.id === brandId);
+  ok("el despacho aparece en el dashboard de la marca", dsh.status === 200 && row?.revenue >= 10000 && row?.units >= 2, row);
+  ok("margen con el costo del producto (5.000 − 2.500 por unidad)", row && row.margin >= 5000 && row.marginPct === 50, row);
+  ok("filtrar una marca deja solo esa", dsh.body.brands.length === 1);
+  ok("el gráfico trae 6 meses", dsh.body.monthly?.length === 6);
+  ok("periodo inválido usa el mes", (await get("/api/empresa/dashboard?period=nada", owner.cookie)).body?.period === "month");
+  const imp3 = await post("/api/empresa/importar", owner.cookie, { kind: "productos", dryRun: true, rows: [["Producto", "Marca", "SKU"], [`Con marca ${tag}`, `Marca nueva ${tag}`, `MB-${tag}`]] });
+  ok("importar avisa las marcas nuevas", imp3.status === 200 && imp3.body.newBrands?.includes(`Marca nueva ${tag}`), imp3.body);
+  ok("dueño desactiva la marca", (await patch(`/api/empresa/marcas/${brandId}`, owner.cookie, { active: false })).status === 200);
+  await admin.from("company_products").update({ brand_id: null }).eq("id", prod.id);
+
   // Dejar la configuración como estaba.
   if (before) await admin.from("company_settings").update({ portal_enabled: before.portal_enabled, portal_stock_mode: before.portal_stock_mode, portal_warehouse_id: before.portal_warehouse_id }).eq("tenant_id", a.tenantId);
   else await admin.from("company_settings").delete().eq("tenant_id", a.tenantId);

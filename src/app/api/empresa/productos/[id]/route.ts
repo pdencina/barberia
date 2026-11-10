@@ -32,8 +32,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (!Number.isInteger(n) || n < 0) return badRequest("El stock mínimo no es válido.");
     update.min_stock = n;
   }
+  const admin = createAdminSupabase();
+  if ("brandId" in body) {
+    if (body.brandId === null || body.brandId === "") update.brand_id = null;
+    else {
+      if (!isUuid(body.brandId)) return badRequest("Esa marca no existe.");
+      const { data: brand } = await admin.from("company_brands").select("id").eq("tenant_id", g.tenantId).eq("id", body.brandId).maybeSingle();
+      if (!brand) return badRequest("Esa marca no existe.");
+      update.brand_id = body.brandId;
+    }
+  }
   if (Object.keys(update).length === 0) return badRequest("No hay cambios.");
-  const { data, error } = await createAdminSupabase().from("company_products").update(update)
+  const { data, error } = await admin.from("company_products").update(update)
     .eq("id", params.id).eq("tenant_id", g.tenantId).select("id").maybeSingle();
   if (error) return dbErrorResponse(error, "productos PATCH");
   if (!data) return notFound();
