@@ -1,4 +1,4 @@
-// Empresas, migraciones 126 y 127: pruebas reales contra el Supabase de PRUEBAS, solo con datos simulados.
+// Empresas, migraciones 154 y 155 (antes 126 y 127): pruebas reales contra el Supabase de PRUEBAS, solo con datos simulados.
 // Uso (primero, una vez, scripts/test-empresas-stock.ts, que crea las empresas simuladas):
 //   npx tsx scripts/test-empresas-pedidos.ts
 // SEGURIDAD: se niega a correr si .env.local no apunta a rebooking-pruebas. No imprime llaves.

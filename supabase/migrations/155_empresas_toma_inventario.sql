@@ -1,5 +1,5 @@
--- 127 · re-booking Empresas, Etapa 1: toma de inventario (conteo físico por bodega). Es lo primero que pidió Felipe.
--- Aditiva y re-ejecutable. Requiere la 125 y la 126. No toca tablas de salones.
+-- 155 (antes 127) · re-booking Empresas, Etapa 1: toma de inventario (conteo físico por bodega). Es lo primero que pidió Felipe.
+-- Aditiva y re-ejecutable. Requiere la 153 y la 154. No toca tablas de salones.
 -- Cada línea guarda lo que decía el sistema al contar. Al cerrar se aplica solo la diferencia (contado - sistema),
 -- así lo que se vendió o entró durante el conteo no se pisa. Lo no contado queda igual.
 -- La pantalla no debe mostrarle system_quantity a quien cuenta: un conteo a ciegas evita copiar el número del sistema.

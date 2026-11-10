@@ -1,4 +1,4 @@
--- 125 · re-booking Empresas, Etapa 1 (base): tipo de negocio, miembros, bodegas, catálogo y stock por bodega.
+-- 153 (antes 125) · re-booking Empresas, Etapa 1 (base): tipo de negocio, miembros, bodegas, catálogo y stock por bodega.
 -- Aditiva y re-ejecutable. No cambia nada de los salones: tenants.kind = 'salon' por defecto y ninguna tabla de salón se toca.
 -- NO agrega valores a profiles.role (ALTER TYPE no se revierte fácil); eso se decide cuando se construya el login de empresa.
 -- Catálogo en tabla propia y no en products: products.sku es único en toda la base y products tiene política abierta a authenticated.

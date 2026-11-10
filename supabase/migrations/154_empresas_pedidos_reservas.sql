@@ -1,5 +1,5 @@
--- 126 · re-booking Empresas, Etapa 1: clientes comerciales, pedidos y stock reservado.
--- Aditiva y re-ejecutable. Requiere la 125. No toca tablas de salones.
+-- 154 (antes 126) · re-booking Empresas, Etapa 1: clientes comerciales, pedidos y stock reservado.
+-- Aditiva y re-ejecutable. Requiere la 153. No toca tablas de salones.
 -- Físico = quantity. Reservado = reserved_quantity. Disponible = físico - reservado.
 -- Confirmar reserva, despachar descuenta el físico y la reserva, cancelar libera. Los cambios de estado solo pasan por funciones.
 -- Candados siempre en orden (bodega, producto): así pedidos y traspasos simultáneos no se bloquean entre sí.
