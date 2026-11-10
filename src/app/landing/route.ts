@@ -75,8 +75,13 @@ document.addEventListener('click', function (e) {
     const pixelScript = `<script>
 (function () {
   var ID = '${pixelId}', KEY = 'rb_meta_consent', AK = 'rb_mkt_attr';
-  function g(k) { try { return localStorage.getItem(k); } catch (_) { return null; } }
-  function s(k, v) { try { localStorage.setItem(k, v); } catch (_) {} }
+  // La respuesta del aviso también va en una cookie de 1 año (válida en re-booking.cl y www): el almacenamiento local se borra y el aviso reaparecía.
+  function ck(k) { var m = document.cookie.match(new RegExp('(?:^|; )' + k + '=([^;]*)')); return m ? decodeURIComponent(m[1]) : null; }
+  function g(k) { var v = null; try { v = localStorage.getItem(k); } catch (_) {} if (!v && k === KEY) { v = ck(k); if (v) { try { localStorage.setItem(k, v); } catch (_) {} } } return v; }
+  function s(k, v) {
+    try { localStorage.setItem(k, v); } catch (_) {}
+    if (k === KEY) { try { document.cookie = k + '=' + v + '; Max-Age=31536000; Path=/; SameSite=Lax' + (/(^|\\.)re-booking\\.cl$/.test(location.hostname) ? '; Domain=.re-booking.cl' : '') + (location.protocol === 'https:' ? '; Secure' : ''); } catch (_) {} }
+  }
   // De qué anuncio vino (utm_* / fbclid): se guarda siempre, sin datos personales; /suscribirse lo lee al pagar.
   var q = new URLSearchParams(location.search), a = {}, any = false;
   ['utm_source','utm_medium','utm_campaign','utm_content','utm_term','utm_id','fbclid'].forEach(function (k) { var v = q.get(k); if (v) { a[k] = v.slice(0, 200); any = true; } });
@@ -98,7 +103,7 @@ document.addEventListener('click', function (e) {
   function banner() {
     var d = document.createElement('div');
     d.style.cssText = 'position:fixed;left:12px;right:12px;bottom:12px;max-width:440px;margin:0 auto;z-index:99999;background:#fff;border:1px solid #DFD8CE;border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.18);font:14px system-ui,sans-serif;color:#14403E';
-    d.innerHTML = '<p style="margin:0 0 10px">Usamos cookies para medir qué anuncios te trajeron hasta aquí. No guardamos datos de salud. <a href="/privacidad" target="_blank" rel="noopener" style="color:#14403E;text-decoration:underline">Más información</a>.</p><div style="display:flex;gap:8px"><button data-n style="flex:1;height:40px;border-radius:12px;border:1px solid #ccc;background:#fff;font-weight:600;cursor:pointer">Rechazar</button><button data-y style="flex:1;height:40px;border-radius:12px;border:0;background:#0A6E6B;color:#fff;font-weight:600;cursor:pointer">Aceptar</button></div>';
+    d.innerHTML = '<p style="margin:0 0 10px">Usamos cookies para mejorar tu experiencia y entender cómo se usa este sitio. No guardamos datos de salud. <a href="/privacidad" target="_blank" rel="noopener" style="color:#14403E;text-decoration:underline">Más información</a>.</p><div style="display:flex;gap:8px"><button data-n style="flex:1;height:40px;border-radius:12px;border:1px solid #ccc;background:#fff;font-weight:600;cursor:pointer">Rechazar</button><button data-y style="flex:1;height:40px;border-radius:12px;border:0;background:#0A6E6B;color:#fff;font-weight:600;cursor:pointer">Aceptar</button></div>';
     d.querySelector('[data-n]').onclick = function () { s(KEY, 'denied'); d.remove(); };
     d.querySelector('[data-y]').onclick = function () { s(KEY, 'granted'); d.remove(); load(); };
     document.body.appendChild(d);

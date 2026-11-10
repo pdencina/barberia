@@ -27,7 +27,7 @@ export default function MetaPixel({ viewContent, pixelId, business }: { viewCont
   const choose = (v: "granted" | "denied") => { setConsent(v); setAsk(false); if (v === "granted") fire(); };
   return (
     <div className="fixed inset-x-3 bottom-3 z-[60] mx-auto max-w-md rounded-2xl border border-gray-200 bg-white p-4 shadow-xl text-sm text-brand-dark">
-      <p>{business ? `${business} usa cookies` : "Usamos cookies"} para medir qué anuncios te trajeron hasta aquí. No guardamos datos de salud.{" "}
+      <p>{business ? `${business} usa cookies` : "Usamos cookies"} para mejorar tu experiencia y entender cómo se usa este sitio. No guardamos datos de salud.{" "}
         <a href={business ? "/privacidad/clientes" : "/privacidad"} className="underline" target="_blank" rel="noopener noreferrer">Más información</a>.</p>
       <div className="mt-3 flex gap-2">
         <button onClick={() => choose("denied")} className="h-10 flex-1 rounded-xl border border-gray-300 font-semibold">Rechazar</button>
