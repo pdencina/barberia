@@ -17,12 +17,13 @@ export default function ConfiguracionTotemPage() {
   const [codigo, setCodigo] = useState("");
   const [info, setInfo] = useState<Seccion[]>([]);
   const [faltaMigracion, setFaltaMigracion] = useState(false);
+  const [desbloqueado, setDesbloqueado] = useState(true);
   const tq = tenant?.id ? `?tenantId=${tenant.id}` : "";
 
   useEffect(() => {
     fetch(`/api/settings/totem${tq}`).then((r) => r.json()).then((d) => {
       if (d.error) return;
-      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion);
+      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [tq]);
 
@@ -46,7 +47,12 @@ export default function ConfiguracionTotemPage() {
         <p className="text-sm text-brand-gray">Una pantalla en el local para que el cliente avise su llegada con un código corto, se registre si no tiene hora, pida productos e infórmese.</p>
       </div>
       {faltaMigracion && <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800">Falta aplicar la migración 162 en la base de datos.</p>}
-      {loading ? <p className="text-sm text-brand-gray">Cargando…</p> : (
+      {!loading && !desbloqueado ? (
+        <div className="rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-5">
+          <p className="font-bold text-brand-dark">Servicio aparte</p>
+          <p className="mt-1 text-sm text-brand-gray">El tótem de autoatención es un servicio adicional con costo mensual y todavía no está activado para tu negocio. Escríbenos para contratarlo y te lo habilitamos.</p>
+        </div>
+      ) : loading ? <p className="text-sm text-brand-gray">Cargando…</p> : (
         <>
           <label className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
             <span><span className="block font-bold text-brand-dark">Activar el tótem</span><span className="text-xs text-brand-gray">Apagado: la dirección del tótem no abre.</span></span>

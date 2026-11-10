@@ -20,6 +20,7 @@ interface Tenant {
   whatsapp_quota_override: number | null;
   email_quota_override: number | null;
   business_category: string | null;
+  kiosk_unlocked?: boolean;
   trial_ends_at: string | null;
   active: boolean;
   created_at: string;
@@ -99,6 +100,7 @@ export default function SuperAdminTenantsPage() {
       whatsapp_quota_override: t.whatsapp_quota_override,
       email_quota_override: t.email_quota_override,
       business_category: t.business_category || "",
+      kiosk_unlocked: !!t.kiosk_unlocked,
     });
   };
 
@@ -725,6 +727,11 @@ export default function SuperAdminTenantsPage() {
                   ))}
                 </select>
               </div>
+              {/* Tótem de autoatención: servicio aparte con costo mensual (migración 164). */}
+              <label className="flex items-start gap-3 rounded-xl border border-gray-200 p-3">
+                <input type="checkbox" className="mt-0.5 h-4 w-4" checked={!!editForm.kiosk_unlocked} onChange={(e) => setEditForm({ ...editForm, kiosk_unlocked: e.target.checked })} />
+                <span className="text-sm"><span className="block font-medium text-brand-dark">Tótem de autoatención (servicio aparte)</span><span className="text-xs text-brand-gray">Servicio con costo mensual. Si está desmarcado, el negocio no ve la opción y su tótem no abre.</span></span>
+              </label>
             </div>
             <div className="flex gap-2 pt-4">
               <button onClick={() => setEditingTenant(null)}
