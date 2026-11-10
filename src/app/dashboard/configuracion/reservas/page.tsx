@@ -6,6 +6,7 @@ import { ArrowLeft, ExternalLink, ImagePlus, Trash2 } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
 import { LinkEditor } from "@/components/settings/link-editor";
+import { ColoresClientesPanel } from "@/components/settings/colores-clientes-panel";
 import { compressImage } from "@/lib/image-compress";
 import { Panel, inputClass, primaryButton, ghostButton } from "@/components/ui/premium";
 
@@ -221,6 +222,8 @@ export default function PreferenciasReservasPage() {
           </span>
         </label>
       </Panel>
+
+      {tenant?.id && <ColoresClientesPanel tenantId={tenant.id} slug={miSlug} businessName={tenant.name || ""} />}
 
       <div className="flex flex-wrap justify-end gap-2">
         {miSlug && <a href={`/${miSlug}`} target="_blank" rel="noopener noreferrer" className={ghostButton}>Ver mi página <ExternalLink className="h-4 w-4" /></a>}
