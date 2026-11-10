@@ -27,7 +27,9 @@ export function applyMailTheme(html: string, theme?: AppTheme | string | null): 
   let h = html;
   for (const [re, key] of map) h = h.replace(re, key === "onAccent" ? "color:@@onAccent@@" : `@@${key}@@`);
   h = h.replace(/@@(\w+)@@/g, (_, k: string) => p[k as keyof MailPalette]);
-  // El logo oscuro del sistema se pierde sobre fondos oscuros: se le da una caja clara.
-  if (isDarkTheme(t)) h = h.replace(/<img src="https:\/\/www\.re-booking\.cl\/logo-horizontal\.png"([^>]*?)style="/, '<img src="https://www.re-booking.cl/logo-horizontal.png"$1style="background:#FFFFFF;padding:6px 12px;border-radius:10px;');
+  // Logo del sistema según el tema: rosado en Rosa, blanco (sin caja) en los dos oscuros.
+  const logo = "https://www.re-booking.cl/logo-horizontal.png";
+  if (t === "rose") h = h.replace(logo, "https://www.re-booking.cl/logo-horizontal-rose.png");
+  else if (isDarkTheme(t)) h = h.replace(logo, "https://www.re-booking.cl/logo-horizontal-white.png");
   return h;
 }
