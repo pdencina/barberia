@@ -49,7 +49,8 @@ function askHidden(question: string): Promise<string> {
   return new Promise((resolve) => {
     const rl = createInterface({ input: process.stdin, output: process.stdout, terminal: true });
     const writer = rl as unknown as { _writeToOutput: (s: string) => void };
-    process.stdout.write(question);
+    // Con salto de linea: readline redibuja la linea actual al empezar y borraba la pregunta.
+    process.stdout.write(question + "\n");
     writer._writeToOutput = () => {};
     rl.question("", (answer) => { rl.close(); process.stdout.write("\n"); resolve(answer); });
   });
