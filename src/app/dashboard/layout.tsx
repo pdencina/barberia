@@ -10,6 +10,7 @@ import { TenantOverrideBanner } from "@/components/layout/tenant-override-banner
 import { PushNotificationPrompt } from "@/components/push-notifications";
 import { ErrorBoundary } from "@/components/error-boundary";
 import { CommandPalette } from "@/components/command-palette";
+import { ModalGuard } from "@/components/modal-guard";
 import { QuickActions } from "@/components/quick-actions";
 import { AppLock } from "@/components/app-lock";
 import { NativePushSync } from "@/components/native-push-sync";
@@ -107,6 +108,7 @@ export default async function DashboardLayout({
             {!isSuspended && (profile?.tenant as any)?.plan !== "lite" && <QuickActions userRole={profile?.role || "barber"} />}
             {!isSuspended && <MobileTabBar role={profile?.role || "barber"} />}
             {!isSuspended && <CommandPalette />}
+            <ModalGuard />
           </main>
         </div>
       </AuthWrapper>
