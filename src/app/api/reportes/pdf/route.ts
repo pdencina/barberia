@@ -227,7 +227,11 @@ export async function GET(req: NextRequest) {
   const methodRows = Object.entries(methodMap).sort((a, b) => b[1].total - a[1].total);
 
   // Profesionales (agrupados por nombre normalizado, como en el resto del cierre).
-  const barberIds = Array.from(new Set(income.map((t) => t.barber_id).filter(Boolean))) as string[];
+  // Los abonos del mes se atribuyen al profesional de la cita (los que no se pueden atribuir quedan solo en el total).
+  const abonoApptIds = Array.from(new Set(abonosCur.map((x) => x.appointment_id).filter(Boolean))) as string[];
+  const abonoBarber = new Map<string, string>();
+  if (abonoApptIds.length) for (const ap of await inChunks<any>(abonoApptIds, (c) => supabase.from("appointments").select("id, barber_id").in("id", c))) if (ap.barber_id) abonoBarber.set(ap.id, ap.barber_id);
+  const barberIds = Array.from(new Set([...income.map((t) => t.barber_id), ...Array.from(abonoBarber.values())].filter(Boolean))) as string[];
   const profiles = await inChunks<any>(barberIds, (c) => supabase.from("profiles").select("id, name").in("id", c));
   const nameById = Object.fromEntries(profiles.map((p) => [p.id, p.name]));
   const barberGroups: Record<string, { name: string; total: number; count: number }> = {};
@@ -237,6 +241,14 @@ export async function GET(req: NextRequest) {
     const key = normalizeName(name);
     if (!barberGroups[key]) barberGroups[key] = { name, total: 0, count: 0 };
     barberGroups[key].total += Number(t.total); barberGroups[key].count++;
+  }
+  for (const ab of abonosCur) {
+    const bid = ab.appointment_id ? abonoBarber.get(ab.appointment_id) : null;
+    if (!bid) continue;
+    const name = nameById[bid] || "Desconocido";
+    const key = normalizeName(name);
+    if (!barberGroups[key]) barberGroups[key] = { name, total: 0, count: 0 };
+    barberGroups[key].total += ab.amount; // el abono suma al total del profesional; no cuenta como una venta más
   }
   const barberRows = Object.values(barberGroups).sort((a, b) => b.total - a.total);
 
