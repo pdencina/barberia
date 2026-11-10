@@ -19,6 +19,9 @@ export async function GET(req: NextRequest) {
 
   return NextResponse.json({
     negocio: { name: t.name, logo_url: t.logo_url || null },
+    // Dirección de reserva online del negocio (para el QR y para reservar en la propia pantalla).
+    reserva: t.slug ? `https://www.re-booking.cl/${t.slug}` : null,
+    reservaPantalla: t.slug ? `/booking?tenant=${encodeURIComponent(t.slug)}&kiosko=1` : null,
     productos,
     info: limpiarSecciones(t.kiosk_info),
   });

@@ -82,6 +82,7 @@ export default function BookingPage() {
   const [error, setError] = useState("");
   const [clientFound, setClientFound] = useState(false);
   const [appointmentId, setAppointmentId] = useState("");
+  const [checkinCode, setCheckinCode] = useState<string | null>(null);
   // Pago del abono: el horario queda reservado 3:30 mientras se paga (contador). Si no se paga a tiempo, se libera y no se toma la hora.
   const [pago, setPago] = useState<null | { ref: string | null; url: string; expira: number; monto: number; estado: "esperando" | "vencido" | "conflicto" }>(null);
   const [ahora, setAhora] = useState(() => Date.now());
@@ -406,6 +407,14 @@ export default function BookingPage() {
       setError(data.error || "Error al agendar. Intenta de nuevo.");
     }
   };
+
+  // Código corto de llegada (para el tótem del local): se muestra en «Cita confirmada» y también va en el correo.
+  useEffect(() => {
+    if (step !== "confirmed" || !appointmentId) return;
+    let vivo = true;
+    fetch(`/api/public/checkin-code?id=${encodeURIComponent(appointmentId)}`).then((r) => r.json()).then((d) => { if (vivo) setCheckinCode(d?.code || null); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [step, appointmentId]);
 
   // Generate date options (next 14 days, excluding past)
   // Use a LOCAL date string (not toISOString, which is UTC): in Chile that shifted the
@@ -1040,6 +1049,13 @@ export default function BookingPage() {
                 <span className="text-brand-dark font-bold">{formatCurrency(totalPrice)}</span>
               </div>
             </div>
+
+            {checkinCode && (
+              <div className="mx-auto mb-6 max-w-sm rounded-xl border border-dashed border-brand-blue/60 p-4">
+                <p className="text-xs text-brand-gray">Tu código de llegada: digítalo en el tótem del local</p>
+                <p className="mt-1 text-4xl font-extrabold tracking-[0.3em] text-brand-dark">{checkinCode}</p>
+              </div>
+            )}
 
             {clientEmail && (
               <p className="text-sm text-gray-500 mb-6">
