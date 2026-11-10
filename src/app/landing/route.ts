@@ -78,6 +78,25 @@ document.addEventListener('click', function (e) {
 </script>`;
   html = html.includes("</body>") ? html.replace("</body>", subscribeScript + "</body>") : html + subscribeScript;
 
+  // /landing#precios (y re-booking.cl/precios) deben caer directo en los planes. La landing arma su contenido con un script
+  // despues de cargar, asi que el navegador no baja solo al ancla: aqui se baja cuando la seccion ya existe y se reintenta
+  // un par de veces porque las imagenes mueven el largo de la pagina. Si la persona ya empezo a deslizar, no se la mueve.
+  const anchorScript = `<script>
+(function () {
+  var id = (location.hash || '').slice(1);
+  if (!id) return;
+  var tries = 0, touched = false;
+  ['wheel', 'touchmove', 'keydown'].forEach(function (ev) { window.addEventListener(ev, function () { touched = true; }, { passive: true, once: true }); });
+  function go() {
+    var el = document.getElementById(id);
+    if (el && !touched) el.scrollIntoView({ block: 'start' });
+    if (++tries < 12 && !touched) setTimeout(go, 400);
+  }
+  if (document.readyState === 'complete') go(); else window.addEventListener('load', go);
+})();
+</script>`;
+  html = html.includes("</body>") ? html.replace("</body>", anchorScript + "</body>") : html + anchorScript;
+
   // Píxel de Meta: solo si NEXT_PUBLIC_META_PIXEL_ID tiene un número. Sin él, la landing queda exactamente igual que antes.
   const pixelId = (process.env.NEXT_PUBLIC_META_PIXEL_ID || "").trim();
   if (/^\d{8,20}$/.test(pixelId)) {
