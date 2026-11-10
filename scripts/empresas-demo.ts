@@ -1,5 +1,5 @@
 // Crea una empresa de DEMOSTRACIÓN con datos simulados en el Supabase de PRUEBAS, para probar el panel /empresa a mano.
-// Uso: npx tsx scripts/empresas-demo.ts
+// Uso: npx tsx scripts/empresas-demo.ts [correo-extra@dominio]   (el correo extra, si se da, queda como otro dueño de la demo)
 // Pide una contraseña en esta ventana (no se muestra ni se guarda) y la usa para los 3 usuarios de demo.
 // SEGURIDAD: se niega a correr si .env.local no apunta a rebooking-pruebas. Es re-ejecutable.
 import { readFileSync } from "node:fs";
@@ -24,6 +24,14 @@ const USERS = [
   { email: "vendedor@empresa-demo.test", name: "Vendedor Demo", role: "seller" },
   { email: "bodega@empresa-demo.test", name: "Bodega Demo", role: "warehouse" },
 ];
+const extra = (process.argv[2] || "").trim().toLowerCase();
+if (extra) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(extra)) {
+    console.error("PARADO: el correo extra no es valido.");
+    process.exit(2);
+  }
+  if (!USERS.some((u) => u.email === extra)) USERS.push({ email: extra, name: "Dueño de prueba", role: "owner" });
+}
 const PRODUCTS = [
   { sku: "DEMO-001", name: "Cera mate (simulado)", category: "Cabello", list_price: 8000, cost: 4000, min_stock: 10, stock: [40, 15] },
   { sku: "DEMO-002", name: "Pomada brillo (simulado)", category: "Cabello", list_price: 9000, cost: 4500, min_stock: 10, stock: [25, 5] },
