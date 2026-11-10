@@ -76,7 +76,10 @@ export default function PedidosPage() {
         {data?.orders.map((o) => (
           <tr key={o.id}>
             <td className={TD}>{new Date(o.created_at).toLocaleDateString("es-CL", { timeZone: "America/Santiago" })}</td>
-            <td className={TD}>{o.customer?.name}</td>
+            <td className={TD}>
+              {o.customer?.name}
+              {o.source === "portal" && <span className="ml-2 rounded bg-teal-50 px-1.5 py-0.5 text-xs font-semibold text-teal-800">Portal</span>}
+            </td>
             <td className={TD}>{o.warehouse?.name}</td>
             <td className={TD}>{(o.items || []).reduce((n: number, i: any) => n + i.quantity, 0)}</td>
             <td className={TD}>{ORDER_STATUS[o.status] || o.status}</td>

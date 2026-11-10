@@ -125,7 +125,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // Normal auth middleware for dashboard/login
-  if (pathname.startsWith("/dashboard") || pathname === "/login" || pathname.startsWith("/empresa")) {
+  if (pathname.startsWith("/dashboard") || pathname === "/login" || pathname.startsWith("/empresa") || pathname.startsWith("/socios")) {
     return await updateSession(request);
   }
 
@@ -133,5 +133,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/landing", "/signup", "/registro", "/suscribirse", "/dashboard/:path*", "/login", "/empresa", "/empresa/:path*", "/api/:path*"],
+  matcher: ["/", "/landing", "/signup", "/registro", "/suscribirse", "/dashboard/:path*", "/login", "/empresa", "/empresa/:path*", "/socios", "/socios/:path*", "/api/:path*"],
 };

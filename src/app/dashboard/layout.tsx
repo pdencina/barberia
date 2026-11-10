@@ -44,6 +44,9 @@ export default async function DashboardLayout({
     const { data: companyMember } = await createAdminSupabase()
       .from("company_members").select("id").eq("user_id", user.id).eq("active", true).limit(1).maybeSingle();
     if (companyMember) redirect("/empresa");
+    const { data: partner } = await createAdminSupabase()
+      .from("company_partner_users").select("id").eq("user_id", user.id).eq("active", true).limit(1).maybeSingle();
+    if (partner) redirect("/socios");
   }
 
   // Primer ingreso de un negocio nuevo: obliga a crear una clave propia (dos veces) antes de
