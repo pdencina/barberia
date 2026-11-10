@@ -16,6 +16,40 @@ const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
 const plata = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 
+// Fila de opción: número en mono, título, detalle y flecha. Sin íconos ni emojis.
+function Opcion({ n, t, d }: { n?: string; t: string; d: string }) {
+  return (
+    <>
+      <span className="flex items-center gap-6">
+        {n && <span className="tt-mono text-lg text-white/35">{n}</span>}
+        <span><span className="block">{t}</span><span className="mt-1 block font-[family-name:var(--font-body)] text-xl font-normal text-white/55">{d}</span></span>
+      </span>
+      <span aria-hidden className="text-3xl text-white/40">→</span>
+    </>
+  );
+}
+
+// Elementos gráficos y flotantes del sitio de re-booking (Oti, signos $ y círculos), en blanco con opacidad baja para dar contraste.
+function Fondo() {
+  return (
+    <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
+      <style>{`
+        @keyframes ttFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-16px); } }
+        @keyframes ttDrift { 0%,100% { transform: translate(0,0); } 50% { transform: translate(14px,-22px); } }
+        .tt-sil { filter: brightness(0) invert(1); }
+      `}</style>
+      <div className="absolute -left-40 -top-40 h-[640px] w-[640px] rounded-full" style={{ background: "radial-gradient(closest-side, rgba(11,148,144,0.28), transparent)" }} />
+      <img src="/landing-nuevo/assets/oti-calendario.png" alt="" className="tt-sil absolute -bottom-16 -right-32 w-[520px] opacity-[0.065]" style={{ animation: "ttFloat 8s ease-in-out infinite" }} />
+      <img src="/landing-nuevo/assets/oti-thumbsup.png" alt="" className="tt-sil absolute -left-12 top-[52%] w-[150px] opacity-[0.05]" style={{ animation: "ttFloat 7s ease-in-out 0.8s infinite" }} />
+      <span className="tt-display absolute right-[9%] top-[8%] text-[190px] font-semibold leading-none text-white opacity-[0.07]" style={{ animation: "ttFloat 9s ease-in-out infinite" }}>$</span>
+      <span className="tt-display absolute left-[14%] bottom-[12%] text-[96px] font-semibold leading-none text-white opacity-[0.06]" style={{ animation: "ttFloat 7.5s ease-in-out 1.4s infinite" }}>$</span>
+      <span className="absolute right-[22%] top-[34%] h-24 w-24 rounded-full border border-white/10" style={{ animation: "ttDrift 11s ease-in-out infinite" }} />
+      <span className="absolute left-[8%] top-[18%] h-10 w-10 rounded-full border border-white/10" style={{ animation: "ttDrift 9s ease-in-out 1s infinite" }} />
+      <span className="absolute bottom-[30%] right-[6%] h-5 w-5 rounded-full bg-white/10" style={{ animation: "ttDrift 8s ease-in-out 0.4s infinite" }} />
+    </div>
+  );
+}
+
 function Totem() {
   const params = useSearchParams();
   const [codigo, setCodigo] = useState<string | null>(null); // null = aún leyendo el equipo; "" = sin configurar
@@ -159,11 +193,11 @@ function Totem() {
     setPantalla("gracias");
   };
 
-  const colorFondo = "bg-[#0f1115] text-white";
-  const boton = "w-full rounded-3xl bg-white/10 px-8 py-8 text-left text-3xl font-bold active:scale-[0.99] active:bg-white/20";
-  const principal = "w-full rounded-3xl bg-emerald-500 px-8 py-7 text-center text-3xl font-extrabold text-[#06130d] active:bg-emerald-400 disabled:opacity-40";
+  const colorFondo = "bg-[#0B1B1A] text-white";
+  const boton = "tt-display flex w-full items-center justify-between gap-6 rounded-2xl border border-white/15 bg-white/[0.04] px-8 py-7 text-left text-3xl font-semibold transition active:scale-[0.995] active:bg-white/10";
+  const principal = "tt-display w-full rounded-2xl bg-[#0B9490] px-8 py-7 text-center text-3xl font-semibold text-white transition active:bg-[#0A6E6B] disabled:opacity-40";
   const volver = (
-    <button onClick={inicio} className="mb-8 rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">← Volver al inicio</button>
+    <button onClick={inicio} className="tt-mono mb-8 self-start rounded-xl border border-white/15 px-5 py-3 text-base uppercase tracking-[0.12em] text-white/70">← Inicio</button>
   );
 
   // Pantalla de configuración del equipo (primera vez o código inválido).
@@ -171,21 +205,22 @@ function Totem() {
   if (codigo === "") {
     const teclas = [...LETRAS, ...NUMEROS];
     return (
-      <div className="min-h-screen bg-[#0f1115]">
-        <main className={`mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-12 py-12 ${colorFondo}`}>
-          <h1 className="mb-3 text-5xl font-extrabold">Configurar este tótem</h1>
+      <div className="relative min-h-screen bg-[#0B1B1A]">
+        <Fondo />
+        <main className={`relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-12 py-12 text-white`}>
+          <h1 className="tt-display mb-3 text-5xl font-semibold">Configurar este tótem</h1>
           <p className="mb-8 text-2xl opacity-70">Escribe el código del negocio (7 letras o números). Lo encuentras en re-booking, en Configuración &gt; Tótem de autoatención. Se guarda en este equipo y no se vuelve a pedir.</p>
           <div className="mb-8 flex justify-center gap-3">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="flex h-24 w-20 items-center justify-center rounded-2xl bg-white/10 text-5xl font-extrabold">{escrito[i] || ""}</div>
+              <div key={i} className="flex h-24 w-20 items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] text-5xl font-semibold">{escrito[i] || ""}</div>
             ))}
           </div>
           {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
           <div className="grid grid-cols-6 gap-3">
             {teclas.map((k) => (
-              <button key={k} onClick={() => { setMsg(""); setEscrito((c) => (c.length < 7 ? c + k : c)); }} className="rounded-2xl bg-white/10 py-7 text-4xl font-bold active:bg-white/25">{k}</button>
+              <button key={k} onClick={() => { setMsg(""); setEscrito((c) => (c.length < 7 ? c + k : c)); }} className="rounded-xl border border-white/15 bg-white/[0.04] py-7 text-4xl font-bold active:bg-white/15">{k}</button>
             ))}
-            <button onClick={() => setEscrito((c) => c.slice(0, -1))} className="col-span-2 rounded-2xl bg-white/15 py-7 text-3xl font-bold active:bg-white/25">⌫ Borrar</button>
+            <button onClick={() => setEscrito((c) => c.slice(0, -1))} className="col-span-2 rounded-xl border border-white/20 bg-white/[0.07] py-7 text-3xl font-bold active:bg-white/15">Borrar</button>
           </div>
           <div className="mt-8"><button className={principal} disabled={escrito.length !== 7} onClick={() => setCodigo(escrito)}>Abrir tótem</button></div>
         </main>
@@ -198,45 +233,47 @@ function Totem() {
   const total = info.productos.reduce((s, p) => s + (carrito[p.id] || 0) * p.price, 0);
 
   return (
-    <div className="min-h-screen bg-[#0f1115]">
-    <main className={`mx-auto flex min-h-screen w-full max-w-[1080px] flex-col select-none px-12 py-12 ${colorFondo}`} style={{ touchAction: "manipulation" }}>
+    <div className="relative min-h-screen bg-[#0B1B1A]">
+    <Fondo />
+    <main className={`relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col select-none px-12 py-12 ${colorFondo.replace("bg-[#0B1B1A] ", "")}`} style={{ touchAction: "manipulation" }}>
       <header className="mb-10 flex items-center gap-5" onClick={() => {
         // Personal del local: 5 toques seguidos al nombre del negocio vuelven a pedir el código.
         const n = tocesLogo + 1; setTocesLogo(n);
         setTimeout(() => setTocesLogo(0), 3000);
         if (n >= 5) { try { localStorage.removeItem("totem_codigo"); } catch { /* */ } setEscrito(""); setCodigo(""); inicio(); }
       }}>
-        {info.negocio.logo_url && /* eslint-disable-next-line @next/next/no-img-element */ <img src={info.negocio.logo_url} alt="" className="h-20 w-20 rounded-2xl object-cover" />}
-        <p className="text-3xl font-bold opacity-90">{info.negocio.name}</p>
+        {info.negocio.logo_url && /* eslint-disable-next-line @next/next/no-img-element */ <img src={info.negocio.logo_url} alt="" className="h-16 w-16 rounded-xl object-cover" />}
+        <p className="tt-mono text-lg uppercase tracking-[0.16em] text-white/70">{info.negocio.name}</p>
       </header>
 
       {pantalla === "inicio" && (
         <section className="flex flex-1 flex-col justify-center gap-6">
-          <h1 className="mb-6 text-6xl font-extrabold leading-tight">Bienvenido 👋<br /><span className="text-4xl font-semibold opacity-80">¿Cómo te podemos ayudar?</span></h1>
-          <button className={boton} onClick={() => { setModo("llegue"); setPantalla("codigo"); }}>📅 Tengo hora<span className="mt-1 block text-xl font-normal opacity-70">Avisa que llegaste con tu código</span></button>
-          <button className={boton} onClick={() => setPantalla("nohora")}>✍️ No tengo hora<span className="mt-1 block text-xl font-normal opacity-70">Reserva aquí o desde tu celular</span></button>
-          <button className={boton} onClick={() => { setModo("pagar"); setPantalla("codigo"); }}>💳 Quiero pagar<span className="mt-1 block text-xl font-normal opacity-70">Avisa para que te cobren</span></button>
-          {info.productos.length > 0 && <button className={boton} onClick={() => setPantalla("productos")}>🥤 Comprar un producto<span className="mt-1 block text-xl font-normal opacity-70">Bebidas, energéticas y más</span></button>}
-          {info.info.length > 0 && <button className={boton} onClick={() => setPantalla("info")}>ℹ️ Cursos, promociones y planes<span className="mt-1 block text-xl font-normal opacity-70">Conoce lo que tenemos para ti</span></button>}
+          <p className="tt-mono mb-4 text-lg uppercase tracking-[0.16em] text-white/50">Autoatención</p>
+          <h1 className="tt-display mb-10 text-7xl font-semibold leading-[1.02] tracking-tight">Bienvenido.<br /><span className="text-4xl font-medium text-white/55">¿Cómo te podemos ayudar?</span></h1>
+          <button className={boton} onClick={() => { setModo("llegue"); setPantalla("codigo"); }}><Opcion n="01" t="Tengo hora" d="Avisa que llegaste con tu código" /></button>
+          <button className={boton} onClick={() => setPantalla("nohora")}><Opcion n="02" t="No tengo hora" d="Reserva aquí o desde tu celular" /></button>
+          <button className={boton} onClick={() => { setModo("pagar"); setPantalla("codigo"); }}><Opcion n="03" t="Quiero pagar" d="Paga desde tu celular o con el equipo" /></button>
+          {info.productos.length > 0 && <button className={boton} onClick={() => setPantalla("productos")}><Opcion n="04" t="Comprar un producto" d="Bebidas, energéticas y más" /></button>}
+          {info.info.length > 0 && <button className={boton} onClick={() => setPantalla("info")}><Opcion n="05" t="Cursos, promociones y planes" d="Conoce lo que tenemos para ti" /></button>}
         </section>
       )}
 
       {pantalla === "codigo" && (
         <section className="flex flex-1 flex-col">
           {volver}
-          <h2 className="mb-2 text-5xl font-extrabold">Escribe tu código</h2>
+          <h2 className="tt-display mb-2 text-5xl font-semibold">Escribe tu código</h2>
           <p className="mb-8 text-2xl opacity-70">Son 5 letras o números. Lo recibiste en el correo de tu reserva.</p>
           <div className="mb-8 flex justify-center gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex h-28 w-24 items-center justify-center rounded-2xl bg-white/10 text-6xl font-extrabold">{code[i] || ""}</div>
+              <div key={i} className="flex h-28 w-24 items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] text-6xl font-semibold">{code[i] || ""}</div>
             ))}
           </div>
           {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
           <div className="grid grid-cols-6 gap-3">
             {[...LETRAS, ...NUMEROS].map((k) => (
-              <button key={k} onClick={() => { setMsg(""); setCode((c) => (c.length < 5 ? c + k : c)); }} className="rounded-2xl bg-white/10 py-7 text-4xl font-bold active:bg-white/25">{k}</button>
+              <button key={k} onClick={() => { setMsg(""); setCode((c) => (c.length < 5 ? c + k : c)); }} className="rounded-xl border border-white/15 bg-white/[0.04] py-7 text-4xl font-bold active:bg-white/15">{k}</button>
             ))}
-            <button onClick={() => setCode((c) => c.slice(0, -1))} className="col-span-2 rounded-2xl bg-white/15 py-7 text-3xl font-bold active:bg-white/25">⌫ Borrar</button>
+            <button onClick={() => setCode((c) => c.slice(0, -1))} className="col-span-2 rounded-xl border border-white/20 bg-white/[0.07] py-7 text-3xl font-bold active:bg-white/15">Borrar</button>
           </div>
           <div className="mt-8">
             <button className={principal} disabled={code.length !== 5 || cargando} onClick={buscar}>{cargando ? "Buscando…" : "Continuar"}</button>
@@ -247,23 +284,23 @@ function Totem() {
       {pantalla === "cita" && (
         <section className="flex flex-1 flex-col">
           {volver}
-          <h2 className="mb-8 text-5xl font-extrabold">{citas.length > 1 ? "Encontramos estas citas" : "Esta es tu cita"}</h2>
+          <h2 className="tt-display mb-8 text-5xl font-semibold">{citas.length > 1 ? "Encontramos estas citas" : "Esta es tu cita"}</h2>
           {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
           <div className="space-y-6">
             {citas.map((c) => (
-              <div key={c.id} className="rounded-3xl bg-white/10 p-8">
-                {c.fecha && <p className="mb-2 text-2xl font-semibold text-amber-300">📅 {new Date(`${c.fecha}T12:00:00`).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })} (modo pruebas)</p>}
-                <p className="text-6xl font-extrabold">{c.hora}</p>
+              <div key={c.id} className="rounded-2xl border border-white/15 bg-white/[0.04] p-8">
+                {c.fecha && <p className="mb-2 text-2xl font-semibold text-[#7FD1CD]">{new Date(`${c.fecha}T12:00:00`).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })} (modo pruebas)</p>}
+                <p className="text-6xl font-semibold">{c.hora}</p>
                 <p className="mt-3 text-3xl font-semibold">{c.servicio}</p>
                 <p className="mt-1 text-2xl opacity-70">con {c.profesional || "tu profesional"} · {c.cliente}</p>
                 <div className="mt-6">
                   {modo === "pagar"
                     ? <div className="space-y-4">
-                        {info.pagoQr && <button className={principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "📱 Pagar desde mi celular (QR)"}</button>}
-                        <button className={info.pagoQr ? "w-full rounded-3xl bg-white/10 px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{info.pagoQr ? "Prefiero pagar con el equipo" : "Quiero pagar ahora"}</button>
+                        {info.pagoQr && <button className={principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
+                        <button className={info.pagoQr ? "w-full rounded-2xl border border-white/15 bg-white/[0.04] px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{info.pagoQr ? "Prefiero pagar con el equipo" : "Quiero pagar ahora"}</button>
                       </div>
                     : c.llego
-                      ? <p className="rounded-2xl bg-emerald-500/20 p-5 text-center text-2xl text-emerald-200">Ya avisamos que llegaste ✓</p>
+                      ? <p className="rounded-2xl bg-[#0B9490]/20 p-5 text-center text-2xl text-[#7FD1CD]">Ya avisamos que llegaste</p>
                       : <button className={principal} disabled={cargando} onClick={() => llegue(c)}>Ya llegué</button>}
                 </div>
                 {modo === "llegue" && <p className="mt-4 text-center text-xl opacity-60">¿Prefieres pagar ahora? Toca «Volver» y elige «Quiero pagar». También puedes pagar al terminar.</p>}
@@ -276,24 +313,24 @@ function Totem() {
       {pantalla === "nohora" && (
         <section className="flex flex-1 flex-col">
           {volver}
-          <h2 className="mb-2 text-5xl font-extrabold">Reserva tu hora</h2>
+          <h2 className="tt-display mb-2 text-5xl font-semibold">Reserva tu hora</h2>
           <p className="mb-8 text-2xl opacity-70">Elige cómo prefieres hacerlo.</p>
           <div className="space-y-6">
-            {info.reservaPantalla && <button className={boton} onClick={() => setPantalla("reservar")}>🖥️ Reservar en esta pantalla<span className="mt-1 block text-xl font-normal opacity-70">Elige servicio, profesional y hora aquí mismo</span></button>}
+            {info.reservaPantalla && <button className={boton} onClick={() => setPantalla("reservar")}><Opcion t="Reservar en esta pantalla" d="Elige servicio, profesional y hora aquí mismo" /></button>}
             {info.reserva && (
-              <div className="flex items-center gap-8 rounded-3xl bg-white/10 p-8">
+              <div className="flex items-center gap-8 rounded-2xl border border-white/15 bg-white/[0.04] p-8">
                 <Qr valor={info.reserva} tamano={280} />
-                <div><p className="text-3xl font-bold">📱 Reservar desde tu celular</p><p className="mt-3 text-2xl opacity-70">Abre la cámara de tu celular y apunta al código. Reservas desde ahí, sin escribir nada más aquí.</p></div>
+                <div><p className="text-3xl font-bold">Reservar desde tu celular</p><p className="mt-3 text-2xl opacity-70">Abre la cámara de tu celular y apunta al código. Reservas desde ahí, sin escribir nada más aquí.</p></div>
               </div>
             )}
-            <button className={boton} onClick={() => setPantalla("sinhora")}>🙋 Solo avisar que llegué<span className="mt-1 block text-xl font-normal opacity-70">Déjanos tus datos y te recibimos</span></button>
+            <button className={boton} onClick={() => setPantalla("sinhora")}><Opcion t="Solo avisar que llegué" d="Déjanos tus datos y te recibimos" /></button>
           </div>
         </section>
       )}
 
       {pantalla === "reservar" && info.reservaPantalla && (
         <section className="flex flex-1 flex-col">
-          <div className="mb-4 flex gap-4"><button onClick={() => setPantalla("nohora")} className="rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">← Atrás</button><button onClick={inicio} className="rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">Ir al inicio</button></div>
+          <div className="mb-4 flex gap-4"><button onClick={() => setPantalla("nohora")} className="rounded-xl border border-white/15 bg-white/[0.04] px-6 py-4 text-xl font-semibold">← Atrás</button><button onClick={inicio} className="rounded-xl border border-white/15 bg-white/[0.04] px-6 py-4 text-xl font-semibold">Ir al inicio</button></div>
           <iframe src={info.reservaPantalla} title="Reservar" className="w-full flex-1 rounded-3xl bg-white" style={{ minHeight: "70vh" }} />
         </section>
       )}
@@ -301,8 +338,8 @@ function Totem() {
       {pantalla === "pagoqr" && pagoQr && (
         <section className="flex flex-1 flex-col items-center text-center">
           <div className="self-start">{volver}</div>
-          <h2 className="mb-2 text-5xl font-extrabold">Paga con tu celular</h2>
-          <p className="mb-8 text-3xl font-bold text-emerald-300">{plata(pagoQr.monto)}</p>
+          <h2 className="tt-display mb-2 text-5xl font-semibold">Paga con tu celular</h2>
+          <p className="mb-8 text-3xl font-bold text-[#7FD1CD]">{plata(pagoQr.monto)}</p>
           <Qr valor={pagoQr.url} tamano={460} />
           <p className="mt-8 max-w-xl text-2xl opacity-80">Abre la cámara de tu celular, apunta al código y paga con Mercado Pago. Esta pantalla se actualiza sola cuando se confirme.</p>
           {pagoQr.abono > 0 && <p className="mt-3 text-xl opacity-60">Ya descontamos tu abono de {plata(pagoQr.abono)}.</p>}
@@ -312,15 +349,15 @@ function Totem() {
 
       {pantalla === "sinhora" && (
         <section className="flex flex-1 flex-col">
-          <button onClick={() => setPantalla("nohora")} className="mb-8 self-start rounded-2xl bg-white/10 px-6 py-4 text-xl font-semibold">← Atrás</button>
-          <h2 className="mb-2 text-5xl font-extrabold">Regístrate</h2>
+          <button onClick={() => setPantalla("nohora")} className="mb-8 self-start rounded-xl border border-white/15 bg-white/[0.04] px-6 py-4 text-xl font-semibold">← Atrás</button>
+          <h2 className="tt-display mb-2 text-5xl font-semibold">Regístrate</h2>
           <p className="mb-8 text-2xl opacity-70">Te recibimos en un momento y te ofrecemos una hora.</p>
           <label className="mb-2 text-2xl font-semibold">Tu nombre</label>
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className="mb-6 rounded-2xl bg-white/10 px-6 py-6 text-3xl outline-none focus:ring-4 focus:ring-emerald-400" autoComplete="off" />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className="mb-6 rounded-xl border border-white/15 bg-white/[0.04] px-6 py-6 text-3xl outline-none focus:ring-4 focus:ring-[#0B9490]" autoComplete="off" />
           <label className="mb-2 text-2xl font-semibold">Tu celular</label>
-          <input value={celular} onChange={(e) => setCelular(e.target.value.replace(/[^\d+ ]/g, ""))} inputMode="tel" maxLength={16} placeholder="9 1234 5678" className="mb-6 rounded-2xl bg-white/10 px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-emerald-400" autoComplete="off" />
+          <input value={celular} onChange={(e) => setCelular(e.target.value.replace(/[^\d+ ]/g, ""))} inputMode="tel" maxLength={16} placeholder="9 1234 5678" className="mb-6 rounded-xl border border-white/15 bg-white/[0.04] px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-[#0B9490]" autoComplete="off" />
           <label className="mb-2 text-2xl font-semibold">Tu correo</label>
-          <input value={correo} onChange={(e) => setCorreo(e.target.value.replace(/\s/g, ""))} type="email" inputMode="email" maxLength={120} placeholder="nombre@gmail.com" className="mb-6 rounded-2xl bg-white/10 px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-emerald-400" autoComplete="off" autoCapitalize="none" />
+          <input value={correo} onChange={(e) => setCorreo(e.target.value.replace(/\s/g, ""))} type="email" inputMode="email" maxLength={120} placeholder="nombre@gmail.com" className="mb-6 rounded-xl border border-white/15 bg-white/[0.04] px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-[#0B9490]" autoComplete="off" autoCapitalize="none" />
           <label className="mb-8 flex items-start gap-4 text-xl opacity-80">
             <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} className="mt-1 h-8 w-8" />
             Acepto recibir promociones del negocio (opcional).
@@ -333,22 +370,22 @@ function Totem() {
       {pantalla === "productos" && (
         <section className="flex flex-1 flex-col">
           {volver}
-          <h2 className="mb-2 text-5xl font-extrabold">¿Qué te llevas?</h2>
+          <h2 className="tt-display mb-2 text-5xl font-semibold">¿Qué te llevas?</h2>
           <p className="mb-8 text-2xl opacity-70">Elige y avisamos para llevártelo y cobrártelo.</p>
           <div className="space-y-4 pb-6">
             {info.productos.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-4 rounded-3xl bg-white/10 p-6">
+              <div key={p.id} className="flex items-center justify-between gap-4 rounded-2xl border border-white/15 bg-white/[0.04] p-6">
                 <div className="min-w-0"><p className="truncate text-3xl font-bold">{p.name}</p><p className="text-2xl opacity-70">{plata(p.price)}</p></div>
                 <div className="flex items-center gap-4">
-                  <button className="h-16 w-16 rounded-2xl bg-white/15 text-4xl font-bold active:bg-white/30" onClick={() => setCarrito((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))}>−</button>
-                  <span className="w-10 text-center text-4xl font-extrabold">{carrito[p.id] || 0}</span>
-                  <button className="h-16 w-16 rounded-2xl bg-white/15 text-4xl font-bold active:bg-white/30" onClick={() => setCarrito((c) => ({ ...c, [p.id]: Math.min(10, (c[p.id] || 0) + 1) }))}>+</button>
+                  <button className="h-16 w-16 rounded-xl border border-white/20 bg-white/[0.07] text-4xl font-bold active:bg-white/15" onClick={() => setCarrito((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))}>−</button>
+                  <span className="w-10 text-center text-4xl font-semibold">{carrito[p.id] || 0}</span>
+                  <button className="h-16 w-16 rounded-xl border border-white/20 bg-white/[0.07] text-4xl font-bold active:bg-white/15" onClick={() => setCarrito((c) => ({ ...c, [p.id]: Math.min(10, (c[p.id] || 0) + 1) }))}>+</button>
                 </div>
               </div>
             ))}
           </div>
           {msg && <p className="mb-4 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
-          <div className="sticky bottom-0 mt-auto bg-[#0f1115] pt-4">
+          <div className="sticky bottom-0 mt-auto bg-[#0B1B1A] pt-4">
             <button className={principal} disabled={total === 0 || cargando} onClick={pedirProductos}>{total > 0 ? `Pedir · ${plata(total)}` : "Elige un producto"}</button>
           </div>
         </section>
@@ -357,10 +394,10 @@ function Totem() {
       {pantalla === "info" && (
         <section className="flex flex-1 flex-col">
           {volver}
-          <h2 className="mb-8 text-5xl font-extrabold">Cursos, promociones y planes</h2>
+          <h2 className="tt-display mb-8 text-5xl font-semibold">Cursos, promociones y planes</h2>
           <div className="space-y-5">
             {info.info.map((s, i) => (
-              <div key={i} className="rounded-3xl bg-white/10 p-8">
+              <div key={i} className="rounded-2xl border border-white/15 bg-white/[0.04] p-8">
                 <p className="text-3xl font-bold">{s.title}</p>
                 <p className="mt-3 whitespace-pre-line text-2xl leading-relaxed opacity-80">{s.body}</p>
               </div>
@@ -371,9 +408,9 @@ function Totem() {
 
       {pantalla === "gracias" && (
         <section className="flex flex-1 flex-col items-center justify-center text-center">
-          <p className="mb-8 text-8xl">✅</p>
-          <p className="text-5xl font-extrabold leading-snug">{gracias}</p>
-          <button onClick={inicio} className="mt-14 rounded-2xl bg-white/10 px-10 py-5 text-2xl font-semibold">Listo</button>
+          <svg className="mb-10 h-24 w-24 text-[#7FD1CD]" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12.5l3 3 6-7" /></svg>
+          <p className="text-5xl font-semibold leading-snug">{gracias}</p>
+          <button onClick={inicio} className="mt-14 rounded-xl border border-white/15 bg-white/[0.04] px-10 py-5 text-2xl font-semibold">Listo</button>
         </section>
       )}
     </main>
