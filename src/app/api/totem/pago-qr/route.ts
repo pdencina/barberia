@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { saldoCita } from "@/lib/totem-pago";
-import { cargarCredencialAbono, firmarNegocio } from "@/lib/deposit";
+import { firmarNegocio } from "@/lib/deposit";
+import { tokensMercadoPago } from "@/lib/totem-terminal";
 
 // POST {codigo, appointmentId, code}: crea el link de pago de Mercado Pago (cuenta del NEGOCIO) por el saldo de la cita y lo devuelve
 // para mostrarlo como QR en el totem. Solo si el negocio activo «Pago por QR» (apagado por defecto). El monto sale del servidor.
@@ -28,8 +29,9 @@ export async function POST(req: NextRequest) {
   const { data: pagado } = await supabase.from("kiosk_payments").select("id").eq("appointment_id", (a as any).id).eq("status", "paid").limit(1).maybeSingle();
   if (pagado) return NextResponse.json({ error: "Esta cita ya fue pagada desde el tótem." }, { status: 409 });
 
-  const cred = await cargarCredencialAbono(supabase, t.id);
-  if (!cred.token) return NextResponse.json({ error: "El local aún no conectó Mercado Pago. Avisa a quien te atiende." }, { status: 400 });
+  // Cuenta de Mercado Pago a la que entra el pago: la del profesional de la cita si trabaja en arriendo (como el POS); si no, la del negocio.
+  const cred = { token: (await tokensMercadoPago(supabase, t.id, (a as any).barber_id))[0] || null };
+  if (!cred.token) return NextResponse.json({ error: "Tu profesional no tiene Mercado Pago conectado. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
 
   const { data: pago, error: errIns } = await supabase.from("kiosk_payments").insert({ tenant_id: t.id, appointment_id: (a as any).id, amount: s.saldo }).select("id").single();
   if (errIns || !pago) return NextResponse.json({ error: "No pudimos crear el pago. Avisa a quien te atiende." }, { status: 500 });

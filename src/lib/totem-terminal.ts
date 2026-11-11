@@ -6,12 +6,21 @@
 const TUU_BASE_URL = "https://integrations.payment.haulmer.com";
 
 export type Proveedor = "mercadopago" | "tuu";
-export interface Terminal { proveedor: Proveedor; device: string; token?: string; apiKey?: string }
+export interface Terminal { proveedor: Proveedor; device: string; token?: string; apiKey?: string; personal?: boolean; barberId?: string | null }
 export type EstadoCobro = "approved" | "rejected" | "cancelled" | "pending";
 
-// Máquina del negocio: el proveedor que eligió (tenant_settings.card_payment_provider) y, dentro de él, la máquina de «servicios»,
+// Máquina PERSONAL del profesional (la que usa el POS cuando trabaja en arriendo): su propia cuenta de Mercado Pago y su propia máquina.
+// Es lo que hace Levels: cada profesional en arriendo cobra en su máquina, así que el tótem manda el cobro a la máquina del profesional de la cita.
+async function terminalPersonal(supabase: any, barberId: string): Promise<Terminal | null> {
+  const { data: b } = await supabase.from("profiles").select("work_mode, mp_access_token, mp_device_id").eq("id", barberId).maybeSingle();
+  if (b?.work_mode === "rental" && b?.mp_access_token && b?.mp_device_id) return { proveedor: "mercadopago", device: b.mp_device_id, token: b.mp_access_token, personal: true, barberId };
+  return null;
+}
+
+// Máquina del profesional de la cita si es de arriendo y tiene la suya; si no, la del negocio: el proveedor que eligió (tenant_settings.card_payment_provider) y, dentro de él, la máquina de «servicios»,
 // luego la «todas» y luego cualquiera activa (mismo orden que el POS). No se usan las máquinas personales de profesionales en arriendo.
-export async function resolverTerminal(supabase: any, tenantId: string): Promise<Terminal | null> {
+export async function resolverTerminal(supabase: any, tenantId: string, barberId?: string | null): Promise<Terminal | null> {
+  if (barberId) { const p = await terminalPersonal(supabase, barberId); if (p) return p; }
   const { data: st } = await supabase.from("tenant_settings").select("card_payment_provider, tuu_api_key, mp_access_token, mp_device_id").eq("tenant_id", tenantId).maybeSingle();
   const elige = async (tabla: string, col: string, extra: string) => {
     for (const tipo of ["services", "all", null as string | null]) {
@@ -122,4 +131,25 @@ export async function cancelarCobro(term: Terminal, externalId: string): Promise
   } catch {
     return { remoto: false };
   }
+}
+
+// ¿Algún profesional del negocio tiene máquina personal lista? (para avisar en Configuración si hay algo conectado)
+export async function hayMaquinaPersonal(supabase: any, tenantId: string): Promise<boolean> {
+  const { data } = await supabase.from("profiles").select("id").eq("tenant_id", tenantId).eq("active", true).eq("work_mode", "rental").not("mp_access_token", "is", null).not("mp_device_id", "is", null).limit(1).maybeSingle();
+  return !!data;
+}
+
+// Tokens de Mercado Pago con los que se puede cobrar/leer un pago del negocio, en orden: el del profesional de la cita (si es de arriendo),
+// el de «Cobros online»/terminal del negocio y, por último, los de los demás profesionales en arriendo (para leer un pago sin saber aún de quién es).
+export async function tokensMercadoPago(supabase: any, tenantId: string, barberId?: string | null, todos = false): Promise<string[]> {
+  const out: string[] = [];
+  const agrega = (t: any) => { if (t && !out.includes(t)) out.push(t); };
+  if (barberId) { const { data: b } = await supabase.from("profiles").select("work_mode, mp_access_token").eq("id", barberId).maybeSingle(); if (b?.work_mode === "rental") agrega(b.mp_access_token); }
+  const { cargarCredencialAbono } = await import("@/lib/deposit");
+  agrega((await cargarCredencialAbono(supabase, tenantId)).token);
+  if (todos) {
+    const { data } = await supabase.from("profiles").select("mp_access_token").eq("tenant_id", tenantId).eq("work_mode", "rental").not("mp_access_token", "is", null).limit(30);
+    for (const r of data || []) agrega(r.mp_access_token);
+  }
+  return out;
 }

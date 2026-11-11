@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireTenantRole } from "@/lib/supabase/server";
 import { limpiarSecciones, generarCodigoNegocio } from "@/lib/totem";
-import { cargarCredencialAbono } from "@/lib/deposit";
-import { resolverTerminal } from "@/lib/totem-terminal";
+import { resolverTerminal, hayMaquinaPersonal, tokensMercadoPago } from "@/lib/totem-terminal";
 
 // GET/POST: configuracion del totem del negocio (solo administrador).
 export async function GET(req: NextRequest) {
@@ -15,7 +14,7 @@ export async function GET(req: NextRequest) {
     if (!r2.error) return NextResponse.json({ desbloqueado: !!(r2.data as any)?.kiosk_unlocked, codigo: (r2.data as any)?.kiosk_code || null, enabled: !!(r2.data as any)?.kiosk_enabled, info: limpiarSecciones((r2.data as any)?.kiosk_info), pagoQr: false, falta165: true });
   }
   if (error) return NextResponse.json({ falta_migracion: true, codigo: null, desbloqueado: false, enabled: false, info: [] });
-  return NextResponse.json({ desbloqueado: !!(data as any)?.kiosk_unlocked, codigo: (data as any)?.kiosk_code || null, enabled: !!(data as any)?.kiosk_enabled, info: limpiarSecciones((data as any)?.kiosk_info), pagoQr: !!(data as any)?.kiosk_pay_qr_enabled, pagoTerminal: !!(data as any)?.kiosk_terminal_enabled, terminalListo: !!(await resolverTerminal(createAdminSupabase(), guard.tenantId)), mpListo: !!(await cargarCredencialAbono(createAdminSupabase(), guard.tenantId)).token });
+  return NextResponse.json({ desbloqueado: !!(data as any)?.kiosk_unlocked, codigo: (data as any)?.kiosk_code || null, enabled: !!(data as any)?.kiosk_enabled, info: limpiarSecciones((data as any)?.kiosk_info), pagoQr: !!(data as any)?.kiosk_pay_qr_enabled, pagoTerminal: !!(data as any)?.kiosk_terminal_enabled, terminalListo: !!(await resolverTerminal(createAdminSupabase(), guard.tenantId)) || (await hayMaquinaPersonal(createAdminSupabase(), guard.tenantId)), mpListo: (await tokensMercadoPago(createAdminSupabase(), guard.tenantId, null, true)).length > 0 });
 }
 
 export async function POST(req: NextRequest) {

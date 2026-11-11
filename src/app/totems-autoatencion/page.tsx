@@ -80,7 +80,7 @@ function Totem() {
   const [carrito, setCarrito] = useState<Record<string, number>>({});
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
   const [pagoQr, setPagoQr] = useState<{ id: string; url: string; monto: number; abono: number } | null>(null);
-  const [pagoTerm, setPagoTerm] = useState<{ id: string; monto: number; abono: number } | null>(null);
+  const [pagoTerm, setPagoTerm] = useState<{ id: string; monto: number; abono: number; profesional: string | null } | null>(null);
   const ultimo = useRef(Date.now());
   const pantallaRef = useRef<Pantalla>("inicio");
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
@@ -176,7 +176,7 @@ function Totem() {
     const { ok, d } = await post("pago-terminal", { appointmentId: c.id, code, tarjeta });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos enviar el cobro a la máquina"); return; }
-    setPagoTerm({ id: d.id, monto: d.monto, abono: d.abono });
+    setPagoTerm({ id: d.id, monto: d.monto, abono: d.abono, profesional: d.profesional || null });
     setPantalla("pagoterm");
   };
 
@@ -380,7 +380,7 @@ function Totem() {
         <section className="flex flex-1 flex-col items-center justify-center text-center">
           <p className="tt-mono mb-4 text-lg uppercase tracking-[0.16em] text-white/50">Pago con tarjeta</p>
           <p className="tt-display mb-6 text-8xl font-semibold">{plata(pagoTerm.monto)}</p>
-          <h2 className="tt-display mb-4 text-5xl font-semibold">Pasa o acerca tu tarjeta a la máquina</h2>
+          <h2 className="tt-display mb-4 text-5xl font-semibold">{pagoTerm.profesional ? `Pasa o acerca tu tarjeta a la máquina de ${pagoTerm.profesional}` : "Pasa o acerca tu tarjeta a la máquina"}</h2>
           <p className="max-w-xl text-2xl text-white/60">Sigue las instrucciones de la máquina. Esta pantalla se actualiza sola cuando se confirme el pago.</p>
           {pagoTerm.abono > 0 && <p className="mt-3 text-xl opacity-60">Ya descontamos tu abono de {plata(pagoTerm.abono)}.</p>}
           <div className="mt-10 h-3 w-3 rounded-full bg-white/60" style={{ animation: "ttPulse 2.2s infinite" }} />
