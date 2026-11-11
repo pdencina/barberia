@@ -47,6 +47,7 @@ const estado = async (id: string) => (await (await pagoEstado(new NextRequest(`h
   await sb.from("appointment_services").insert({ appointment_id: ap.id, service_id: svc.id, price: 18000 });
   const { data: antes } = await sb.from("tenants").select("kiosk_enabled, kiosk_unlocked, kiosk_terminal_enabled").eq("id", tenantId).single();
   const { data: setAntes } = await sb.from("tenant_settings").select("*").eq("tenant_id", tenantId).maybeSingle();
+  const { data: perfilAntes } = await sb.from("profiles").select("work_mode, mp_access_token, mp_device_id").eq("id", barber.id).single();
   const code = ap.checkin_code;
   const base = { appointmentId: ap.id, code };
 
@@ -120,7 +121,22 @@ const estado = async (id: string) => (await (await pagoEstado(new NextRequest(`h
     r = await post(pagoTerminal, base); d = await r.json(); const kp6 = d.id;
     await sb.from("kiosk_payments").update({ created_at: new Date(Date.now() - 4 * 60_000).toISOString(), checked_at: null }).eq("id", kp6);
     mpOrden = { status: "created" }; ok((await estado(kp6)) === "expired", "pasados 3 min sin respuesta: 'expired' (pide avisar al equipo, no declara rechazo)");
+
+    // ---------- máquina PERSONAL del profesional en arriendo (como Levels): se cobra en SU máquina, no en la del negocio
+    await sb.from("kiosk_payments").delete().eq("appointment_id", ap.id);
+    await sb.from("mp_terminals").delete().eq("tenant_id", tenantId);
+    await sb.from("tenant_settings").upsert({ tenant_id: tenantId, card_payment_provider: "mercadopago", mp_access_token: null }, { onConflict: "tenant_id" });
+    r = await post(pagoTerminal, base); ok(r.status === 400, "sin máquina del negocio y profesional sin la suya: pide pagar en caja (400)");
+    await sb.from("profiles").update({ work_mode: "rental", mp_access_token: "TOKEN-DEL-PROFESIONAL", mp_device_id: "PAX__PERSONAL" }).eq("id", barber.id);
+    llamadas.length = 0;
+    r = await post(pagoTerminal, base); d = await r.json(); const kp7 = d.id;
+    ok(r.status === 200 && d.proveedor === "mercadopago" && !!d.profesional, `profesional en arriendo: cobra en SU máquina (${d.profesional})`);
+    const fk = (await sb.from("kiosk_payments").select("device").eq("id", kp7).single()).data;
+    ok(fk.device === "PAX__PERSONAL", "el cobro queda asociado a la máquina personal (PAX__PERSONAL)");
+    mpOrden = { status: "processed", transactions: { payments: [{ status: "approved" }] } };
+    ok((await estado(kp7)) === "paid", "aprobado en la máquina del profesional: queda pagado");
   } finally {
+    await sb.from("profiles").update(perfilAntes).eq("id", barber.id);
     await sb.from("kiosk_payments").delete().eq("appointment_id", ap.id);
     await sb.from("appointment_services").delete().eq("appointment_id", ap.id);
     await sb.from("appointments").delete().eq("id", ap.id);

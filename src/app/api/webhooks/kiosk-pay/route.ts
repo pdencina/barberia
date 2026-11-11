@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { cargarCredencialAbono, firmaValida } from "@/lib/deposit";
+import { firmaValida } from "@/lib/deposit";
+import { tokensMercadoPago } from "@/lib/totem-terminal";
 import { confirmarPagoTotem } from "@/lib/totem-pago";
 
 // Aviso de Mercado Pago por un pago hecho con el QR del totem. Opcion A: confirma, marca el cobro como pagado y AVISA al profesional y a
@@ -17,11 +18,13 @@ export async function POST(req: NextRequest) {
     const tenantId = firmaValida(url.searchParams.get("t"), url.searchParams.get("s")) ? url.searchParams.get("t") : null;
     if (!tenantId) return NextResponse.json({ ok: true }); // sin firma válida no se procesa nada
 
-    const cred = await cargarCredencialAbono(supabase, tenantId);
-    if (!cred.token) return NextResponse.json({ ok: true });
-    const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, { headers: { Authorization: `Bearer ${cred.token}` } });
-    if (!res.ok) return NextResponse.json({ ok: true });
-    const p = await res.json();
+    // El pago pudo hacerse con la cuenta del negocio o con la de un profesional en arriendo: se prueba con cada una hasta poder leerlo.
+    let p: any = null;
+    for (const token of await tokensMercadoPago(supabase, tenantId, null, true)) {
+      const res = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (res.ok) { p = await res.json(); break; }
+    }
+    if (!p) return NextResponse.json({ ok: true });
 
     const ref = String(p.external_reference || "");
     if (!ref.startsWith("kp-")) return NextResponse.json({ ok: true });

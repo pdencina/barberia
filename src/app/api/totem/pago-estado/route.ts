@@ -24,7 +24,9 @@ export async function GET(req: NextRequest) {
     const desdeUltima = kp.checked_at ? Date.now() - new Date(kp.checked_at).getTime() : Infinity;
     if (desdeUltima >= 4000) {
       await supabase.from("kiosk_payments").update({ checked_at: new Date().toISOString() }).eq("id", kp.id);
-      const term = await resolverTerminal(supabase, t.id);
+      // La máquina es la del profesional de la cita (si tiene la suya) o la del negocio, igual que al crear el cobro.
+      const { data: ap } = await supabase.from("appointments").select("barber_id").eq("id", kp.appointment_id).maybeSingle();
+      const term = await resolverTerminal(supabase, t.id, (ap as any)?.barber_id);
       const est = term ? await consultarCobro(term, kp.external_id) : "pending";
       if (est === "approved") {
         await confirmarPagoTotem(supabase, kp, Number(kp.amount), `${kp.provider}:${kp.external_id}`, "con tarjeta en la máquina");

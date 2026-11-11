@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { saldoCita } from "@/lib/totem-pago";
 import { resolverTerminal, iniciarCobro, cancelarCobro } from "@/lib/totem-terminal";
+import { notify } from "@/lib/notify";
 
-// POST {codigo, appointmentId, code, tarjeta?: "debito"|"credito"}: manda el cobro del saldo de la cita a la MÁQUINA de tarjetas del local
+// POST {codigo, appointmentId, code, tarjeta?: "debito"|"credito"}: manda el cobro del saldo de la cita a la MÁQUINA de tarjetas
 // (Mercado Pago Point o TUU). Solo si el negocio activó «Cobro en la máquina» (apagado por defecto). El monto sale del servidor.
+// La máquina es la PERSONAL del profesional de la cita si trabaja en arriendo y tiene la suya (como el POS); si no, la del negocio.
 // Opción A: al aprobarse se avisa al profesional y a administración; la venta la registra el equipo en el POS.
 export async function POST(req: NextRequest) {
   if (demasiadosIntentos(`pagoterm:${ipDe(req)}`, 8)) return NextResponse.json({ error: "Muchos intentos. Espera un momento." }, { status: 429 });
@@ -17,7 +19,7 @@ export async function POST(req: NextRequest) {
 
   const code = normalizarCodigo(body.code);
   if (!body.appointmentId || code.length !== 5) return NextResponse.json({ error: "Falta el código" }, { status: 400 });
-  const { data: a } = await soloDiaDelTotem(supabase.from("appointments").select("id, status, checkin_code").eq("id", body.appointmentId).eq("tenant_id", t.id)).maybeSingle();
+  const { data: a } = await soloDiaDelTotem(supabase.from("appointments").select("id, status, checkin_code, barber_id").eq("id", body.appointmentId).eq("tenant_id", t.id)).maybeSingle();
   if (!a || (a as any).checkin_code !== code || !["scheduled", "confirmed", "in_progress", "completed"].includes((a as any).status)) {
     return NextResponse.json({ error: "No encontramos tu cita" }, { status: 404 });
   }
@@ -28,13 +30,13 @@ export async function POST(req: NextRequest) {
   const { data: pagado } = await supabase.from("kiosk_payments").select("id").eq("appointment_id", (a as any).id).eq("status", "paid").limit(1).maybeSingle();
   if (pagado) return NextResponse.json({ error: "Esta cita ya fue pagada desde el tótem." }, { status: 409 });
 
-  const term = await resolverTerminal(supabase, t.id);
-  if (!term) return NextResponse.json({ error: "La máquina de tarjetas aún no está conectada. Avisa a quien te atiende." }, { status: 400 });
+  const term = await resolverTerminal(supabase, t.id, (a as any).barber_id);
+  if (!term) return NextResponse.json({ error: "Tu profesional no tiene una máquina de tarjetas conectada. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
 
-  // Una máquina atiende un cobro a la vez: si hay otro pendiente hace menos de 3 minutos (de otra cita) se pide esperar.
-  // Si el pendiente es de ESTA misma cita (el cliente volvió a intentar), se cancela y se crea uno nuevo.
+  // Una máquina atiende un cobro a la vez (cada profesional en arriendo tiene la suya): si ESA máquina tiene otro cobro pendiente
+  // hace menos de 3 minutos (de otra cita) se pide esperar. Si el pendiente es de esta misma cita (el cliente reintentó), se cancela y se crea uno nuevo.
   const hace3 = new Date(Date.now() - 3 * 60_000).toISOString();
-  const { data: pendientes } = await supabase.from("kiosk_payments").select("id, appointment_id, external_id").eq("tenant_id", t.id).eq("method", "terminal").eq("status", "pending").gte("created_at", hace3);
+  const { data: pendientes } = await supabase.from("kiosk_payments").select("id, appointment_id, external_id").eq("tenant_id", t.id).eq("method", "terminal").eq("device", term.device).eq("status", "pending").gte("created_at", hace3);
   for (const p of pendientes || []) {
     if ((p as any).appointment_id !== (a as any).id) return NextResponse.json({ error: "La máquina está atendiendo a otra persona. Intenta en un momento." }, { status: 409 });
     if ((p as any).external_id) await cancelarCobro(term, (p as any).external_id);
@@ -50,5 +52,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: r.error }, { status: 502 });
   }
   await supabase.from("kiosk_payments").update({ external_id: r.externalId }).eq("id", (kp as any).id);
-  return NextResponse.json({ ok: true, id: (kp as any).id, monto: s.saldo, abono: s.abono, proveedor: term.proveedor });
+
+  // Si el cobro salió a la máquina PERSONAL del profesional, se le avisa a él para que la tenga a mano.
+  let profesional: string | null = null;
+  if (term.personal && term.barberId) {
+    const { data: pro } = await supabase.from("profiles").select("name").eq("id", term.barberId).maybeSingle();
+    profesional = (pro as any)?.name || null;
+    const { data: cl } = await supabase.from("appointments").select("client:clients(name)").eq("id", (a as any).id).maybeSingle();
+    await notify({
+      tenantId: t.id, kind: "kiosk_payment", userIds: [term.barberId], professionalId: term.barberId,
+      title: "Cobro enviado a tu máquina",
+      body: `${primerNombre((cl as any)?.client?.name) || "Un cliente"} va a pagar $${s.saldo.toLocaleString("es-CL")} con tarjeta en tu máquina (desde el tótem).`,
+      url: "/dashboard/mi-agenda",
+    }).catch(() => {});
+  }
+  return NextResponse.json({ ok: true, id: (kp as any).id, monto: s.saldo, abono: s.abono, proveedor: term.proveedor, profesional });
 }
