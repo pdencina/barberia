@@ -149,7 +149,7 @@ function Totem() {
     const { ok, d } = await post("llegue", { appointmentId: c.id, code });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos avisar"); return; }
-    setGracias(`¡Gracias ${c.cliente}! Avisamos a ${c.profesional || "tu profesional"}. Toma asiento, te llamamos en un momento.`);
+    setGracias(`¡Gracias ${c.cliente}! Ya le avisamos a ${c.profesional || "tu profesional"} que llegaste. Toma asiento, en un momento te atienden.`);
     setPantalla("gracias");
   };
 
@@ -158,7 +158,7 @@ function Totem() {
     const { ok, d } = await post("solicitud", { tipo: "pago", code });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos avisar"); return; }
-    setGracias("Listo, avisamos para que te cobren. Un momento por favor.");
+    setGracias("Listo, ya le avisamos al equipo que quieres pagar. En un momento te atienden en caja.");
     setPantalla("gracias");
   };
 
@@ -339,11 +339,11 @@ function Totem() {
                           </div>
                         ) : <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "debito")}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
                         {info.pagoQr && <button className={info.pagoTerminal ? "w-full rounded-2xl border border-white/[0.12] bg-white/[0.04] px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
-                        <button className={(info.pagoQr || info.pagoTerminal) ? "w-full rounded-2xl border border-white/[0.12] bg-white/[0.04] px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar con el equipo" : "Quiero pagar ahora"}</button>
+                        <button className={(info.pagoQr || info.pagoTerminal) ? "w-full rounded-2xl border border-white/[0.12] bg-white/[0.04] px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>
                       </div>
                     : c.llego
                       ? <p className="rounded-2xl bg-white/10 p-5 text-center text-2xl text-white">Ya avisamos que llegaste</p>
-                      : <button className={principal} disabled={cargando} onClick={() => llegue(c)}>Ya llegué</button>}
+                      : <div><button className={principal} disabled={cargando} onClick={() => llegue(c)}>Ya llegué</button><p className="mt-4 text-center text-xl text-white/60">Al tocar «Ya llegué» le avisamos a {c.profesional || "tu profesional"} que estás aquí.</p></div>}
                 </div>
                 {modo === "llegue" && <p className="mt-4 text-center text-xl opacity-60">¿Prefieres pagar ahora? Toca «Volver» y elige «Quiero pagar». También puedes pagar al terminar.</p>}
               </div>
