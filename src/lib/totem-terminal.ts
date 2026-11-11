@@ -43,7 +43,22 @@ export async function resolverTerminal(supabase: any, tenantId: string, barberId
   const t = await elige("mp_terminals", "device_id", ", access_token");
   if (t?.device_id && (t.access_token || global)) return { proveedor: "mercadopago", device: t.device_id, token: t.access_token || global };
   if (st?.mp_device_id && global) return { proveedor: "mercadopago", device: st.mp_device_id, token: global };
+  // Última opción, igual que el POS: la cuenta y la máquina «de la casa» configuradas en el servidor (MP_DEVICE_ID / MP_ACCESS_TOKEN).
+  const casa = await cuentaDeLaCasa(supabase, tenantId);
+  if (casa) return { proveedor: "mercadopago", device: casa.device, token: casa.token };
   return null;
+}
+
+// La máquina «de la casa» del servidor es UNA sola para toda la plataforma. Para que un negocio no cobre por error en la máquina de otro,
+// solo se usa si ese negocio YA la usó antes (hay cobros suyos en mp_payment_intents con ese mismo dispositivo). Es el caso de Levels.
+export async function cuentaDeLaCasa(supabase: any, tenantId: string): Promise<{ device: string; token: string } | null> {
+  const device = process.env.MP_DEVICE_ID, token = process.env.MP_ACCESS_TOKEN;
+  if (!device || !token) return null;
+  const { data: equipo } = await supabase.from("profiles").select("id").eq("tenant_id", tenantId).limit(300);
+  const ids = (equipo || []).map((e: any) => e.id);
+  if (ids.length === 0) return null;
+  const { data: uso } = await supabase.from("mp_payment_intents").select("id").eq("device_id", device).in("barber_id", ids).limit(1).maybeSingle();
+  return uso ? { device, token } : null;
 }
 
 // Proveedor de tarjetas del negocio ("tuu" o "mercadopago"), sin buscar la máquina.
@@ -147,6 +162,7 @@ export async function tokensMercadoPago(supabase: any, tenantId: string, barberI
   if (barberId) { const { data: b } = await supabase.from("profiles").select("work_mode, mp_access_token").eq("id", barberId).maybeSingle(); if (b?.work_mode === "rental") agrega(b.mp_access_token); }
   const { cargarCredencialAbono } = await import("@/lib/deposit");
   agrega((await cargarCredencialAbono(supabase, tenantId)).token);
+  agrega((await cuentaDeLaCasa(supabase, tenantId))?.token); // la cuenta «de la casa» (solo si este negocio ya la usa)
   if (todos) {
     const { data } = await supabase.from("profiles").select("mp_access_token").eq("tenant_id", tenantId).eq("work_mode", "rental").not("mp_access_token", "is", null).limit(30);
     for (const r of data || []) agrega(r.mp_access_token);
