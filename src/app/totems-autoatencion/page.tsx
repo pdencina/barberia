@@ -297,8 +297,8 @@ function Totem() {
       {pantalla === "codigo" && (
         <section className="flex flex-1 flex-col">
           {volver}
-          <h2 className="tt-display mb-2 text-5xl font-semibold">Escribe tu código</h2>
-          <p className="mb-8 text-2xl opacity-70">Son 5 letras o números. Lo recibiste en el correo de tu reserva.</p>
+          <h2 className="tt-display mb-2 text-5xl font-semibold">{modo === "pagar" ? "Escribe tu código para pagar" : "Escribe tu código"}</h2>
+          <p className="mb-8 text-2xl opacity-70">{modo === "pagar" ? "Son 5 letras o números. Después podrás pagar con tarjeta, desde tu celular o en caja: si eliges caja, le avisamos al equipo para que te atienda." : "Son 5 letras o números. Es tu código personal: lo ves al confirmar tu reserva. Si no lo recuerdas, pídelo a quien te atiende."}</p>
           <div className="mb-8 flex justify-center gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
               <div key={i} className="flex h-28 w-24 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] text-6xl font-semibold">{code[i] || ""}</div>
@@ -345,6 +345,7 @@ function Totem() {
                       ? <p className="rounded-2xl bg-white/10 p-5 text-center text-2xl text-white">Ya avisamos que llegaste</p>
                       : <div><button className={principal} disabled={cargando} onClick={() => llegue(c)}>Ya llegué</button><p className="mt-4 text-center text-xl text-white/60">Al tocar «Ya llegué» le avisamos a {c.profesional || "tu profesional"} que estás aquí.</p></div>}
                 </div>
+                {modo === "pagar" && <p className="mt-4 text-center text-xl text-white/60">Si pagas en caja, le avisamos a {c.profesional || "tu profesional"} y al equipo para que te atiendan.</p>}
                 {modo === "llegue" && <p className="mt-4 text-center text-xl opacity-60">¿Prefieres pagar ahora? Toca «Volver» y elige «Quiero pagar». También puedes pagar al terminar.</p>}
               </div>
             ))}
