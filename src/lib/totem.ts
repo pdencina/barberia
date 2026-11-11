@@ -71,8 +71,10 @@ export async function negocioDelTotem(supabase: ReturnType<typeof createAdminSup
   const s = normalizarCodigoNegocio(codigo);
   if (s.length !== 7) return null;
   const cols = "id, name, slug, logo_url, phone, active, status, kiosk_enabled, kiosk_unlocked, kiosk_info";
-  let r: { data: any; error: any } = await supabase.from("tenants").select(`${cols}, kiosk_pay_qr_enabled`).eq("kiosk_code", s).eq("active", true).maybeSingle();
-  if (r.error) r = await supabase.from("tenants").select(cols).eq("kiosk_code", s).eq("active", true).maybeSingle(); // migración 165 aún no aplicada
+  const q = (extra: string) => supabase.from("tenants").select(`${cols}${extra}`).eq("kiosk_code", s).eq("active", true).maybeSingle();
+  let r: { data: any; error: any } = await q(", kiosk_pay_qr_enabled, kiosk_terminal_enabled");
+  if (r.error) r = await q(", kiosk_pay_qr_enabled"); // migración 168 aún no aplicada
+  if (r.error) r = await q(""); // migración 165 aún no aplicada
   const data = r.data;
   if (!data || (data as any).status === "suspended" || !(data as any).kiosk_enabled || !(data as any).kiosk_unlocked) return null; // servicio aparte: debe estar desbloqueado Y encendido
   return data as any;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, limpiarSecciones } from "@/lib/totem";
+import { proveedorTarjeta } from "@/lib/totem-terminal";
 
 // GET ?codigo=: datos publicos para pintar el totem (nombre, logo, productos a la venta y textos informativos).
 export async function GET(req: NextRequest) {
@@ -24,6 +25,8 @@ export async function GET(req: NextRequest) {
     reservaPantalla: t.slug ? `/booking?tenant=${encodeURIComponent(t.slug)}&kiosko=1` : null,
     productos,
     pagoQr: !!t.kiosk_pay_qr_enabled,
+    pagoTerminal: !!t.kiosk_terminal_enabled,
+    tarjetaElige: !!t.kiosk_terminal_enabled && (await proveedorTarjeta(supabase, t.id)) === "tuu", // TUU pide débito o crédito al cobrar
     info: limpiarSecciones(t.kiosk_info),
   });
 }
