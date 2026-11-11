@@ -7,7 +7,7 @@ import { Qr } from "@/components/totem/qr";
 // Totem de autoatencion (pantalla vertical tactil en el local). Pensado para 1080x1920 (o 1920x1080 girada).
 // Sin sesion: todo pasa por /api/totem/* con el codigo corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 
-type Pantalla = "inicio" | "codigo" | "cita" | "pagoqr" | "sinhora" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
+type Pantalla = "inicio" | "codigo" | "cita" | "pagoqr" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
 interface Cita { id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
 interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; pagoQr?: boolean; info: { title: string; body: string }[] }
@@ -77,10 +77,6 @@ function Totem() {
   const [msg, setMsg] = useState("");
   const [gracias, setGracias] = useState("");
   const [cargando, setCargando] = useState(false);
-  const [nombre, setNombre] = useState("");
-  const [celular, setCelular] = useState("");
-  const [correo, setCorreo] = useState("");
-  const [acepta, setAcepta] = useState(false);
   const [carrito, setCarrito] = useState<Record<string, number>>({});
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
   const [pagoQr, setPagoQr] = useState<{ id: string; url: string; monto: number; abono: number } | null>(null);
@@ -89,7 +85,7 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setNombre(""); setCelular(""); setCorreo(""); setAcepta(false); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null);
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null);
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
@@ -186,15 +182,6 @@ function Totem() {
     }, 3000);
     return () => clearInterval(t);
   }, [pantalla, pagoQr, codigo]);
-
-  const registrar = async () => {
-    setCargando(true); setMsg("");
-    const { ok, d } = await post("registro", { name: nombre, phone: celular, email: correo, marketingConsent: acepta });
-    setCargando(false);
-    if (!ok) { setMsg(d.error || "No pudimos registrarte"); return; }
-    setGracias(d.codigo ? `¡Gracias! Ya avisamos que llegaste. Tu código personal es ${d.codigo}: guárdalo, es siempre el mismo.` : "¡Gracias! Ya avisamos que llegaste. Te atenderemos en un momento.");
-    setPantalla("gracias");
-  };
 
   const pedirProductos = async () => {
     const productos = Object.entries(carrito).filter(([, n]) => n > 0).map(([id, cantidad]) => ({ id, cantidad }));
@@ -341,7 +328,6 @@ function Totem() {
                 <div><p className="text-3xl font-bold">Reservar desde tu celular</p><p className="mt-3 text-2xl opacity-70">Abre la cámara de tu celular y apunta al código. Reservas desde ahí, sin escribir nada más aquí.</p></div>
               </div>
             )}
-            <button className={boton} onClick={() => setPantalla("sinhora")}><Opcion t="Solo avisar que llegué" d="Déjanos tus datos y te recibimos" /></button>
           </div>
         </section>
       )}
@@ -362,26 +348,6 @@ function Totem() {
           <p className="mt-8 max-w-xl text-2xl opacity-80">Abre la cámara de tu celular, apunta al código y paga con Mercado Pago. Esta pantalla se actualiza sola cuando se confirme.</p>
           {pagoQr.abono > 0 && <p className="mt-3 text-xl opacity-60">Ya descontamos tu abono de {plata(pagoQr.abono)}.</p>}
           <p className="mt-6 text-lg opacity-50">El código vence en 10 minutos.</p>
-        </section>
-      )}
-
-      {pantalla === "sinhora" && (
-        <section className="flex flex-1 flex-col">
-          <button onClick={() => setPantalla("nohora")} className="mb-8 self-start rounded-xl border border-white/[0.12] bg-white/[0.04] px-6 py-4 text-xl font-semibold">← Atrás</button>
-          <h2 className="tt-display mb-2 text-5xl font-semibold">Regístrate</h2>
-          <p className="mb-8 text-2xl opacity-70">Te recibimos en un momento y te ofrecemos una hora.</p>
-          <label className="mb-2 text-2xl font-semibold">Tu nombre</label>
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className="mb-6 rounded-xl border border-white/[0.12] bg-white/[0.04] px-6 py-6 text-3xl outline-none focus:ring-4 focus:ring-white/40" autoComplete="off" />
-          <label className="mb-2 text-2xl font-semibold">Tu celular</label>
-          <input value={celular} onChange={(e) => setCelular(e.target.value.replace(/[^\d+ ]/g, ""))} inputMode="tel" maxLength={16} placeholder="9 1234 5678" className="mb-6 rounded-xl border border-white/[0.12] bg-white/[0.04] px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-white/40" autoComplete="off" />
-          <label className="mb-2 text-2xl font-semibold">Tu correo</label>
-          <input value={correo} onChange={(e) => setCorreo(e.target.value.replace(/\s/g, ""))} type="email" inputMode="email" maxLength={120} placeholder="nombre@gmail.com" className="mb-6 rounded-xl border border-white/[0.12] bg-white/[0.04] px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-white/40" autoComplete="off" autoCapitalize="none" />
-          <label className="mb-8 flex items-start gap-4 text-xl opacity-80">
-            <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} className="mt-1 h-8 w-8" />
-            Acepto recibir promociones del negocio (opcional).
-          </label>
-          {msg && <p className="mb-6 rounded-2xl bg-red-500/15 p-5 text-2xl text-red-300">{msg}</p>}
-          <button className={principal} disabled={cargando || nombre.trim().length < 2 || celular.replace(/\D/g, "").length < 9 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo)} onClick={registrar}>{cargando ? "Enviando…" : "Avisar que llegué"}</button>
         </section>
       )}
 
