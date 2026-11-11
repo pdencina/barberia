@@ -250,13 +250,17 @@ function Totem() {
     <div className="relative min-h-screen bg-[#0A0A0A]">
     <Fondo />
     <main className={`relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col select-none px-12 py-12 ${colorFondo.replace("bg-[#0A0A0A] ", "")}`} style={{ touchAction: "manipulation" }}>
-      <header className="mb-10 flex items-center gap-5" onClick={() => {
+      <header className="mb-8 flex items-center gap-6" onClick={() => {
         // Personal del local: 5 toques seguidos al nombre del negocio vuelven a pedir el código.
         const n = tocesLogo + 1; setTocesLogo(n);
         setTimeout(() => setTocesLogo(0), 3000);
         if (n >= 5) { try { localStorage.removeItem("totem_codigo"); } catch { /* */ } setEscrito(""); setCodigo(""); inicio(); }
       }}>
-        {info.negocio.logo_url && /* eslint-disable-next-line @next/next/no-img-element */ <img src={info.negocio.logo_url} alt="" className="h-16 w-16 rounded-xl object-cover" />}
+        {info.negocio.logo_url && (
+          // El logo del negocio va sobre un cuadro claro: muchos logos son oscuros y se perderían sobre el negro.
+          /* eslint-disable-next-line @next/next/no-img-element */
+          <img src={info.negocio.logo_url} alt={info.negocio.name} className="h-24 w-24 rounded-3xl bg-white object-contain p-2" />
+        )}
         <p className="tt-mono text-lg uppercase tracking-[0.16em] text-white/60">{info.negocio.name}</p>
       </header>
 
@@ -427,6 +431,11 @@ function Totem() {
           <button onClick={inicio} className="mt-14 rounded-xl border border-white/[0.12] bg-white/[0.04] px-10 py-5 text-2xl font-semibold">Listo</button>
         </section>
       )}
+      <footer className="mt-10 flex items-center gap-4 pt-6">
+        <span className="tt-mono text-sm uppercase tracking-[0.16em] text-white/35">Con tecnología de</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/Logo%20RE-BOOKING%20Oficial%2002.png" alt="re-booking" className="h-8 w-auto opacity-90" />
+      </footer>
     </main>
     </div>
   );
