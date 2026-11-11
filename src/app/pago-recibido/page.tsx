@@ -4,9 +4,9 @@ export default function PagoRecibido({ searchParams }: { searchParams: { status?
   const ok = searchParams.status === "success";
   const pendiente = searchParams.status === "pending";
   return (
-    <main style={{ minHeight: "100vh", background: "#0B1B1A", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
+    <main style={{ minHeight: "100vh", background: "#FAF8F5", color: "#10201F", display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center", fontFamily: "system-ui, sans-serif" }}>
       <div style={{ maxWidth: 420 }}>
-        <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke={ok ? "#7FD1CD" : pendiente ? "#E8C36A" : "#E58B8B"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+        <svg width="72" height="72" viewBox="0 0 24 24" fill="none" stroke={ok ? "#0A6E6B" : pendiente ? "#B7791F" : "#B42318"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
           <circle cx="12" cy="12" r="10" />
           {ok ? <path d="M7.5 12.5l3 3 6-7" /> : pendiente ? <path d="M12 7v5l3 2" /> : <path d="M12 7v6M12 16.5v.5" />}
         </svg>

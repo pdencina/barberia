@@ -21,31 +21,45 @@ function Opcion({ n, t, d }: { n?: string; t: string; d: string }) {
   return (
     <>
       <span className="flex items-center gap-6">
-        {n && <span className="tt-mono text-lg text-white/35">{n}</span>}
-        <span><span className="block">{t}</span><span className="mt-1 block font-[family-name:var(--font-body)] text-xl font-normal text-white/55">{d}</span></span>
+        {n && <span className="tt-mono text-lg text-[#9AA5A3]">{n}</span>}
+        <span><span className="block">{t}</span><span className="mt-1 block font-[family-name:var(--font-body)] text-xl font-normal text-[#5F6E6C]">{d}</span></span>
       </span>
-      <span aria-hidden className="text-3xl text-white/40">→</span>
+      <span aria-hidden className="text-3xl text-[#9AA5A3]">→</span>
     </>
   );
 }
 
-// Elementos gráficos y flotantes del sitio de re-booking (Oti, signos $ y círculos), en blanco con opacidad baja para dar contraste.
+// Elementos gráficos y flotantes del sitio de re-booking: tarjetas y círculos que flotan despacio, en verde con baja opacidad.
 function Fondo() {
+  const tarjeta = "absolute rounded-2xl border border-[#E3DDD2] bg-white shadow-[0_26px_46px_-28px_rgba(16,32,31,0.35)]";
   return (
     <div aria-hidden className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
       <style>{`
-        @keyframes ttFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-16px); } }
-        @keyframes ttDrift { 0%,100% { transform: translate(0,0); } 50% { transform: translate(14px,-22px); } }
-        .tt-sil { filter: brightness(0) invert(1); }
+        @keyframes ttFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-14px); } }
+        @keyframes ttDrift { 0%,100% { transform: translate(0,0); } 50% { transform: translate(14px,-20px); } }
+        @keyframes ttPulse { 0% { box-shadow: 0 0 0 0 rgba(11,148,144,0.30); } 70% { box-shadow: 0 0 0 22px rgba(11,148,144,0); } 100% { box-shadow: 0 0 0 0 rgba(11,148,144,0); } }
       `}</style>
-      <div className="absolute -left-40 -top-40 h-[640px] w-[640px] rounded-full" style={{ background: "radial-gradient(closest-side, rgba(11,148,144,0.28), transparent)" }} />
-      <img src="/landing-nuevo/assets/oti-calendario.png" alt="" className="tt-sil absolute -bottom-16 -right-32 w-[520px] opacity-[0.065]" style={{ animation: "ttFloat 8s ease-in-out infinite" }} />
-      <img src="/landing-nuevo/assets/oti-thumbsup.png" alt="" className="tt-sil absolute -left-12 top-[52%] w-[150px] opacity-[0.05]" style={{ animation: "ttFloat 7s ease-in-out 0.8s infinite" }} />
-      <span className="tt-display absolute right-[9%] top-[8%] text-[190px] font-semibold leading-none text-white opacity-[0.07]" style={{ animation: "ttFloat 9s ease-in-out infinite" }}>$</span>
-      <span className="tt-display absolute left-[14%] bottom-[12%] text-[96px] font-semibold leading-none text-white opacity-[0.06]" style={{ animation: "ttFloat 7.5s ease-in-out 1.4s infinite" }}>$</span>
-      <span className="absolute right-[22%] top-[34%] h-24 w-24 rounded-full border border-white/10" style={{ animation: "ttDrift 11s ease-in-out infinite" }} />
-      <span className="absolute left-[8%] top-[18%] h-10 w-10 rounded-full border border-white/10" style={{ animation: "ttDrift 9s ease-in-out 1s infinite" }} />
-      <span className="absolute bottom-[30%] right-[6%] h-5 w-5 rounded-full bg-white/10" style={{ animation: "ttDrift 8s ease-in-out 0.4s infinite" }} />
+      <div className="absolute -left-40 -top-40 h-[640px] w-[640px] rounded-full" style={{ background: "radial-gradient(closest-side, rgba(11,148,144,0.10), transparent)" }} />
+      <div className="absolute -bottom-48 -right-40 h-[640px] w-[640px] rounded-full" style={{ background: "radial-gradient(closest-side, rgba(11,148,144,0.08), transparent)" }} />
+      {/* tarjetas flotantes (como las del landing), sin texto */}
+      <div className={`${tarjeta} right-[-30px] top-[6%] h-28 w-60 opacity-95`} style={{ animation: "ttFloat 7s ease-in-out infinite" }}>
+        <span className="absolute left-5 top-5 flex h-9 w-9 items-center justify-center rounded-full bg-[#0A6E6B]"><svg className="h-5 w-5 text-white" fill="none" stroke="currentColor" strokeWidth="2.2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 12.5l4 4 8-9" /></svg></span>
+        <span className="absolute left-[68px] top-6 h-2.5 w-24 rounded-full bg-[#10201F]/15" /><span className="absolute left-[68px] top-11 h-2.5 w-16 rounded-full bg-[#10201F]/10" />
+        <span className="absolute bottom-4 left-5 h-2 w-40 rounded-full bg-[#0A6E6B]/20" />
+      </div>
+      <div className={`${tarjeta} bottom-[5%] left-[-20px] h-24 w-56 opacity-90`} style={{ animation: "ttFloat 8.4s ease-in-out 1s infinite" }}>
+        <span className="absolute left-5 top-5 h-9 w-9 rounded-xl bg-[#E6F2F1]" />
+        <span className="absolute left-[68px] top-6 h-2.5 w-20 rounded-full bg-[#10201F]/15" /><span className="absolute left-[68px] top-11 h-2.5 w-28 rounded-full bg-[#10201F]/10" />
+      </div>
+      <div className={`${tarjeta} right-[-10px] bottom-[6%] h-20 w-44 opacity-80`} style={{ animation: "ttFloat 9s ease-in-out 0.5s infinite" }}>
+        <span className="absolute left-4 top-4 h-2.5 w-12 rounded-full bg-[#0A6E6B]/30" />
+        <span className="absolute bottom-4 left-4 flex items-end gap-1.5"><i className="block h-4 w-2.5 rounded-sm bg-[#0A6E6B]/25" /><i className="block h-7 w-2.5 rounded-sm bg-[#0A6E6B]/35" /><i className="block h-5 w-2.5 rounded-sm bg-[#0A6E6B]/25" /><i className="block h-9 w-2.5 rounded-sm bg-[#0A6E6B]/45" /></span>
+      </div>
+      {/* círculos y puntos */}
+      <span className="absolute right-[22%] top-[34%] h-24 w-24 rounded-full border border-[#0A6E6B]/25" style={{ animation: "ttDrift 11s ease-in-out infinite" }} />
+      <span className="absolute left-[8%] top-[18%] h-10 w-10 rounded-full border border-[#0A6E6B]/30" style={{ animation: "ttDrift 9s ease-in-out 1s infinite" }} />
+      <span className="absolute bottom-[30%] right-[8%] h-3.5 w-3.5 rounded-full bg-[#0B9490]/40" style={{ animation: "ttDrift 8s ease-in-out 0.4s infinite, ttPulse 2.8s infinite" }} />
+      <span className="absolute left-[30%] top-[6%] h-2.5 w-2.5 rounded-full bg-[#0B9490]/30" style={{ animation: "ttDrift 10s ease-in-out 2s infinite" }} />
     </div>
   );
 }
@@ -193,11 +207,11 @@ function Totem() {
     setPantalla("gracias");
   };
 
-  const colorFondo = "bg-[#0B1B1A] text-white";
-  const boton = "tt-display flex w-full items-center justify-between gap-6 rounded-2xl border border-white/15 bg-white/[0.04] px-8 py-7 text-left text-3xl font-semibold transition active:scale-[0.995] active:bg-white/10";
-  const principal = "tt-display w-full rounded-2xl bg-[#0B9490] px-8 py-7 text-center text-3xl font-semibold text-white transition active:bg-[#0A6E6B] disabled:opacity-40";
+  const colorFondo = "bg-[#FAF8F5] text-[#10201F]";
+  const boton = "tt-display flex w-full items-center justify-between gap-6 rounded-2xl border border-[#E3DDD2] bg-white px-8 py-7 text-left text-3xl font-semibold transition active:scale-[0.995] active:bg-[#EFE9DF]";
+  const principal = "tt-display w-full rounded-2xl bg-[#0A6E6B] px-8 py-7 text-center text-3xl font-semibold text-white shadow-[0_12px_26px_-12px_rgba(10,110,107,0.7)] transition active:bg-[#14403E] disabled:opacity-40";
   const volver = (
-    <button onClick={inicio} className="tt-mono mb-8 self-start rounded-xl border border-white/15 px-5 py-3 text-base uppercase tracking-[0.12em] text-white/70">← Inicio</button>
+    <button onClick={inicio} className="tt-mono mb-8 self-start rounded-xl border border-[#E3DDD2] px-5 py-3 text-base uppercase tracking-[0.12em] text-[#5F6E6C]">← Inicio</button>
   );
 
   // Pantalla de configuración del equipo (primera vez o código inválido).
@@ -205,22 +219,22 @@ function Totem() {
   if (codigo === "") {
     const teclas = [...LETRAS, ...NUMEROS];
     return (
-      <div className="relative min-h-screen bg-[#0B1B1A]">
+      <div className="relative min-h-screen bg-[#FAF8F5]">
         <Fondo />
-        <main className={`relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-12 py-12 text-white`}>
+        <main className={`relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col px-12 py-12 text-[#10201F]`}>
           <h1 className="tt-display mb-3 text-5xl font-semibold">Configurar este tótem</h1>
           <p className="mb-8 text-2xl opacity-70">Escribe el código del negocio (7 letras o números). Lo encuentras en re-booking, en Configuración &gt; Tótem de autoatención. Se guarda en este equipo y no se vuelve a pedir.</p>
           <div className="mb-8 flex justify-center gap-3">
             {Array.from({ length: 7 }).map((_, i) => (
-              <div key={i} className="flex h-24 w-20 items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] text-5xl font-semibold">{escrito[i] || ""}</div>
+              <div key={i} className="flex h-24 w-20 items-center justify-center rounded-xl border border-[#E3DDD2] bg-white text-5xl font-semibold">{escrito[i] || ""}</div>
             ))}
           </div>
-          {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
+          {msg && <p className="mb-6 rounded-2xl bg-red-50 p-5 text-2xl text-red-700">{msg}</p>}
           <div className="grid grid-cols-6 gap-3">
             {teclas.map((k) => (
-              <button key={k} onClick={() => { setMsg(""); setEscrito((c) => (c.length < 7 ? c + k : c)); }} className="rounded-xl border border-white/15 bg-white/[0.04] py-7 text-4xl font-bold active:bg-white/15">{k}</button>
+              <button key={k} onClick={() => { setMsg(""); setEscrito((c) => (c.length < 7 ? c + k : c)); }} className="rounded-xl border border-[#E3DDD2] bg-white py-7 text-4xl font-bold active:bg-[#E6DFD2]">{k}</button>
             ))}
-            <button onClick={() => setEscrito((c) => c.slice(0, -1))} className="col-span-2 rounded-xl border border-white/20 bg-white/[0.07] py-7 text-3xl font-bold active:bg-white/15">Borrar</button>
+            <button onClick={() => setEscrito((c) => c.slice(0, -1))} className="col-span-2 rounded-xl border border-[#D8D0C2] bg-[#F1ECE3] py-7 text-3xl font-bold active:bg-[#E6DFD2]">Borrar</button>
           </div>
           <div className="mt-8"><button className={principal} disabled={escrito.length !== 7} onClick={() => setCodigo(escrito)}>Abrir tótem</button></div>
         </main>
@@ -233,9 +247,9 @@ function Totem() {
   const total = info.productos.reduce((s, p) => s + (carrito[p.id] || 0) * p.price, 0);
 
   return (
-    <div className="relative min-h-screen bg-[#0B1B1A]">
+    <div className="relative min-h-screen bg-[#FAF8F5]">
     <Fondo />
-    <main className={`relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col select-none px-12 py-12 ${colorFondo.replace("bg-[#0B1B1A] ", "")}`} style={{ touchAction: "manipulation" }}>
+    <main className={`relative z-10 mx-auto flex min-h-screen w-full max-w-[1080px] flex-col select-none px-12 py-12 ${colorFondo.replace("bg-[#FAF8F5] ", "")}`} style={{ touchAction: "manipulation" }}>
       <header className="mb-10 flex items-center gap-5" onClick={() => {
         // Personal del local: 5 toques seguidos al nombre del negocio vuelven a pedir el código.
         const n = tocesLogo + 1; setTocesLogo(n);
@@ -243,13 +257,13 @@ function Totem() {
         if (n >= 5) { try { localStorage.removeItem("totem_codigo"); } catch { /* */ } setEscrito(""); setCodigo(""); inicio(); }
       }}>
         {info.negocio.logo_url && /* eslint-disable-next-line @next/next/no-img-element */ <img src={info.negocio.logo_url} alt="" className="h-16 w-16 rounded-xl object-cover" />}
-        <p className="tt-mono text-lg uppercase tracking-[0.16em] text-white/70">{info.negocio.name}</p>
+        <p className="tt-mono text-lg uppercase tracking-[0.16em] text-[#5F6E6C]">{info.negocio.name}</p>
       </header>
 
       {pantalla === "inicio" && (
         <section className="flex flex-1 flex-col justify-center gap-6">
-          <p className="tt-mono mb-4 text-lg uppercase tracking-[0.16em] text-white/50">Autoatención</p>
-          <h1 className="tt-display mb-10 text-7xl font-semibold leading-[1.02] tracking-tight">Bienvenido.<br /><span className="text-4xl font-medium text-white/55">¿Cómo te podemos ayudar?</span></h1>
+          <p className="tt-mono mb-4 text-lg uppercase tracking-[0.16em] text-[#5F6E6C]">Autoatención</p>
+          <h1 className="tt-display mb-10 text-7xl font-semibold leading-[1.02] tracking-tight">Bienvenido.<br /><span className="text-4xl font-medium text-[#5F6E6C]">¿Cómo te podemos ayudar?</span></h1>
           <button className={boton} onClick={() => { setModo("llegue"); setPantalla("codigo"); }}><Opcion n="01" t="Tengo hora" d="Avisa que llegaste con tu código" /></button>
           <button className={boton} onClick={() => setPantalla("nohora")}><Opcion n="02" t="No tengo hora" d="Reserva aquí o desde tu celular" /></button>
           <button className={boton} onClick={() => { setModo("pagar"); setPantalla("codigo"); }}><Opcion n="03" t="Quiero pagar" d="Paga desde tu celular o con el equipo" /></button>
@@ -265,15 +279,15 @@ function Totem() {
           <p className="mb-8 text-2xl opacity-70">Son 5 letras o números. Lo recibiste en el correo de tu reserva.</p>
           <div className="mb-8 flex justify-center gap-4">
             {Array.from({ length: 5 }).map((_, i) => (
-              <div key={i} className="flex h-28 w-24 items-center justify-center rounded-xl border border-white/15 bg-white/[0.04] text-6xl font-semibold">{code[i] || ""}</div>
+              <div key={i} className="flex h-28 w-24 items-center justify-center rounded-xl border border-[#E3DDD2] bg-white text-6xl font-semibold">{code[i] || ""}</div>
             ))}
           </div>
-          {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
+          {msg && <p className="mb-6 rounded-2xl bg-red-50 p-5 text-2xl text-red-700">{msg}</p>}
           <div className="grid grid-cols-6 gap-3">
             {[...LETRAS, ...NUMEROS].map((k) => (
-              <button key={k} onClick={() => { setMsg(""); setCode((c) => (c.length < 5 ? c + k : c)); }} className="rounded-xl border border-white/15 bg-white/[0.04] py-7 text-4xl font-bold active:bg-white/15">{k}</button>
+              <button key={k} onClick={() => { setMsg(""); setCode((c) => (c.length < 5 ? c + k : c)); }} className="rounded-xl border border-[#E3DDD2] bg-white py-7 text-4xl font-bold active:bg-[#E6DFD2]">{k}</button>
             ))}
-            <button onClick={() => setCode((c) => c.slice(0, -1))} className="col-span-2 rounded-xl border border-white/20 bg-white/[0.07] py-7 text-3xl font-bold active:bg-white/15">Borrar</button>
+            <button onClick={() => setCode((c) => c.slice(0, -1))} className="col-span-2 rounded-xl border border-[#D8D0C2] bg-[#F1ECE3] py-7 text-3xl font-bold active:bg-[#E6DFD2]">Borrar</button>
           </div>
           <div className="mt-8">
             <button className={principal} disabled={code.length !== 5 || cargando} onClick={buscar}>{cargando ? "Buscando…" : "Continuar"}</button>
@@ -285,11 +299,11 @@ function Totem() {
         <section className="flex flex-1 flex-col">
           {volver}
           <h2 className="tt-display mb-8 text-5xl font-semibold">{citas.length > 1 ? "Encontramos estas citas" : "Esta es tu cita"}</h2>
-          {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
+          {msg && <p className="mb-6 rounded-2xl bg-red-50 p-5 text-2xl text-red-700">{msg}</p>}
           <div className="space-y-6">
             {citas.map((c) => (
-              <div key={c.id} className="rounded-2xl border border-white/15 bg-white/[0.04] p-8">
-                {c.fecha && <p className="mb-2 text-2xl font-semibold text-[#7FD1CD]">{new Date(`${c.fecha}T12:00:00`).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })} (modo pruebas)</p>}
+              <div key={c.id} className="rounded-2xl border border-[#E3DDD2] bg-white p-8">
+                {c.fecha && <p className="mb-2 text-2xl font-semibold text-[#0A6E6B]">{new Date(`${c.fecha}T12:00:00`).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" })} (modo pruebas)</p>}
                 <p className="text-6xl font-semibold">{c.hora}</p>
                 <p className="mt-3 text-3xl font-semibold">{c.servicio}</p>
                 <p className="mt-1 text-2xl opacity-70">con {c.profesional || "tu profesional"} · {c.cliente}</p>
@@ -297,10 +311,10 @@ function Totem() {
                   {modo === "pagar"
                     ? <div className="space-y-4">
                         {info.pagoQr && <button className={principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
-                        <button className={info.pagoQr ? "w-full rounded-2xl border border-white/15 bg-white/[0.04] px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{info.pagoQr ? "Prefiero pagar con el equipo" : "Quiero pagar ahora"}</button>
+                        <button className={info.pagoQr ? "w-full rounded-2xl border border-[#E3DDD2] bg-white px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{info.pagoQr ? "Prefiero pagar con el equipo" : "Quiero pagar ahora"}</button>
                       </div>
                     : c.llego
-                      ? <p className="rounded-2xl bg-[#0B9490]/20 p-5 text-center text-2xl text-[#7FD1CD]">Ya avisamos que llegaste</p>
+                      ? <p className="rounded-2xl bg-[#0B9490]/10 p-5 text-center text-2xl text-[#0A6E6B]">Ya avisamos que llegaste</p>
                       : <button className={principal} disabled={cargando} onClick={() => llegue(c)}>Ya llegué</button>}
                 </div>
                 {modo === "llegue" && <p className="mt-4 text-center text-xl opacity-60">¿Prefieres pagar ahora? Toca «Volver» y elige «Quiero pagar». También puedes pagar al terminar.</p>}
@@ -318,7 +332,7 @@ function Totem() {
           <div className="space-y-6">
             {info.reservaPantalla && <button className={boton} onClick={() => setPantalla("reservar")}><Opcion t="Reservar en esta pantalla" d="Elige servicio, profesional y hora aquí mismo" /></button>}
             {info.reserva && (
-              <div className="flex items-center gap-8 rounded-2xl border border-white/15 bg-white/[0.04] p-8">
+              <div className="flex items-center gap-8 rounded-2xl border border-[#E3DDD2] bg-white p-8">
                 <Qr valor={info.reserva} tamano={280} />
                 <div><p className="text-3xl font-bold">Reservar desde tu celular</p><p className="mt-3 text-2xl opacity-70">Abre la cámara de tu celular y apunta al código. Reservas desde ahí, sin escribir nada más aquí.</p></div>
               </div>
@@ -330,7 +344,7 @@ function Totem() {
 
       {pantalla === "reservar" && info.reservaPantalla && (
         <section className="flex flex-1 flex-col">
-          <div className="mb-4 flex gap-4"><button onClick={() => setPantalla("nohora")} className="rounded-xl border border-white/15 bg-white/[0.04] px-6 py-4 text-xl font-semibold">← Atrás</button><button onClick={inicio} className="rounded-xl border border-white/15 bg-white/[0.04] px-6 py-4 text-xl font-semibold">Ir al inicio</button></div>
+          <div className="mb-4 flex gap-4"><button onClick={() => setPantalla("nohora")} className="rounded-xl border border-[#E3DDD2] bg-white px-6 py-4 text-xl font-semibold">← Atrás</button><button onClick={inicio} className="rounded-xl border border-[#E3DDD2] bg-white px-6 py-4 text-xl font-semibold">Ir al inicio</button></div>
           <iframe src={info.reservaPantalla} title="Reservar" className="w-full flex-1 rounded-3xl bg-white" style={{ minHeight: "70vh" }} />
         </section>
       )}
@@ -339,7 +353,7 @@ function Totem() {
         <section className="flex flex-1 flex-col items-center text-center">
           <div className="self-start">{volver}</div>
           <h2 className="tt-display mb-2 text-5xl font-semibold">Paga con tu celular</h2>
-          <p className="mb-8 text-3xl font-bold text-[#7FD1CD]">{plata(pagoQr.monto)}</p>
+          <p className="mb-8 text-3xl font-bold text-[#0A6E6B]">{plata(pagoQr.monto)}</p>
           <Qr valor={pagoQr.url} tamano={460} />
           <p className="mt-8 max-w-xl text-2xl opacity-80">Abre la cámara de tu celular, apunta al código y paga con Mercado Pago. Esta pantalla se actualiza sola cuando se confirme.</p>
           {pagoQr.abono > 0 && <p className="mt-3 text-xl opacity-60">Ya descontamos tu abono de {plata(pagoQr.abono)}.</p>}
@@ -349,20 +363,20 @@ function Totem() {
 
       {pantalla === "sinhora" && (
         <section className="flex flex-1 flex-col">
-          <button onClick={() => setPantalla("nohora")} className="mb-8 self-start rounded-xl border border-white/15 bg-white/[0.04] px-6 py-4 text-xl font-semibold">← Atrás</button>
+          <button onClick={() => setPantalla("nohora")} className="mb-8 self-start rounded-xl border border-[#E3DDD2] bg-white px-6 py-4 text-xl font-semibold">← Atrás</button>
           <h2 className="tt-display mb-2 text-5xl font-semibold">Regístrate</h2>
           <p className="mb-8 text-2xl opacity-70">Te recibimos en un momento y te ofrecemos una hora.</p>
           <label className="mb-2 text-2xl font-semibold">Tu nombre</label>
-          <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className="mb-6 rounded-xl border border-white/15 bg-white/[0.04] px-6 py-6 text-3xl outline-none focus:ring-4 focus:ring-[#0B9490]" autoComplete="off" />
+          <input value={nombre} onChange={(e) => setNombre(e.target.value)} maxLength={80} className="mb-6 rounded-xl border border-[#E3DDD2] bg-white px-6 py-6 text-3xl outline-none focus:ring-4 focus:ring-[#0B9490]/40" autoComplete="off" />
           <label className="mb-2 text-2xl font-semibold">Tu celular</label>
-          <input value={celular} onChange={(e) => setCelular(e.target.value.replace(/[^\d+ ]/g, ""))} inputMode="tel" maxLength={16} placeholder="9 1234 5678" className="mb-6 rounded-xl border border-white/15 bg-white/[0.04] px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-[#0B9490]" autoComplete="off" />
+          <input value={celular} onChange={(e) => setCelular(e.target.value.replace(/[^\d+ ]/g, ""))} inputMode="tel" maxLength={16} placeholder="9 1234 5678" className="mb-6 rounded-xl border border-[#E3DDD2] bg-white px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-[#0B9490]/40" autoComplete="off" />
           <label className="mb-2 text-2xl font-semibold">Tu correo</label>
-          <input value={correo} onChange={(e) => setCorreo(e.target.value.replace(/\s/g, ""))} type="email" inputMode="email" maxLength={120} placeholder="nombre@gmail.com" className="mb-6 rounded-xl border border-white/15 bg-white/[0.04] px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-[#0B9490]" autoComplete="off" autoCapitalize="none" />
+          <input value={correo} onChange={(e) => setCorreo(e.target.value.replace(/\s/g, ""))} type="email" inputMode="email" maxLength={120} placeholder="nombre@gmail.com" className="mb-6 rounded-xl border border-[#E3DDD2] bg-white px-6 py-6 text-3xl outline-none placeholder:opacity-40 focus:ring-4 focus:ring-[#0B9490]/40" autoComplete="off" autoCapitalize="none" />
           <label className="mb-8 flex items-start gap-4 text-xl opacity-80">
             <input type="checkbox" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} className="mt-1 h-8 w-8" />
             Acepto recibir promociones del negocio (opcional).
           </label>
-          {msg && <p className="mb-6 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
+          {msg && <p className="mb-6 rounded-2xl bg-red-50 p-5 text-2xl text-red-700">{msg}</p>}
           <button className={principal} disabled={cargando || nombre.trim().length < 2 || celular.replace(/\D/g, "").length < 9 || !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(correo)} onClick={registrar}>{cargando ? "Enviando…" : "Avisar que llegué"}</button>
         </section>
       )}
@@ -374,18 +388,18 @@ function Totem() {
           <p className="mb-8 text-2xl opacity-70">Elige y avisamos para llevártelo y cobrártelo.</p>
           <div className="space-y-4 pb-6">
             {info.productos.map((p) => (
-              <div key={p.id} className="flex items-center justify-between gap-4 rounded-2xl border border-white/15 bg-white/[0.04] p-6">
+              <div key={p.id} className="flex items-center justify-between gap-4 rounded-2xl border border-[#E3DDD2] bg-white p-6">
                 <div className="min-w-0"><p className="truncate text-3xl font-bold">{p.name}</p><p className="text-2xl opacity-70">{plata(p.price)}</p></div>
                 <div className="flex items-center gap-4">
-                  <button className="h-16 w-16 rounded-xl border border-white/20 bg-white/[0.07] text-4xl font-bold active:bg-white/15" onClick={() => setCarrito((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))}>−</button>
+                  <button className="h-16 w-16 rounded-xl border border-[#D8D0C2] bg-[#F1ECE3] text-4xl font-bold active:bg-[#E6DFD2]" onClick={() => setCarrito((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))}>−</button>
                   <span className="w-10 text-center text-4xl font-semibold">{carrito[p.id] || 0}</span>
-                  <button className="h-16 w-16 rounded-xl border border-white/20 bg-white/[0.07] text-4xl font-bold active:bg-white/15" onClick={() => setCarrito((c) => ({ ...c, [p.id]: Math.min(10, (c[p.id] || 0) + 1) }))}>+</button>
+                  <button className="h-16 w-16 rounded-xl border border-[#D8D0C2] bg-[#F1ECE3] text-4xl font-bold active:bg-[#E6DFD2]" onClick={() => setCarrito((c) => ({ ...c, [p.id]: Math.min(10, (c[p.id] || 0) + 1) }))}>+</button>
                 </div>
               </div>
             ))}
           </div>
-          {msg && <p className="mb-4 rounded-2xl bg-red-500/20 p-5 text-2xl text-red-200">{msg}</p>}
-          <div className="sticky bottom-0 mt-auto bg-[#0B1B1A] pt-4">
+          {msg && <p className="mb-4 rounded-2xl bg-red-50 p-5 text-2xl text-red-700">{msg}</p>}
+          <div className="sticky bottom-0 mt-auto bg-[#FAF8F5] pt-4">
             <button className={principal} disabled={total === 0 || cargando} onClick={pedirProductos}>{total > 0 ? `Pedir · ${plata(total)}` : "Elige un producto"}</button>
           </div>
         </section>
@@ -397,7 +411,7 @@ function Totem() {
           <h2 className="tt-display mb-8 text-5xl font-semibold">Cursos, promociones y planes</h2>
           <div className="space-y-5">
             {info.info.map((s, i) => (
-              <div key={i} className="rounded-2xl border border-white/15 bg-white/[0.04] p-8">
+              <div key={i} className="rounded-2xl border border-[#E3DDD2] bg-white p-8">
                 <p className="text-3xl font-bold">{s.title}</p>
                 <p className="mt-3 whitespace-pre-line text-2xl leading-relaxed opacity-80">{s.body}</p>
               </div>
@@ -408,9 +422,9 @@ function Totem() {
 
       {pantalla === "gracias" && (
         <section className="flex flex-1 flex-col items-center justify-center text-center">
-          <svg className="mb-10 h-24 w-24 text-[#7FD1CD]" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12.5l3 3 6-7" /></svg>
+          <svg className="mb-10 h-24 w-24 text-[#0A6E6B]" fill="none" stroke="currentColor" strokeWidth="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><path strokeLinecap="round" strokeLinejoin="round" d="M7.5 12.5l3 3 6-7" /></svg>
           <p className="text-5xl font-semibold leading-snug">{gracias}</p>
-          <button onClick={inicio} className="mt-14 rounded-xl border border-white/15 bg-white/[0.04] px-10 py-5 text-2xl font-semibold">Listo</button>
+          <button onClick={inicio} className="mt-14 rounded-xl border border-[#E3DDD2] bg-white px-10 py-5 text-2xl font-semibold">Listo</button>
         </section>
       )}
     </main>
