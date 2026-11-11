@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { useAuth } from "@/lib/auth-context";
 import { cacheKey, readCache, writeCache } from "@/lib/swr-cache";
 import { useTenant } from "@/lib/tenant-context";
+import { useTotemActivo } from "@/lib/use-totem-activo";
 import { Spinner } from "@/components/ui/spinner";
 import { EmptyIcons } from "@/components/ui/empty-state";
 import { parseCsvText, rowsToClients } from "@/lib/client-import";
@@ -55,6 +56,7 @@ export default function ClientesPage() {
   const debounceRef = useRef<NodeJS.Timeout>();
   const { showToast } = useToast();
   const { tenant, loading: tenantLoading } = useTenant();
+  const totemActivo = useTotemActivo(); // el código del tótem solo se muestra a los negocios que lo contrataron
   const { user, role, effectiveRole } = useAuth();
   // Use effectiveRole (server-provided, reliable on Vercel) for security-sensitive gating.
   const gateRole = effectiveRole || role;
@@ -413,7 +415,7 @@ export default function ClientesPage() {
               <Titulo o="nombre" className="text-left">Nombre</Titulo>
               <th className="text-left p-4 font-medium text-gray-600">Email</th>
               <th className="text-left p-4 font-medium text-gray-600">Telefono</th>
-              <th className="text-left p-4 font-medium text-gray-600" title="Código fijo del cliente para el tótem">Código</th>
+              {totemActivo && <th className="text-left p-4 font-medium text-gray-600" title="Código fijo del cliente para el tótem">Código</th>}
               {conStats && <Titulo o="visitas" className="text-right">Veces que vino</Titulo>}
               {conStats && <Titulo o="ticket" className="text-right">Ticket promedio</Titulo>}
               {conStats && <Titulo o="asistencia" className="text-right">Asistencia</Titulo>}
@@ -422,7 +424,7 @@ export default function ClientesPage() {
           </thead>
           <tbody className="divide-y">
             {loading ? (
-              <tr><td colSpan={conStats ? 9 : 5}><Spinner /></td></tr>
+              <tr><td colSpan={(conStats ? 8 : 4) + (totemActivo ? 1 : 0)}><Spinner /></td></tr>
             ) : clients.length === 0 ? (
               <tr><td colSpan={conStats ? 8 : 4} className="p-4 text-center text-gray-500">No hay clientes</td></tr>
             ) : clients.map((c) => (
@@ -440,7 +442,7 @@ export default function ClientesPage() {
                 </td>
                 <td className="p-4">{c.email || "-"}</td>
                 <td className="p-4">{c.phone || "-"}</td>
-                <td className="p-4 font-mono tracking-widest text-brand-dark">{c.checkin_code || "-"}</td>
+                {totemActivo && <td className="p-4 font-mono tracking-widest text-brand-dark">{c.checkin_code || "-"}</td>}
                 {conStats && (<>
                 <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats ? c.stats.visitas : "-"}</td>
                 <td className="p-4 text-right tabular-nums text-brand-dark">{c.stats?.ticket != null ? formatCurrency(c.stats.ticket) : "-"}</td>
