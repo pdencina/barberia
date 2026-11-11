@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTenant } from "@/lib/tenant-context";
+import { useTotemActivo } from "@/lib/use-totem-activo";
 import { planPermite } from "@/lib/plan-access";
 import { useParams, useRouter } from "next/navigation";
 import { Spinner } from "@/components/ui/spinner";
@@ -86,6 +87,7 @@ export default function ClienteDetailPage() {
   const params = useParams();
   const router = useRouter();
   const { tenant } = useTenant();
+  const totemActivo = useTotemActivo(); // el código del tótem solo se muestra a los negocios que lo contrataron
   const [data, setData] = useState<ClientData | null>(null);
   const [loading, setLoading] = useState(true);
   const [notes, setNotes] = useState<Array<{ id: string; note: string; pinned: boolean; created_at: string; created_by_profile: { name: string } | null }>>([]);
@@ -311,10 +313,11 @@ export default function ClienteDetailPage() {
                   <Phone className="h-3.5 w-3.5 text-brand-gray" strokeWidth={1.75} />
                   {client.phone || <span className="text-brand-gray">Sin teléfono</span>}
                 </span>
-                {client.checkin_code && (
-                  <span className="inline-flex items-center gap-1.5" title="Código fijo del cliente para el tótem del local">
-                    <span className="text-xs text-brand-gray">Código tótem</span>
-                    <span className="font-mono font-bold tracking-widest">{client.checkin_code}</span>
+                {totemActivo && client.checkin_code && (
+                  <span className="inline-flex items-center gap-2 rounded-lg border border-dashed border-brand-blue/50 px-2.5 py-1" title="Es el código que el cliente escribe en el tótem para «Tengo hora» y «Quiero pagar». No cambia nunca.">
+                    <span className="text-xs text-brand-gray">Código del tótem</span>
+                    <span className="font-mono text-base font-bold tracking-[0.25em]">{client.checkin_code}</span>
+                    <button type="button" onClick={() => { try { navigator.clipboard.writeText(client.checkin_code || ""); } catch { /* sin portapapeles */ } }} className="text-[11px] font-semibold text-brand-blue">Copiar</button>
                   </span>
                 )}
                 <span className="inline-flex min-w-0 items-center gap-1.5">
