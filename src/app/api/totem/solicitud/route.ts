@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe, avisoReciente, registrarAviso } from "@/lib/totem";
 import { notify } from "@/lib/notify";
 
 // POST {codigo, tipo: "pago"|"producto", code?, productos?: [{id, cantidad}]}: el cliente pide pagar o llevarse un producto.
@@ -20,7 +20,12 @@ export async function POST(req: NextRequest) {
     if (a) { quien = primerNombre((a as any).client?.name) || quien; barberId = (a as any).barber_id || null; }
   }
 
+  const quienClave = code.length === 5 ? code : ipDe(req);
   if (body.tipo === "pago") {
+    // Si el mismo cliente ya pidió pagar hace menos de 3 minutos, no se vuelve a avisar al equipo.
+    const clave = `pago:${quienClave}`;
+    if (await avisoReciente(supabase, t.id, clave, 3)) return NextResponse.json({ ok: true, repetido: true });
+    await registrarAviso(supabase, t.id, clave);
     await notify({ tenantId: t.id, kind: "client_arrived", roles: ["admin", "receptionist"], userIds: barberId ? [barberId] : [], title: "Cliente quiere pagar", body: `${quien} pidió pagar desde el tótem.`, url: "/dashboard/pos", professionalId: barberId }).catch(() => {});
     return NextResponse.json({ ok: true });
   }
@@ -32,6 +37,10 @@ export async function POST(req: NextRequest) {
     const lineas = pedidos.filter((p) => mapa.has(p.id)).map((p) => `${p.cantidad} x ${(mapa.get(p.id) as any).name}`);
     if (lineas.length === 0) return NextResponse.json({ error: "Producto no disponible" }, { status: 400 });
     const total = pedidos.reduce((s, p) => s + (mapa.has(p.id) ? Number((mapa.get(p.id) as any).price) * p.cantidad : 0), 0);
+    // Mismo pedido repetido en menos de 2 minutos: un solo aviso.
+    const claveProd = `prod:${quienClave}:${lineas.join("|")}`.slice(0, 200);
+    if (await avisoReciente(supabase, t.id, claveProd, 2)) return NextResponse.json({ ok: true, total, repetido: true });
+    await registrarAviso(supabase, t.id, claveProd);
     await notify({ tenantId: t.id, kind: "client_arrived", roles: ["admin", "receptionist"], title: "Producto pedido en el tótem", body: `${quien} quiere: ${lineas.join(", ")} ($${total.toLocaleString("es-CL")}). Cóbraselo en el POS.`, url: "/dashboard/pos" }).catch(() => {});
     return NextResponse.json({ ok: true, total });
   }

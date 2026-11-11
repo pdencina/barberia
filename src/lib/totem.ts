@@ -88,3 +88,19 @@ export function limpiarSecciones(raw: unknown): SeccionInfo[] {
     .filter((x) => x.title && x.body)
     .slice(0, 8);
 }
+
+// Evita avisos repetidos al equipo: si el cliente aprieta lo mismo varias veces, se avisa UNA vez. Se apoya en audit_log (queda
+// guardado, así que sirve aunque cada llamada la atienda otra instancia del servidor). Si audit_log falla, se avisa igual (mejor repetir que callar).
+export async function avisoReciente(supabase: any, tenantId: string, clave: string, minutos: number): Promise<boolean> {
+  try {
+    const desde = new Date(Date.now() - minutos * 60_000).toISOString();
+    const { data, error } = await supabase.from("audit_log").select("id").eq("action", "kiosk_aviso").eq("entity_id", tenantId).eq("metadata->>clave", clave).gte("created_at", desde).limit(1).maybeSingle();
+    return !error && !!data;
+  } catch { return false; }
+}
+
+export async function registrarAviso(supabase: any, tenantId: string, clave: string): Promise<void> {
+  try {
+    await supabase.from("audit_log").insert({ action: "kiosk_aviso", entity_type: "tenant", entity_id: tenantId, description: "Aviso del tótem al equipo", metadata: { clave } });
+  } catch { /* sin auditoría no se frena el aviso */ }
+}
