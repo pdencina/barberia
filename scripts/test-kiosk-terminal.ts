@@ -135,6 +135,25 @@ const estado = async (id: string) => (await (await pagoEstado(new NextRequest(`h
     ok(fk.device === "PAX__PERSONAL", "el cobro queda asociado a la máquina personal (PAX__PERSONAL)");
     mpOrden = { status: "processed", transactions: { payments: [{ status: "approved" }] } };
     ok((await estado(kp7)) === "paid", "aprobado en la máquina del profesional: queda pagado");
+
+    // ---------- máquina «de la casa» del servidor (MP_DEVICE_ID / MP_ACCESS_TOKEN): solo para el negocio que ya la usa (Levels)
+    await sb.from("kiosk_payments").delete().eq("appointment_id", ap.id);
+    await sb.from("profiles").update({ work_mode: "commission", mp_access_token: null, mp_device_id: null }).eq("id", barber.id);
+    process.env.MP_DEVICE_ID = "NEWLAND_TEST__CASA"; process.env.MP_ACCESS_TOKEN = "TOKEN-DE-LA-CASA";
+    r = await post(pagoTerminal, base); ok(r.status === 400, "máquina de la casa configurada pero este negocio NUNCA la usó: no se usa (no cobra en máquina ajena)");
+    const { data: uso } = await sb.from("mp_payment_intents").insert({ barber_id: barber.id, amount: 1000, status: "approved", mp_payment_id: "TEST-USO", device_id: "NEWLAND_TEST__CASA" }).select("id").single();
+    try {
+      llamadas.length = 0;
+      r = await post(pagoTerminal, base); d = await r.json(); const kp8 = d.id;
+      ok(r.status === 200 && d.proveedor === "mercadopago", "negocio que ya usaba la máquina de la casa (como Levels): cobra en ella");
+      const f8 = (await sb.from("kiosk_payments").select("device").eq("id", kp8).single()).data;
+      ok(f8.device === "NEWLAND_TEST__CASA", "el cobro queda asociado a la máquina de la casa");
+      mpOrden = { status: "processed", transactions: { payments: [{ status: "approved" }] } };
+      ok((await estado(kp8)) === "paid", "aprobado en la máquina de la casa: queda pagado");
+    } finally {
+      await sb.from("mp_payment_intents").delete().eq("id", uso.id);
+      delete process.env.MP_DEVICE_ID; delete process.env.MP_ACCESS_TOKEN;
+    }
   } finally {
     await sb.from("profiles").update(perfilAntes).eq("id", barber.id);
     await sb.from("kiosk_payments").delete().eq("appointment_id", ap.id);
