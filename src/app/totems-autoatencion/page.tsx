@@ -7,10 +7,10 @@ import { Qr } from "@/components/totem/qr";
 // Totem de autoatencion (pantalla vertical tactil en el local). Pensado para 1080x1920 (o 1920x1080 girada).
 // Sin sesion: todo pasa por /api/totem/* con el codigo corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 
-type Pantalla = "inicio" | "codigo" | "cita" | "pagoqr" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
+type Pantalla = "inicio" | "codigo" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
 interface Cita { id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
-interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; pagoQr?: boolean; info: { title: string; body: string }[] }
+interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -80,19 +80,20 @@ function Totem() {
   const [carrito, setCarrito] = useState<Record<string, number>>({});
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
   const [pagoQr, setPagoQr] = useState<{ id: string; url: string; monto: number; abono: number } | null>(null);
+  const [pagoTerm, setPagoTerm] = useState<{ id: string; monto: number; abono: number } | null>(null);
   const ultimo = useRef(Date.now());
   const pantallaRef = useRef<Pantalla>("inicio");
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null);
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null);
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
   useEffect(() => {
     const tocar = () => { ultimo.current = Date.now(); };
     window.addEventListener("pointerdown", tocar);
-    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : pantallaRef.current === "pagoqr" ? 180_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
+    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : (pantallaRef.current === "pagoqr" || pantallaRef.current === "pagoterm") ? 240_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
     return () => { window.removeEventListener("pointerdown", tocar); clearInterval(t); };
   }, [inicio]);
 
@@ -169,6 +170,36 @@ function Totem() {
     setPagoQr({ id: d.id, url: d.url, monto: d.monto, abono: d.abono });
     setPantalla("pagoqr");
   };
+
+  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito") => {
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, code, tarjeta });
+    setCargando(false);
+    if (!ok) { setMsg(d.error || "No pudimos enviar el cobro a la máquina"); return; }
+    setPagoTerm({ id: d.id, monto: d.monto, abono: d.abono });
+    setPantalla("pagoterm");
+  };
+
+  const cancelarPagoTerminal = async () => {
+    if (pagoTerm) { try { await post("pago-cancelar", { id: pagoTerm.id }); } catch { /* se sigue igual */ } }
+    setPagoTerm(null); setMsg(""); setPantalla("cita");
+  };
+
+  // Mientras la máquina espera la tarjeta, se pregunta cada 3 s cómo va el cobro.
+  useEffect(() => {
+    if (pantalla !== "pagoterm" || !pagoTerm || !codigo) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoTerm.id}`);
+        const d = await r.json();
+        if (d.estado === "paid") { setGracias("¡Pago recibido! Gracias. Ya avisamos a tu profesional."); setPantalla("gracias"); }
+        else if (d.estado === "failed") { setPagoTerm(null); setMsg("La máquina no aprobó el pago. Puedes intentar de nuevo o pagar con el equipo."); setPantalla("cita"); }
+        else if (d.estado === "cancelled") { setPagoTerm(null); setMsg("El cobro se canceló."); setPantalla("cita"); }
+        else if (d.estado === "expired") { setPagoTerm(null); setGracias("Se agotó el tiempo de espera. Si la máquina alcanzó a cobrarte, avisa a quien te atiende: lo verificaremos."); setPantalla("gracias"); }
+      } catch { /* se reintenta */ }
+    }, 3000);
+    return () => clearInterval(t);
+  }, [pantalla, pagoTerm, codigo]);
 
   // Mientras se muestra el QR, se pregunta cada 3 s si ya se pagó.
   useEffect(() => {
@@ -301,8 +332,14 @@ function Totem() {
                 <div className="mt-6">
                   {modo === "pagar"
                     ? <div className="space-y-4">
-                        {info.pagoQr && <button className={principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
-                        <button className={info.pagoQr ? "w-full rounded-2xl border border-white/[0.12] bg-white/[0.04] px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{info.pagoQr ? "Prefiero pagar con el equipo" : "Quiero pagar ahora"}</button>
+                        {info.pagoTerminal && (info.tarjetaElige ? (
+                          <div className="grid grid-cols-2 gap-4">
+                            <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "debito")}>{cargando ? "Enviando…" : "Pagar con débito"}</button>
+                            <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "credito")}>{cargando ? "Enviando…" : "Pagar con crédito"}</button>
+                          </div>
+                        ) : <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "debito")}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
+                        {info.pagoQr && <button className={info.pagoTerminal ? "w-full rounded-2xl border border-white/[0.12] bg-white/[0.04] px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
+                        <button className={(info.pagoQr || info.pagoTerminal) ? "w-full rounded-2xl border border-white/[0.12] bg-white/[0.04] px-8 py-6 text-center text-2xl font-bold" : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar con el equipo" : "Quiero pagar ahora"}</button>
                       </div>
                     : c.llego
                       ? <p className="rounded-2xl bg-white/10 p-5 text-center text-2xl text-white">Ya avisamos que llegaste</p>
@@ -336,6 +373,18 @@ function Totem() {
         <section className="flex flex-1 flex-col">
           <div className="mb-4 flex gap-4"><button onClick={() => setPantalla("nohora")} className="rounded-xl border border-white/[0.12] bg-white/[0.04] px-6 py-4 text-xl font-semibold">← Atrás</button><button onClick={inicio} className="rounded-xl border border-white/[0.12] bg-white/[0.04] px-6 py-4 text-xl font-semibold">Ir al inicio</button></div>
           <iframe src={info.reservaPantalla} title="Reservar" className="w-full flex-1 rounded-3xl bg-white" style={{ minHeight: "70vh" }} />
+        </section>
+      )}
+
+      {pantalla === "pagoterm" && pagoTerm && (
+        <section className="flex flex-1 flex-col items-center justify-center text-center">
+          <p className="tt-mono mb-4 text-lg uppercase tracking-[0.16em] text-white/50">Pago con tarjeta</p>
+          <p className="tt-display mb-6 text-8xl font-semibold">{plata(pagoTerm.monto)}</p>
+          <h2 className="tt-display mb-4 text-5xl font-semibold">Pasa o acerca tu tarjeta a la máquina</h2>
+          <p className="max-w-xl text-2xl text-white/60">Sigue las instrucciones de la máquina. Esta pantalla se actualiza sola cuando se confirme el pago.</p>
+          {pagoTerm.abono > 0 && <p className="mt-3 text-xl opacity-60">Ya descontamos tu abono de {plata(pagoTerm.abono)}.</p>}
+          <div className="mt-10 h-3 w-3 rounded-full bg-white/60" style={{ animation: "ttPulse 2.2s infinite" }} />
+          <button onClick={cancelarPagoTerminal} className="tt-mono mt-14 rounded-xl border border-white/15 px-6 py-3 text-base uppercase tracking-[0.12em] text-white/70">Cancelar</button>
         </section>
       )}
 

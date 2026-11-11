@@ -20,18 +20,20 @@ export default function ConfiguracionTotemPage() {
   const [desbloqueado, setDesbloqueado] = useState(true);
   const [pagoQr, setPagoQr] = useState(false);
   const [mpListo, setMpListo] = useState(false);
+  const [pagoTerminal, setPagoTerminal] = useState(false);
+  const [terminalListo, setTerminalListo] = useState(false);
   const tq = tenant?.id ? `?tenantId=${tenant.id}` : "";
 
   useEffect(() => {
     fetch(`/api/settings/totem${tq}`).then((r) => r.json()).then((d) => {
       if (d.error) return;
-      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo);
+      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [tq]);
 
   const guardar = async () => {
     setSaving(true);
-    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr }) });
+    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal }) });
     const d = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) return showToast(d.error || "No se pudo guardar", "error");
@@ -59,6 +61,15 @@ export default function ConfiguracionTotemPage() {
           <label className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
             <span><span className="block font-bold text-brand-dark">Activar el tótem</span><span className="text-xs text-brand-gray">Apagado: la dirección del tótem no abre.</span></span>
             <input type="checkbox" className="h-5 w-5" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
+          </label>
+
+          <label className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
+            <span>
+              <span className="block font-bold text-brand-dark">Cobro con tarjeta en la máquina</span>
+              <span className="text-xs text-brand-gray">Al tocar «Quiero pagar», el tótem manda el monto de la cita a la máquina de tarjetas del local (Mercado Pago Point o TUU) y el cliente paga ahí. Al aprobarse avisamos al profesional y a administración; la venta la registras tú en el POS.</span>
+              {!terminalListo && <span className="mt-1 block text-xs font-semibold text-amber-600">Primero conecta tu máquina en Configuración (Mercado Pago o TUU): hoy no hay una máquina lista.</span>}
+            </span>
+            <input type="checkbox" className="mt-1 h-5 w-5 flex-shrink-0" checked={pagoTerminal} onChange={(e) => setPagoTerminal(e.target.checked)} />
           </label>
 
           <label className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
