@@ -5,11 +5,13 @@ let fails = 0;
 const t = async (n: string, f: () => void | Promise<void>) => { try { await f(); console.log("OK  " + n); } catch (e: any) { fails++; console.log("MAL " + n + ": " + e.message); } };
 
 (async () => {
-  await t("un servicio público necesita al menos 5 minutos; uno interno puede durar 0", () => {
+  await t("un servicio puede durar 0 minutos (público o interno); no negativo ni con decimales", () => {
     assert.equal(errorDuracion(0, true), null);
     assert.equal(errorDuracion(15, true), null);
-    assert.ok(errorDuracion(0, false)?.includes("al menos 5"));
-    assert.ok(errorDuracion(4, false)?.includes("interno"));
+    assert.equal(errorDuracion(0, false), null);
+    assert.ok(errorDuracion(-5, false));
+    assert.ok(errorDuracion(12.5, false));
+    assert.equal(errorDuracion(4, false), null); // ya no hay minimo para los publicos
     assert.equal(errorDuracion(5, false), null);
     assert.equal(errorDuracion(45, false), null);
   });
