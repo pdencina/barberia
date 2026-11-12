@@ -15,12 +15,15 @@ interface WalletMovement {
   amount: number;
   paymentMethod: string;
   paymentMethodLabel: string;
+  tip?: number;
+  payments?: { label: string; amount: number }[];
+  items?: { name: string; quantity: number; total: number }[];
 }
 
 interface WalletData {
   barber: { name: string; mode: string; commissionRate: number; rentalRate: number };
-  month: { earned: number; totalSales: number; projected: number; projectedFromAppts: number; txCount: number; upcomingAppts: number };
-  today: { earnings: number; sales: number };
+  month: { earned: number; totalSales: number; projected: number; projectedFromAppts: number; txCount: number; upcomingAppts: number; tips?: number };
+  today: { earnings: number; sales: number; tips?: number };
   dailyEarnings: Array<{ day: string; amount: number }>;
   movements: WalletMovement[];
   movementsRange: { from: string; to: string };
@@ -115,6 +118,19 @@ export default function MiBilleteraPage() {
         <p className="text-xs opacity-60 mt-2">
           Proyeccion mes: {formatCurrency(data.month.projected)}
         </p>
+      </div>
+
+      {/* Propinas: van 100% al profesional */}
+      <div className="flex items-center justify-between gap-3 rounded-2xl border border-gray-100 bg-white p-4">
+        <div>
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-gray">Propinas de {monthName}</p>
+          <p className="text-2xl font-bold text-brand-dark">{formatCurrency(data.month.tips || 0)}</p>
+          <p className="text-[11px] text-brand-gray">Van 100% para ti. No están incluidas en lo ganado por comisión.</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[11px] text-brand-gray">Hoy</p>
+          <p className="text-base font-bold text-brand-accent">{formatCurrency(data.today.tips || 0)}</p>
+        </div>
       </div>
 
       {/* Quick stats */}
@@ -240,12 +256,19 @@ export default function MiBilleteraPage() {
                 timeZone: "America/Santiago",
               }).format(new Date(m.createdAt));
               return (
-                <div key={m.id} className="flex items-center justify-between gap-3 py-2.5 px-1">
-                  <div className="min-w-0">
-                    <p className="text-sm font-medium text-brand-dark truncate">{m.clientName}</p>
-                    <p className="text-xs text-brand-gray truncate">{m.service} · {when} · {m.paymentMethodLabel}</p>
+                <div key={m.id} className="py-3 px-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <p className="min-w-0 text-sm font-semibold text-brand-dark break-words">{m.clientName}</p>
+                    <span className="flex-shrink-0 text-sm font-bold text-brand-dark">{formatCurrency(m.amount)}</span>
                   </div>
-                  <span className="text-sm font-bold text-brand-dark flex-shrink-0">{formatCurrency(m.amount)}</span>
+                  <p className="mt-0.5 text-xs text-brand-gray break-words">{(m.items && m.items.length > 0) ? m.items.map((i) => `${i.quantity > 1 ? `${i.quantity}× ` : ""}${i.name}`).join(" + ") : m.service}</p>
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-[11px]">
+                    <span className="text-brand-gray">{when}</span>
+                    {m.payments && m.payments.length > 0
+                      ? m.payments.map((p, k) => <span key={k} className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-brand-dark">{p.label} {formatCurrency(p.amount)}</span>)
+                      : <span className="rounded-full bg-gray-100 px-2 py-0.5 font-medium text-brand-dark">{m.paymentMethodLabel}</span>}
+                    {(m.tip || 0) > 0 && <span className="rounded-full bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-700">Propina {formatCurrency(m.tip || 0)}</span>}
+                  </div>
                 </div>
               );
             })}
