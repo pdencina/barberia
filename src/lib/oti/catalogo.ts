@@ -12,7 +12,7 @@ export interface EntradaOti {
   ruta?: string; // pantalla que Oti puede abrir
 }
 
-export const CATALOGO: EntradaOti[] = [
+export const PANTALLAS: EntradaOti[] = [
   {
     id: "dashboard",
     titulo: "Dashboard",
@@ -428,3 +428,7 @@ export const CATALOGO: EntradaOti[] = [
     ruta: "/dashboard/calendario",
   },
 ];
+
+import { TAREAS } from "./tareas";
+// Pantallas del menu + guias de tareas («como hago X»).
+export const CATALOGO: EntradaOti[] = [...PANTALLAS, ...TAREAS];
