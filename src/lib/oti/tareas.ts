@@ -1,0 +1,162 @@
+// Guias de tareas de Oti: "como hago X". Cada una describe algo que EXISTE en el sistema (verificado contra las pantallas); Oti no inventa.
+// Se suman al catalogo de pantallas (catalogo.ts) y se buscan igual (buscar.ts). Para agregar una: id unico, claves con frases reales de la gente, pasos cortos.
+import type { EntradaOti } from "./catalogo";
+
+export const TAREAS: EntradaOti[] = [
+  {
+    id: "t-agendar-cita", titulo: "Agendar una cita", para: "Recepcion y administrador",
+    claves: ["agendar una cita", "agendar un cliente", "crear una cita", "reservar una hora para un cliente", "ponerle hora a un cliente", "anotar a un cliente", "dar una hora", "tomar una hora", "cliente llamo para una hora", "cliente por whatsapp quiere hora"],
+    resumen: "Se agenda desde el Calendario, en la columna del profesional.",
+    pasos: ["Abre el Calendario.", "Haz clic en un horario libre de la columna del profesional.", "En «Agendar / Bloquear» busca al cliente (o crea uno nuevo ahi mismo), elige el servicio y confirma.", "Avisa al cliente: puedes mandarle un WhatsApp desde la cita."],
+    ruta: "/dashboard/calendario",
+  },
+  {
+    id: "t-cancelar-mover-cita", titulo: "Cancelar o mover una cita", para: "Recepcion y administrador",
+    claves: ["cancelar una cita", "anular una cita", "mover una cita", "cambiar la hora de una cita", "reagendar", "reagendar una cita", "cambiar de dia una cita", "cliente no puede venir", "pasar una cita a otro dia", "cambiar de profesional una cita"],
+    resumen: "En el Calendario haces clic sobre la cita: ahi puedes cambiar hora, dia o profesional, o cancelarla. Si la cita tenia un abono pagado, el abono queda reconocido para la nueva hora.",
+    pasos: ["Abre el Calendario y haz clic en la cita.", "Para moverla cambia la fecha, hora o profesional y guarda; para anularla elige cancelar.", "Si el cliente reservo online, tambien puede cambiarla el mismo desde el link de su correo (dentro del plazo que tu defines)."],
+    ruta: "/dashboard/calendario",
+  },
+  {
+    id: "t-cliente-no-llego", titulo: "Cliente que no llego (no asistio)", para: "Recepcion y administrador",
+    claves: ["cliente no llego", "no vino", "no asistio", "no se presento", "marcar no asistio", "plantón", "planton", "falto a su cita", "cliente falto"],
+    resumen: "Abre la cita en el Calendario y marcala como «No asistio»: queda en las estadisticas del Dashboard y en la ficha del cliente.",
+    ruta: "/dashboard/calendario",
+  },
+  {
+    id: "t-cobrar-cita", titulo: "Cobrar una cita", para: "Recepcion, profesionales y administrador",
+    claves: ["cobrar una cita", "cobrar al cliente", "terminar la atencion", "cierro la atencion", "completar una cita", "pasar a cobro", "cliente va a pagar", "pagar la cita", "cobrar el servicio"],
+    resumen: "Al terminar la atencion, la cita se cobra en el Punto de Venta. Si el cliente pago un abono al reservar, se descuenta solo del total a cobrar.",
+    pasos: ["Abre el Punto de Venta (o Standby si eres profesional).", "Elige la cita o el cliente: se cargan los servicios.", "Elige el metodo de pago (efectivo, debito, credito, transferencia) o pago dividido.", "Cobra. La venta queda registrada apenas se paga; la propina es opcional y se anota despues."],
+    ruta: "/dashboard/pos",
+  },
+  {
+    id: "t-pago-dividido", titulo: "Pago dividido (mitad efectivo, mitad tarjeta)", para: "Recepcion y administrador",
+    claves: ["pago dividido", "pagar mitad y mitad", "mitad efectivo mitad tarjeta", "dos metodos de pago", "pagar con dos medios", "pagar una parte en efectivo", "pago mixto", "dividir el pago"],
+    resumen: "En el Punto de Venta activa «Pago dividido» y escribe cuanto se paga con cada metodo; la suma debe ser el total.",
+    ruta: "/dashboard/pos",
+  },
+  {
+    id: "t-propina", titulo: "Propina", para: "Recepcion, profesionales y administrador",
+    claves: ["propina", "registrar propina", "cliente dejo propina", "se me olvido la propina", "propina en tarjeta", "propina en efectivo", "a quien va la propina", "agregar propina"],
+    resumen: "Despues de cobrar aparece un aviso opcional en la esquina para anotar la propina. No se cobra de nuevo: solo se registra, y va 100% al profesional que atendio. La venta ya esta registrada aunque no la anotes.",
+    ruta: "/dashboard/pos",
+  },
+  {
+    id: "t-abono-cita", titulo: "Abono: cliente que ya pago una parte", para: "Recepcion y administrador",
+    claves: ["abono ya pagado", "cliente ya abono", "descontar el abono", "el abono no aparece", "cambio la hora y el abono", "abono de otra cita", "abono en otra fecha", "abono perdido", "se pago una parte antes", "pago adelantado", "senal", "reserva pagada"],
+    resumen: "Un abono es parte del pago que el cliente hizo al reservar. Se cuenta como ingreso del mes en que se pagó (no como descuento) y al cobrar la cita se descuenta del total, una sola vez. Si el cliente cambia la hora o la cita, el abono sigue siendo suyo y se aplica a la nueva atencion.",
+    pasos: ["Revisa «Abonos» para ver lo que pagó y su estado.", "Al cobrar en el Punto de Venta, el abono se descuenta solo; el cliente paga la diferencia.", "Si tiene que devolverlo, en «Abonos» elige «Devolver»."],
+    ruta: "/dashboard/abonos",
+  },
+  {
+    id: "t-devolver-venta", titulo: "Anular o corregir una venta", para: "Administrador",
+    claves: ["anular una venta", "me equivoque en una venta", "corregir una venta", "borrar una venta", "venta mal cobrada", "devolver el dinero", "reembolso", "cobre de mas", "cobre mal", "editar una venta", "cambiar el metodo de pago de una venta"],
+    resumen: "Las ventas se revisan y corrigen en «Ingresos/Egresos». Las correcciones quedan registradas en la auditoria. Si no encuentras como corregir algo puntual, avisa a soporte con el detalle y lo vemos.",
+    ruta: "/dashboard/finanzas",
+  },
+  {
+    id: "t-cambiar-tiempo-servicio", titulo: "Cambiar cuanto dura un servicio", para: "Administrador",
+    claves: ["cambiar el tiempo de un servicio", "cuanto dura un servicio", "duracion de un servicio", "reducir el tiempo", "servicio dura menos", "cambiar minutos de un servicio", "tiempo de un corte", "que un servicio dure 0 minutos", "servicio de cero minutos"],
+    resumen: "En «Servicios» cada servicio tiene un desplegable con el tiempo (de 0 a 360 minutos): lo cambias ahi mismo, sin abrir «Editar». Un servicio puede durar 0 minutos (por ejemplo cejas que no suman tiempo); si la reserva completa suma 0, se usa un bloque minimo de 5 minutos.",
+    ruta: "/dashboard/servicios",
+  },
+  {
+    id: "t-servicios-por-profesional", titulo: "Servicios, precios y tiempos distintos por profesional", para: "Administrador",
+    claves: ["servicios de un profesional", "que servicios hace cada profesional", "precio distinto por profesional", "tiempo distinto por profesional", "categoria de un profesional", "duplicar servicios", "servicios solo para un profesional", "asignar servicios", "un profesional no hace un servicio", "precio propio de un profesional", "que tenga sus propios servicios", "sus propios precios", "servicios y precios propios"],
+    resumen: "Hay dos formas: (1) crear una categoria con los servicios de ese profesional (como hacen Nicolas o Gabriel) en «Servicios»; (2) en «Precios por profesional» defines que servicios ofrece cada uno y, si quieres, un precio o tiempo propio. Si un profesional no tiene servicios asignados, ofrece todos.",
+    ruta: "/dashboard/barberos/precios",
+  },
+  {
+    id: "t-crear-servicio", titulo: "Crear o editar un servicio", para: "Administrador",
+    claves: ["crear un servicio", "nuevo servicio", "agregar un servicio", "editar un servicio", "borrar un servicio", "eliminar un servicio", "cambiar el nombre de un servicio", "cambiar el precio de un servicio", "subir el precio de un servicio", "como cambio el precio", "ordenar servicios", "orden de los servicios", "servicio interno", "extra que solo se cobra"],
+    resumen: "En «Servicios» usas «Nuevo Servicio» (nombre, precio, tiempo, categoria) y «Editar» en cada uno (ahi cambias tambien el precio). Arrastrando los puntitos cambias el orden: asi se ve en tu link de reserva. Un servicio «interno» solo se cobra en el Punto de Venta y no aparece en la reserva online.",
+    ruta: "/dashboard/servicios",
+  },
+  {
+    id: "t-horario-profesional", titulo: "Horario de trabajo y colacion de un profesional", para: "Administrador",
+    claves: ["horario de un profesional", "cambiar el horario", "horario de trabajo", "a que hora trabaja", "colacion", "hora de almuerzo", "descanso de un profesional", "dia libre fijo", "no trabaja los domingos", "trabaja hasta mas tarde", "dias que atiende", "horarios del equipo"],
+    resumen: "El horario de cada profesional (dias, horas y colacion) se edita en «Equipo» o en «Horarios» (menu Configuracion). Eso define cuando se puede reservar con esa persona.",
+    pasos: ["Abre «Equipo» y elige al profesional (o entra a «Horarios»).", "Edita los dias, el horario de entrada y salida y su colacion.", "Guarda: la reserva online usa el cambio de inmediato."],
+    ruta: "/dashboard/barberos",
+  },
+  {
+    id: "t-vacaciones-bloqueos", titulo: "Vacaciones, permisos y bloqueos", para: "Administrador",
+    claves: ["salir de vacaciones", "se va de vacaciones", "permiso de un profesional", "licencia", "no va a estar", "bloquear una semana", "bloquear la tarde", "cerrar una hora", "reunion", "imprevisto", "dia libre de un profesional"],
+    resumen: "Para varios dias seguidos usa «Vacaciones» (menu Mi negocio). Para una hora o un dia puntual, bloquea desde el Calendario. Tambien puedo bloquearlo yo: escribeme, por ejemplo, «cierra manana a Nicolas».",
+    ruta: "/dashboard/vacaciones",
+  },
+  {
+    id: "t-reserva-online-link", titulo: "Mi link de reserva online", para: "Administrador",
+    claves: ["link de reserva", "mi link", "donde esta mi link", "compartir mi agenda", "enlace para que reserven", "poner en instagram", "link para clientes", "qr de reservas", "reservar por internet", "booking"],
+    resumen: "Tu link de reserva esta en «Configuracion» (arriba, «Link de Reserva Online»); cada profesional tiene tambien uno personal en «Mi Perfil». Lo puedes copiar y poner en Instagram o WhatsApp.",
+    ruta: "/dashboard/configuracion",
+  },
+  {
+    id: "t-cliente-no-puede-reservar", titulo: "Un cliente dice que no puede reservar", para: "Administrador",
+    claves: ["cliente no puede reservar", "no me deja reservar", "no aparecen horas", "no hay horas disponibles", "no sale el profesional", "no aparece mi servicio", "falla la reserva", "el link no funciona", "no aparecen horarios", "problema con la reserva online", "no deja agendar"],
+    resumen: "Casi siempre es uno de estos motivos. Revisa en orden:",
+    pasos: ["Horario: el profesional debe tener horario ese dia (Equipo > horario) y no estar de vacaciones ni bloqueado.", "Servicio: el servicio debe estar activo y asignado al profesional (Precios por profesional); un servicio interno no se muestra.", "Dias para agendar: en «Preferencias de reservas» defines hasta cuantos dias se puede reservar.", "Si sigue fallando, cuentame que veia el cliente o abre un caso en «Ayuda y soporte»."],
+    ruta: "/dashboard/configuracion/reservas",
+  },
+  {
+    id: "t-colores-reserva", titulo: "Colores de la reserva, reseñas y correos", para: "Administrador",
+    claves: ["colores de la reserva", "colores de la pagina de reservas", "cambiar los colores de la pagina", "cambiar los colores", "color de mi pagina de reservas", "color de los correos", "colores del sistema", "tema de colores", "que se vea rosado", "logo de otro color", "estilo de mi agenda para clientes", "ver como se ve para mis clientes"],
+    resumen: "En «Preferencias de reservas» (menu Configuracion) eliges los colores del sistema para tu pagina de reservas, las reseñas y los correos a clientes, y ves una vista previa de como queda.",
+    ruta: "/dashboard/configuracion/reservas",
+  },
+  {
+    id: "t-iniciar-sesion", titulo: "Entrar a mi cuenta (clave, codigo por correo)", para: "Todo el equipo",
+    claves: ["no puedo entrar", "no puedo iniciar sesion", "olvide mi clave", "olvide mi contrasena", "recuperar mi clave", "entrar con codigo", "codigo del correo", "codigo de 6 digitos", "iniciar sesion sin clave", "cambiar mi contrasena", "me bloquearon", "login"],
+    resumen: "En la pantalla de entrada puedes iniciar sesion con tu correo y clave, o pedir un codigo de 6 digitos que llega a tu correo. Si olvidaste la clave, usa «Olvide mi contraseña». Dentro de la app la cambias en «Mi Perfil» > seguridad.",
+    ruta: "/dashboard/mi-perfil",
+  },
+  {
+    id: "t-importar-clientes", titulo: "Pasar mis clientes a re-booking", para: "Administrador",
+    claves: ["importar clientes", "subir mis clientes", "traer mis clientes de excel", "tengo una lista de clientes", "pasar clientes desde otro sistema", "cargar clientes", "migrar clientes", "planilla de clientes", "cargar mis clientes"],
+    resumen: "En «Clientes» puedes importar tu lista desde un archivo (Excel/CSV). El sistema revisa duplicados y te muestra un resumen antes de cargar.",
+    ruta: "/dashboard/clientes",
+  },
+  {
+    id: "t-ventas-del-dia", titulo: "Cuanto se vendio y como cuadra el dia", para: "Administrador",
+    claves: ["cuanto vendimos", "cuanto se vendio hoy", "resumen del dia", "cuadrar el dia", "cierre del dia", "ventas del mes", "cuanto llevo este mes", "como voy este mes", "ingresos del mes", "cuanto ganamos", "total del mes"],
+    resumen: "Las cifras estan en el Dashboard (resumen del dia), en «Ingresos/Egresos» (detalle y Excel) y en «Cierre mensual» (el mes completo). Tambien puedes preguntarme directo, por ejemplo «cuanto vendimos esta semana» o «cuanto hizo Pablo este mes».",
+    ruta: "/dashboard/finanzas",
+  },
+  {
+    id: "t-caja-descuadre", titulo: "La caja no cuadra", para: "Administrador",
+    claves: ["la caja no cuadra", "descuadre de caja", "falta plata en la caja", "sobra plata en la caja", "diferencia en la caja", "efectivo no coincide", "retiro de caja", "sacar plata de la caja", "ajuste de caja", "caja no cuadra"],
+    resumen: "El efectivo esperado se calcula asi: apertura + ingresos en efectivo − egresos en efectivo − retiros + ajustes. Si no cuadra, revisa en «Caja» los retiros y ajustes del dia, y que cada gasto en efectivo este anotado. Los reportes de problema quedan en rojo hasta que el administrador los resuelve con su PIN.",
+    ruta: "/dashboard/caja",
+  },
+  {
+    id: "t-comision-arriendo", titulo: "Como gana cada profesional (comision o arriendo)", para: "Administrador",
+    claves: ["cuanto le pago a un profesional", "pagar a mi equipo", "sueldo de un profesional", "porcentaje del profesional", "cambiar la comision de alguien", "profesional en arriendo", "arriendo de silla", "como se calcula lo que gana", "liquidacion de un profesional", "pago de profesionales"],
+    resumen: "Cada profesional trabaja a comision (porcentaje de lo que cobra) o en arriendo (paga un monto al negocio). Lo configuras en «Comisiones» y «Arriendo», y cada profesional ve su detalle en «Mi billetera».",
+    ruta: "/dashboard/comisiones",
+  },
+  {
+    id: "t-mas-clientes", titulo: "Conseguir mas clientes o recuperar a los que se fueron", para: "Administrador",
+    claves: ["conseguir mas clientes", "mas reservas", "como lleno la agenda", "tengo horas libres", "recuperar clientes", "promocion", "hacer una promocion", "campana", "horarios vacios", "que hago para vender mas", "publicidad"],
+    resumen: "Tienes varias herramientas: «Mapa de demanda» te muestra en que dias y horas hay menos reservas; «Retencion» contacta por correo a quien dejo de venir; «Cupones» crea descuentos; «Lista de espera» avisa cuando se libera una hora; y «Publicidad» mide lo que traen tus anuncios.",
+    ruta: "/dashboard/demanda",
+  },
+  {
+    id: "t-resenas", titulo: "Reseñas de clientes", para: "Recepcion y administrador",
+    claves: ["reseñas", "opiniones de clientes", "calificaciones", "estrellas", "pedir una reseña", "que me califiquen", "reseñas de google", "ver las opiniones", "comentarios de clientes"],
+    resumen: "En «Reseñas» ves lo que opinan tus clientes. Despues de cada atencion el cliente recibe un correo para calificar, con los colores de tu negocio.",
+    ruta: "/dashboard/resenas",
+  },
+  {
+    id: "t-plan-modulos", titulo: "Que incluye mi plan", para: "Administrador",
+    claves: ["que incluye mi plan", "por que no veo una opcion", "modulo bloqueado", "opcion bloqueada", "funcion no disponible", "mejorar mi plan", "subir de plan", "plan lite", "plan basic", "plan starter", "plan pro", "cuanto cuesta", "precio del plan"],
+    resumen: "Algunas pantallas dependen del plan contratado; si una aparece bloqueada es porque tu plan no la incluye. En «Plan y facturacion» ves tu plan actual, lo que incluye y puedes cambiarlo.",
+    ruta: "/dashboard/configuracion/facturacion",
+  },
+  {
+    id: "t-celular", titulo: "Usar re-booking en el celular", para: "Todo el equipo",
+    claves: ["usar en el celular", "app del celular", "instalar la app", "abrir en el iphone", "version movil", "como instalo la app", "descargar la app", "agregar a la pantalla de inicio", "face id"],
+    resumen: "re-booking funciona en el navegador del celular y tambien como app. Abajo tienes una barra con tus accesos principales y «Mas» abre el menu completo. Desde «Mi Perfil» puedes cambiar la apariencia (claro u oscuro).",
+    ruta: "/dashboard/mi-perfil",
+  },
+];
