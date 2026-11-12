@@ -108,7 +108,7 @@ export default async function DashboardLayout({
             {!isSuspended && <PushNotificationPrompt />}
             <SupportWidget role={profile?.role || "barber"} />
             {!isSuspended && <OtiWidget />}
-            {!isSuspended && (profile?.tenant as any)?.plan !== "lite" && <QuickActions userRole={profile?.role || "barber"} />}
+            {!isSuspended && (profile?.tenant as any)?.plan !== "lite" && profile?.role !== "barber" && <QuickActions userRole={profile?.role || "barber"} />}
             {!isSuspended && <MobileTabBar role={profile?.role || "barber"} />}
             {!isSuspended && <CommandPalette />}
             <ModalGuard />

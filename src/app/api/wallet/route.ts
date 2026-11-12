@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
   // Earnings this month (completed transactions)
   const { data: monthTx } = await supabase
     .from("transactions")
-    .select("id, total, created_at")
+    .select("id, total, created_at, tip_amount")
     .eq("barber_id", barberId)
     .eq("type", "income")
     .eq("status", "completed")
@@ -72,6 +72,8 @@ export async function GET(req: NextRequest) {
     .lt("created_at", monthEndUtc);
 
   const totalSales = (monthTx || []).reduce((s, t) => s + Number(t.total), 0);
+  // Propinas: van 100% al profesional que atendió.
+  const monthTips = (monthTx || []).reduce((s, t: any) => s + (Number(t.tip_amount) || 0), 0);
 
   // Calculate earnings based on mode
   let earned = 0;
@@ -89,7 +91,7 @@ export async function GET(req: NextRequest) {
   // Today's earnings
   const { data: todayTx } = await supabase
     .from("transactions")
-    .select("id, total")
+    .select("id, total, tip_amount")
     .eq("barber_id", barberId)
     .eq("type", "income")
     .eq("status", "completed")
@@ -97,6 +99,7 @@ export async function GET(req: NextRequest) {
     .lt("created_at", todayBounds.endUtc);
 
   const todayEarnings = (todayTx || []).reduce((s, t) => s + Number(t.total), 0);
+  const todayTips = (todayTx || []).reduce((s, t: any) => s + (Number(t.tip_amount) || 0), 0);
   const todayCommission = mode === "commission" ? await comisionDe(todayTx || [], barber.commission_rate || 40) : todayEarnings;
 
   // Projected: based on upcoming scheduled appointments
@@ -160,7 +163,7 @@ export async function GET(req: NextRequest) {
 
   const { data: movementsRaw } = await supabase
     .from("transactions")
-    .select("id, total, payment_method, created_at, client:clients(name), items:transaction_items(description)")
+    .select("id, total, payment_method, created_at, tip_amount, client:clients(name), items:transaction_items(description, quantity, unit_price)")
     .eq("barber_id", barberId)
     .eq("type", "income")
     .eq("status", "completed")
@@ -172,6 +175,19 @@ export async function GET(req: NextRequest) {
   // cut — the daily/month cards above already show the commission-adjusted figures;
   // this detail list is "lo generado" per Pablo's wording (the underlying sales), same
   // as Finanzas shows for any other transaction.
+  // Ventas pagadas con mas de un medio: se muestra cuanto fue con cada uno.
+  const mixtas = (movementsRaw || []).filter((t: any) => t.payment_method === "mixed").map((t: any) => t.id as string);
+  const pagosMixtos = new Map<string, { label: string; amount: number }[]>();
+  if (mixtas.length) {
+    for (let i = 0; i < mixtas.length; i += 150) {
+      const { data: pg } = await supabase.from("transaction_payments").select("transaction_id, payment_method, amount").in("transaction_id", mixtas.slice(i, i + 150));
+      for (const r of (pg as any[]) || []) {
+        const l = pagosMixtos.get(r.transaction_id) || [];
+        l.push({ label: paymentMethodLabels[r.payment_method] || r.payment_method, amount: Number(r.amount) || 0 });
+        pagosMixtos.set(r.transaction_id, l);
+      }
+    }
+  }
   const movements = (movementsRaw || []).map((t: any) => ({
     id: t.id,
     createdAt: t.created_at,
@@ -180,6 +196,9 @@ export async function GET(req: NextRequest) {
     amount: Number(t.total),
     paymentMethod: t.payment_method,
     paymentMethodLabel: paymentMethodLabels[t.payment_method] || t.payment_method,
+    tip: Number(t.tip_amount) || 0,
+    payments: pagosMixtos.get(t.id) || [],
+    items: (t.items || []).filter((i: any) => i.description).map((i: any) => ({ name: i.description as string, quantity: Number(i.quantity) || 1, total: (Number(i.quantity) || 1) * (Number(i.unit_price) || 0) })),
   }));
 
   return NextResponse.json({
@@ -190,9 +209,10 @@ export async function GET(req: NextRequest) {
       projected,
       projectedFromAppts: projectedCommission,
       txCount,
+      tips: monthTips,
       upcomingAppts: upcomingAppts?.length || 0,
     },
-    today: { earnings: todayCommission, sales: todayEarnings },
+    today: { earnings: todayCommission, sales: todayEarnings, tips: todayTips },
     dailyEarnings,
     movements,
     movementsRange: { from: fromStr, to: toStr },

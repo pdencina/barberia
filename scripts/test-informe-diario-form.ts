@@ -8,7 +8,7 @@ const HOY = "2026-10-27";
 const CAMPOS = ["enabled", "frequency", "custom_weekdays", "weekly_weekday", "anchor_date", "send_local_time", "effective_from"];
 
 const ini = formularioInicial();
-t("inicial: apagado, diario y 21:00", !ini.enabled && ini.frequency === "daily" && ini.send_local_time === "21:00");
+t("inicial: apagado, semanal y 21:00", !ini.enabled && ini.frequency === "weekly" && ini.send_local_time === "21:00");
 t("la hora por defecto coincide con la politica del servidor", HORA_INFORME_PREDETERMINADA === POLITICA_INFORME.horaPredeterminada);
 
 let b = aCuerpoPut({ ...ini, enabled: true }, HOY);
@@ -29,11 +29,12 @@ t("sin problemas si esta apagado", problemaFormulario({ ...ini, frequency: "week
 t("semanal sin dia: avisa", problemaFormulario({ ...ini, enabled: true, frequency: "weekly" }) !== null);
 t("personalizado sin dias: avisa", problemaFormulario({ ...ini, enabled: true, frequency: "custom" }) !== null);
 t("hora invalida: avisa", problemaFormulario({ ...ini, enabled: true, send_local_time: "25:00" }) !== null && problemaFormulario({ ...ini, enabled: true, send_local_time: null }) !== null);
-t("diario con hora valida: sin problema", problemaFormulario({ ...ini, enabled: true }) === null);
+t("semanal con dia y hora validos: sin problema", problemaFormulario({ ...ini, enabled: true, weekly_weekday: 0 }) === null);
+t("semanal sin dia: avisa", problemaFormulario({ ...ini, enabled: true }) !== null);
 
 const r = desdeRespuesta({ enabled: true, frequency: "weekly", weekly_weekday: 5, custom_weekdays: [], send_local_time: "21:30:00", anchor_date: null, effective_from: "2026-10-27", revision: 3, profile_id: "x" });
 t("respuesta: recorta la hora a HH:mm y copia solo lo conocido", r.send_local_time === "21:30" && r.weekly_weekday === 5 && r.effective_from === "2026-10-27" && !("revision" in r));
 t("respuesta basura -> formulario inicial", JSON.stringify(desdeRespuesta(null)) === JSON.stringify(ini) && JSON.stringify(desdeRespuesta("x")) === JSON.stringify(ini));
-t("respuesta con frecuencia desconocida -> diaria", desdeRespuesta({ frequency: "cada_hora" }).frequency === "daily");
+t("respuesta con frecuencia desconocida -> semanal", desdeRespuesta({ frequency: "cada_hora" }).frequency === "weekly");
 t("respuesta sin hora -> 21:00", desdeRespuesta({ send_local_time: null }).send_local_time === "21:00");
 process.exit(fails ? 1 : 0);

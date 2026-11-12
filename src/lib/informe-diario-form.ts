@@ -14,7 +14,7 @@ export interface FormularioInforme {
   effective_from: string | null;
 }
 export const formularioInicial = (): FormularioInforme => ({
-  enabled: false, frequency: "daily", weekly_weekday: null, custom_weekdays: [],
+  enabled: false, frequency: "weekly", weekly_weekday: null, custom_weekdays: [],
   send_local_time: HORA_INFORME_PREDETERMINADA, anchor_date: null, effective_from: null,
 });
 
@@ -25,7 +25,7 @@ export function desdeRespuesta(p: any): FormularioInforme {
   const hora = typeof p.send_local_time === "string" ? p.send_local_time.slice(0, 5) : null;
   return {
     enabled: p.enabled === true,
-    frequency: ["daily", "every_3_days", "weekly", "custom"].includes(p.frequency) ? p.frequency : "daily",
+    frequency: ["daily", "every_3_days", "weekly", "custom"].includes(p.frequency) ? p.frequency : "weekly",
     weekly_weekday: Number.isInteger(p.weekly_weekday) ? p.weekly_weekday : null,
     custom_weekdays: Array.isArray(p.custom_weekdays) ? p.custom_weekdays.filter((d: unknown) => Number.isInteger(d)) : [],
     send_local_time: hora && /^([01]\d|2[0-3]):[0-5]\d$/.test(hora) ? hora : base.send_local_time,
