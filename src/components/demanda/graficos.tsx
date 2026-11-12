@@ -2,13 +2,15 @@
 
 import { useState } from "react";
 import { Panel } from "@/components/ui/premium";
-import { DIAS, estaAbierta, type DemandMap, type Nivel } from "@/lib/demand-map";
+import { DIAS, estaAbierta, etiquetaFila, type DemandMap, type Nivel } from "@/lib/demand-map";
 
 const NIVEL_HEX: Record<Nivel, string> = { fuerte: "#10b981", normal: "#38bdf8", flojo: "#fbbf24" };
 const NIVEL_TXT: Record<Nivel, string> = { fuerte: "Alta", normal: "Media", flojo: "Baja" };
 const DIA_HEX = ["#0e8a8a", "#7c5cd6", "#38bdf8", "#f59e0b", "#f43f5e", "#10b981", "#94a3b8"];
 const NOMBRE_DIA = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"];
 const hh = (h: number) => `${String(h).padStart(2, "0")}:00`;
+// Nombre corto de una fila en el eje: «10» por horas, «10–13» por bloques de trabajo.
+const corto = (mapa: DemandMap, h: number) => (mapa.modo === "bloques" ? etiquetaFila(mapa, h).replace(/:00/g, "") : String(h));
 const num = (n: number) => (n === 0 ? "0" : n < 10 ? n.toFixed(1).replace(".", ",") : String(Math.round(n)));
 
 type Props = {
@@ -56,7 +58,7 @@ function PorDia({ mapa, dias }: Pick<Props, "mapa" | "dias">) {
 }
 
 // 2. Área: reservas por hora del día, con el pico marcado.
-function PorHora({ horas, descanso }: Pick<Props, "horas" | "descanso">) {
+function PorHora({ horas, descanso, mapa }: Pick<Props, "horas" | "descanso" | "mapa">) {
   const ticks = marcas(Math.max(...horas.map((h) => h.avg), 1));
   const top = ticks[ticks.length - 1];
   const W = 520, H = 230, L = 34, R = 14, T = 20, B = 30;
@@ -74,12 +76,12 @@ function PorHora({ horas, descanso }: Pick<Props, "horas" | "descanso">) {
       <path d={linea} fill="none" stroke="#0e8a8a" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
       {horas.map((h, i) => (
         <g key={h.hour} opacity={descanso.includes(h.hour) ? 0.35 : 1}>
-          <title>{`${hh(h.hour)}: ${num(h.avg)} reservas por semana · demanda ${NIVEL_TXT[h.nivel].toLowerCase()}${descanso.includes(h.hour) ? " (descanso)" : ""}`}</title>
+          <title>{`${etiquetaFila(mapa, h.hour)}: ${num(h.avg)} reservas por semana · demanda ${NIVEL_TXT[h.nivel].toLowerCase()}${descanso.includes(h.hour) ? " (descanso)" : ""}`}</title>
           <circle cx={x(i)} cy={y(h.avg)} r={i === pico ? 6 : 4.5} fill={NIVEL_HEX[h.nivel]} stroke="#fff" strokeWidth={2} />
-          <text x={x(i)} y={H - 10} textAnchor="middle" className="fill-brand-gray" style={{ fontSize: 10 }}>{h.hour}</text>
+          <text x={x(i)} y={H - 10} textAnchor="middle" className="fill-brand-gray" style={{ fontSize: 10 }}>{corto(mapa, h.hour)}</text>
         </g>
       ))}
-      <text x={x(pico)} y={y(horas[pico].avg) - 11} textAnchor="middle" className="fill-brand-dark" style={{ fontSize: 11, fontWeight: 700 }}>{`${hh(horas[pico].hour)} · ${num(horas[pico].avg)}`}</text>
+      <text x={x(pico)} y={y(horas[pico].avg) - 11} textAnchor="middle" className="fill-brand-dark" style={{ fontSize: 11, fontWeight: 700 }}>{`${etiquetaFila(mapa, horas[pico].hour)} · ${num(horas[pico].avg)}`}</text>
     </svg>
   );
 }
@@ -107,7 +109,7 @@ function LineasPorDia({ mapa, dias, celda }: Pick<Props, "mapa" | "dias" | "celd
       </div>
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img" aria-label="Reservas por hora, una línea por día">
         {ticks.map((t) => (<g key={t}><line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="stroke-gray-200 dark:stroke-gray-700" strokeDasharray={t === 0 ? "0" : "3 4"} /><text x={L - 6} y={y(t) + 3.5} textAnchor="end" className="fill-brand-gray" style={{ fontSize: 10 }}>{num(t)}</text></g>))}
-        {mapa.horas.map((h, i) => <text key={h} x={x(i)} y={H - 10} textAnchor="middle" className="fill-brand-gray" style={{ fontSize: 10 }}>{h}</text>)}
+        {mapa.horas.map((h, i) => <text key={h} x={x(i)} y={H - 10} textAnchor="middle" className="fill-brand-gray" style={{ fontSize: 10 }}>{corto(mapa, h)}</text>)}
         {diasVisibles.map((dow) => {
           // La línea solo existe en las horas en que ese día se atiende: fuera de su horario se corta (no cae a 0 como si fuera demanda baja).
           let previo = false;
@@ -117,7 +119,7 @@ function LineasPorDia({ mapa, dias, celda }: Pick<Props, "mapa" | "dias" | "celd
             <g key={dow} opacity={apagado ? 0.15 : 1}>
               <title>{NOMBRE_DIA[dow - 1]}</title>
               <path d={d} fill="none" stroke={DIA_HEX[dow - 1]} strokeWidth={resaltado === dow ? 3.5 : 2.2} strokeLinejoin="round" strokeLinecap="round" />
-              {mapa.horas.map((h, i) => estaAbierta(mapa, dow, h) && <circle key={h} cx={x(i)} cy={y(celda.get(`${dow}-${h}`) ?? 0)} r={resaltado === dow ? 4 : 2.6} fill={DIA_HEX[dow - 1]}><title>{`${NOMBRE_DIA[dow - 1]} ${hh(h)}: ${num(celda.get(`${dow}-${h}`) ?? 0)} reservas por semana`}</title></circle>)}
+              {mapa.horas.map((h, i) => estaAbierta(mapa, dow, h) && <circle key={h} cx={x(i)} cy={y(celda.get(`${dow}-${h}`) ?? 0)} r={resaltado === dow ? 4 : 2.6} fill={DIA_HEX[dow - 1]}><title>{`${NOMBRE_DIA[dow - 1]} ${etiquetaFila(mapa, h)}: ${num(celda.get(`${dow}-${h}`) ?? 0)} reservas por semana`}</title></circle>)}
             </g>
           );
         })}
@@ -171,9 +173,9 @@ export function DemandaGraficos(p: Props) {
       </div>
       <div className="grid gap-4 md:grid-cols-2">
         <Panel title="Reservas por día" subtitle="Promedio por semana. Más alto = más reservas."><div className="px-2 pb-3"><PorDia mapa={p.mapa} dias={p.dias} /></div></Panel>
-        <Panel title="Reservas por hora" subtitle="Promedio por semana, sumando todos los días."><div className="px-2 pb-3"><PorHora horas={p.horas} descanso={p.descanso} /></div></Panel>
+        <Panel title={p.mapa.modo === "bloques" ? "Reservas por bloque de trabajo" : "Reservas por hora"} subtitle="Promedio por semana, sumando todos los días."><div className="px-2 pb-3"><PorHora horas={p.horas} descanso={p.descanso} mapa={p.mapa} /></div></Panel>
       </div>
-      <Panel title="Cada día, hora por hora" subtitle="Una línea por día: sube cuando esa hora se llena. Toca un día para resaltarlo."><div className="px-3 pb-3"><LineasPorDia mapa={p.mapa} dias={p.dias} celda={p.celda} /></div></Panel>
+      <Panel title={p.mapa.modo === "bloques" ? "Cada día, bloque por bloque" : "Cada día, hora por hora"} subtitle={p.mapa.modo === "bloques" ? "Una línea por día: sube cuando ese bloque se llena. Toca un día para resaltarlo." : "Una línea por día: sube cuando esa hora se llena. Toca un día para resaltarlo."}><div className="px-3 pb-3"><LineasPorDia mapa={p.mapa} dias={p.dias} celda={p.celda} /></div></Panel>
       <Panel title="¿En qué día caen las reservas?" subtitle="Reparto del total semanal."><div className="px-3 pb-4"><Reparto mapa={p.mapa} dias={p.dias} /></div></Panel>
     </div>
   );

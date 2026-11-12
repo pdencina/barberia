@@ -17,7 +17,12 @@ export interface DemandMap {
   // cargados, según cuándo hay reservas (fuente «reservas»). Fuera de ahí no se pinta ni se cuenta como demanda baja.
   abiertas: string[];
   fuente: "horarios" | "reservas";
+  // «bloques»: negocios con servicios largos (2-3 horas), donde medir por hora no sirve. Cada fila es un BLOQUE DE TRABAJO (la hora en que
+  // empiezan sus servicios y lo que duran) y «hour» de cada celda es la hora de inicio del bloque. Sin este campo (o «horas») es el mapa de siempre.
+  modo?: "horas" | "bloques";
+  bloques?: Bloque[];
 }
+export interface Bloque { hour: number; inicio: number; fin: number; etiqueta: string }
 export const DIAS = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 const CUENTAN = new Set(["completed", "confirmed", "scheduled", "in_progress", "no_show"]); // todo menos canceladas
 
@@ -58,7 +63,82 @@ export function minutosPorHora(startTime: string, endTime?: string | null): Map<
   return out;
 }
 
+const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
+const mediana = (a: number[]) => { const o = [...a].sort((x, y) => x - y); return o.length ? (o.length % 2 ? o[(o.length - 1) / 2] : (o[o.length / 2 - 1] + o[o.length / 2]) / 2) : 0; };
+export const DURACION_BLOQUES = 90; // si la cita típica dura 90 min o más, el negocio trabaja por bloques
+
+// Detecta los bloques de trabajo de un negocio de servicios largos: los horarios de inicio que de verdad se usan (redondeados a 30 min) y lo que dura
+// una cita que empieza ahí. Devuelve null si el negocio no es de servicios largos (se usa el mapa por horas de siempre).
+export function detectarBloques(rows: DemandRow[], desde: string, hasta: string): Bloque[] | null {
+  const citas: { ini: number; dur: number }[] = [];
+  for (const r of rows) {
+    if (!CUENTAN.has(r.status) || !r.date || r.date < desde || r.date > hasta) continue;
+    const ini = minutoDe(r.start_time), fin = minutoDe(r.end_time);
+    if (ini === null || fin === null || fin <= ini || fin - ini > 12 * 60) continue;
+    citas.push({ ini, dur: fin - ini });
+  }
+  if (citas.length < 6 || mediana(citas.map((c) => c.dur)) < DURACION_BLOQUES) return null;
+  const redondeo = (m: number) => Math.round(m / 30) * 30;
+  const cuenta = new Map<number, number>();
+  for (const c of citas) cuenta.set(redondeo(c.ini), (cuenta.get(redondeo(c.ini)) || 0) + 1);
+  const minimo = Math.max(3, Math.round(citas.length * 0.04));
+  // Los inicios que se repiten, del más usado al menos; uno a menos de 90 min de otro ya elegido se considera el mismo bloque.
+  const inicios: number[] = [];
+  for (const [m] of Array.from(cuenta.entries()).filter(([, n]) => n >= minimo).sort((a, b) => b[1] - a[1])) if (!inicios.some((x) => Math.abs(x - m) < DURACION_BLOQUES)) inicios.push(m);
+  if (!inicios.length) return null;
+  inicios.sort((a, b) => a - b);
+  const bloques: Bloque[] = inicios.map((inicio) => {
+    const propias = citas.filter((c) => bloqueMasCercano(inicios, c.ini) === inicio).map((c) => c.dur);
+    const fin = inicio + Math.max(30, Math.round(mediana(propias) / 30) * 30);
+    return { hour: Math.floor(inicio / 60), inicio, fin, etiqueta: `${hhmm(inicio)}–${hhmm(fin)}` };
+  });
+  // Dos bloques no pueden caer en la misma hora (la hora es la clave de la fila).
+  return bloques.filter((b, i) => bloques.findIndex((x) => x.hour === b.hour) === i);
+}
+function bloqueMasCercano(inicios: number[], ini: number): number | null {
+  let mejor: number | null = null, d = Infinity;
+  for (const x of inicios) { const dd = Math.abs(x - ini); if (dd < d) { d = dd; mejor = x; } }
+  return d <= DURACION_BLOQUES ? mejor : null;
+}
+
+function construirMapaBloques(rows: DemandRow[], weeks: number, desde: string, hasta: string, bloques: Bloque[], disponibilidad?: Record<string, number>): DemandMap {
+  const inicios = bloques.map((b) => b.inicio);
+  const cuenta = new Map<string, number>(); // «dow-horaBloque» -> reservas en el período
+  const porDow = new Map<number, number>();
+  let total = 0;
+  for (const r of rows) {
+    if (!CUENTAN.has(r.status) || !r.date || r.date < desde || r.date > hasta) continue;
+    const ini = minutoDe(r.start_time); if (ini === null) continue;
+    const b = bloqueMasCercano(inicios, ini); if (b === null) continue; // cita suelta fuera de los bloques de trabajo
+    const dow = diaSemana(r.date), hour = Math.floor(b / 60);
+    cuenta.set(`${dow}-${hour}`, (cuenta.get(`${dow}-${hour}`) || 0) + 1);
+    porDow.set(dow, (porDow.get(dow) || 0) + 1);
+    total++;
+  }
+  const conHorarios = !!disponibilidad && Object.values(disponibilidad).some((v) => v > 0);
+  const cells: DemandCell[] = [];
+  const abiertas: string[] = [];
+  for (let dow = 1; dow <= 7; dow++) for (const b of bloques) {
+    const n = cuenta.get(`${dow}-${b.hour}`) || 0;
+    // Un bloque está abierto ese día si hubo reservas en él o, con horarios cargados, si el equipo trabaja en más de la mitad de sus horas.
+    let horasEquipo = 0, horasBloque = 0;
+    for (let h = Math.floor(b.inicio / 60); h * 60 < b.fin; h++) { horasBloque++; if ((disponibilidad?.[`${dow}-${h}`] || 0) >= 0.5) horasEquipo++; }
+    const abierto = n >= 1 || (conHorarios && horasEquipo / Math.max(1, horasBloque) >= 0.5);
+    if (n > 0 || abierto) cells.push({ dow, hour: b.hour, total: n, avg: n / weeks });
+    if (abierto) abiertas.push(`${dow}-${b.hour}`);
+  }
+  const porDia = [1, 2, 3, 4, 5, 6, 7].map((dow) => ({ dow, total: porDow.get(dow) || 0, avg: (porDow.get(dow) || 0) / weeks }));
+  return { weeks, desde, hasta, totalReservas: total, cells, porDia, horas: bloques.map((b) => b.hour), abiertas, fuente: conHorarios ? "horarios" : "reservas", modo: "bloques", bloques };
+}
+// Nombre de una fila del mapa: «10:00» (por horas) o «10:00–13:00» (por bloques).
+export function etiquetaFila(mapa: DemandMap, hour: number): string {
+  const b = mapa.modo === "bloques" ? mapa.bloques?.find((x) => x.hour === hour) : undefined;
+  return b ? b.etiqueta : `${String(hour).padStart(2, "0")}:00`;
+}
+
 export function construirMapa(rows: DemandRow[], weeks: number, desde: string, hasta: string, disponibilidad?: Record<string, number>): DemandMap {
+  const bloques = detectarBloques(rows, desde, hasta);
+  if (bloques) return construirMapaBloques(rows, weeks, desde, hasta, bloques, disponibilidad);
   const ocupado = new Map<string, number>();            // «dow-hora» -> horas de agenda ocupadas en el período
   const diaOcupado = new Map<number, number>();
   let total = 0, minutosTotales = 0;
@@ -143,6 +223,13 @@ export function estaAbierta(mapa: DemandMap, dow: number, hour: number): boolean
 export const valorCelda = (c: DemandCell | undefined): number => (!c ? 0 : c.disp && c.disp > 0 ? Math.min(1, (c.ocupado || 0) / c.disp) : c.avg);
 // «Lun a Vie 10:00–20:00 · Sáb 9:00–17:00»: el horario que se está considerando, agrupando los días iguales.
 export function resumenHorario(mapa: DemandMap): string {
+  if (mapa.modo === "bloques") {
+    const porDia = (dow: number) => (mapa.bloques || []).filter((b) => (mapa.abiertas || []).includes(`${dow}-${b.hour}`)).map((b) => b.etiqueta).join(" · ");
+    const grupos: { dias: number[]; txt: string }[] = [];
+    for (let dow = 1; dow <= 7; dow++) { const txt = porDia(dow); if (!txt) continue; const g = grupos.find((x) => x.txt === txt); if (g) g.dias.push(dow); else grupos.push({ dias: [dow], txt }); }
+    const nom = (ds: number[]) => (ds.length === 1 ? DIAS[ds[0] - 1] : ds.every((d, i) => i === 0 || d === ds[i - 1] + 1) ? `${DIAS[ds[0] - 1]} a ${DIAS[ds[ds.length - 1] - 1]}` : ds.map((d) => DIAS[d - 1]).join(", "));
+    return grupos.map((g) => `${nom(g.dias)}: ${g.txt}`).join(" | ");
+  }
   const ventana = (dow: number): [number, number] | null => {
     const hs = (mapa.abiertas || []).filter((k) => k.startsWith(`${dow}-`)).map((k) => Number(k.split("-")[1]));
     return hs.length ? [Math.min(...hs), Math.max(...hs) + 1] : null;

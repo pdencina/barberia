@@ -127,4 +127,31 @@ const semana = (dows: number[]) => { const out: string[] = []; for (let w = 0; w
   ok(!estaAbierta(m2, 1, 14) && estaAbierta(m2, 1, 13) && estaAbierta(m2, 1, 15), "la colación de las 14 queda fuera del horario (no es demanda baja)");
   ok(!horariosFlojos(m2, [], 40).some((f) => f.hour === 14), "y no se sugiere promocionar la hora de colación");
 }
+
+// ---- Negocio de servicios largos (tipo Looky): se mide por BLOQUES DE TRABAJO, no por hora ----
+{
+  const filas: any[] = [];
+  const lun = (w: number) => { const d = new Date(Date.UTC(2026, 8, 7 + 7 * w)); return d.toISOString().slice(0, 10); }; // lunes desde el 7-sep
+  const mas = (f: string, k: number) => new Date(Date.parse(f) + k * 86400000).toISOString().slice(0, 10);
+  const cita = (f: string, h: number, min: number, dur: number) => filas.push({ date: f, start_time: `${f}T${String(h).padStart(2, "0")}:${String(min).padStart(2, "0")}:00+00:00`, end_time: `${f}T${String(h + Math.floor((min + dur) / 60)).padStart(2, "0")}:${String((min + dur) % 60).padStart(2, "0")}:00+00:00`, status: "completed" });
+  for (let w = 0; w < 8; w++) {
+    const L = lun(w);
+    for (const k of [0, 1, 2, 3]) { cita(mas(L, k), 10, 0, 180); if (w % 2 === 0) cita(mas(L, k), 14, 0, 180); } // lun a jue: bloque 10-13 siempre, 14-17 cada 2 semanas
+    cita(mas(L, 4), 10, 0, 120); // viernes: solo bloque 10-12
+    if (w % 4 === 0) cita(mas(L, 5), 9, 30, 120); // sabado esporadico
+  }
+  const mb = construirMapa(filas, 8, "2026-09-07", "2026-11-01");
+  ok(mb.modo === "bloques" && (mb.bloques || []).length >= 2, `detecta negocio por bloques (${mb.modo}, ${(mb.bloques || []).map((b) => b.etiqueta).join(" | ")})`);
+  const b1 = mb.bloques?.find((b) => b.hour === 10), b2 = mb.bloques?.find((b) => b.hour === 14);
+  ok(!!b1 && b1.etiqueta === "10:00–13:00", `bloque de la mañana 10:00–13:00 (${b1?.etiqueta})`);
+  ok(!!b2 && b2.etiqueta === "14:00–17:00", `bloque de la tarde 14:00–17:00 (${b2?.etiqueta})`);
+  ok(mb.cells.find((c) => c.dow === 1 && c.hour === 10)?.avg === 1, "cada lunes hay una reserva en el bloque de la mañana");
+  ok(mb.cells.find((c) => c.dow === 1 && c.hour === 14)?.avg === 0.5, "la tarde se reserva cada 2 semanas (0,5 por semana)");
+  ok(!horariosFlojos(mb, [], 40).some((f) => f.hour === 11 || f.hour === 12), "no aparecen horas sueltas (11, 12): solo bloques");
+  ok(mb.horas.every((h) => h === 9 || h === 10 || h === 14), `las filas son solo los bloques (${mb.horas.join()})`);
+  ok(resumenHorario(mb).includes("10:00–13:00"), `el resumen habla de bloques (${resumenHorario(mb)})`);
+  // un negocio de servicios cortos sigue por horas
+  const cortos: any[] = []; for (let w = 0; w < 4; w++) for (const h of [10, 11, 12, 15]) for (let i = 0; i < 3; i++) { const f = ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"][w]; cortos.push({ date: f, start_time: `${f}T${h}:00:00+00:00`, end_time: `${f}T${h}:45:00+00:00`, status: "completed" }); }
+  ok(construirMapa(cortos, 4, "2026-10-05", "2026-11-01").modo !== "bloques", "servicios de 45 min siguen midiéndose por hora");
+}
 process.exit(fallos ? 1 : 0);
