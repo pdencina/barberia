@@ -290,9 +290,10 @@ export function OtiWidget() {
         if (!cons.ok) { dice(cons.falta === "periodo" ? "¿De qué período? Por ejemplo: «hoy», «ayer», «esta semana», «la semana pasada», «este mes» o «el mes pasado»." : `Hay más de un profesional con ese nombre (${(cons.candidatos || []).map((c) => c.name).join(", ")}). Escribe el nombre completo.`); return; }
         const c: ConsultaOti = cons.consulta;
         try {
-          const res = await fetch("/api/oti/consulta", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ metrica: c.metrica, desde: c.desde, hasta: c.hasta, barberId: c.barberId, medio: c.medio }) });
+          const res = await fetch("/api/oti/consulta", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ metrica: c.metrica, desde: c.desde, hasta: c.hasta, barberId: c.barberId, medio: c.medio, diaSemana: c.diaSemana, orden: c.orden }) });
           const d = await res.json().catch(() => ({}));
           if (!res.ok) { dice(res.status === 403 ? "Las cifras del negocio solo las puede ver el administrador." : `No pude calcularlo: ${d?.error || "intenta de nuevo"}.`); return; }
+          if (d.texto) { dice(d.texto); return; }
           const quien = c.barberNombre ? ` de ${c.barberNombre}` : "";
           const via = c.medio ? ` pagadas con ${NOMBRE_MEDIO[c.medio]}` : "";
           if (c.metrica === "dinero") dice(`Ventas${quien}${via} ${c.etiqueta}: ${d.total} en ${d.ventas} ${d.ventas === 1 ? "venta" : "ventas"}.\nSolo cuento ventas cobradas, sin las anuladas.`);

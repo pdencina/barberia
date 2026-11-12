@@ -7,6 +7,7 @@ export const RESERVADOS = new Set([
   "ranking", "registro", "reset-password", "review", "signup", "suscribirse", "suscripcion", "terminos", "vendedor",
   "admin", "app", "www", "soporte", "ayuda", "precios", "contacto", "blog", "empresa", "empresas", "socios", "static", "public", "assets", "images", "img", "icons",
   "favicon", "robots", "sitemap", "manifest", "sw", "next", "_next", "re-booking", "rebooking", "oti", "mi-negocio", "demo", "test", "null", "undefined",
+  "alumnos-levels", "alumnos-Levels", "pago-recibido", "totems-autoatencion",
 ]);
 
 // «Looky Estudio!» -> «looky-estudio» (sin tildes ni símbolos).

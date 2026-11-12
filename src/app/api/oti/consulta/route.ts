@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole, resolveTenantForRequest } from "@/lib/supabase/server";
 import { chileDayBoundsUtc } from "@/lib/utils";
 import { fetchAllRows } from "@/lib/accounting";
+import { analisis } from "@/lib/oti/analisis";
 
 export const dynamic = "force-dynamic";
 
@@ -18,8 +19,8 @@ export async function POST(req: NextRequest) {
   if (!tenantId || tenantId === "ALL") return NextResponse.json({ error: "Elige un negocio para consultar sus cifras." }, { status: 400 });
 
   const body = await req.json().catch(() => ({}));
-  const { metrica, desde, hasta, barberId, medio } = body as Record<string, any>;
-  if (!["dinero", "servicios", "ranking"].includes(metrica) || !FECHA.test(desde || "") || !FECHA.test(hasta || "") || desde > hasta)
+  const { metrica, desde, hasta, barberId, medio, diaSemana, orden } = body as Record<string, any>;
+  if (!["dinero", "servicios", "ranking", "promedio_dia", "dias", "consejos"].includes(metrica) || !FECHA.test(desde || "") || !FECHA.test(hasta || "") || desde > hasta)
     return NextResponse.json({ error: "Consulta no valida" }, { status: 400 });
   if (Date.parse(hasta) - Date.parse(desde) > 400 * 86400000) return NextResponse.json({ error: "Periodo demasiado largo" }, { status: 400 });
   if (medio !== undefined && !MEDIOS.includes(medio)) return NextResponse.json({ error: "Medio de pago no valido" }, { status: 400 });
@@ -29,6 +30,12 @@ export async function POST(req: NextRequest) {
     if (typeof barberId !== "string") return NextResponse.json({ error: "Profesional no valido" }, { status: 400 });
     const { data: p } = await supabase.from("profiles").select("id").eq("id", barberId).eq("tenant_id", tenantId).maybeSingle();
     if (!p) return NextResponse.json({ error: "Ese profesional no es de tu negocio" }, { status: 404 });
+  }
+
+  if (diaSemana !== undefined && !(Number.isInteger(diaSemana) && diaSemana >= 1 && diaSemana <= 7)) return NextResponse.json({ error: "Dia no valido" }, { status: 400 });
+  if (["promedio_dia", "dias", "consejos"].includes(metrica)) {
+    try { return NextResponse.json({ texto: await analisis(supabase, tenantId, metrica, desde, hasta, barberId, medio, diaSemana, orden) }); }
+    catch { return NextResponse.json({ error: "No pude calcularlo" }, { status: 500 }); }
   }
 
   const ini = chileDayBoundsUtc(desde).startUtc;
