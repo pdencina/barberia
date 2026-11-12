@@ -37,6 +37,7 @@ export default function Page() {
   const [busy, setBusy] = useState(false);
   const [email, setEmail] = useState("");
   const [listo, setListo] = useState<Ev | null>(null);
+  const [noUnir, setNoUnir] = useState<Record<string, boolean>>({}); // evaluaciones destildadas para unificar
   const [nuevo, setNuevo] = useState<{ first_name: string; last_name: string; email: string } | null>(null);
 
   async function cargarAlumnos() {
@@ -116,6 +117,16 @@ export default function Page() {
   function editar(h: Ev) {
     history.pushState({ n: 2 }, ""); setMsg(""); setListo(null); setGuardado("");
     setForm({ id: h.id, status: h.status, scores: h.scores || {}, comments: h.comments || "", dirty: false });
+  }
+  async function enviarUnificada(ids: string[]) {
+    setBusy(true); setMsg("");
+    if (email && email !== sel?.email) {
+      const p = await api(`/api/alumnos/alumnos/${sel!.id}`, { method: "PATCH", body: JSON.stringify({ email }) });
+      if (!p.ok) { setBusy(false); setMsg(p.error); return; }
+      setSel({ ...sel!, email });
+    }
+    const r = await api("/api/alumnos/unificada/email", { method: "POST", body: JSON.stringify({ student_id: sel!.id, ids }) });
+    setBusy(false); setMsg(r.ok ? `Evaluación unificada enviada a ${email} ✔` : r.error);
   }
   async function enviar(ev: Ev) {
     setBusy(true); setMsg("");
@@ -208,6 +219,31 @@ export default function Page() {
     </div>
     {msg && <p className="mb-3 text-[#5ee0e2]">{msg}</p>}
     {listo && <p className="mb-3 text-green-400 font-semibold">Evaluación guardada ✔ — elige abajo: enviar por correo o descargar PDF.</p>}
+    {(() => {
+      const finales = hist.filter((h) => h.status === "final");
+      if (finales.length < 2) return null;
+      const elegidas = finales.filter((h) => !noUnir[h.id]);
+      const ids = elegidas.map((h) => h.id);
+      return (
+        <div className={`${card} p-4 mb-5 ring-1 ring-[#0F8B8D]`}>
+          <p className="font-semibold mb-1">Unificar evaluaciones</p>
+          <p className="text-neutral-400 text-sm mb-3">Un solo informe con las notas de cada evaluador, el promedio y los comentarios por separado.</p>
+          <div className="grid gap-2 mb-3">
+            {finales.map((h) => (
+              <label key={h.id} className="flex items-center gap-3 text-lg py-1">
+                <input type="checkbox" className="h-6 w-6 accent-[#0F8B8D]" checked={!noUnir[h.id]} onChange={(e) => setNoUnir({ ...noUnir, [h.id]: !e.target.checked })} />
+                <span>{h.evaluator_name} <span className="text-neutral-500 text-sm">· {fecha(h.created_at)} · {Number(h.average).toFixed(2)}</span></span>
+              </label>))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <button disabled={busy || ids.length < 2 || !email} onClick={() => enviarUnificada(ids)} className={`${btn} bg-[#0F8B8D]`}>Enviar unificada</button>
+            {ids.length >= 2
+              ? <a href={`/api/alumnos/unificada/pdf?ids=${ids.join(",")}`} className={`${btn} bg-neutral-800 text-center block`}>PDF unificado</a>
+              : <span className={`${btn} bg-neutral-800 text-center block opacity-40`}>PDF unificado</span>}
+          </div>
+          {ids.length < 2 && <p className="text-neutral-500 text-sm mt-2">Marca al menos 2 evaluaciones.</p>}
+        </div>);
+    })()}
     <h3 className="font-semibold mb-2">Evaluaciones ({hist.length})</h3>
     <div className="grid gap-3">
       {hist.length === 0 && <p className="text-neutral-500">Aún no tiene evaluaciones.</p>}
@@ -218,7 +254,7 @@ export default function Page() {
           <div className="grid grid-cols-2 gap-x-4 text-sm mt-2 text-neutral-300">
             {CRITERIOS.map((c) => <div key={c.key} className="flex justify-between"><span>{c.nombre}</span><b>{h.scores?.[c.key] ?? "–"}</b></div>)}
           </div>
-          {h.comments && <p className="mt-2 text-neutral-300 whitespace-pre-wrap">{h.comments}</p>}
+          {h.comments && <ul className="mt-2 space-y-1 text-neutral-300">{h.comments.split(/\r?\n/).map((l) => l.replace(/^\s*[-•*–]+\s*/, "").trim()).filter(Boolean).map((l, i) => <li key={i} className="pl-4 -indent-4">• {l}</li>)}</ul>}
           {h.status === "borrador" ? (
             <div className="grid grid-cols-2 gap-3 mt-3">
               <button onClick={() => editar(h)} className={`${btn} bg-[#0F8B8D]`}>Continuar</button>

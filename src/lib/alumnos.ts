@@ -88,6 +88,30 @@ export function parcial(scores: any): { scores: Record<string, number>; total: n
   return { scores: out, total };
 }
 
+// Comentarios: cada salto de línea es un punto aparte (se quitan guiones/viñetas escritos a mano).
+export function lineas(texto: string | null | undefined): string[] {
+  return String(texto || "").split(/\r?\n/).map((l) => l.replace(/^\s*[-•*–]+\s*/, "").trim()).filter(Boolean);
+}
+function comentariosHtml(texto: string | null | undefined, titulo = "Comentarios del instructor"): string {
+  const ls = lineas(texto);
+  if (!ls.length) return "";
+  return `<div style="background:#1a1a1a;border-radius:8px;padding:14px;margin-top:12px;"><p style="color:#888;font-size:11px;text-transform:uppercase;margin:0 0 8px;">${esc(titulo)}</p>${ls.map((l) => `<p style="color:#ccc;font-size:14px;margin:0 0 8px;padding-left:14px;text-indent:-14px;">• ${esc(l)}</p>`).join("")}</div>`;
+}
+
+// Etiqueta única por evaluación (nombre de quien evaluó; si se repite, con la fecha).
+export function etiquetas(evs: any[]): string[] {
+  const cuenta: Record<string, number> = {};
+  evs.forEach((e) => (cuenta[e.evaluator_name] = (cuenta[e.evaluator_name] || 0) + 1));
+  return evs.map((e) => (cuenta[e.evaluator_name] > 1 ? `${e.evaluator_name} (${new Date(e.created_at).toLocaleDateString("es-CL", { timeZone: "America/Santiago" })})` : e.evaluator_name));
+}
+export function unificar(evs: any[]) {
+  const n = evs.length;
+  const porCriterio = CRITERIOS.map((c) => Math.round((evs.reduce((a, e) => a + (e.scores[c.key] || 0), 0) / n) * 100) / 100);
+  const promedio = Math.round((evs.reduce((a, e) => a + Number(e.average), 0) / n) * 100) / 100;
+  const total = Math.round((evs.reduce((a, e) => a + e.total, 0) / n) * 100) / 100;
+  return { porCriterio, promedio, total };
+}
+
 export function fechaCL(iso: string): string {
   return new Date(iso).toLocaleString("es-CL", { timeZone: "America/Santiago", dateStyle: "long", timeStyle: "short" });
 }
@@ -107,8 +131,44 @@ export function correoEvaluacionHtml(ev: any, alumno: string): string {
     <p style="color:#888;font-size:13px;">Evaluó: <strong style="color:#fff;">${esc(ev.evaluator_name)}</strong> · ${esc(fechaCL(ev.created_at))}</p>
     <table style="width:100%;border-collapse:collapse;margin:16px 0;">${filas}</table>
     <p style="color:#fff;font-size:16px;margin:12px 0;">Suma: <strong>${ev.total} / 49</strong> &nbsp;·&nbsp; Nota promedio: <strong style="color:#0F8B8D;">${Number(ev.average).toFixed(2)} / 7</strong></p>
-    ${ev.comments ? `<div style="background:#1a1a1a;border-radius:8px;padding:14px;margin-top:12px;"><p style="color:#888;font-size:11px;text-transform:uppercase;margin:0 0 6px;">Comentarios del instructor</p><p style="color:#ccc;font-size:14px;margin:0;white-space:pre-wrap;">${esc(ev.comments)}</p></div>` : ""}
+    ${comentariosHtml(ev.comments)}
     <p style="color:#555;font-size:12px;text-align:center;margin-top:24px;">Adjuntamos tu evaluación en PDF.</p>
   </div>
 </body></html>`;
+}
+
+export function correoUnificadoHtml(evs: any[], alumno: string): string {
+  const et = etiquetas(evs);
+  const u = unificar(evs);
+  const th = (t: string) => `<th style="padding:8px 4px;color:#0F8B8D;font-size:12px;text-align:center;border-bottom:1px solid #333;">${esc(t)}</th>`;
+  const filas = CRITERIOS.map((c, i) =>
+    `<tr><td style="padding:8px 0;color:#ccc;font-size:14px;border-bottom:1px solid #222;">${c.nombre}</td>${evs.map((e) => `<td style="padding:8px 4px;color:#fff;text-align:center;border-bottom:1px solid #222;">${e.scores[c.key]}</td>`).join("")}<td style="padding:8px 4px;color:#0F8B8D;font-weight:bold;text-align:center;border-bottom:1px solid #222;">${u.porCriterio[i].toFixed(2)}</td></tr>`).join("");
+  const filaTot = `<tr><td style="padding:8px 0;color:#fff;font-weight:bold;">Nota promedio</td>${evs.map((e) => `<td style="padding:8px 4px;color:#fff;font-weight:bold;text-align:center;">${Number(e.average).toFixed(2)}</td>`).join("")}<td style="padding:8px 4px;color:#0F8B8D;font-weight:bold;text-align:center;">${u.promedio.toFixed(2)}</td></tr>`;
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"></head>
+<body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background: #1a1a1a;">
+  <div style="background: #111; padding: 30px; border-radius: 12px; border: 1px solid #333;">
+    <div style="text-align: center; margin-bottom: 24px; border-bottom: 2px solid #0F8B8D; padding-bottom: 16px;">
+      <p style="color:#fff;font-size:20px;font-weight:bold;margin:0;">Estudio Levels</p>
+      <p style="color: #0F8B8D; margin: 8px 0 0; font-size: 11px; text-transform: uppercase; letter-spacing: 3px;">Evaluación práctica unificada</p>
+    </div>
+    <p style="color: #ccc; font-size: 16px;">Hola <strong style="color: #fff;">${esc(alumno)}</strong>, estos son los resultados de tus evaluaciones.</p>
+    <table style="width:100%;border-collapse:collapse;margin:16px 0;"><tr><th></th>${et.map(th).join("")}${th("Promedio")}</tr>${filas}${filaTot}</table>
+    <p style="color:#fff;font-size:16px;margin:12px 0;">Nota final (promedio de las evaluaciones): <strong style="color:#0F8B8D;">${u.promedio.toFixed(2)} / 7</strong></p>
+    ${evs.map((e, i) => comentariosHtml(e.comments, `Comentarios de ${et[i]}`)).join("")}
+    <p style="color:#555;font-size:12px;text-align:center;margin-top:24px;">Adjuntamos tu evaluación unificada en PDF.</p>
+  </div>
+</body></html>`;
+}
+
+// Evaluaciones terminadas de UN alumno (para unificar). Devuelve null si algo no cuadra.
+export async function cargarParaUnificar(ids: unknown, studentId?: string) {
+  const lista = Array.from(new Set(Array.isArray(ids) ? ids.map(String) : String(ids || "").split(",").filter(Boolean)));
+  if (lista.length < 2 || lista.length > 6) return null;
+  const { data } = await createAdminSupabase().from("course_evaluations")
+    .select("*, course_students(id,first_name,last_name,email)").in("id", lista).eq("tenant_id", tenantAlumnos()).eq("status", "final")
+    .order("created_at");
+  if (!data || data.length !== lista.length) return null;
+  const al = (data[0] as any).course_students;
+  if (data.some((e: any) => e.student_id !== data[0].student_id) || (studentId && al.id !== studentId)) return null;
+  return { evs: data as any[], alumno: al as { id: string; first_name: string; last_name: string; email: string | null } };
 }
