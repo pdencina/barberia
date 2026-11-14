@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { publicAvailability } from "@/lib/public-availability";
+import { isSlotFull } from "@/lib/capacity";
 import { aHoraPared } from "@/lib/cancel-reasons";
 import { aunSePuedeCambiar, getPlazoCambios, textoPlazo } from "@/lib/cambio-cliente";
 import { parseWallClock } from "@/lib/wallclock";
@@ -73,6 +74,8 @@ export async function POST(req: NextRequest) {
   const data = await available.json();
   if (!Array.isArray(data.slots) || !data.slots.includes(start)) return fail("Esa hora ya no está disponible. Elige otra.", 409);
   const end = new Date(parseWallClock(start).getTime() + duration! * 60000).toISOString();
+  // Segunda revision justo antes de guardar: otra persona pudo tomar esa hora mientras esta elegia (sin contar la propia cita).
+  if (await isSlotFull(supabase, a.barber_id, a.tenant_id, date, parseWallClock(start), new Date(end), a.id)) return fail("Esa hora ya no está disponible. Elige otra.", 409);
   // Solo se cambia la hora de LA MISMA cita. No se cancela, no se crea otra reserva,
   // no se escriben abonos, descuentos, servicios ni pagos, ni se invoca al proveedor de cobros.
   const { data: saved, error } = await supabase.from("appointments")

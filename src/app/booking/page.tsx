@@ -276,14 +276,19 @@ export default function BookingPage() {
   // Fetch slots when barber or date changes
   useEffect(() => {
     if (selectedBarber && selectedDate && selectedServices.length > 0) {
+      // Si el cliente cambia de dia (o de profesional) mientras carga, la respuesta vieja se descarta y no se muestran horas de otro dia:
+      // antes podia elegir una hora de ayer bajo la fecha de hoy y la reserva se guardaba mezclada (doble reserva).
+      let vigente = true;
       setLoadingSlots(true);
+      setSlots([]); setSpots({});
       setSelectedSlot(preselectSlot.current);
       fetch(
         `/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${totalDuration}`
       )
         .then((r) => r.json())
-        .then((data) => { setSlots(data.slots || []); setSpots(data.spots || {}); })
-        .finally(() => { setLoadingSlots(false); preselectSlot.current = ""; });
+        .then((data) => { if (vigente) { setSlots(data.slots || []); setSpots(data.spots || {}); } })
+        .finally(() => { if (vigente) { setLoadingSlots(false); preselectSlot.current = ""; } });
+      return () => { vigente = false; };
     }
   }, [selectedBarber, selectedDate, selectedServices, slotsKey]);
 
@@ -342,6 +347,8 @@ export default function BookingPage() {
 
   const handleBook = async () => {
     setError("");
+    // La hora elegida debe ser del dia elegido; si no, se vuelve a pedir (nunca se reserva una mezcla).
+    if (selectedSlot && selectedSlot.slice(0, 10) !== selectedDate) { setSelectedSlot(""); setSlotsKey((k) => k + 1); setError("Elige de nuevo la hora para ese día."); return; }
     setSubmitting(true);
 
     // If deposit is required, create MP checkout preference and redirect

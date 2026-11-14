@@ -5,6 +5,7 @@ import { calcularAbono, cargarCredencialAbono, firmarNegocio } from "@/lib/depos
 import { resolverServicios } from "@/lib/booking-services";
 import { horarioDisponible, limpiarHoldsVencidos, crearHold, liberarHold, HOLD_SEGUNDOS } from "@/lib/deposit-hold";
 import { parseWallClock } from "@/lib/wallclock";
+import { fechaCoincideConHora } from "@/lib/capacity";
 import { guardarIntento } from "@/lib/booking-intent";
 
 /**
@@ -68,6 +69,7 @@ export async function POST(req: NextRequest) {
   const svcRows = resuelto.servicios;
 
   // El horario tiene que seguir libre; si lo esta, se BLOQUEA mientras el cliente paga (no se lo puede llevar otra persona).
+  if (!fechaCoincideConHora(date, startTime)) return NextResponse.json({ error: "La hora elegida no corresponde a esa fecha. Vuelve a elegir la hora." }, { status: 409 });
   const start = parseWallClock(startTime);
   const end = new Date(start.getTime() + resuelto.duracion * 60000);
   await limpiarHoldsVencidos(supabase, { barberId, date });
