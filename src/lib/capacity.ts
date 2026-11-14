@@ -6,6 +6,12 @@ import type { createAdminSupabase } from "@/lib/supabase/server";
 type Admin = ReturnType<typeof createAdminSupabase>;
 export interface Interval { start: number; end: number }
 
+// La fecha y la hora de una reserva deben ser del MISMO dia («2026-11-14» y «2026-11-14T10:45:00»). Si el navegador manda la hora de un dia y la
+// fecha de otro (pasa si el cliente cambia de dia mientras carga la lista de horas), la cita queda en un dia y ocupa un horario de otro.
+export function fechaCoincideConHora(date: unknown, startTime: unknown): boolean {
+  return typeof date === "string" && typeof startTime === "string" && /^\d{4}-\d{2}-\d{2}$/.test(date) && startTime.slice(0, 10) === date;
+}
+
 export const CAPACITY_CATEGORY = "kinesiologia";
 export const MAX_CAPACITY = 6;
 
@@ -52,16 +58,28 @@ export function fullSegments(intervals: Interval[], max: number): Interval[] {
   return out;
 }
 
+// Citas del profesional que chocan con [startIso, endIso). Se buscan por la columna «date» Y por el rango de horas: si una cita quedo con la fecha de un dia y
+// la hora de otro (error antiguo), con solo una de las dos revisiones el choque pasaba desapercibido.
 async function overlapping(supabase: Admin, barberId: string, date: string, startIso: string, endIso: string): Promise<{ id: string; iv: Interval }[]> {
-  const { data } = await supabase
-    .from("appointments")
-    .select("id, start_time, end_time")
-    .eq("barber_id", barberId)
-    .eq("date", date)
-    .in("status", ["scheduled", "confirmed", "in_progress"])
-    .lt("start_time", endIso)
-    .gt("end_time", startIso);
-  return (data || []).map((a: any) => ({ id: a.id, iv: { start: Date.parse(a.start_time), end: Date.parse(a.end_time) } }));
+  const base = () => supabase.from("appointments").select("id, start_time, end_time").eq("barber_id", barberId).in("status", ["scheduled", "confirmed", "in_progress"]);
+  const [porFecha, porRango] = await Promise.all([
+    base().eq("date", date),
+    base().lt("start_time", endIso).gt("end_time", startIso),
+  ]);
+  const vistos = new Map<string, { id: string; iv: Interval }>();
+  const dia = Date.parse(`${date}T00:00:00Z`);
+  for (const a of [...((porFecha.data as any[]) || []), ...((porRango.data as any[]) || [])]) {
+    if (vistos.has(a.id)) continue;
+    let iv = { start: Date.parse(a.start_time), end: Date.parse(a.end_time) };
+    // Cita con la fecha de este dia pero la hora de otro: se toma la hora de reloj sobre este dia (asi la muestra la agenda).
+    if (!(iv.start >= dia && iv.start < dia + 86400000)) {
+      const h = (t: string) => { const m = /[T ](\d{2}):(\d{2})/.exec(t || ""); return m ? Number(m[1]) * 60 + Number(m[2]) : null; };
+      const s = h(a.start_time), e = h(a.end_time);
+      if (s !== null && e !== null && e > s) iv = { start: dia + s * 60000, end: dia + e * 60000 };
+    }
+    if (iv.end > Date.parse(startIso) && iv.start < Date.parse(endIso)) vistos.set(a.id, { id: a.id, iv });
+  }
+  return Array.from(vistos.values());
 }
 
 // Bloqueos parciales (migracion 102): ocupan `spots` cupos, como si fueran citas. Solo importa con cupo > 1;

@@ -7,7 +7,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { sendBookingConfirmation } from "@/lib/resend";
 import { tryConsumeQuota } from "@/lib/message-quota";
-import { isSlotFull, exceededAfterInsert, getSlotCapacity } from "@/lib/capacity";
+import { isSlotFull, exceededAfterInsert, getSlotCapacity, fechaCoincideConHora } from "@/lib/capacity";
 import { blockConflict } from "@/lib/blocks";
 import { parseWallClock } from "@/lib/wallclock";
 import { isOnVacation } from "@/lib/vacations";
@@ -32,6 +32,11 @@ export async function POST(req: NextRequest) {
   // Validate required fields
   if (ids.length === 0 || !barberId || !date || !startTime || !clientName) {
     return NextResponse.json({ error: "Campos requeridos faltantes" }, { status: 400 });
+  }
+
+  // La fecha y la hora deben ser del mismo dia: si no, la cita quedaba en un dia y ocupaba el horario de otro (doble reserva).
+  if (!fechaCoincideConHora(date, startTime)) {
+    return NextResponse.json({ error: "La hora elegida no corresponde a esa fecha. Vuelve a elegir la hora." }, { status: 409 });
   }
 
   // El correo es obligatorio para quien reserva online. El personal con sesion (agenda del
