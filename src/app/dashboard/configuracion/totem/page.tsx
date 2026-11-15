@@ -86,8 +86,10 @@ export default function ConfiguracionTotemPage() {
             <ol className="list-decimal space-y-1 pl-5 text-sm text-brand-gray">
               <li>En el equipo, abre Chrome en <a href={url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-brand-blue">{url} <ExternalLink className="h-3 w-3" /></a></li>
               <li>Escribe el código de tu negocio (abajo). Queda guardado en ese equipo.</li>
-              <li>Menú de Chrome (⋮) &gt; «Instalar app» o «Agregar a la pantalla de inicio»: así abre en pantalla completa y directo, cada vez que lo enciendas.</li>
+              <li>En esa misma pantalla aparece el botón <strong>«Instalar como aplicación»</strong> (o usa el menú de Chrome ⋮ &gt; «Instalar app» / «Agregar a la pantalla de inicio»). Se instala con su propio ícono.</li>
+              <li>Cierra Chrome y abre el tótem desde ese ícono: abre <strong>en pantalla completa, horizontal y sin la barra de Chrome</strong>, directo en el inicio, cada vez que lo enciendas.</li>
             </ol>
+            <p className="text-xs text-brand-gray">El tótem está pensado para pantallas horizontales (1920×1080): todo se ajusta solo al tamaño de la pantalla. Si no lo instalas, igual pasa a pantalla completa al primer toque.</p>
             <div className="rounded-xl bg-gray-50 dark:bg-white/5 p-4 text-center">
               <p className="text-xs text-brand-gray">Código del negocio</p>
               <p className="mt-1 text-3xl font-extrabold tracking-[0.3em] text-brand-dark">{codigo || "—"}</p>
