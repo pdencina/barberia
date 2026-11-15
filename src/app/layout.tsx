@@ -9,6 +9,9 @@ const jakarta = Plus_Jakarta_Sans({ subsets: ["latin"], weight: ["400", "500", "
 export const metadata: Metadata = {
   title: "re-booking - Sistema de Gestion",
   description: "Todo tu negocio. Un solo sistema. El software de gestion todo en uno para agendar, atender, fidelizar y hacer crecer tu negocio.",
+  // El manifiesto va aquí (no como <link> fijo) para que otras secciones, como el tótem, puedan reemplazarlo por el suyo.
+  // Con dos <link rel="manifest"> Chrome usaba el primero: el tótem instalado abría el login de re-booking en vez del tótem.
+  manifest: "/manifest.json",
   icons: {
     icon: [
       { url: "/logo-icon.png", sizes: "512x512", type: "image/png" },
@@ -33,7 +36,6 @@ export default function RootLayout({
       <head>
         {/* Aplica el último tema conocido antes del primer pintado, solo en el panel: evita que la app parta con los colores normales y salte. */}
         <script dangerouslySetInnerHTML={{ __html: `try{if(location.pathname.indexOf("/dashboard")===0){var t=localStorage.getItem("rb_theme");if(t&&/^[a-z-]+$/.test(t)){var r=document.documentElement;r.dataset.colorTheme=t;if(t==="dark"||t==="monochrome-dark")r.classList.add("dark")}}}catch(e){}` }} />
-        <link rel="manifest" href="/manifest.json" />
         <link rel="icon" type="image/png" href="/logo-icon.png" />
         <link rel="apple-touch-icon" href="/logo-icon-circle.png" />
         <meta name="theme-color" content="#0F8B8D" />
