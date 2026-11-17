@@ -15,8 +15,10 @@ export async function GET(req: NextRequest) {
   const id = sp.get("id") || "";
   if (!t || !/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ estado: "desconocido" }, { status: 404 });
 
-  const { data } = await supabase.from("kiosk_payments").select("id, tenant_id, appointment_id, amount, status, method, provider, external_id, created_at, checked_at").eq("id", id).eq("tenant_id", t.id).maybeSingle();
-  const kp: any = data;
+  const cols = "id, tenant_id, appointment_id, amount, status, method, provider, external_id, created_at, checked_at";
+  let rk: any = await supabase.from("kiosk_payments").select(`${cols}, kind, barber_id, client_id`).eq("id", id).eq("tenant_id", t.id).maybeSingle();
+  if (rk.error) rk = await supabase.from("kiosk_payments").select(cols).eq("id", id).eq("tenant_id", t.id).maybeSingle(); // migración 172 aún no aplicada
+  const kp: any = rk.data;
   if (!kp) return NextResponse.json({ estado: "desconocido" }, { headers: { "Cache-Control": "no-store" } });
 
   if (kp.method === "terminal" && kp.status === "pending" && kp.external_id) {
@@ -25,13 +27,16 @@ export async function GET(req: NextRequest) {
     if (desdeUltima >= 4000) {
       await supabase.from("kiosk_payments").update({ checked_at: new Date().toISOString() }).eq("id", kp.id);
       // La máquina es la del profesional de la cita (si tiene la suya) o la del negocio, igual que al crear el cobro.
-      const { data: ap } = await supabase.from("appointments").select("barber_id").eq("id", kp.appointment_id).maybeSingle();
-      const term = await resolverTerminal(supabase, t.id, (ap as any)?.barber_id);
-      const det = term ? await consultarCobroDetalle(term, kp.external_id) : { estado: "pending" as const, tipoPago: null };
+      let barberDeMaquina: string | null = kp.barber_id || null;
+      if (!barberDeMaquina && kp.appointment_id) { const { data: ap } = await supabase.from("appointments").select("barber_id").eq("id", kp.appointment_id).maybeSingle(); barberDeMaquina = (ap as any)?.barber_id || null; }
+      const term = await resolverTerminal(supabase, t.id, barberDeMaquina);
+      const det: { estado: "approved" | "rejected" | "cancelled" | "pending"; tipoPago?: string | null; montos?: any } = term ? await consultarCobroDetalle(term, kp.external_id) : { estado: "pending" };
       const est = det.estado;
       if (est === "approved") {
         // El pago se registra solo como venta (billetera, dashboard, cierre...). El tipo de tarjeta lo informa Mercado Pago; en TUU es el elegido en el tótem.
-        await confirmarPagoTotem(supabase, kp, Number(kp.amount), `${kp.provider}:${kp.external_id}`, "con tarjeta en la máquina", (det as any).tipoPago || null);
+        // Lo realmente pagado puede ser MÁS que lo cobrado: la diferencia es la propina que el cliente agregó en la máquina.
+        const pagado = Number(det.montos?.pagado) > 0 ? Number(det.montos.pagado) : Number(kp.amount);
+        await confirmarPagoTotem(supabase, kp, pagado, `${kp.provider}:${kp.external_id}`, "con tarjeta en la máquina", det.tipoPago || null, { propina: det.montos?.propina || 0, detalle: det.montos?.detalle });
         return NextResponse.json({ estado: "paid" }, { headers: { "Cache-Control": "no-store" } });
       }
       if (est === "rejected" || est === "cancelled") {

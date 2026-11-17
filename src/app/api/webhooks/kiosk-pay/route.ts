@@ -32,7 +32,9 @@ export async function POST(req: NextRequest) {
     if (!/^[0-9a-f-]{36}$/i.test(kpId)) return NextResponse.json({ ok: true });
     if (p.status !== "approved") return NextResponse.json({ ok: true });
 
-    const { data: kp } = await supabase.from("kiosk_payments").select("id, tenant_id, appointment_id, amount, status").eq("id", kpId).eq("tenant_id", tenantId).maybeSingle();
+    let rk: any = await supabase.from("kiosk_payments").select("id, tenant_id, appointment_id, amount, status, kind, barber_id, client_id").eq("id", kpId).eq("tenant_id", tenantId).maybeSingle();
+    if (rk.error) rk = await supabase.from("kiosk_payments").select("id, tenant_id, appointment_id, amount, status").eq("id", kpId).eq("tenant_id", tenantId).maybeSingle();
+    const kp = rk.data;
     if (!kp) return NextResponse.json({ ok: true });
     // El monto pagado debe cubrir lo cobrado (nunca se confía en el aviso sin comprobarlo).
     if (Number(p.transaction_amount) + 0.5 < Number((kp as any).amount)) {

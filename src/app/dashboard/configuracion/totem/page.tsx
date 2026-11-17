@@ -32,6 +32,18 @@ export default function ConfiguracionTotemPage() {
     }).catch(() => {}).finally(() => setLoading(false));
   }, [tq]);
 
+  const [revisando, setRevisando] = useState(false);
+  const [revision, setRevision] = useState<any>(null);
+  const revisar = async (aplicar: boolean) => {
+    setRevisando(true);
+    try {
+      const res = await fetch("/api/totem/conciliar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, dias: 30, aplicar }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) showToast(d.error || "No se pudo revisar", "error"); else { setRevision(d); if (aplicar) showToast("Propinas registradas", "success"); }
+    } catch { showToast("Sin conexión", "error"); }
+    setRevisando(false);
+  };
+
   const guardar = async () => {
     setSaving(true);
     const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal, ventaAuto }) });
@@ -131,6 +143,40 @@ export default function ConfiguracionTotemPage() {
           </div>
 
           <button type="button" onClick={guardar} disabled={saving} className="w-full rounded-xl bg-brand-blue py-3 font-bold text-white disabled:opacity-60">{saving ? "Guardando…" : "Guardar"}</button>
+
+          {/* Revisión de pagos con tarjeta: lo cobrado vs lo realmente pagado en Mercado Pago (la diferencia es la propina) */}
+          <div className="space-y-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
+            <div>
+              <p className="font-bold text-brand-dark">Revisar propinas de los pagos con tarjeta</p>
+              <p className="text-xs text-brand-gray">Vuelve a leer en Mercado Pago cuánto se pagó de verdad en cada cobro hecho desde el tótem. Si el cliente agregó propina en la máquina, se registra a nombre del profesional (100% de él), igual que en el POS. Nunca cambia el valor de la venta.</p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button type="button" disabled={revisando} onClick={() => revisar(false)} className="rounded-xl border border-gray-200 dark:border-white/15 px-4 py-2 text-sm font-semibold text-brand-dark disabled:opacity-60">{revisando ? "Revisando…" : "Revisar (sin guardar)"}</button>
+              {revision && revision.conPropina > 0 && !revision.aplicar && (
+                <button type="button" disabled={revisando} onClick={() => revisar(true)} className="rounded-xl bg-brand-blue px-4 py-2 text-sm font-bold text-white disabled:opacity-60">Registrar las {revision.conPropina} propinas encontradas</button>
+              )}
+            </div>
+            {revision && (
+              <div className="overflow-x-auto">
+                <p className="mb-2 text-xs text-brand-gray">{revision.aplicar ? "Resultado guardado." : "Vista previa."} Últimos {revision.dias} días: {revision.total} pagos revisados, {revision.conPropina} con propina.</p>
+                <table className="w-full text-xs">
+                  <thead><tr className="text-left text-brand-gray"><th className="py-1 pr-3">Fecha</th><th className="pr-3">Profesional</th><th className="pr-3">Cliente</th><th className="pr-3 text-right">Cobrado</th><th className="pr-3 text-right">Pagado</th><th className="pr-3 text-right">Propina</th><th>Estado</th></tr></thead>
+                  <tbody>
+                    {revision.filas.map((f: any) => (
+                      <tr key={f.id} className="border-t border-gray-100 dark:border-white/10">
+                        <td className="py-1 pr-3 whitespace-nowrap">{new Date(f.fecha).toLocaleString("es-CL", { timeZone: "America/Santiago", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}</td>
+                        <td className="pr-3">{f.profesional}</td><td className="pr-3">{f.cliente}</td>
+                        <td className="pr-3 text-right">${Number(f.cobrado).toLocaleString("es-CL")}</td>
+                        <td className="pr-3 text-right">{f.pagado != null ? `$${Number(f.pagado).toLocaleString("es-CL")}` : "-"}</td>
+                        <td className="pr-3 text-right font-semibold">{f.propina ? `$${Number(f.propina).toLocaleString("es-CL")}` : "-"}</td>
+                        <td>{({ con_propina: "Con propina", sin_propina: "Sin propina", propina_registrada: "Propina registrada", ya_tenia_propina: "Ya tenía propina", sin_maquina: "Sin máquina", no_se_pudo_leer: "No se pudo leer" } as Record<string, string>)[f.estado] || f.estado}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </>
       )}
     </div>

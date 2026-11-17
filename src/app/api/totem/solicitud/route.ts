@@ -41,7 +41,16 @@ export async function POST(req: NextRequest) {
     const claveProd = `prod:${quienClave}:${lineas.join("|")}`.slice(0, 200);
     if (await avisoReciente(supabase, t.id, claveProd, 2)) return NextResponse.json({ ok: true, total, repetido: true });
     await registrarAviso(supabase, t.id, claveProd);
-    await notify({ tenantId: t.id, kind: "client_arrived", roles: ["admin", "receptionist"], title: "Producto pedido en el tótem", body: `${quien} quiere: ${lineas.join(", ")} ($${total.toLocaleString("es-CL")}). Cóbraselo en el POS.`, url: "/dashboard/pos" }).catch(() => {});
+    // Quién vendió: el de la cita de hoy (por código) o el que el cliente eligió en la lista.
+    let vendedor = "";
+    let vendedorId = barberId;
+    const elegido = String(body.barberId || "");
+    if (!vendedorId && /^[0-9a-f-]{36}$/i.test(elegido)) {
+      const { data: b } = await supabase.from("profiles").select("id, name").eq("id", elegido).eq("tenant_id", t.id).eq("role", "barber").maybeSingle();
+      if (b) vendedorId = (b as any).id;
+    }
+    if (vendedorId) { const { data: v } = await supabase.from("profiles").select("name").eq("id", vendedorId).maybeSingle(); vendedor = (v as any)?.name || ""; }
+    await notify({ tenantId: t.id, kind: "client_arrived", roles: ["admin", "receptionist"], userIds: vendedorId ? [vendedorId] : [], professionalId: vendedorId, title: "Producto pedido en el tótem", body: `${quien} quiere: ${lineas.join(", ")} ($${total.toLocaleString("es-CL")})${vendedor ? `, vendido por ${vendedor}` : ""}. Cóbraselo en el POS.`, url: "/dashboard/pos" }).catch(() => {});
     return NextResponse.json({ ok: true, total });
   }
   return NextResponse.json({ error: "Solicitud no válida" }, { status: 400 });
