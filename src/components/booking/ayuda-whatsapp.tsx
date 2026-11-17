@@ -2,11 +2,11 @@
 
 // Boton fijo de ayuda en la pagina de reservas: si el negocio tiene telefono, el cliente puede escribirle por WhatsApp en cualquier paso
 // («tengo un problema para reservar una cita»). Aparece desde el principio, no solo cuando algo falla.
-export function enlaceWhatsappNegocio(phone: string | null | undefined, negocio: string | null | undefined): string | null {
+export function enlaceWhatsappNegocio(phone: string | null | undefined, negocio: string | null | undefined, mensaje?: string): string | null {
   const d = String(phone || "").replace(/\D/g, "").replace(/^0+/, "");
   if (d.length < 8) return null;
   const numero = d.startsWith("56") ? d : `56${d}`;
-  const texto = `Hola${negocio ? ` ${negocio}` : ""}, tengo un problema para reservar una cita. ¿Me pueden ayudar?`;
+  const texto = mensaje || `Hola${negocio ? ` ${negocio}` : ""}, tengo un problema para reservar una cita. ¿Me pueden ayudar?`;
   return `https://wa.me/${numero}?text=${encodeURIComponent(texto)}`;
 }
 
