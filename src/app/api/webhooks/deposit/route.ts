@@ -31,6 +31,18 @@ async function marcarResultado(supabase: any, referencia: unknown, data: Record<
  */
 export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
+  // Pago ya reclamado cuya cita aun no se crea: si algo falla en el medio, el abono queda «por devolver» y se avisa al negocio
+  // (antes quedaba cobrado, sin cita y sin que nadie lo supiera).
+  let enCurso: { tenantId: string; paymentId: string; monto: number; cliente: string } | null = null;
+  const reportarFallo = async (motivo: string) => {
+    if (!enCurso) return;
+    const f = enCurso;
+    enCurso = null;
+    try {
+      await supabase.from("booking_deposits").upsert({ tenant_id: f.tenantId, payment_id: f.paymentId, appointment_id: null, amount: f.monto, status: "needs_refund", payer_email: null }, { onConflict: "payment_id" }).then(() => {}, () => {});
+      await notify({ tenantId: f.tenantId, kind: "deposit_conflict", roles: ["admin", "receptionist"], title: "Abono pagado, pero no se pudo crear la cita", body: `${f.cliente} pagó $${f.monto.toLocaleString("es-CL")} y la cita no quedó registrada (${motivo}). Revisa Abonos: el abono quedó «por devolver».`, url: "/dashboard/abonos" });
+    } catch { /* el aviso es de ayuda: no debe romper la respuesta a Mercado Pago */ }
+  };
 
   try {
     const body = await req.json();
@@ -140,6 +152,7 @@ export async function POST(req: NextRequest) {
     if (yaCreada) return NextResponse.json({ ok: true });
     const reclamado = await reclamarPago(supabase, { tenantId, paymentId: String(paymentId), amount: Number(depositAmount) || 0, email: clientEmail || null });
     if (!reclamado) return NextResponse.json({ ok: true });
+    enCurso = { tenantId, paymentId: String(paymentId), monto: Math.round(Number(depositAmount) || 0), cliente: String(clientName || "Un cliente") };
 
     // El bloqueo del horario cumplió su trabajo: se libera para poder crear la cita en ese mismo horario.
     await liberarHold(supabase, holdRef);
@@ -227,6 +240,7 @@ export async function POST(req: NextRequest) {
 
     if (apptError) {
       console.error("Deposit webhook: error creating appointment", apptError);
+      await reportarFallo("error al crear la cita");
       return NextResponse.json({ ok: true });
     }
 
@@ -244,7 +258,10 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) { console.error("Deposit webhook: no se pudo revisar el cruce de horarios", e); }
     }
-    if (appointment) await marcarResultado(supabase, paymentData.external_reference, bookingData, { resultado: "pagado", appointmentId: appointment.id });
+    if (appointment) {
+      await marcarResultado(supabase, paymentData.external_reference, bookingData, { resultado: "pagado", appointmentId: appointment.id });
+      enCurso = null;
+    }
     // Registro del abono recibido (historial y control de duplicados). Si aun no esta la migracion 131, se omite.
     if (appointment) {
       await supabase.from("booking_deposits").upsert({ tenant_id: tenantId, payment_id: String(paymentId), appointment_id: appointment.id, amount: Math.round(Number(depositAmount) || 0), status: "approved", payer_email: clientEmail || null }, { onConflict: "payment_id" }).then(() => {}, () => {});
@@ -345,6 +362,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, appointmentId: appointment?.id });
   } catch (error: any) {
     console.error("Deposit webhook error:", error);
+    await reportarFallo("error inesperado");
     return NextResponse.json({ ok: true }); // Always return 200 to MP
   }
 }
