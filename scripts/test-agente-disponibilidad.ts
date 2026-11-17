@@ -164,10 +164,25 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     const pocos = await texto("tienen hora hoy", { "m|2026-11-03": ["15:00", "16:00"], "c|2026-11-03": ["15:00"] });
     assert.ok(pocos !== null && pocos.startsWith("Hay disponibilidad hoy:\n• *Matías Soto*: 15:00 · 16:00\n• *Camila Rojas*: 15:00"), "con 3 o menos profesionales se listan");
   });
+  await caso("Tramo de horas ('entre las 14 o las 15'): exactas, cercanas o lo más próximo, con el link al final", async () => {
+    const link = "También te dejamos el link de Matías para que veas los horarios disponibles:\nhttps://sintetico.invalid/negocio/matias-soto";
+    const base = ["10:00", "11:00", "14:00", "15:00", "18:00"];
+    const a = await texto("matias tiene horas hoy entre las 14 o las 15 hrs?", { "m|2026-11-03": base });
+    assert.equal(a, `Sí, tenemos disponible hoy a las *14:00* / *15:00*.\n¿Qué horario te gustaría reservar?\n\n${link}`);
+    const b = await texto("matias tiene horas hoy entre las 14 o las 15 hrs?", { "m|2026-11-03": ["10:00", "13:45", "14:30", "15:15", "18:00"] });
+    assert.equal(b, `Sí, tenemos disponible hoy a las *13:45* / *14:30* / *15:15*.\n¿Qué horario te gustaría reservar?\n\n${link}`);
+    const c = await texto("matias tiene horas hoy entre las 14 o las 15 hrs?", { "m|2026-11-03": ["09:00", "18:00", "18:45", "19:30"] });
+    assert.equal(c, `Lo siento, no tenemos en ese horario. Lo más cercano hoy es a las *18:00* / *18:45* / *19:30*.\n¿Te sirve alguna de estas?\n\n${link}`);
+    const dd = deps({ "m|2026-11-03": base }); dd.fechaPorDefecto = "2026-11-03"; dd.profesionalPorDefecto = "m";
+    const r = await responderDisponibilidad("tiene hora a las 14 o a las 15", datos(), dd);
+    assert.ok(r.tipo === "respuesta" && r.texto.startsWith("Sí, tenemos disponible hoy a las *14:00* / *15:00*."), "seguimiento con el profesional anterior");
+    const e = await texto("matias tiene horas el viernes entre las 2 y las 4", { "m|2026-11-06": ["13:00", "14:00", "15:00", "16:00"] });
+    assert.ok(e !== null && e.includes("*14:00* / *15:00* / *16:00*"), "1 a 8 se entiende de tarde");
+  });
   await caso("Un profesional con muchas horas: rango y pregunta el horario; con franja, lista", async () => {
     const horas = ["10:00", "10:45", "11:30", "12:15", "13:00", "13:45", "14:30", "15:15", "16:00", "17:30"];
     const t = await texto("matias tiene hora hoy", { "m|2026-11-03": horas });
-    assert.equal(t, `*Matías Soto* tiene 10 horas disponibles hoy, entre las 10:00 y las 17:30.\n¿Prefieres en la mañana, en la tarde o en la noche? O dime la hora que buscas.\n\nO reserva tú aquí: ${M}`);
+    assert.equal(t, `Sí, *Matías Soto* tiene horas hoy.\n¿En qué horario buscas? (en la mañana, en la tarde o una hora, por ejemplo «a las 15:00»)\n\nTe dejo su link para que veas todos los horarios:\n${M}`);
     const f = await texto("matias tiene hora hoy en la tarde", { "m|2026-11-03": horas });
     assert.ok(f !== null && f.startsWith("*Matías Soto* tiene disponible hoy en la tarde:\n12:15 · 13:00 · 13:45 · 14:30 · 15:15 · 16:00 · y 1 más"));
     const pocas = await texto("matias tiene hora hoy", { "m|2026-11-03": horas.slice(0, 6) });

@@ -132,7 +132,7 @@ async function pruebasDisponibilidad(){
       };
       await enviar(w.f,"matias tiene hora mañana");
       await enviar(w.f,"me gustaría en la tarde");
-      check("seguimiento: la oferta resume cuando hay muchas horas",w.f.sent[0].includes("10 horas disponibles mañana"));
+      check("seguimiento: la oferta resume cuando hay muchas horas",/^Sí, \*Matías Soto\* tiene horas mañana.*\n¿En qué horario buscas\?/.test(w.f.sent[0]));
       check("seguimiento: 'en la tarde' usa el mismo profesional y fecha",w.f.sent[1].includes("Matías Soto")&&w.f.sent[1].includes("en la tarde")&&w.f.sent[1].includes("mañana")&&!w.f.sent[1].includes("Elige una opción")&&w.f.notices.length===0);
     }
     { // el menú empieza de cero: un "1" después de un saludo es la opción del menú, no una hora de la oferta anterior
