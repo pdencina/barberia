@@ -57,5 +57,7 @@ export async function DELETE(req: NextRequest) {
   const supabase = createAdminSupabase();
   const { data, error } = await supabase.from("professional_vacations").delete().eq("id", id).eq("tenant_id", c.tenantId!).select("id");
   if (error || !data || data.length === 0) return NextResponse.json({ error: "No encontrado" }, { status: 404 });
+  // Si venia de una solicitud, queda como cancelada (la tabla puede no existir aun: no pasa nada).
+  await supabase.from("vacation_requests").update({ status: "cancelled", updated_at: new Date().toISOString() }).eq("vacation_id", id).eq("tenant_id", c.tenantId!);
   return NextResponse.json({ success: true });
 }

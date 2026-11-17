@@ -46,6 +46,7 @@ interface NavItem {
   // Basic es 1 profesional con agenda, mensajes y reportes basicos (tabla de precios): estos
   // modulos se muestran bloqueados solo en Basic. Starter/Pro/Enterprise no cambian.
   basicLocked?: boolean;
+  onlyRoles?: string[];   // solo se muestra a estos roles (por ejemplo «Mis vacaciones» solo al profesional: el administrador la tiene en Mi negocio)
 }
 
 interface NavSection {
@@ -120,6 +121,7 @@ const sections: NavSection[] = [
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin", cap: "sucursales" },
       { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin", liteOnly: true },
       { name: "Ocupación", href: "/dashboard/ocupacion", icon: Gauge, minRole: "admin", basicLocked: true },
+      { name: "Mis vacaciones", href: "/dashboard/vacaciones", icon: Plane, minRole: "barber", onlyRoles: ["barber"] },
       {
         name: "Mi negocio", href: "/dashboard/mi-negocio", icon: Briefcase, minRole: "admin",
         // Fase 6: lo que se administra del negocio, junto en un solo menu.
@@ -243,7 +245,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     ],
     barber: [
       "/dashboard/standby", "/dashboard/mi-agenda", "/dashboard/calendario",
-      "/dashboard/clientes", "/dashboard/mi-billetera", "/dashboard/mi-billetera/personal",
+      "/dashboard/clientes", "/dashboard/mi-billetera", "/dashboard/mi-billetera/personal", "/dashboard/vacaciones",
       "/dashboard/mi-perfil", "/dashboard/avisos", "/dashboard/soporte",
     ],
   };
@@ -268,6 +270,7 @@ export function Sidebar({ userName, userRole, tenantName, isSoloBusiness }: Side
     // que no sea super_admin, en vez de mostrarse bloqueados.
     if (item.minRole === "super_admin" && effectiveRole !== "super_admin") return null;
 
+    if (item.onlyRoles && !item.onlyRoles.includes(effectiveRole)) return null;
     if (item.liteOnly && !esLite(overrideTenant?.plan)) return null;
     if (item.hideIfNoCap && item.cap && overrideTenant?.plan && !planPermite(overrideTenant.plan, item.cap)) return null;   // Mi Agenda: solo con 2 o más profesionales
     const whitelist = ROLE_MENU_ACCESS[effectiveRole];

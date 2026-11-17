@@ -60,7 +60,7 @@ export const ROLE_MENU_ACCESS: Record<string, string[]> = {
   ],
   barber: [
     "/dashboard/standby", "/dashboard/mi-agenda", "/dashboard/calendario",
-    "/dashboard/clientes", "/dashboard/mi-billetera", "/dashboard/mi-billetera/personal",
+    "/dashboard/clientes", "/dashboard/mi-billetera", "/dashboard/mi-billetera/personal", "/dashboard/vacaciones",
     "/dashboard/mi-perfil", "/dashboard/avisos", "/dashboard/soporte",
   ],
 };

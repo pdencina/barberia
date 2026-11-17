@@ -11,7 +11,8 @@ export type NotifyKind =
   | "appointment_new" | "appointment_changed" | "client_arrived"
   | "planilla_created" | "planilla_approved"
   | "announcement" | "cash_problem" | "supply_request"
-  | "cash_closed" | "cash_mismatch" | "deposit_conflict" | "kiosk_payment";
+  | "cash_closed" | "cash_mismatch" | "deposit_conflict" | "kiosk_payment"
+  | "vacation_request" | "vacation_decision";
 
 // `essential`: no se puede silenciar. `generic`: texto para pantalla bloqueada (sin nombres ni montos).
 export const NOTIFY_KINDS: Record<NotifyKind, { label: string; essential: boolean; generic: { title: string; body: string } }> = {
@@ -26,6 +27,8 @@ export const NOTIFY_KINDS: Record<NotifyKind, { label: string; essential: boolea
   cash_closed:         { label: "Cierre de caja (cuadró)", essential: false, generic: { title: "Se cerró una caja", body: "Abre la app para ver el detalle." } },
   kiosk_payment:       { label: "Pagos hechos desde el tótem", essential: true, generic: { title: "Un cliente pagó desde el tótem", body: "Abre la app para ver el detalle." } },
   deposit_conflict:    { label: "Abono pagado con horario ocupado", essential: true, generic: { title: "Un abono necesita tu atención", body: "Revísalo en la app." } },
+  vacation_request:    { label: "Solicitudes de vacaciones", essential: false, generic: { title: "Nueva solicitud de vacaciones", body: "Revísala en la app." } },
+  vacation_decision:   { label: "Respuesta a tus vacaciones", essential: true, generic: { title: "Respondieron tu solicitud de vacaciones", body: "Abre la app para verla." } },
   cash_mismatch:       { label: "Cierre de caja con diferencia", essential: true, generic: { title: "Una caja cerró con diferencia", body: "Revísala en la app." } },
 };
 

@@ -64,6 +64,7 @@ export const ROLE_PERMISSIONS: Record<Role, Permission> = {
       "/dashboard/comisiones",
       "/dashboard/clientes",
       "/dashboard/mi-billetera",
+      "/dashboard/vacaciones",
       "/dashboard/mi-perfil",
       "/dashboard/soporte",
     ],
