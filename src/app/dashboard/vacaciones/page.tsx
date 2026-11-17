@@ -6,6 +6,9 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
 import { Spinner } from "@/components/ui/spinner";
 import { todayInChile } from "@/lib/utils";
+import { useAuth } from "@/lib/auth-context";
+import { VistaProfesional } from "@/components/vacaciones/vista-profesional";
+import { VistaAdmin } from "@/components/vacaciones/vista-admin";
 
 interface Vacation { id: string; barber_id: string; start_date: string; end_date: string; note: string | null }
 interface Pro { id: string; name: string }
@@ -16,6 +19,17 @@ const days = (a: string, b: string) => Math.round((Date.parse(`${b}T12:00:00Z`) 
 // Vacaciones de profesionales: un rango de fechas por profesional. Ese profesional no aparece en la
 // reserva online esos dias y su agenda se ve bloqueada ("Vacaciones").
 export default function VacacionesPage() {
+  const { role } = useAuth();
+  if (role === "barber") return (
+    <div className="p-3 md:p-6 space-y-3 md:space-y-4 max-w-3xl mx-auto animate-fade-in">
+      <div><h1 className="text-xl md:text-2xl font-bold text-brand-dark">Mis vacaciones</h1><p className="text-sm text-brand-gray">Pide tus vacaciones en el calendario y tu administrador las acepta.</p></div>
+      <VistaProfesional />
+    </div>
+  );
+  return <VacacionesAdmin />;
+}
+
+function VacacionesAdmin() {
   const { showToast } = useToast();
   const { confirm } = useConfirm();
   const { tenant, loading: tenantLoading } = useTenant();
@@ -77,6 +91,8 @@ export default function VacacionesPage() {
         <p className="text-sm text-brand-gray">Esos días el profesional no aparece en la reserva online y su agenda queda bloqueada.</p>
       </div>
       {migrationMissing && <p className="rounded-lg bg-red-50 p-3 text-sm text-red-600">Falta aplicar la migración 095 en la base de datos.</p>}
+
+      <VistaAdmin onCambio={load} />
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 md:p-5 space-y-3">
         <h2 className="font-bold text-brand-dark">Agregar vacaciones</h2>
