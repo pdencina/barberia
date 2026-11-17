@@ -9,7 +9,7 @@ import { barbersWithFreeTime, firstDayWithSlots } from "@/lib/first-available";
 import { limpiarHoldsVencidos } from "@/lib/deposit-hold";
 
 export async function GET(req: NextRequest) {
-  { const sbLimpieza = createAdminSupabase(); await limpiarHoldsVencidos(sbLimpieza); } // bloqueos de abono ya vencidos (3:30)
+  { const sbLimpieza = createAdminSupabase(); await limpiarHoldsVencidos(sbLimpieza); } // bloqueos de abono ya vencidos
   const supabase = createAdminSupabase();
   const { searchParams } = new URL(req.url);
   const explicitDate = searchParams.get("date");

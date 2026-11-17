@@ -147,7 +147,7 @@ export async function POST(req: NextRequest) {
       statement_descriptor: tenant?.name || "RE-BOOKING",
       expires: true,
       expiration_date_from: new Date().toISOString(),
-      expiration_date_to: new Date(expiraEn.getTime() + 15_000).toISOString(), // el link vence junto con el bloqueo del horario (3:30): si no paga a tiempo, no queda ni el link ni el horario
+      expiration_date_to: new Date(expiraEn.getTime() + 15_000).toISOString(), // el link vence junto con el bloqueo del horario (5 minutos): si no paga a tiempo, no queda ni el link ni el horario
     }),
   });
 

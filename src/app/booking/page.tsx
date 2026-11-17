@@ -4,6 +4,7 @@ import { calcularAbono } from "@/lib/deposit-calc";
 import { useState, useEffect, useRef } from "react";
 import ResenasCarrusel from "@/components/booking/resenas-carrusel";
 import BusinessProfile, { type BusinessInfo } from "@/components/booking/business-profile";
+import { AyudaWhatsapp } from "@/components/booking/ayuda-whatsapp";
 import TimeFirstFlow, { type TimePick } from "@/components/booking/time-first-flow";
 import { formatCurrency } from "@/lib/utils";
 import { SuccessMark } from "@/components/ui/empty-state";
@@ -83,7 +84,7 @@ export default function BookingPage() {
   const [clientFound, setClientFound] = useState(false);
   const [appointmentId, setAppointmentId] = useState("");
   const [checkinCode, setCheckinCode] = useState<string | null>(null);
-  // Pago del abono: el horario queda reservado 3:30 mientras se paga (contador). Si no se paga a tiempo, se libera y no se toma la hora.
+  // Pago del abono: el horario queda reservado 5 minutos mientras se paga (contador). Si no se paga a tiempo, se libera y no se toma la hora.
   const [pago, setPago] = useState<null | { ref: string | null; url: string; expira: number; monto: number; estado: "esperando" | "vencido" | "conflicto" }>(null);
   const [ahora, setAhora] = useState(() => Date.now());
   const [slotsKey, setSlotsKey] = useState(0);
@@ -376,7 +377,7 @@ export default function BookingPage() {
       setSubmitting(false);
 
       if (depositData.checkoutUrl) {
-        // El horario ya quedó reservado (3:30): se muestra el contador y el cliente paga en Mercado Pago sin perder esta pantalla.
+        // El horario ya quedó reservado (5 minutos): se muestra el contador y el cliente paga en Mercado Pago sin perder esta pantalla.
         const seg = Number(depositData.segundos) || 210;
         setAhora(Date.now());
         setPago({ ref: depositData.intentRef || null, url: depositData.checkoutUrl, expira: Date.now() + seg * 1000, monto: Number(depositData.depositAmount) || 0, estado: "esperando" });
@@ -1129,6 +1130,7 @@ export default function BookingPage() {
       </div>
 
       {businessInfo?.id && <ResenasCarrusel tenantId={businessInfo.id} />}
+      <AyudaWhatsapp phone={businessInfo?.phone} negocio={businessInfo?.name} />
 
       <div className="border-t border-gray-100 py-4 text-center text-xs text-brand-gray">
         re-booking · rebooking.cl

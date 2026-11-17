@@ -5,8 +5,8 @@ import { isOnVacation } from "@/lib/vacations";
 import { getWindowDays, isBeyondWindow } from "@/lib/booking-window";
 
 // Mientras el cliente paga el abono, su horario queda bloqueado (la cita recien se crea cuando el pago se aprueba).
-// El bloqueo vence solo a los 3 minutos: si no paga, el horario vuelve a estar libre.
-export const HOLD_SEGUNDOS = 180; // 3 minutos: es lo que tiene el cliente para pagar; si no paga, el horario se libera y no queda nada bloqueado
+// El bloqueo vence solo a los 5 minutos: si no paga, el horario vuelve a estar libre.
+export const HOLD_SEGUNDOS = 300; // 5 minutos (antes 3, poco para tarjetas nuevas o verificaciones del banco): es lo que tiene el cliente para pagar; si no paga, el horario se libera
 const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, "0")}:${String(min % 60).padStart(2, "0")}`;
 
 // ¿El horario sigue libre? (vacaciones, dias permitidos, bloqueos —incluidos los de otros que estan pagando— y citas).
