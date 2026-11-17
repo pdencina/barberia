@@ -15,6 +15,8 @@ function MiCodigo() {
   const [error, setError] = useState("");
   const [res, setRes] = useState<Resultado | null>(null);
   const [hecho, setHecho] = useState<"pagar" | "llegue" | null>(null);
+  // Sin cita hoy: nunca se cierra el flujo, se ofrece reservar (con el primer profesional disponible o el que elija).
+  const [sinCita, setSinCita] = useState<{ negocio: { name: string; logo_url: string | null }; reservaUrl: string | null } | null>(null);
 
   const buscar = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -22,7 +24,8 @@ function MiCodigo() {
     try {
       const r = await fetch("/api/totem/vincular/asociar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ t: token, email: correo }) });
       const d = await r.json().catch(() => ({}));
-      if (!r.ok) setError(d.error || "No pudimos buscar tu código"); else setRes(d);
+      if (d.sinCita) setSinCita({ negocio: d.negocio, reservaUrl: d.reservaUrl });
+      else if (!r.ok) setError(d.error || "No pudimos buscar tu código"); else setRes(d);
     } catch { setError("Sin conexión. Intenta de nuevo."); }
     setCargando(false);
   };
@@ -50,6 +53,17 @@ function MiCodigo() {
           <h1 className="tt-display text-3xl font-semibold">{hecho === "pagar" ? "Sigue en la pantalla del tótem" : "Ya avisamos tu llegada"}</h1>
           <p className="mt-3 text-lg text-white/65">{hecho === "pagar" ? "En el tótem ya aparece tu cita para pagar." : "El tótem ya recibió tu código y le avisamos a tu profesional."}</p>
           <p className="mt-8 text-sm text-white/40">Tu código: <span className="tt-mono tracking-widest text-white/70">{res?.code}</span></p>
+        </div>
+      ) : sinCita ? (
+        <div>
+          {sinCita.negocio?.logo_url && /* eslint-disable-next-line @next/next/no-img-element */ <img src={sinCita.negocio.logo_url} alt={sinCita.negocio.name} className="mb-5 h-16 w-16 rounded-2xl bg-white object-contain p-1.5" />}
+          <p className="tt-mono text-xs uppercase tracking-[0.16em] text-white/50">{sinCita.negocio?.name}</p>
+          <h1 className="tt-display mt-2 text-3xl font-semibold">No tienes una cita agendada para hoy</h1>
+          <p className="mt-3 text-lg text-white/65">¿Deseas reservar? Te asignamos el primer profesional disponible, o puedes elegir con quién.</p>
+          <div className="mt-8 space-y-3">
+            {sinCita.reservaUrl && <a href={sinCita.reservaUrl} className={`${boton} block`}>Sí, reservar ahora</a>}
+            <button className={secundario} onClick={() => { setSinCita(null); setCorreo(""); setError(""); }}>Probar con otro correo</button>
+          </div>
         </div>
       ) : res ? (
         <div>

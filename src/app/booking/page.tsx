@@ -95,6 +95,9 @@ export default function BookingPage() {
   const [businessInfo, setBusinessInfo] = useState<BusinessInfo | null>(null);
   // Vista de reserva: "time" (día y hora primero) o "professional" (profesional primero).
   const [viewMode, setViewMode] = useState<"time" | "professional">("professional");
+  // ?vista=ambas (tótem del local y su QR): siempre parte por horario, con el PRIMER PROFESIONAL DISPONIBLE, y deja elegir un profesional
+  // con el botón de arriba; se aplica aunque el negocio tenga otra vista por defecto.
+  const vistaAmbas = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("vista") === "ambas";
   // true = el cliente llego directo a un profesional (link personal o negocio con uno solo).
   const [directEntry, setDirectEntry] = useState(false);
   const [expandedService, setExpandedService] = useState<string | null>(null);
@@ -163,7 +166,7 @@ export default function BookingPage() {
         if (data.name) {
           setBusinessName(data.name); setBusinessInfo(data);
           if (data.suspended) setBusinessSuspended(true);
-          if (data.booking_view_mode === "time") setViewMode("time");
+          if (data.booking_view_mode === "time" || new URLSearchParams(window.location.search).get("vista") === "ambas") setViewMode("time");
         }
         if (data.logo_url) setBusinessLogoUrl(data.logo_url);
         // Fetch deposit settings for this tenant
@@ -440,7 +443,7 @@ export default function BookingPage() {
   }
 
   // Vista por horario disponible solo si el negocio la eligió y hay link de negocio.
-  const viewPref = businessInfo?.booking_view_mode || "professional";
+  const viewPref = vistaAmbas ? "both" : (businessInfo?.booking_view_mode || "professional");
   const timeViewAllowed = !!tenantSlugState && (viewPref === "time" || viewPref === "both");
   const professionalViewAllowed = viewPref !== "time";
   const activeView: "time" | "professional" =
@@ -553,8 +556,8 @@ export default function BookingPage() {
         {step === "barber" && timeViewAllowed && professionalViewAllowed && (
           <div className="mb-6 flex justify-center">
             <div className="inline-flex rounded-full border border-gray-200 bg-white p-1 text-xs font-semibold shadow-sm">
-              <button onClick={() => setViewMode("time")} className={`rounded-full px-4 py-1.5 transition ${activeView === "time" ? "bg-brand-blue text-white" : "text-brand-gray"}`}>Por horario</button>
-              <button onClick={() => setViewMode("professional")} className={`rounded-full px-4 py-1.5 transition ${activeView === "professional" ? "bg-brand-blue text-white" : "text-brand-gray"}`}>Por profesional</button>
+              <button onClick={() => setViewMode("time")} className={`rounded-full px-4 py-1.5 transition ${activeView === "time" ? "bg-brand-blue text-white" : "text-brand-gray"}`}>{vistaAmbas ? "Primer profesional disponible" : "Por horario"}</button>
+              <button onClick={() => setViewMode("professional")} className={`rounded-full px-4 py-1.5 transition ${activeView === "professional" ? "bg-brand-blue text-white" : "text-brand-gray"}`}>{vistaAmbas ? "Elegir profesional" : "Por profesional"}</button>
             </div>
           </div>
         )}

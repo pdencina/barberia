@@ -88,6 +88,7 @@ function Totem() {
   const [code, setCode] = useState("");
   const [citas, setCitas] = useState<Cita[]>([]);
   const [msg, setMsg] = useState("");
+  const [sinCita, setSinCita] = useState(false); // el código no tiene cita hoy: nunca se corta el flujo, se ofrece reservar
   const [gracias, setGracias] = useState("");
   const [cargando, setCargando] = useState(false);
   const [carrito, setCarrito] = useState<Record<string, number>>({});
@@ -102,7 +103,7 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null);
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false);
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
@@ -194,11 +195,11 @@ function Totem() {
 
   const buscar = async (codigoCliente?: string) => {
     const codigoUsado = codigoCliente || code;
-    setCargando(true); setMsg("");
+    setCargando(true); setMsg(""); setSinCita(false);
     const { ok, d } = await post("buscar", { code: codigoUsado });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos buscar tu cita"); return; }
-    if (!d.citas?.length) { setMsg("No encontramos ese código para hoy. Pídelo a quien te atiende."); return; }
+    if (!d.citas?.length) { setSinCita(true); return; }
     setCitas(d.citas); setPantalla("cita");
   };
 
@@ -384,10 +385,22 @@ function Totem() {
                 ))}
               </div>
               {msg && <p className={`mb-6 ${aviso}`}>{msg}</p>}
-              <button className={principal} disabled={code.length !== 5 || cargando} onClick={() => buscar()}>{cargando ? "Buscando…" : "Continuar"}</button>
-              <button className={`${secundario} mt-4`} disabled={cargando} onClick={abrirVinculo}>No recuerdo mi código · Verlo con mi celular</button>
+              {sinCita ? (
+                // Sin cita hoy: el flujo no se cierra, se ofrece reservar.
+                <div className={`${caja} p-6`}>
+                  <p className="tt-display text-3xl font-semibold">No tienes una cita agendada para hoy</p>
+                  <p className="mt-2 text-2xl text-white/65">¿Deseas reservar?</p>
+                  <button className={`${principal} mt-5`} onClick={() => { setSinCita(false); setPantalla("nohora"); }}>Sí, reservar</button>
+                  <button className={`${secundario} mt-3`} onClick={() => { setSinCita(false); setCode(""); }}>Escribir otro código</button>
+                </div>
+              ) : (
+                <>
+                  <button className={principal} disabled={code.length !== 5 || cargando} onClick={() => buscar()}>{cargando ? "Buscando…" : "Continuar"}</button>
+                  <button className={`${secundario} mt-4`} disabled={cargando} onClick={abrirVinculo}>No recuerdo mi código · Verlo con mi celular</button>
+                </>
+              )}
             </div>
-            <Teclado onTecla={(k) => { setMsg(""); setCode((c) => (c.length < 5 ? c + k : c)); }} onBorrar={() => setCode((c) => c.slice(0, -1))} />
+            <Teclado onTecla={(k) => { setMsg(""); setSinCita(false); setCode((c) => (c.length < 5 ? c + k : c)); }} onBorrar={() => { setSinCita(false); setCode((c) => c.slice(0, -1)); }} />
           </div>
         </section>
       )}
@@ -473,14 +486,14 @@ function Totem() {
           <div className="grid flex-1 items-stretch gap-6 md:grid-cols-2">
             {info.reservaPantalla && (
               <button className={`${caja} flex flex-col items-start justify-between gap-6 p-10 text-left active:bg-white/10`} onClick={() => setPantalla("reservar")}>
-                <span><span className="tt-display block text-5xl font-semibold">Reservar en esta pantalla</span><span className="mt-4 block text-2xl text-white/65">Elige servicio, profesional y hora aquí mismo.</span></span>
+                <span><span className="tt-display block text-5xl font-semibold">Reservar en esta pantalla</span><span className="mt-4 block text-2xl text-white/65">Elige tu servicio y te asignamos el primer profesional disponible, o escoge con quién atenderte.</span></span>
                 <span aria-hidden className="text-5xl text-white/40">→</span>
               </button>
             )}
             {info.reserva && (
               <div className={`${caja} flex items-center gap-8 p-10`}>
                 <Qr valor={info.reserva} tamano={300} />
-                <div><p className="tt-display text-4xl font-semibold">Reservar desde tu celular</p><p className="mt-3 text-2xl text-white/65">Abre la cámara de tu celular y apunta al código. Reservas desde ahí, sin escribir nada más aquí.</p></div>
+                <div><p className="tt-display text-4xl font-semibold">Reservar desde tu celular</p><p className="mt-3 text-2xl text-white/65">Abre la cámara de tu celular y apunta al código. También parte con el primer profesional disponible, y puedes elegir otro.</p></div>
               </div>
             )}
           </div>
