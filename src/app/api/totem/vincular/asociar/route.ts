@@ -19,7 +19,7 @@ export async function POST(req: NextRequest) {
   await supabase.from("kiosk_links").update({ intentos: (l as any).intentos + 1 }).eq("token", token);
 
   const tenantId: string = (l as any).tenant_id;
-  const { data: neg } = await supabase.from("tenants").select("name, logo_url, kiosk_enabled, kiosk_unlocked").eq("id", tenantId).maybeSingle();
+  const { data: neg } = await supabase.from("tenants").select("name, slug, logo_url, kiosk_enabled, kiosk_unlocked").eq("id", tenantId).maybeSingle();
   if (!neg || !(neg as any).kiosk_enabled || !(neg as any).kiosk_unlocked) return NextResponse.json({ error: "El tótem no está disponible." }, { status: 404 });
 
   // Clientes con ese correo (exacto, sin distinguir mayúsculas) y, de ellos, el que tenga una cita que el tótem atiende.
@@ -33,7 +33,13 @@ export async function POST(req: NextRequest) {
   }
   const cliente: any = cita ? (clientes || []).find((c: any) => c.id === cita.client_id) : null;
   if (!cliente || !cliente.checkin_code) {
-    return NextResponse.json({ error: "No encontramos una cita de hoy con ese correo. Revisa que sea el correo de tu reserva, o pide ayuda en recepción." }, { status: 404 });
+    // Nunca se cierra el flujo: sin cita hoy (o correo desconocido, con el MISMO mensaje) se ofrece reservar.
+    const base = (process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl").replace(/\/$/, "");
+    return NextResponse.json({
+      error: "No tienes una cita agendada para hoy. ¿Deseas reservar?", sinCita: true,
+      negocio: { name: (neg as any).name, logo_url: (neg as any).logo_url || null },
+      reservaUrl: (neg as any).slug ? `${base}/${(neg as any).slug}?vista=ambas` : null,
+    }, { status: 404 });
   }
 
   await supabase.from("kiosk_links").update({ client_id: cliente.id, code: cliente.checkin_code }).eq("token", token);

@@ -35,8 +35,8 @@ const estado = async (token: string, codigo = codigoNegocio) => (await (await es
     ok((await estado(t1, "ZZZZZZZ")).estado === "expirado", "con otro código de negocio no se puede leer la sesión");
 
     r = await post(asociar, { t: t1, email: "correo-malo" }); ok(r.status === 400, "correo con formato inválido: se rechaza");
-    r = await post(asociar, { t: t1, email: "sin.cita.prueba@example.com" }); ok(r.status === 404, "cliente SIN cita hoy: no se revela (mismo mensaje que un correo desconocido)");
-    r = await post(asociar, { t: t1, email: "no.existe@example.com" }); ok(r.status === 404, "correo desconocido: 404");
+    r = await post(asociar, { t: t1, email: "sin.cita.prueba@example.com" }); let dsc = await r.json(); ok(r.status === 404 && dsc.sinCita === true && /reservar/i.test(dsc.error) && !!dsc.reservaUrl && dsc.reservaUrl.includes("vista=ambas"), "cliente SIN cita hoy: mensaje «No tienes una cita agendada para hoy. ¿Deseas reservar?» con enlace para reservar");
+    r = await post(asociar, { t: t1, email: "no.existe@example.com" }); const dnx = await r.json(); ok(r.status === 404 && dnx.sinCita === true && dnx.error === dsc.error, "correo desconocido: EXACTAMENTE la misma respuesta que sin cita (no se revela quién es cliente)");
     ok((await estado(t1)).estado === "esperando", "los intentos fallidos no entregan nada al tótem");
 
     r = await post(asociar, { t: t1, email: correo.toUpperCase() }); d = await r.json();
