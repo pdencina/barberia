@@ -90,6 +90,17 @@ const ok = (c: boolean, m: string) => { console.log((c ? "OK    " : "FALLA ") + 
     const kp6 = await nuevoPago(ap6);
     const r6 = await registrarVentaTotem(sb, kp6);
     ok(r6.ok === false, "un pago pendiente nunca genera venta");
+
+    // ---- 7) propina: el cliente pagó $17.000 por un servicio de $15.000 -> venta de $15.000 y propina de $2.000 al profesional
+    await sb.from("tenants").update({ kiosk_auto_sale: true }).eq("id", tenantId);
+    const ap7 = await nuevaCita([15000]);
+    const kp7 = await nuevoPago(ap7);
+    const c7 = await confirmarPagoTotem(sb, { id: kp7, tenant_id: tenantId, appointment_id: ap7 }, 17000, "ref-test-7", "con tarjeta en la máquina", "debit_card", { propina: 2000, detalle: { prueba: true } });
+    const t7 = await ventas(kp7);
+    const { data: tx7 } = t7 ? await sb.from("transactions").select("total, tip_amount, barber_id").eq("id", t7).single() : { data: null as any };
+    const { data: k7 } = await sb.from("kiosk_payments").select("paid_amount, tip_amount, provider_detail").eq("id", kp7).single();
+    ok(c7 === true && Number(tx7?.total) === 15000 && Number(tx7?.tip_amount) === 2000 && tx7?.barber_id === barber.id, "con propina: la venta es de $15.000 y la propina de $2.000 queda en la venta, a nombre del profesional");
+    ok(Number(k7.paid_amount) === 17000 && Number(k7.tip_amount) === 2000 && k7.provider_detail?.prueba === true, "el pago guarda lo realmente pagado ($17.000), la propina y el detalle del proveedor");
   } finally {
     for (const kpId of creados.kp) {
       const { data } = await sb.from("kiosk_payments").select("transaction_id").eq("id", kpId).single();

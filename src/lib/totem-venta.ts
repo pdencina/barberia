@@ -19,7 +19,10 @@ export type ResultadoVenta = { ok: true; transactionId: string; yaExistia?: bool
 
 export async function registrarVentaTotem(supabase: any, kioskPaymentId: string): Promise<ResultadoVenta> {
   // 1) Tomar el pago. Solo uno puede «reclamarlo»: si otro ya está registrando o ya terminó, no se duplica la venta.
-  const { data: kp0 } = await supabase.from("kiosk_payments").select("id, tenant_id, appointment_id, amount, paid_amount, status, transaction_id, sale_status, card_type, payment_type").eq("id", kioskPaymentId).maybeSingle();
+  const colsBase = "id, tenant_id, appointment_id, amount, paid_amount, status, transaction_id, sale_status, card_type, payment_type";
+  let r0: any = await supabase.from("kiosk_payments").select(`${colsBase}, tip_amount`).eq("id", kioskPaymentId).maybeSingle();
+  if (r0.error) r0 = await supabase.from("kiosk_payments").select(colsBase).eq("id", kioskPaymentId).maybeSingle(); // migración 171 aún no aplicada
+  const kp0 = r0.data;
   if (!kp0) return { ok: false, error: "Pago no encontrado" };
   if (kp0.status !== "paid") return { ok: false, error: "El pago aún no está confirmado" };
   if (kp0.transaction_id) return { ok: true, transactionId: kp0.transaction_id, yaExistia: true };
@@ -38,8 +41,10 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
     const items = (filas || []).map((f: any) => ({ service_id: f.service_id, name: f.services?.name || "Servicio", price: Math.round(Number(f.price) || 0) }));
     if (items.length === 0) throw new Error("La cita no tiene servicios");
 
-    // Totales como en el POS: total = lo realmente cobrado; el descuento es lo que ya estaba pagado (abono) o cualquier diferencia.
-    const total = Math.round(Number(kp0.paid_amount ?? kp0.amount) || 0);
+    // Totales como en el POS: total = lo cobrado por el servicio (SIN la propina); el descuento es lo que ya estaba pagado (abono) o cualquier diferencia.
+    // La propina que el cliente agregó en la máquina va aparte, en tip_amount, 100% al profesional (como en el POS).
+    const propina = Math.max(0, Math.round(Number(kp0.tip_amount) || 0));
+    const total = Math.round(Number(kp0.amount) || 0);
     const subtotal = items.reduce((s: number, i: any) => s + i.price, 0);
     const discount = Math.max(0, subtotal - total);
     const disp = await buscarAbonosDisponibles(supabase, { tenantId, clientId, appointmentId: cita.id });
@@ -54,6 +59,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
       created_by: barberId, origin: "totem",
       ...(barberProfile?.branch_id ? { branch_id: barberProfile.branch_id } : {}),
       ...(abono > 0 ? { prepaid_amount: abono } : {}),
+      ...(propina > 0 ? { tip_amount: propina } : {}),
     };
     let { data: tx, error } = await supabase.from("transactions").insert(txRow).select().single();
     if (error && /origin|created_by|prepaid_amount|branch_id/i.test(error.message)) {
@@ -76,7 +82,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
       action: "transaction_create", entity_type: "transaction", entity_id: tx.id,
       description: `Venta $${total.toLocaleString("es-CL")} — ${items.map((i: any) => i.name).join(", ")}${cli?.name ? ` — ${cli.name}` : ""} (${medio}, tótem)`,
       user_id: barberId, user_name: barberProfile?.name || "",
-      metadata: { total, subtotal, discount, abono, paymentMethod: medio, clientId, items: items.length, origen: "totem", kioskPaymentId },
+      metadata: { total, subtotal, discount, abono, propina, paymentMethod: medio, clientId, items: items.length, origen: "totem", kioskPaymentId },
     }).then(() => {}, () => {});
 
     // Puntos de fidelidad (misma regla que el POS).

@@ -117,8 +117,52 @@ export async function consultarCobro(term: Terminal, externalId: string): Promis
   return (await consultarCobroDetalle(term, externalId)).estado;
 }
 
-// Igual que consultarCobro, y además devuelve el tipo de tarjeta que informó Mercado Pago (debit_card / credit_card) para registrar bien el medio de pago.
-export async function consultarCobroDetalle(term: Terminal, externalId: string): Promise<{ estado: EstadoCobro; tipoPago?: string | null }> {
+const aNumero = (v: any): number | null => { const n = typeof v === "string" ? parseFloat(v) : typeof v === "number" ? v : NaN; return Number.isFinite(n) ? n : null; };
+
+// Busca en un objeto (hasta 4 niveles) un monto cuyo nombre diga «tip» o «propina». Mercado Pago/TUU no documentan claramente dónde viene la
+// propina que el cliente agrega en la máquina, así que se busca por nombre y, si no aparece, se deduce de pagado - solicitado.
+function buscarPropinaExplicita(o: any, nivel = 0): number | null {
+  if (!o || typeof o !== "object" || nivel > 4) return null;
+  for (const [k, v] of Object.entries(o)) {
+    if (/tip|propina/i.test(k)) {
+      const n = aNumero(v);
+      if (n !== null && n > 0) return n;
+      // «tip» puede venir como objeto ({ amount: 2500 }): se toma su monto.
+      if (v && typeof v === "object") for (const c of ["amount", "value", "total"]) { const m = aNumero((v as any)[c]); if (m !== null && m > 0) return m; }
+    }
+    if (v && typeof v === "object") { const r = buscarPropinaExplicita(v, nivel + 1); if (r !== null) return r; }
+  }
+  return null;
+}
+
+export interface MontosCobro { solicitado: number | null; pagado: number | null; propina: number; detalle: Record<string, any> }
+
+// Puro (se prueba sin red): de la orden de Mercado Pago y, si se pudo leer, del pago asociado, saca lo solicitado, lo realmente pagado y la propina.
+export function extraerMontosMp(orden: any, pagoDetalle?: any): MontosCobro {
+  const pago = orden?.transactions?.payments?.[0] || {};
+  const solicitado = aNumero(pago.amount) ?? aNumero(pagoDetalle?.transaction_amount);
+  const candidatos = [aNumero(pago.paid_amount), aNumero(pagoDetalle?.transaction_details?.total_paid_amount)].filter((x): x is number => x !== null && x > 0);
+  const pagado = candidatos.length ? Math.max(...candidatos) : solicitado;
+  const explicita = buscarPropinaExplicita(pago) ?? buscarPropinaExplicita(pagoDetalle);
+  const derivada = solicitado !== null && pagado !== null && pagado > solicitado ? pagado - solicitado : 0;
+  // La propina nunca puede ser mayor que el monto cobrado (si lo fuera, el dato no es confiable y se ignora).
+  const bruta = explicita ?? derivada;
+  const propina = solicitado !== null && bruta > solicitado ? 0 : Math.round(bruta);
+  return {
+    solicitado: solicitado === null ? null : Math.round(solicitado), pagado: pagado === null ? null : Math.round(pagado), propina,
+    // Solo campos de montos y medio de pago (nada del pagador) para poder revisar después qué informó Mercado Pago.
+    detalle: {
+      orden: { id: orden?.id ?? null, status: orden?.status ?? null, status_detail: orden?.status_detail ?? null },
+      pago: { id: pago.id ?? null, status: pago.status ?? null, amount: pago.amount ?? null, paid_amount: pago.paid_amount ?? null, payment_method: pago.payment_method ?? null },
+      pagoMp: pagoDetalle ? { transaction_amount: pagoDetalle.transaction_amount ?? null, total_paid_amount: pagoDetalle.transaction_details?.total_paid_amount ?? null, net_received_amount: pagoDetalle.transaction_details?.net_received_amount ?? null, payment_type_id: pagoDetalle.payment_type_id ?? null } : null,
+      propinaEncontrada: explicita,
+    },
+  };
+}
+
+// Igual que consultarCobro, y además devuelve el tipo de tarjeta que informó Mercado Pago (debit_card / credit_card) y los montos realmente pagados
+// (con la propina que el cliente agregó en la máquina) para registrar bien la venta.
+export async function consultarCobroDetalle(term: Terminal, externalId: string): Promise<{ estado: EstadoCobro; tipoPago?: string | null; montos?: MontosCobro }> {
   try {
     if (term.proveedor === "tuu") {
       const res = await fetch(`${TUU_BASE_URL}/RemotePayment/v2/GetPaymentReques/${externalId}`, { headers: { "X-API-Key": term.apiKey! }, cache: "no-store" });
@@ -126,7 +170,10 @@ export async function consultarCobroDetalle(term: Terminal, externalId: string):
       const data: any = await res.json().catch(() => ({}));
       const raw = data.status ?? data.Status ?? data.state ?? data.paymentStatus ?? data.requestStatus;
       const mapa: Record<string, string> = { "2": "cancelled", canceled: "cancelled", cancelled: "cancelled", "4": "rejected", failed: "rejected", "5": "approved", completed: "approved" };
-      return { estado: (mapa[String(raw)] as EstadoCobro) || "pending" };
+      const estado = (mapa[String(raw)] as EstadoCobro) || "pending";
+      // TUU tampoco documenta dónde informa la propina: se busca por nombre y se guarda lo recibido para revisarlo.
+      const propina = estado === "approved" ? Math.round(buscarPropinaExplicita(data) ?? 0) : 0;
+      return { estado, ...(estado === "approved" ? { montos: { solicitado: null, pagado: null, propina, detalle: { tuu: { status: raw ?? null, propinaEncontrada: propina || null } } } } : {}) };
     }
     const res = await fetch(`https://api.mercadopago.com/v1/orders/${externalId}`, { headers: { Authorization: `Bearer ${term.token}` }, cache: "no-store" });
     if (!res.ok) return { estado: "pending" };
@@ -134,7 +181,17 @@ export async function consultarCobroDetalle(term: Terminal, externalId: string):
     if (data.status === "processed" || data.status === "closed") {
       const pago = data.transactions?.payments?.[0];
       const p = pago?.status;
-      if (p === "approved" || p === "processed") return { estado: "approved", tipoPago: pago?.payment_method?.type || null };
+      if (p === "approved" || p === "processed") {
+        // El pago asociado trae el monto realmente pagado (con propina); si no se puede leer, se usa solo la orden.
+        let pagoMp: any = null;
+        if (pago?.id) {
+          try {
+            const r2 = await fetch(`https://api.mercadopago.com/v1/payments/${pago.id}`, { headers: { Authorization: `Bearer ${term.token}` }, cache: "no-store" });
+            if (r2.ok) pagoMp = await r2.json().catch(() => null);
+          } catch { /* se sigue con la orden */ }
+        }
+        return { estado: "approved", tipoPago: pago?.payment_method?.type || pagoMp?.payment_type_id || null, montos: extraerMontosMp(data, pagoMp) };
+      }
       if (p === "rejected" || p === "cancelled") return { estado: "rejected" };
     } else if (data.status === "expired" || data.status === "cancelled") return { estado: "cancelled" };
     return { estado: "pending" };

@@ -65,14 +65,25 @@ function Fondo() {
   );
 }
 
-// Teclado en pantalla (letras y números sin O/0/I/1). Se usa para el código del cliente y el del negocio.
-function Teclado({ onTecla, onBorrar, columnas = 8 }: { onTecla: (k: string) => void; onBorrar: () => void; columnas?: number }) {
+// Teclado en pantalla en formato QWERTY (números arriba). Los códigos nunca llevan I, O, 0 ni 1 (se confunden): esas teclas se ven apagadas y
+// no escriben nada, pero se mantienen en su lugar para que el teclado sea el de siempre. Se usa para el código del cliente y el del negocio.
+const FILAS_TECLADO = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
+const TECLAS_VALIDAS = new Set([...LETRAS, ...NUMEROS]);
+function Teclado({ onTecla, onBorrar }: { onTecla: (k: string) => void; onBorrar: () => void }) {
   return (
-    <div className="grid gap-3" style={{ gridTemplateColumns: `repeat(${columnas}, minmax(0, 1fr))` }}>
-      {[...LETRAS, ...NUMEROS].map((k) => (
-        <button key={k} onClick={() => onTecla(k)} className="rounded-xl border border-white/[0.12] bg-white/[0.04] py-5 text-4xl font-bold active:bg-white/15">{k}</button>
+    <div className="space-y-3">
+      {FILAS_TECLADO.map((fila, i) => (
+        <div key={fila} className="flex justify-center gap-3" style={{ paddingInline: i === 2 ? "3.2%" : i === 3 ? "8%" : 0 }}>
+          {fila.split("").map((k) => {
+            const valida = TECLAS_VALIDAS.has(k);
+            return (
+              <button key={k} disabled={!valida} onClick={() => onTecla(k)} aria-label={k}
+                className={`flex-1 rounded-xl border py-5 text-4xl font-bold ${valida ? "border-white/[0.12] bg-white/[0.04] active:bg-white/15" : "border-white/[0.05] bg-transparent text-white/15"}`}>{k}</button>
+            );
+          })}
+          {i === 3 && <button onClick={onBorrar} className="flex-[2] rounded-xl border border-white/20 bg-white/[0.08] py-5 text-2xl font-bold active:bg-white/15">Borrar</button>}
+        </div>
       ))}
-      <button onClick={onBorrar} className="rounded-xl border border-white/20 bg-white/[0.08] py-5 text-2xl font-bold active:bg-white/15" style={{ gridColumn: `span ${columnas}` }}>Borrar</button>
     </div>
   );
 }

@@ -27,11 +27,13 @@ export async function GET(req: NextRequest) {
       // La máquina es la del profesional de la cita (si tiene la suya) o la del negocio, igual que al crear el cobro.
       const { data: ap } = await supabase.from("appointments").select("barber_id").eq("id", kp.appointment_id).maybeSingle();
       const term = await resolverTerminal(supabase, t.id, (ap as any)?.barber_id);
-      const det = term ? await consultarCobroDetalle(term, kp.external_id) : { estado: "pending" as const, tipoPago: null };
+      const det: { estado: "approved" | "rejected" | "cancelled" | "pending"; tipoPago?: string | null; montos?: any } = term ? await consultarCobroDetalle(term, kp.external_id) : { estado: "pending" };
       const est = det.estado;
       if (est === "approved") {
         // El pago se registra solo como venta (billetera, dashboard, cierre...). El tipo de tarjeta lo informa Mercado Pago; en TUU es el elegido en el tótem.
-        await confirmarPagoTotem(supabase, kp, Number(kp.amount), `${kp.provider}:${kp.external_id}`, "con tarjeta en la máquina", (det as any).tipoPago || null);
+        // Lo realmente pagado puede ser MÁS que lo cobrado: la diferencia es la propina que el cliente agregó en la máquina.
+        const pagado = Number(det.montos?.pagado) > 0 ? Number(det.montos.pagado) : Number(kp.amount);
+        await confirmarPagoTotem(supabase, kp, pagado, `${kp.provider}:${kp.external_id}`, "con tarjeta en la máquina", det.tipoPago || null, { propina: det.montos?.propina || 0, detalle: det.montos?.detalle });
         return NextResponse.json({ estado: "paid" }, { headers: { "Cache-Control": "no-store" } });
       }
       if (est === "rejected" || est === "cancelled") {
