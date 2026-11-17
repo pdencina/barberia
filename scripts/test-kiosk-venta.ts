@@ -1,5 +1,6 @@
 // Prueba de que un pago del tótem se registra como VENTA normal (una sola vez). Usa la base de PRUEBAS y limpia lo que crea.
 //   npx tsx scripts/test-kiosk-venta.ts <tenantId>
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { registrarVentaTotem, medioDePago } from "../src/lib/totem-venta";
 import { confirmarPagoTotem } from "../src/lib/totem-pago";
 

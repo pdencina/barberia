@@ -1,5 +1,6 @@
 // Prueba del webhook de pago por QR del totem con Mercado Pago simulado. Usa la base de PRUEBAS. Ejecutar con las variables de entorno cargadas:
 //   npx tsx scripts/test-kiosk-pay.ts <tenantId> <kioskPaymentId>
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { NextRequest } from "next/server";
 import { firmarNegocio } from "../src/lib/deposit";
 import { POST } from "../src/app/api/webhooks/kiosk-pay/route";

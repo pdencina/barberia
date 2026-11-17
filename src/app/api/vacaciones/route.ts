@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCallerForView } from "@/lib/supabase/server";
 import { dateStrOffset, todayInChile } from "@/lib/utils";
+import { esLunes } from "@/lib/vacation-rules";
 
 // Vacaciones de profesionales (solo administrador). Un rango de fechas por profesional: bloquea su
 // agenda y la reserva online (ver src/lib/vacations.ts). Tabla professional_vacations (migracion 095).
@@ -31,6 +32,7 @@ export async function POST(req: NextRequest) {
   const { barberId, startDate, endDate } = body || {};
   if (!barberId || !isDate(startDate) || !isDate(endDate)) return NextResponse.json({ error: "Elige el profesional y las fechas." }, { status: 400 });
   if (endDate < startDate) return NextResponse.json({ error: "La fecha de término no puede ser antes del inicio." }, { status: 400 });
+  if (!esLunes(startDate)) return NextResponse.json({ error: "Las vacaciones siempre empiezan un lunes." }, { status: 400 });
   if (Date.parse(`${endDate}T12:00:00Z`) - Date.parse(`${startDate}T12:00:00Z`) > 366 * 86400000) {
     return NextResponse.json({ error: "El rango no puede superar un año." }, { status: 400 });
   }

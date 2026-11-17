@@ -30,6 +30,8 @@ t("hora invalida no rompe ni avisa", c({ start_time: "no-es-fecha" }) === "");
 // ---------- 2) el envio completo, con base falsa y capturando el correo ----------
 const enviados: any[] = [];
 (globalThis as any).fetch = async (url: any, init: any) => {
+  // Solo se capturan los correos (Resend). La consulta del código de llegada del tótem va a la base: se responde vacío para que no cuente como correo.
+  if (!String(url).includes("resend.com")) return new Response("[]", { status: 200, headers: { "content-type": "application/json" } });
   enviados.push({ url: String(url), body: init?.body ? JSON.parse(init.body) : null });
   return new Response(JSON.stringify({ id: "correo-de-prueba" }), { status: 200, headers: { "content-type": "application/json" } });
 };

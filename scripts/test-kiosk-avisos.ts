@@ -1,5 +1,6 @@
 // Prueba de que el tótem NO repite avisos al equipo. Usa la base de PRUEBAS (necesita la tabla audit_log) y limpia lo que crea.
 //   npx tsx scripts/test-kiosk-avisos.ts <tenantId> <codigoNegocio>
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { NextRequest } from "next/server";
 import { POST as solicitud } from "../src/app/api/totem/solicitud/route";
 

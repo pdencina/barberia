@@ -4,6 +4,7 @@
 // Uso: npx tsx scripts/test-empresas-etapas.ts
 // SEGURIDAD: se niega a correr si .env.local no apunta a rebooking-pruebas o si BASE_URL no es local. No imprime llaves.
 // Las campañas se prueban solo en modo simulado: si EMPRESAS_WHATSAPP_SEND=1 está en .env.local, ese paso se salta.
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";

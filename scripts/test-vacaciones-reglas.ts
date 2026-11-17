@@ -1,5 +1,5 @@
 // Reglas de las solicitudes de vacaciones. Uso: npx tsx scripts/test-vacaciones-reglas.ts
-import { periodoDe, diasDerecho, diasQueTrabaja, diasLaborales, saldoDe, validarSolicitud, esLunes, sumarDias, diasUsadosEn } from "../src/lib/vacation-rules";
+import { equivalencia, diasLibresSemana, diasPorSemana, periodoDe, diasDerecho, diasQueTrabaja, diasLaborales, saldoDe, validarSolicitud, esLunes, sumarDias, diasUsadosEn } from "../src/lib/vacation-rules";
 let fallos = 0;
 const ok = (c: boolean, n: string) => { if (!c) { fallos++; console.log("FALLA:", n); } else console.log("OK  ", n); };
 
@@ -58,4 +58,10 @@ ok(diasUsadosEn(martesLibre, usoTodo, periodoDe("2027-02-01", "calendar")) === 1
 ok(!validarSolicitud({ ...base, diasAnio: 10, ingreso: "2027-12-31", inicio: "2027-12-27", fin: "2028-01-02", hoy: "2027-12-01" }).ok || true, "sin derecho aún: la solicitud no revienta");
 ok(!validarSolicitud({ ...base, diasAnio: 0, inicio: "2027-01-04", fin: "2027-01-10" }).ok, "con 0 días configurados no se puede pedir");
 ok(sumarDias("2027-01-04", 13) === "2027-01-17", "suma de días de calendario");
+// Equivalencia: 10 dias laborales con 5 dias de trabajo a la semana = 2 semanas = 14 dias corridos (con los libres dentro).
+ok(diasPorSemana(martesLibre) === 5, "trabaja 5 días a la semana (martes y domingo libres)");
+ok(diasLibresSemana(martesLibre).join() === "martes,domingo", "sus días libres son martes y domingo");
+ok(JSON.stringify(equivalencia(10, martesLibre)) === JSON.stringify({ semanas: 2, corridos: 14, porSemana: 5 }), "10 días laborales = 2 semanas = 14 días corridos");
+ok(equivalencia(15, diasQueTrabaja([])).corridos === 21, "15 días laborales de lunes a sábado = 3 semanas (21 días corridos)");
+ok(equivalencia(0, martesLibre).corridos === 0, "sin días no hay equivalencia");
 process.exit(fallos ? 1 : 0);

@@ -1,5 +1,6 @@
 // Prueba del cobro en máquina del tótem con TUU y Mercado Pago SIMULADOS. Usa la base de PRUEBAS y limpia lo que crea.
 //   npx tsx scripts/test-kiosk-terminal.ts <tenantId> <codigoNegocio>
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { NextRequest } from "next/server";
 import { POST as pagoTerminal } from "../src/app/api/totem/pago-terminal/route";
 import { GET as pagoEstado } from "../src/app/api/totem/pago-estado/route";

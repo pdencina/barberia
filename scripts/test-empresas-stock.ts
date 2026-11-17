@@ -2,6 +2,7 @@
 // Uso: npx tsx scripts/test-empresas-stock.ts
 // SEGURIDAD: se niega a correr si .env.local no apunta a rebooking-pruebas. No imprime llaves.
 // Es re-ejecutable: las empresas simuladas se reutilizan y cada corrida crea productos nuevos (quedan inactivos al final).
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
