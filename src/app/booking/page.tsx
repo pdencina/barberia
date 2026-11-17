@@ -673,7 +673,7 @@ export default function BookingPage() {
 
         {/* Vista por horario: servicio → día y hora → profesional disponible */}
         {step === "barber" && activeView === "time" && (
-          <TimeFirstFlow tenantSlug={tenantSlugState} closedWeekdays={closedWeekdays} windowDays={businessInfo?.booking_window_days ?? null} onPick={handleTimePick} />
+          <TimeFirstFlow tenantSlug={tenantSlugState} closedWeekdays={closedWeekdays} windowDays={businessInfo?.booking_window_days ?? null} onPick={handleTimePick} agruparPorCategoria={vistaAmbas} />
         )}
 
         {/* Step 1: Barber (PRIMERO) */}

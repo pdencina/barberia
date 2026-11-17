@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     // Mismo orden que el admin definio arrastrando en Servicios (sort_order); el precio solo
     // desempata entre servicios que aun no tienen un orden propio.
     .order("sort_order", { ascending: true })
-    .order("price", { ascending: true }) as any, "id, name, description, price, duration, sort_order");
+    .order("price", { ascending: true }) as any, "id, name, description, price, duration, sort_order, category");
 
   return NextResponse.json(data || []);
 }
