@@ -6,9 +6,13 @@ import { enlaceDeVuelta } from "@/lib/volver-reserva";
 
 export default function DepositFailurePage() {
   const [volver, setVolver] = useState({ href: "/booking", ref: null as string | null });
+  const [negocio, setNegocio] = useState<{ name: string; phone: string | null } | null>(null);
   useEffect(() => {
     const v = enlaceDeVuelta(window.location.search);
     setVolver(v);
+    // Contacto del negocio (si el link trae su nombre): para pedir ayuda por WhatsApp si el pago no pasa.
+    const slug = new URLSearchParams(window.location.search).get("n");
+    if (slug) fetch(`/api/public/business-info?slug=${encodeURIComponent(slug)}`).then((r) => r.json()).then((d) => { if (d?.name) setNegocio({ name: d.name, phone: d.phone || null }); }).catch(() => {});
     // El pago no se completó: se libera el horario reservado para que pueda reintentar de inmediato.
     if (v.ref) fetch("/api/booking/deposit-release", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ref: v.ref }) }).catch(() => {});
   }, []);
@@ -22,16 +26,29 @@ export default function DepositFailurePage() {
           </svg>
         </div>
         <h1 className="text-2xl font-bold text-brand-dark mb-2">Tu pago no se completó</h1>
-        <p className="text-brand-gray text-sm mb-6">
+        <p className="text-brand-gray text-sm mb-4">
           No pudimos procesar el pago, así que tu cita aún no está confirmada. No se te cobró nada.
         </p>
-        <p className="text-xs text-brand-gray mb-6">
-          Puedes intentar nuevamente o elegir otro metodo de pago.
-        </p>
+        <div className="mb-5 rounded-xl bg-gray-50 p-3 text-left text-xs text-brand-gray">
+          <p className="mb-1 font-semibold text-brand-dark">¿Qué puedes hacer?</p>
+          <ul className="list-disc space-y-1 pl-4">
+            <li>Revisa que el saldo o cupo alcance y que los datos de la tarjeta estén bien escritos.</li>
+            <li>Prueba con <b>otra tarjeta</b> o con otro medio de pago (débito, saldo de Mercado Pago).</li>
+            <li>Si te rechazó varias veces, Mercado Pago puede bloquear la tarjeta por seguridad: <b>no insistas con la misma</b>, usa otra o espera un rato.</li>
+            <li>Si sigue sin resultar, escríbenos y te ayudamos a reservar.</li>
+          </ul>
+        </div>
         <Link href={volver.href}
           className="inline-block px-6 py-3 bg-brand-blue text-white rounded-xl font-medium hover:bg-brand-blue/90 transition-colors">
           Intentar de nuevo
         </Link>
+        {negocio?.phone && (
+          <a href={`https://wa.me/${negocio.phone.replace(/\D/g, "").replace(/^0/, "56").replace(/^(?!56)/, "56")}?text=${encodeURIComponent(`Hola ${negocio.name}, intenté reservar y el pago del abono no se completó. ¿Me ayudan a agendar mi hora?`)}`}
+            target="_blank" rel="noopener noreferrer"
+            className="mt-3 block rounded-xl border border-green-600 px-6 py-3 text-sm font-semibold text-green-700 hover:bg-green-50">
+            Escribir a {negocio.name} por WhatsApp
+          </a>
+        )}
       </div>
     </div>
   );

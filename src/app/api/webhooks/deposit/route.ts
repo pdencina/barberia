@@ -10,6 +10,7 @@ import { reclamarPago } from "@/lib/deposit-claim";
 import { resolverServicios } from "@/lib/booking-services";
 import { parseWallClock } from "@/lib/wallclock";
 import { leerIntento } from "@/lib/booking-intent";
+import { motivoRechazo } from "@/lib/motivo-rechazo";
 
 // Deja anotado en la reserva en espera si se pagó (o si el horario se ocupó) para que la página de reservas lo muestre.
 async function marcarResultado(supabase: any, referencia: unknown, data: Record<string, any>, extra: Record<string, unknown>) {
@@ -89,6 +90,17 @@ export async function POST(req: NextRequest) {
         const ref = await leerIntento(supabase, paymentData.external_reference).catch(() => null);
         if (ref) { tid = tid || ref.tenantId || null; monto = Math.round(Number(ref.depositAmount) || monto); }
         if (tid) {
+          // Primera vez que se ve este pago rechazado: se avisa al administrador para que pueda ayudar al cliente (Mercado Pago repite el aviso varias veces).
+          const yaRegistrado = await supabase.from("booking_deposits").select("payment_id").eq("payment_id", String(paymentId)).maybeSingle().then((r: any) => !!r?.data, () => true);
+          if (!yaRegistrado && paymentData.status === "rejected" && ref) {
+            const motivo = motivoRechazo(paymentData.status_detail);
+            const cuando = ref.startTime ? `${String(ref.startTime).slice(8, 10)}/${String(ref.startTime).slice(5, 7)} ${String(ref.startTime).slice(11, 16)}` : "";
+            await notify({
+              tenantId: tid, kind: "deposit_rejected", roles: ["admin"], url: "/dashboard/abonos",
+              title: "Un cliente no pudo pagar su abono",
+              body: `${ref.clientName || "Cliente"}${cuando ? ` · quería reservar el ${cuando}` : ""}${ref.clientPhone ? ` · ${ref.clientPhone}` : ""}. Motivo: ${motivo.admin}. Puedes agendarlo tú en el Calendario.`,
+            });
+          }
           await supabase.from("booking_deposits").upsert({ tenant_id: tid, payment_id: String(paymentId), amount: monto, status: `${paymentData.status}:${paymentData.status_detail || "sin_detalle"}`.slice(0, 120), payer_email: paymentData.payer?.email || null }, { onConflict: "payment_id" }).then(() => {}, () => {});
         }
       } catch { /* solo diagnostico */ }
