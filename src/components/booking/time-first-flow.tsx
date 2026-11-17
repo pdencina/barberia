@@ -6,7 +6,7 @@ import { formatCurrency } from "@/lib/utils";
 
 // "Vista por horario": el cliente elige servicio(s), luego día y hora (de todo el equipo)
 // y al final el profesional disponible en esa hora.
-interface Svc { id: string; name: string; description: string | null; price: number; duration: number }
+interface Svc { id: string; name: string; description: string | null; price: number; duration: number; category?: string | null }
 interface BarberOpt { id: string; name: string; avatar_url: string | null; services: Svc[]; duration: number; price: number }
 export interface TimePick { barber: BarberOpt; services: Svc[]; date: string; slot: string; auto?: boolean }
 
@@ -16,9 +16,14 @@ const pad = (n: number) => String(n).padStart(2, "0");
 const ds = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const hhmm = (slot: string) => slot.slice(11, 16);
 
-export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, onPick }: { tenantSlug: string; closedWeekdays: number[]; windowDays?: number | null; onPick: (p: TimePick) => void }) {
+// Nombre de una sección de servicios para mostrarlo: sin el punto final que a veces queda al escribirlo ("Salón." -> "Salón").
+const nombreCategoria = (c: string | null | undefined) => (String(c || "").trim().replace(/[.\s]+$/, "") || "Otros servicios");
+
+export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, onPick, agruparPorCategoria = false }: { tenantSlug: string; closedWeekdays: number[]; windowDays?: number | null; onPick: (p: TimePick) => void; agruparPorCategoria?: boolean }) {
   const [phase, setPhase] = useState<"services" | "time" | "pro">("services");
   const [services, setServices] = useState<Svc[]>([]);
+  // Con agruparPorCategoria (tótem y su QR) el cliente elige primero la sección (ej. Nicolás, Gabriel, Salón) y luego los servicios de esa sección.
+  const [categoria, setCategoria] = useState<string | null>(null);
   const [loadingServices, setLoadingServices] = useState(true);
   const [selected, setSelected] = useState<string[]>([]);
   const [date, setDate] = useState("");
@@ -100,17 +105,58 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
   const monthsInRange = Array.from(new Set(days.map((d) => d.getMonth())));
   const selMonth = date ? Number(date.slice(5, 7)) - 1 : monthsInRange[0];
 
+  // Secciones (categorías) de servicios, en el orden en que aparecen en la lista del negocio.
+  const secciones = useMemo(() => {
+    const orden: string[] = [];
+    const cuenta = new Map<string, { n: number; desde: number }>();
+    for (const s of services) {
+      const k = nombreCategoria(s.category);
+      if (!cuenta.has(k)) { orden.push(k); cuenta.set(k, { n: 0, desde: Infinity }); }
+      const c = cuenta.get(k)!; c.n += 1; c.desde = Math.min(c.desde, s.price);
+    }
+    return orden.map((k) => ({ nombre: k, ...cuenta.get(k)! }));
+  }, [services]);
+  const usaSecciones = agruparPorCategoria && secciones.length > 1;
+  const serviciosVisibles = usaSecciones && categoria ? services.filter((s) => nombreCategoria(s.category) === categoria) : services;
+
+  // ── Fase 0 (solo con secciones): elegir la sección ──
+  if (phase === "services" && usaSecciones && categoria === null && !loadingServices) {
+    return (
+      <div className="pb-8">
+        <h2 className="text-2xl font-bold mb-2">¿Qué estás buscando?</h2>
+        <p className="text-brand-gray mb-6">Elige una sección para ver sus servicios</p>
+        <div className="space-y-3">
+          {secciones.map((c) => (
+            <button key={c.nombre} onClick={() => { setSelected([]); setCategoria(c.nombre); }}
+              className="w-full rounded-2xl border border-gray-200 bg-white p-5 text-left transition hover:border-brand-blue/40 active:bg-gray-50">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-lg font-bold">{c.nombre}</p>
+                  <p className="mt-0.5 text-xs text-brand-gray">{c.n} {c.n === 1 ? "servicio" : "servicios"} · desde {formatCurrency(c.desde)}</p>
+                </div>
+                <ChevronRight className="h-5 w-5 flex-shrink-0 text-brand-gray" />
+              </div>
+            </button>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   // ── Fase 1: servicios ──
   if (phase === "services") {
     return (
       <div className="pb-28">
-        <h2 className="text-2xl font-bold mb-2">¿Qué servicio necesitas?</h2>
+        {usaSecciones && categoria && (
+          <button onClick={() => { setSelected([]); setCategoria(null); }} className="mb-4 flex items-center gap-1 text-sm text-brand-gray hover:text-brand-blue"><ChevronLeft className="h-4 w-4" /> Secciones</button>
+        )}
+        <h2 className="text-2xl font-bold mb-2">{usaSecciones && categoria ? categoria : "¿Qué servicio necesitas?"}</h2>
         <p className="text-brand-gray mb-6">Selecciona uno o más servicios</p>
         {loadingServices ? <p className="text-sm text-brand-gray">Cargando…</p> : services.length === 0 ? (
           <p className="text-sm text-brand-gray">Este negocio aún no tiene servicios disponibles.</p>
         ) : (
           <div className="space-y-3">
-            {services.map((s) => {
+            {serviciosVisibles.map((s) => {
               const on = selected.includes(s.id);
               return (
                 <button key={s.id} onClick={() => setSelected((p) => (on ? p.filter((x) => x !== s.id) : [...p, s.id]))}
