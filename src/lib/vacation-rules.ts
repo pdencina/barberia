@@ -83,6 +83,20 @@ export function saldoDe(o: { fecha: string; diasAnio: number; modo: ModoReinicio
   return { periodo, derecho, usados, restantes: Math.max(0, derecho - usados) };
 }
 
+// Cuantos dias a la semana trabaja y cuantos libres tiene (7 - trabaja).
+export const diasPorSemana = (trabaja: boolean[]) => trabaja.filter(Boolean).length;
+export const NOMBRES_DIA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+export const diasLibresSemana = (trabaja: boolean[]) => [1, 2, 3, 4, 5, 6, 0].filter((d) => !trabaja[d]).map((d) => NOMBRES_DIA[d]);
+
+// «10 días laborales equivalen a ~2 semanas fuera (14 días corridos)»: las vacaciones se toman en semanas completas desde un lunes y los
+// dias libres de cada semana tambien se pasan fuera, pero no se descuentan.
+export function equivalencia(laborales: number, trabaja: boolean[]): { semanas: number; corridos: number; porSemana: number } {
+  const porSemana = diasPorSemana(trabaja);
+  if (laborales <= 0 || porSemana <= 0) return { semanas: 0, corridos: 0, porSemana };
+  const semanas = Math.ceil(laborales / porSemana);
+  return { semanas, corridos: semanas * 7, porSemana };
+}
+
 export type ResultadoSolicitud = { ok: true; laborales: number; corridos: number } | { ok: false; error: string };
 // Valida una solicitud: lunes de inicio, bloque corrido, dentro de lo que le queda en cada periodo que toque, sin pisar otras vacaciones.
 // `ocupados`: vacaciones ya aprobadas y solicitudes pendientes de ese profesional (sin contar la propia solicitud si se esta re-validando).

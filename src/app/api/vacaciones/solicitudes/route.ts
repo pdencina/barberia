@@ -56,7 +56,7 @@ export async function GET() {
       ...solicitudes.filter((s) => s.barber_id === p.id && s.status === "pending"),
     ];
     const saldo = saldoActual({ prefs, ingreso, trabaja, rangos, hoy });
-    return { barberId: p.id as string, name: p.name as string, ingreso, ingresoManual: !!p.vacation_start_date, trabaja, ...saldo };
+    return { barberId: p.id as string, name: p.name as string, ingreso, ingresoManual: !!p.vacation_start_date, trabaja, bloqueados: rangos.map((r: any) => ({ start_date: r.start_date, end_date: r.end_date })), ...saldo };
   });
   return NextResponse.json({ rol: "admin", prefs, migracionFalta: migracionFalta || faltaMigracion(reqs.error), hoy, saldos, solicitudes });
 }
