@@ -41,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Marca como pagado SOLO si seguía sin pagar, avisa y deja constancia (idempotente: un aviso repetido no avisa dos veces).
-    await confirmarPagoTotem(supabase, kp as any, Number(p.transaction_amount) || 0, String(paymentId), "por Mercado Pago");
+    await confirmarPagoTotem(supabase, kp as any, Number(p.transaction_amount) || 0, String(paymentId), "por Mercado Pago", p.payment_type_id || null);
     return NextResponse.json({ ok: true });
   } catch (e) {
     console.error("kiosk-pay webhook error:", e);

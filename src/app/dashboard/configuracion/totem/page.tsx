@@ -22,18 +22,19 @@ export default function ConfiguracionTotemPage() {
   const [mpListo, setMpListo] = useState(false);
   const [pagoTerminal, setPagoTerminal] = useState(false);
   const [terminalListo, setTerminalListo] = useState(false);
+  const [ventaAuto, setVentaAuto] = useState(true);
   const tq = tenant?.id ? `?tenantId=${tenant.id}` : "";
 
   useEffect(() => {
     fetch(`/api/settings/totem${tq}`).then((r) => r.json()).then((d) => {
       if (d.error) return;
-      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo);
+      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo); setVentaAuto(d.ventaAuto !== false);
     }).catch(() => {}).finally(() => setLoading(false));
   }, [tq]);
 
   const guardar = async () => {
     setSaving(true);
-    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal }) });
+    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal, ventaAuto }) });
     const d = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) return showToast(d.error || "No se pudo guardar", "error");
@@ -65,8 +66,16 @@ export default function ConfiguracionTotemPage() {
 
           <label className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
             <span>
+              <span className="block font-bold text-brand-dark">Registrar la venta automáticamente</span>
+              <span className="text-xs text-brand-gray">Cuando un cliente paga en el tótem (máquina o QR), la venta se crea sola como una venta normal: aparece en la billetera del profesional, el dashboard, el cierre y la caja (origen «Tótem»), suma puntos y emite la boleta si la tienes automática. Si la apagas, solo se avisa al equipo y la venta la registras tú en el POS.</span>
+            </span>
+            <input type="checkbox" className="mt-1 h-5 w-5 flex-shrink-0" checked={ventaAuto} onChange={(e) => setVentaAuto(e.target.checked)} />
+          </label>
+
+          <label className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
+            <span>
               <span className="block font-bold text-brand-dark">Cobro con tarjeta en la máquina</span>
-              <span className="text-xs text-brand-gray">Al tocar «Quiero pagar», el tótem manda el monto de la cita a la máquina de tarjetas del local (Mercado Pago Point o TUU) y el cliente paga ahí. Al aprobarse avisamos al profesional y a administración; la venta la registras tú en el POS.</span>
+              <span className="text-xs text-brand-gray">Al tocar «Quiero pagar», el tótem manda el monto de la cita a la máquina de tarjetas del local (Mercado Pago Point o TUU) y el cliente paga ahí. Al aprobarse avisamos al profesional y a administración, y la venta se registra sola.</span>
               {!terminalListo && <span className="mt-1 block text-xs font-semibold text-amber-600">Primero conecta tu máquina en Configuración (Mercado Pago o TUU): hoy no hay una máquina lista.</span>}
             </span>
             <input type="checkbox" className="mt-1 h-5 w-5 flex-shrink-0" checked={pagoTerminal} onChange={(e) => setPagoTerminal(e.target.checked)} />
@@ -75,7 +84,7 @@ export default function ConfiguracionTotemPage() {
           <label className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
             <span>
               <span className="block font-bold text-brand-dark">Pago por QR desde el celular</span>
-              <span className="text-xs text-brand-gray">El cliente escribe su código y paga el saldo de su cita escaneando un QR (Mercado Pago). Cuando paga, avisamos al profesional y a administración. La venta la registras tú en el POS como Mercado Pago.</span>
+              <span className="text-xs text-brand-gray">El cliente escribe su código y paga el saldo de su cita escaneando un QR (Mercado Pago). Cuando paga, avisamos al profesional y a administración, y la venta se registra sola.</span>
               {!mpListo && <span className="mt-1 block text-xs font-semibold text-amber-600">Primero conecta Mercado Pago en «Cobros online»: sin eso el QR no puede crearse.</span>}
             </span>
             <input type="checkbox" className="mt-1 h-5 w-5 flex-shrink-0" checked={pagoQr} onChange={(e) => setPagoQr(e.target.checked)} />

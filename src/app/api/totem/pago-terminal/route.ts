@@ -43,7 +43,11 @@ export async function POST(req: NextRequest) {
     await supabase.from("kiosk_payments").update({ status: "cancelled" }).eq("id", (p as any).id);
   }
 
-  const { data: kp, error } = await supabase.from("kiosk_payments").insert({ tenant_id: t.id, appointment_id: (a as any).id, amount: s.saldo, method: "terminal", provider: term.proveedor, device: term.device }).select("id").single();
+  const fila = { tenant_id: t.id, appointment_id: (a as any).id, amount: s.saldo, method: "terminal", provider: term.proveedor, device: term.device };
+  // card_type (migración 169) sirve para registrar si fue débito o crédito; si la migración aún no está, se crea igual sin él.
+  let ins: any = await supabase.from("kiosk_payments").insert({ ...fila, card_type: body.tarjeta === "credito" ? "credito" : "debito" }).select("id").single();
+  if (ins.error && /card_type/i.test(ins.error.message)) ins = await supabase.from("kiosk_payments").insert(fila).select("id").single();
+  const { data: kp, error } = ins;
   if (error || !kp) return NextResponse.json({ error: "No pudimos crear el cobro. Avisa a quien te atiende." }, { status: 500 });
 
   const r = await iniciarCobro(term, { amount: s.saldo, descripcion: `Servicio - ${t.name}`, referencia: `kt-${(kp as any).id}`, tarjeta: body.tarjeta === "credito" ? "credito" : "debito" });
