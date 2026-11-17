@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     if (!r2.error) return NextResponse.json({ desbloqueado: !!(r2.data as any)?.kiosk_unlocked, codigo: (r2.data as any)?.kiosk_code || null, enabled: !!(r2.data as any)?.kiosk_enabled, info: limpiarSecciones((r2.data as any)?.kiosk_info), pagoQr: false, falta165: true });
   }
   if (error) return NextResponse.json({ falta_migracion: true, codigo: null, desbloqueado: false, enabled: false, info: [] });
-  return NextResponse.json({ desbloqueado: !!(data as any)?.kiosk_unlocked, codigo: (data as any)?.kiosk_code || null, enabled: !!(data as any)?.kiosk_enabled, info: limpiarSecciones((data as any)?.kiosk_info), pagoQr: !!(data as any)?.kiosk_pay_qr_enabled, pagoTerminal: !!(data as any)?.kiosk_terminal_enabled, terminalListo: !!(await resolverTerminal(createAdminSupabase(), guard.tenantId)) || (await hayMaquinaPersonal(createAdminSupabase(), guard.tenantId)), mpListo: (await tokensMercadoPago(createAdminSupabase(), guard.tenantId, null, true)).length > 0 });
+  return NextResponse.json({ desbloqueado: !!(data as any)?.kiosk_unlocked, codigo: (data as any)?.kiosk_code || null, enabled: !!(data as any)?.kiosk_enabled, info: limpiarSecciones((data as any)?.kiosk_info), pagoQr: !!(data as any)?.kiosk_pay_qr_enabled, pagoTerminal: !!(data as any)?.kiosk_terminal_enabled, ventaAuto: ((await createAdminSupabase().from("tenants").select("kiosk_auto_sale").eq("id", guard.tenantId).maybeSingle()).data as any)?.kiosk_auto_sale !== false, terminalListo: !!(await resolverTerminal(createAdminSupabase(), guard.tenantId)) || (await hayMaquinaPersonal(createAdminSupabase(), guard.tenantId)), mpListo: (await tokensMercadoPago(createAdminSupabase(), guard.tenantId, null, true)).length > 0 });
 }
 
 export async function POST(req: NextRequest) {
@@ -27,6 +27,7 @@ export async function POST(req: NextRequest) {
   const update: Record<string, any> = { kiosk_enabled: body.enabled === true, kiosk_info: limpiarSecciones(body.info) };
   if (typeof body.pagoQr === "boolean") update.kiosk_pay_qr_enabled = body.pagoQr; // apagado por defecto
   if (typeof body.pagoTerminal === "boolean") update.kiosk_terminal_enabled = body.pagoTerminal; // apagado por defecto
+  if (typeof body.ventaAuto === "boolean") update.kiosk_auto_sale = body.ventaAuto; // registrar la venta sola al pagar (migración 169)
   if (body.nuevoCodigo === true) update.kiosk_code = generarCodigoNegocio(); // los equipos ya configurados dejan de abrir: hay que escribir el nuevo
   const { error } = await createAdminSupabase().from("tenants").update(update).eq("id", guard.tenantId);
   if (error) return NextResponse.json({ error: /kiosk/i.test(error.message) ? "Falta aplicar la migración 162 (o la 165)" : "No se pudo guardar" }, { status: 500 });

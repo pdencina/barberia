@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { confirmarPagoTotem } from "@/lib/totem-pago";
-import { resolverTerminal, consultarCobro } from "@/lib/totem-terminal";
+import { resolverTerminal, consultarCobroDetalle } from "@/lib/totem-terminal";
 
 // GET ?codigo=&id=: el tótem pregunta si el pago ya se confirmó.
 //  - QR: lo confirma el aviso de Mercado Pago (webhook); aquí solo se lee el estado.
@@ -27,9 +27,11 @@ export async function GET(req: NextRequest) {
       // La máquina es la del profesional de la cita (si tiene la suya) o la del negocio, igual que al crear el cobro.
       const { data: ap } = await supabase.from("appointments").select("barber_id").eq("id", kp.appointment_id).maybeSingle();
       const term = await resolverTerminal(supabase, t.id, (ap as any)?.barber_id);
-      const est = term ? await consultarCobro(term, kp.external_id) : "pending";
+      const det = term ? await consultarCobroDetalle(term, kp.external_id) : { estado: "pending" as const, tipoPago: null };
+      const est = det.estado;
       if (est === "approved") {
-        await confirmarPagoTotem(supabase, kp, Number(kp.amount), `${kp.provider}:${kp.external_id}`, "con tarjeta en la máquina");
+        // El pago se registra solo como venta (billetera, dashboard, cierre...). El tipo de tarjeta lo informa Mercado Pago; en TUU es el elegido en el tótem.
+        await confirmarPagoTotem(supabase, kp, Number(kp.amount), `${kp.provider}:${kp.external_id}`, "con tarjeta en la máquina", (det as any).tipoPago || null);
         return NextResponse.json({ estado: "paid" }, { headers: { "Cache-Control": "no-store" } });
       }
       if (est === "rejected" || est === "cancelled") {

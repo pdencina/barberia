@@ -114,26 +114,32 @@ export async function iniciarCobro(term: Terminal, o: { amount: number; descripc
 
 // Estado del cobro. Solo «approved» confirma un pago; cualquier error o estado raro devuelve «pending» (se sigue esperando).
 export async function consultarCobro(term: Terminal, externalId: string): Promise<EstadoCobro> {
+  return (await consultarCobroDetalle(term, externalId)).estado;
+}
+
+// Igual que consultarCobro, y además devuelve el tipo de tarjeta que informó Mercado Pago (debit_card / credit_card) para registrar bien el medio de pago.
+export async function consultarCobroDetalle(term: Terminal, externalId: string): Promise<{ estado: EstadoCobro; tipoPago?: string | null }> {
   try {
     if (term.proveedor === "tuu") {
       const res = await fetch(`${TUU_BASE_URL}/RemotePayment/v2/GetPaymentReques/${externalId}`, { headers: { "X-API-Key": term.apiKey! }, cache: "no-store" });
-      if (!res.ok) return "pending"; // incluye 429 (límite de consultas de TUU): no es un rechazo
+      if (!res.ok) return { estado: "pending" }; // incluye 429 (límite de consultas de TUU): no es un rechazo
       const data: any = await res.json().catch(() => ({}));
       const raw = data.status ?? data.Status ?? data.state ?? data.paymentStatus ?? data.requestStatus;
       const mapa: Record<string, string> = { "2": "cancelled", canceled: "cancelled", cancelled: "cancelled", "4": "rejected", failed: "rejected", "5": "approved", completed: "approved" };
-      return (mapa[String(raw)] as EstadoCobro) || "pending";
+      return { estado: (mapa[String(raw)] as EstadoCobro) || "pending" };
     }
     const res = await fetch(`https://api.mercadopago.com/v1/orders/${externalId}`, { headers: { Authorization: `Bearer ${term.token}` }, cache: "no-store" });
-    if (!res.ok) return "pending";
+    if (!res.ok) return { estado: "pending" };
     const data: any = await res.json().catch(() => ({}));
     if (data.status === "processed" || data.status === "closed") {
-      const p = data.transactions?.payments?.[0]?.status;
-      if (p === "approved" || p === "processed") return "approved";
-      if (p === "rejected" || p === "cancelled") return "rejected";
-    } else if (data.status === "expired" || data.status === "cancelled") return "cancelled";
-    return "pending";
+      const pago = data.transactions?.payments?.[0];
+      const p = pago?.status;
+      if (p === "approved" || p === "processed") return { estado: "approved", tipoPago: pago?.payment_method?.type || null };
+      if (p === "rejected" || p === "cancelled") return { estado: "rejected" };
+    } else if (data.status === "expired" || data.status === "cancelled") return { estado: "cancelled" };
+    return { estado: "pending" };
   } catch {
-    return "pending";
+    return { estado: "pending" };
   }
 }
 
