@@ -18,7 +18,12 @@ export async function GET(req: NextRequest) {
     .filter((p: any) => !p.product_type || p.product_type === "retail" || p.product_type === "sale" || p.product_type === "venta")
     .map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price), category: p.category || null }));
 
+  // Profesionales para «¿Quién te atendió?» al comprar productos sin cita (solo nombre; nada más sale al público).
+  const { data: pros } = await supabase.from("profiles").select("id, name").eq("tenant_id", t.id).eq("role", "barber").neq("active", false).order("name").limit(40);
+  const profesionales = (pros || []).map((p: any) => ({ id: p.id, name: p.name }));
+
   return NextResponse.json({
+    profesionales,
     negocio: { name: t.name, logo_url: t.logo_url || null },
     // Dirección de reserva online del negocio (para el QR y para reservar en la propia pantalla).
     // ?vista=ambas: parte con el PRIMER PROFESIONAL DISPONIBLE y deja elegir un profesional (en la pantalla y en el celular).

@@ -8,10 +8,10 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
+type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "info" | "gracias";
 interface Cita { id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
-interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
+interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -106,6 +106,10 @@ function Totem() {
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
   const [pagoQr, setPagoQr] = useState<{ id: string; url: string; monto: number; abono: number } | null>(null);
   const [pagoTerm, setPagoTerm] = useState<{ id: string; monto: number; abono: number; profesional: string | null } | null>(null);
+  // Compra de productos: quién vendió (por código del cliente o elegido de la lista) y a qué pantalla volver si el pago falla o se cancela.
+  const [vendedor, setVendedor] = useState<{ code?: string; barberId?: string; nombre?: string } | null>(null);
+  const [codigoProd, setCodigoProd] = useState("");
+  const [origenPago, setOrigenPago] = useState<"cita" | "pagoprod">("cita");
   const [vinculo, setVinculo] = useState<{ token: string; url: string; code?: string; nombre?: string } | null>(null); // «Ver mi código»: QR → correo en el celular
   const [instalador, setInstalador] = useState<any>(null); // evento «beforeinstallprompt» de Chrome (instalar como aplicación)
   const [instalada, setInstalada] = useState(false);
@@ -114,14 +118,14 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false);
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita");
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
   useEffect(() => {
     const tocar = () => { ultimo.current = Date.now(); };
     window.addEventListener("pointerdown", tocar);
-    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : (pantallaRef.current === "pagoqr" || pantallaRef.current === "pagoterm" || pantallaRef.current === "vincular") ? 240_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
+    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : (pantallaRef.current === "pagoqr" || pantallaRef.current === "pagoterm" || pantallaRef.current === "pagoprod" || pantallaRef.current === "vincular") ? 240_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
     return () => { window.removeEventListener("pointerdown", tocar); clearInterval(t); };
   }, [inicio]);
 
@@ -252,7 +256,24 @@ function Totem() {
 
   const cancelarPagoTerminal = async () => {
     if (pagoTerm) { try { await post("pago-cancelar", { id: pagoTerm.id }); } catch { /* se sigue igual */ } }
-    setPagoTerm(null); setMsg(""); setPantalla("cita");
+    setPagoTerm(null); setMsg(""); setPantalla(origenPago);
+  };
+
+  // Compra de productos: cobra a nombre del profesional que vendió (su máquina o su cuenta de Mercado Pago, según corresponda).
+  const crearPagoProducto = async (medio: "terminal" | "qr", tarjeta: "debito" | "credito" = "debito") => {
+    const productos = Object.entries(carrito).filter(([, n]) => n > 0).map(([id, cantidad]) => ({ id, cantidad }));
+    if (!productos.length || !vendedor) return;
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("pago-producto", { productos, code: vendedor.code, barberId: vendedor.barberId, medio, tarjeta });
+    setCargando(false);
+    if (!ok) {
+      setMsg(d.error || "No pudimos crear el cobro");
+      if (d.pedirProfesional) { setVendedor(null); setPantalla("quien"); }
+      return;
+    }
+    setOrigenPago("pagoprod");
+    if (medio === "qr") { setPagoQr({ id: d.id, url: d.url, monto: d.monto, abono: 0 }); setPantalla("pagoqr"); }
+    else { setPagoTerm({ id: d.id, monto: d.monto, abono: 0, profesional: d.profesional || null }); setPantalla("pagoterm"); }
   };
 
   // Mientras la máquina espera la tarjeta, se pregunta cada 3 s cómo va el cobro.
@@ -263,13 +284,13 @@ function Totem() {
         const r = await fetch(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoTerm.id}`);
         const d = await r.json();
         if (d.estado === "paid") { setGracias("¡Pago recibido! Gracias. Ya avisamos a tu profesional."); setPantalla("gracias"); }
-        else if (d.estado === "failed") { setPagoTerm(null); setMsg("La máquina no aprobó el pago. Puedes intentar de nuevo o pagar con el equipo."); setPantalla("cita"); }
-        else if (d.estado === "cancelled") { setPagoTerm(null); setMsg("El cobro se canceló."); setPantalla("cita"); }
+        else if (d.estado === "failed") { setPagoTerm(null); setMsg("La máquina no aprobó el pago. Puedes intentar de nuevo o pagar con el equipo."); setPantalla(origenPago); }
+        else if (d.estado === "cancelled") { setPagoTerm(null); setMsg("El cobro se canceló."); setPantalla(origenPago); }
         else if (d.estado === "expired") { setPagoTerm(null); setGracias("Se agotó el tiempo de espera. Si la máquina alcanzó a cobrarte, avisa a quien te atiende: lo verificaremos."); setPantalla("gracias"); }
       } catch { /* se reintenta */ }
     }, 3000);
     return () => clearInterval(t);
-  }, [pantalla, pagoTerm, codigo]);
+  }, [pantalla, pagoTerm, codigo, origenPago]);
 
   // Mientras se muestra el QR, se pregunta cada 3 s si ya se pagó.
   useEffect(() => {
@@ -288,7 +309,7 @@ function Totem() {
     const productos = Object.entries(carrito).filter(([, n]) => n > 0).map(([id, cantidad]) => ({ id, cantidad }));
     if (!productos.length) return;
     setCargando(true);
-    const { ok, d } = await post("solicitud", { tipo: "producto", productos });
+    const { ok, d } = await post("solicitud", { tipo: "producto", productos, code: vendedor?.code, barberId: vendedor?.barberId });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos avisar"); return; }
     setGracias("Listo. Avisamos para que te lo lleven y te lo cobren.");
@@ -550,7 +571,7 @@ function Totem() {
         <section className="flex flex-1 flex-col">
           {volver}
           <h2 className="tt-display mb-2 text-6xl font-semibold">¿Qué te llevas?</h2>
-          <p className="mb-6 text-2xl text-white/65">Elige y avisamos para llevártelo y cobrártelo.</p>
+          <p className="mb-6 text-2xl text-white/65">Elige lo que quieres y paga aquí mismo, desde tu celular o en caja.</p>
           <div className="grid gap-4 pb-6 md:grid-cols-2">
             {info.productos.map((p) => (
               <div key={p.id} className={`${caja} flex items-center justify-between gap-4 p-5`}>
@@ -565,7 +586,64 @@ function Totem() {
           </div>
           {msg && <p className={`mb-4 ${aviso}`}>{msg}</p>}
           <div className="sticky bottom-0 mt-auto bg-[#0A0A0A] pt-4">
-            <button className={principal} disabled={total === 0 || cargando} onClick={pedirProductos}>{total > 0 ? `Pedir · ${plata(total)}` : "Elige un producto"}</button>
+            <button className={principal} disabled={total === 0 || cargando} onClick={() => { setMsg(""); setVendedor(null); setPantalla("quien"); }}>{total > 0 ? `Continuar · ${plata(total)}` : "Elige un producto"}</button>
+          </div>
+        </section>
+      )}
+
+      {pantalla === "quien" && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => setPantalla("productos")} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Mis productos</button>
+          <div className="grid flex-1 items-start gap-x-16 gap-y-8 md:grid-cols-2">
+            <div>
+              <h2 className="tt-display mb-3 text-5xl font-semibold">¿Quién te atendió?</h2>
+              <p className="mb-6 text-2xl text-white/65">La venta queda a nombre de esa persona. Si tienes cita hoy, escribe tu código; si no, elígela de la lista.</p>
+              {msg && <p className={`mb-5 ${aviso}`}>{msg}</p>}
+              <div className="mb-5 flex gap-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex h-20 w-[4.5rem] items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] text-5xl font-semibold">{codigoProd[i] || ""}</div>
+                ))}
+              </div>
+              <button className={principal} disabled={codigoProd.length !== 5} onClick={() => { setVendedor({ code: codigoProd }); setPantalla("pagoprod"); }}>Continuar con mi código</button>
+              {(info.profesionales || []).length > 0 && (
+                <>
+                  <p className="tt-mono mb-3 mt-8 text-lg uppercase tracking-[0.16em] text-white/50">O elige quién te atendió</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(info.profesionales || []).map((p) => (
+                      <button key={p.id} className={secundario} onClick={() => { setVendedor({ barberId: p.id, nombre: p.name }); setPantalla("pagoprod"); }}>{p.name}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+            <Teclado onTecla={(k) => { setMsg(""); setCodigoProd((c) => (c.length < 5 ? c + k : c)); }} onBorrar={() => setCodigoProd((c) => c.slice(0, -1))} />
+          </div>
+        </section>
+      )}
+
+      {pantalla === "pagoprod" && vendedor && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => { setMsg(""); setPantalla("quien"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Cambiar</button>
+          <div className="grid flex-1 items-center gap-x-16 gap-y-8 md:grid-cols-2">
+            <div>
+              <p className="tt-mono mb-3 text-lg uppercase tracking-[0.16em] text-white/50">{vendedor.nombre ? `Vendido por ${vendedor.nombre}` : `Con tu código ${vendedor.code}`}</p>
+              <h2 className="tt-display mb-4 text-6xl font-semibold">Paga tus productos</h2>
+              <p className="tt-display text-8xl font-semibold">{plata(total)}</p>
+              <ul className="mt-6 space-y-1 text-2xl text-white/70">
+                {info.productos.filter((p) => (carrito[p.id] || 0) > 0).map((p) => <li key={p.id}>{carrito[p.id]} × {p.name}</li>)}
+              </ul>
+            </div>
+            <div className="space-y-4">
+              {msg && <p className={aviso}>{msg}</p>}
+              {info.pagoTerminal && (info.tarjetaElige ? (
+                <div className="grid grid-cols-2 gap-4">
+                  <button className={principal} disabled={cargando} onClick={() => crearPagoProducto("terminal", "debito")}>{cargando ? "Enviando…" : "Pagar con débito"}</button>
+                  <button className={principal} disabled={cargando} onClick={() => crearPagoProducto("terminal", "credito")}>{cargando ? "Enviando…" : "Pagar con crédito"}</button>
+                </div>
+              ) : <button className={principal} disabled={cargando} onClick={() => crearPagoProducto("terminal")}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
+              {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => crearPagoProducto("qr")}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
+              <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={pedirProductos}>Prefiero pagar en caja (avisamos al equipo)</button>
+            </div>
           </div>
         </section>
       )}

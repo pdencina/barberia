@@ -15,7 +15,7 @@ export async function saldoCita(supabase: any, appointmentId: string): Promise<{
 // salvo que el negocio haya apagado «Registrar la venta automáticamente»; si la venta no se pudo registrar, se avisa para hacerlo a mano.
 export async function confirmarPagoTotem(
   supabase: any,
-  kp: { id: string; tenant_id: string; appointment_id: string },
+  kp: { id: string; tenant_id: string; appointment_id: string | null; kind?: string | null; barber_id?: string | null; client_id?: string | null },
   montoPagado: number,
   referencia: string,
   medio: string, // ej. "por Mercado Pago" / "con tarjeta en la máquina"
@@ -42,23 +42,29 @@ export async function confirmarPagoTotem(
     venta = r.ok ? "registrada" : "error";
   }
 
-  const { data: a } = await supabase.from("appointments").select("barber_id, client:clients(name)").eq("id", kp.appointment_id).maybeSingle();
+  let a: any = null;
+  if (kp.appointment_id) ({ data: a } = await supabase.from("appointments").select("barber_id, client:clients(name)").eq("id", kp.appointment_id).maybeSingle());
+  else if (kp.barber_id) {
+    const { data: cl } = kp.client_id ? await supabase.from("clients").select("name").eq("id", kp.client_id).maybeSingle() : { data: null as any };
+    a = { barber_id: kp.barber_id, client: cl };
+  }
+  const queCompro = kp.kind === "producto" ? "productos " : "";
   const nombre = primerNombre((a as any)?.client?.name) || "Un cliente";
   const propinaN = Math.max(0, Math.round(extra?.propina || 0));
   // Si hubo propina, el total pagado la incluye: se muestra el servicio y la propina por separado.
   const monto = Math.round(montoPagado - propinaN).toLocaleString("es-CL") + (propinaN > 0 ? ` + $${propinaN.toLocaleString("es-CL")} de propina` : "");
   await notify({
     tenantId: kp.tenant_id, kind: "kiosk_payment", roles: ["admin"], userIds: a?.barber_id ? [a.barber_id] : [], professionalId: a?.barber_id || null,
-    title: venta === "error" ? "Pago recibido: falta registrar la venta" : "Pago recibido desde el tótem",
+    title: venta === "error" ? "Pago recibido: falta registrar la venta" : kp.kind === "producto" ? "Venta de productos desde el tótem" : "Pago recibido desde el tótem",
     body: venta === "registrada"
-      ? `${nombre} pagó $${monto} ${medio} desde el tótem. La venta ya quedó registrada.`
+      ? `${nombre} pagó ${queCompro}$${monto} ${medio} desde el tótem. La venta ya quedó registrada.`
       : venta === "error"
-        ? `${nombre} pagó $${monto} ${medio} desde el tótem, pero la venta NO se pudo registrar sola. Regístrala en el POS.`
-        : `${nombre} pagó $${monto} ${medio} desde el tótem. Regístralo en el POS.`,
+        ? `${nombre} pagó ${queCompro}$${monto} ${medio} desde el tótem, pero la venta NO se pudo registrar sola. Regístrala en el POS.`
+        : `${nombre} pagó ${queCompro}$${monto} ${medio} desde el tótem. Regístralo en el POS.`,
     url: venta === "registrada" ? "/dashboard/caja" : "/dashboard/pos",
   }).catch(() => {});
   await supabase.from("audit_log").insert({
-    action: "kiosk_payment_paid", entity_type: "appointment", entity_id: kp.appointment_id,
+    action: "kiosk_payment_paid", entity_type: kp.appointment_id ? "appointment" : "kiosk_payment", entity_id: kp.appointment_id || kp.id,
     description: `Pago desde el tótem: $${monto} ${medio} (${referencia})`, metadata: { kioskPaymentId: kp.id, referencia, tenantId: kp.tenant_id },
   }).then(() => {}, () => {});
   return true;
