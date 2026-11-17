@@ -2,6 +2,7 @@
 // Requisitos: scripts/test-empresas-stock.ts ya corrido y la app encendida en BASE_URL (por defecto http://localhost:3100).
 // Uso: npx tsx scripts/test-empresas-rutas.ts
 // SEGURIDAD: se niega a correr si .env.local no apunta a rebooking-pruebas o si BASE_URL no es local. No imprime llaves.
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";

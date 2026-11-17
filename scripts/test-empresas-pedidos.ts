@@ -2,6 +2,7 @@
 // Uso (primero, una vez, scripts/test-empresas-stock.ts, que crea las empresas simuladas):
 //   npx tsx scripts/test-empresas-pedidos.ts
 // SEGURIDAD: se niega a correr si .env.local no apunta a rebooking-pruebas. No imprime llaves.
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";

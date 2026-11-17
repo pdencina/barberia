@@ -1,5 +1,6 @@
 // Prueba de «Ver mi código» del tótem (QR -> correo en el celular -> código al tótem). Usa la base de PRUEBAS y limpia lo que crea.
 //   npx tsx scripts/test-kiosk-vinculo.ts <tenantId> <codigoNegocio>
+import "./_solo-con-base"; // se salta en CI (necesita la base de pruebas)
 import { NextRequest } from "next/server";
 import { POST as crear } from "../src/app/api/totem/vincular/crear/route";
 import { GET as estadoGet } from "../src/app/api/totem/vincular/estado/route";
