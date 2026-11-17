@@ -102,6 +102,7 @@ Otras piezas: `whatsapp-meta.ts` (envío de texto, lista, archivos, plantillas; 
 ## 9. Estado (actualizar al terminar cada sesión)
 **En `agente/whatsapp` (mergeado):** IA Avanzada funcionando con llave real; menú, volver, CTA; seguimientos de disponibilidad; CI rápido; arreglo del correo de confirmación (remitente `re-booking.cl`); contexto hasta 30.000 caracteres; etapa guiada recepcionista; menú como lista; PDF de malla (primer envío).
 **Mergeado además (PR #348, `claude/ia-guiada`):** submenú del curso con botones, lista tras cada respuesta del curso, IA sin preguntas abiertas, botón "Malla del curso" que envía el PDF, la IA ya no menciona "el contexto", y este traspaso. **No queda ningún PR pendiente de esa tanda.**
+**17 nov. 2026 (rama `claude/disponibilidad-ideal`, PR pendiente):** respuestas de disponibilidad con la estructura que pidió Nico: un profesional con muchas horas responde "Sí, X tiene horas <día>. ¿En qué horario buscas?" + link; y entiende tramos ("entre las 14 o las 15 hrs", "entre las 14 y las 16"): primero las horas pedidas, si no hay las cercanas (±45 min), si no "Lo siento, no tenemos en ese horario, lo más cercano es…", siempre con el link del profesional. Probado solo con datos simulados.
 **Sin probar todavía en WhatsApp real:** el submenú del curso completo, el envío del PDF desde botón, el video.
 
 **Pendientes y decisiones abiertas (de Nico):**
