@@ -104,3 +104,6 @@ export async function registrarAviso(supabase: any, tenantId: string, clave: str
     await supabase.from("audit_log").insert({ action: "kiosk_aviso", entity_type: "tenant", entity_id: tenantId, description: "Aviso del tótem al equipo", metadata: { clave } });
   } catch { /* sin auditoría no se frena el aviso */ }
 }
+
+// Cuánto dura el QR «Ver mi código» (tótem y celular del cliente).
+export const VIGENCIA_VINCULO_MS = 6 * 60_000;
