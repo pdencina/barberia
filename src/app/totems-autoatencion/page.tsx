@@ -8,7 +8,7 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "inicio" | "codigo" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
+type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "info" | "gracias";
 interface Cita { id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
 interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
@@ -94,6 +94,7 @@ function Totem() {
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
   const [pagoQr, setPagoQr] = useState<{ id: string; url: string; monto: number; abono: number } | null>(null);
   const [pagoTerm, setPagoTerm] = useState<{ id: string; monto: number; abono: number; profesional: string | null } | null>(null);
+  const [vinculo, setVinculo] = useState<{ token: string; url: string; code?: string; nombre?: string } | null>(null); // «Ver mi código»: QR → correo en el celular
   const [instalador, setInstalador] = useState<any>(null); // evento «beforeinstallprompt» de Chrome (instalar como aplicación)
   const [instalada, setInstalada] = useState(false);
   const ultimo = useRef(Date.now());
@@ -101,14 +102,14 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null);
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null);
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
   useEffect(() => {
     const tocar = () => { ultimo.current = Date.now(); };
     window.addEventListener("pointerdown", tocar);
-    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : (pantallaRef.current === "pagoqr" || pantallaRef.current === "pagoterm") ? 240_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
+    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : (pantallaRef.current === "pagoqr" || pantallaRef.current === "pagoterm" || pantallaRef.current === "vincular") ? 240_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
     return () => { window.removeEventListener("pointerdown", tocar); clearInterval(t); };
   }, [inicio]);
 
@@ -165,9 +166,36 @@ function Totem() {
     return { ok: r.ok, d };
   };
 
-  const buscar = async () => {
+  // «Ver mi código»: el tótem crea una sesión y muestra un QR; el cliente escribe su correo en su celular y el tótem recibe su código.
+  const abrirVinculo = async () => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("buscar", { code });
+    const { ok, d } = await post("vincular/crear", { modo });
+    setCargando(false);
+    if (!ok) { setMsg(d.error || "No pudimos crear el código QR"); return; }
+    setVinculo({ token: d.token, url: d.url });
+    setPantalla("vincular");
+  };
+
+  // Mientras se muestra ese QR, se pregunta cada 2 s si el cliente ya escribió su correo (y si eligió «Ir a pagar» o «Ya llegué»).
+  useEffect(() => {
+    if (pantalla !== "vincular" || !vinculo?.token || !codigo) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await fetch(`/api/totem/vincular/estado?codigo=${encodeURIComponent(codigo)}&t=${vinculo.token}`);
+        const d = await r.json();
+        if (d.estado === "expirado") { setVinculo(null); setMsg("El código QR venció. Vuelve a tocar «Ver mi código»."); setPantalla("codigo"); }
+        else if (d.estado === "vinculado") setVinculo((v) => (v && !v.code ? { ...v, code: d.code, nombre: d.nombre || "" } : v));
+        else if (d.estado === "listo") { setVinculo(null); setCode(d.code); setModo(d.accion === "pagar" ? "pagar" : "llegue"); await buscar(d.code); }
+      } catch { /* se reintenta */ }
+    }, 2000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pantalla, vinculo?.token, codigo]);
+
+  const buscar = async (codigoCliente?: string) => {
+    const codigoUsado = codigoCliente || code;
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("buscar", { code: codigoUsado });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos buscar tu cita"); return; }
     if (!d.citas?.length) { setMsg("No encontramos ese código para hoy. Pídelo a quien te atiende."); return; }
@@ -356,9 +384,42 @@ function Totem() {
                 ))}
               </div>
               {msg && <p className={`mb-6 ${aviso}`}>{msg}</p>}
-              <button className={principal} disabled={code.length !== 5 || cargando} onClick={buscar}>{cargando ? "Buscando…" : "Continuar"}</button>
+              <button className={principal} disabled={code.length !== 5 || cargando} onClick={() => buscar()}>{cargando ? "Buscando…" : "Continuar"}</button>
+              <button className={`${secundario} mt-4`} disabled={cargando} onClick={abrirVinculo}>No recuerdo mi código · Verlo con mi celular</button>
             </div>
             <Teclado onTecla={(k) => { setMsg(""); setCode((c) => (c.length < 5 ? c + k : c)); }} onBorrar={() => setCode((c) => c.slice(0, -1))} />
+          </div>
+        </section>
+      )}
+
+      {pantalla === "vincular" && vinculo && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => { setVinculo(null); setPantalla("codigo"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Escribir mi código</button>
+          <div className="grid flex-1 items-center gap-x-16 gap-y-8 md:grid-cols-[auto_1fr]">
+            <Qr valor={vinculo.url} tamano={400} />
+            <div>
+              {!vinculo.code ? (
+                <>
+                  <h2 className="tt-display mb-4 text-6xl font-semibold">Ve tu código desde tu celular</h2>
+                  <ol className="max-w-2xl space-y-3 text-2xl text-white/75">
+                    <li><span className="tt-mono mr-3 text-white/40">01</span>Abre la cámara de tu celular y apunta a este código.</li>
+                    <li><span className="tt-mono mr-3 text-white/40">02</span>Escribe el correo con el que reservaste.</li>
+                    <li><span className="tt-mono mr-3 text-white/40">03</span>Te mostramos tu código y puedes elegir «Ir a pagar».</li>
+                  </ol>
+                  <p className="mt-6 text-lg text-white/50">Esta pantalla avanza sola cuando termines.</p>
+                </>
+              ) : (
+                <>
+                  <p className="tt-mono mb-3 text-lg uppercase tracking-[0.16em] text-white/50">{vinculo.nombre ? `Hola, ${vinculo.nombre}` : "Te encontramos"}</p>
+                  <h2 className="tt-display mb-5 text-6xl font-semibold">Tu código</h2>
+                  <div className="mb-6 flex gap-3">
+                    {vinculo.code.split("").map((ch, i) => <div key={i} className="flex h-24 w-20 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] text-5xl font-semibold">{ch}</div>)}
+                  </div>
+                  <p className="mb-6 max-w-2xl text-2xl text-white/70">En tu celular elige «Ir a pagar» o «Avisar que llegué», o sigue aquí en la pantalla.</p>
+                  <button className={`${principal} max-w-xl`} disabled={cargando} onClick={async () => { const c = vinculo.code!; setVinculo(null); setCode(c); await buscar(c); }}>Continuar aquí</button>
+                </>
+              )}
+            </div>
           </div>
         </section>
       )}

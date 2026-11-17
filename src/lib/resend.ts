@@ -260,8 +260,8 @@ interface SendBookingConfirmationParams {
   businessLogoUrl?: string | null;
 }
 
-// El código de llegada del tótem NO se muestra en los correos hasta que Nico lo indique (10 nov 2026). Para activarlo: poner true.
-const MOSTRAR_CODIGO_LLEGADA_EN_CORREO = false;
+// El código personal del cliente para el tótem va en el correo de confirmación (activado por Nico el 17 nov 2026). Para ocultarlo: poner false.
+const MOSTRAR_CODIGO_LLEGADA_EN_CORREO = true;
 
 export async function sendBookingConfirmation(params: SendBookingConfirmationParams) {
   const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl, changeHours, businessPhone } = params;
@@ -304,7 +304,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
       ${mailRow("Duración", `${duration} minutos`)}
       <tr><td style="padding:10px 0;font-size:13px;color:#6B7280;">Precio</td><td align="right" style="padding:10px 0;font-size:18px;color:${MAIL_ACCENT};font-weight:800;">$${price.toLocaleString("es-CL")}</td></tr>
     </table>
-    ${checkinCode ? `<div style="text-align:center;margin:22px 0 0;padding:14px;border:1px dashed ${MAIL_ACCENT};border-radius:12px;"><div style="font-size:12px;color:#6B7280;">Tu código de llegada (digítalo en el tótem del local)</div><div style="font-size:30px;letter-spacing:6px;font-weight:800;color:#111827;margin-top:4px;">${checkinCode}</div></div>` : ""}
+    ${checkinCode ? `<div style="text-align:center;margin:22px 0 0;padding:14px;border:1px dashed ${MAIL_ACCENT};border-radius:12px;"><div style="font-size:12px;color:#6B7280;">Tu código personal (digítalo en el tótem del local; es siempre el mismo)</div><div style="font-size:30px;letter-spacing:6px;font-weight:800;color:#111827;margin-top:4px;">${checkinCode}</div></div>` : ""}
     ${appointmentId ? `<div style="text-align:center;margin:26px 0 6px;"><a href="https://www.re-booking.cl/cancel/${appointmentId}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Cancelar o modificar cita</a></div>` : ""}
     ${appointmentId && typeof changeHours === "number" ? `<p style="text-align:center;font-size:13px;color:#6B7280;margin:10px 0 0;">${fraseCorreoPlazo(changeHours)}</p>` : ""}
     ${lineaContactoHtml("¿Dudas?", businessPhone)}
