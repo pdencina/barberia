@@ -155,13 +155,13 @@ P: ¿Cómo contacto al dueño o al administrador?
 R: Para temas administrativos puedes escribir a barberiaestudiolevels@gmail.com.
 
 P: Quiero información del curso de barbería. ¿De qué trata, qué incluye, cuánto cuesta y cuándo parte?
-R: Es un curso de barbería inicial, para personas sin conocimientos previos. Tiene 11 clases (10 presenciales y 1 online), los martes y miércoles de 19:00 a 22:30, con un máximo de 8 alumnos. Cuesta $390.000 y se reserva el cupo con un abono de $100.000. Entrega certificado de participación. La fecha de inicio informada es el 10 de noviembre; para confirmar vigencia y cupos escríbenos por este chat.
+R: Es un curso de barbería inicial, para personas sin conocimientos previos. Tiene 11 clases (10 presenciales y 1 online), los martes y miércoles de 19:00 a 22:30, con un máximo de 8 alumnos. Cuesta $390.000 y se reserva el cupo con un abono de $100.000. Entrega certificado de participación. Para saber la fecha de la próxima convocatoria y los cupos disponibles, escríbenos por este chat.
 
 P: ¿Tienen curso de barbería? ¿Necesito conocimientos previos?
 R: Sí, ofrecemos un curso de barbería inicial diseñado para personas sin conocimientos previos que quieran aprender el oficio.
 
-P: ¿Cuándo comienza el curso de barbería?
-R: La fecha de inicio informada es el 10 de noviembre. Para confirmar el año, la vigencia de esa convocatoria y los cupos disponibles, escríbenos por este chat.
+P: ¿Cuándo comienza el curso de barbería? ¿Cuándo es el próximo curso?
+R: Abrimos convocatorias aproximadamente cada dos meses. Para conocer la fecha de inicio de la próxima convocatoria y los cupos disponibles, escríbenos por este chat.
 
 P: ¿Cuánto cuesta el curso y cómo reservo mi cupo?
 R: El curso cuesta $390.000. Puedes reservar tu cupo con un abono de $100.000, que se descuenta del valor total. El saldo restante es de $290.000 y debe pagarse a más tardar durante la segunda semana de clases.
@@ -184,8 +184,8 @@ R: Sí, entregamos un certificado de participación al finalizar el curso exitos
 P: ¿Necesito herramientas propias para el curso? ¿Tengo que comprar algo antes de empezar? ¿Puedo comprar un kit?
 R: No necesitas tenerlas antes de empezar: en la primera clase (online) te explicamos qué comprar para que no gastes de más. Para practicar fuera de clases sí necesitas tus implementos, como máquinas y tijeras. Podemos ofrecerte una cotización con descuento con todos los implementos recomendados.
 
-P: ¿Tienen un video explicativo del curso? Quiero ver el video del curso.
-R: Sí, puedes ver el video explicativo del curso aquí: https://youtu.be/Cv4-g-LBzXo
+P: ¿Tienen un video del curso? Quiero ver el video de presentación.
+R: Sí, puedes ver el video de presentación del curso aquí: https://youtu.be/Cv4-g-LBzXo
 
 P: ¿Desde qué edad es el curso? ¿Puede hacerlo un menor de edad o mi hijo?
 R: Idealmente desde los 15 años, con supervisión y compromiso de un adulto que lo apoye. Si es menor de 15, el compromiso debe ser aún mayor: el adulto también debe participar en el proceso de aprendizaje en casa. Escríbenos para conversar cada caso.
@@ -204,6 +204,3 @@ R: Sí, puedes visitarnos y conocer las instalaciones antes de tomar tu decisió
 
 P: ¿Ofrecen cursos avanzados o puedo participar si ya tengo experiencia?
 R: Actualmente nos enfocamos en el nivel inicial, pero podemos adaptar contenidos si ya tienes experiencia previa. Escríbenos para consultar tu caso.
-
-P: ¿Con qué frecuencia abren nuevos cursos de barbería? ¿Cuándo es el próximo curso?
-R: Abrimos convocatorias aproximadamente cada dos meses. Consúltanos para conocer las fechas y los cupos de la siguiente convocatoria.

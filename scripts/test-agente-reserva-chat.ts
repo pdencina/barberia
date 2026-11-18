@@ -57,13 +57,16 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     assert.ok(x.res!.texto.startsWith("Esa hora no está entre las que te ofrecí.") && x.res!.texto.includes("• *Diego Fuentes* hoy: 15:15 · 16:00 · 16:45"));
     assert.equal(x.e.estado?.etapa, "oferta");
   });
-  await caso("Hora que tienen varios: pregunta con quién y luego basta el nombre", async () => {
+  await caso("Hora que tienen varios: se asigna el primero y se avisa de los otros (un paso menos para cerrar)", async () => {
     const x = await r("la de las 4", OFERTA_VARIOS);
-    assert.ok(x.res!.texto.startsWith("¿Con quién prefieres a las 16:00?") && x.res!.texto.includes("• *Matías Soto* mañana"));
-    assert.equal((x.e.estado as any).datos.horaPendiente, "16:00");
-    const y = await manejarReservaChat("con Camila", TEL, datos(), x.deps);
-    assert.ok(y!.texto.startsWith("Perfecto. Te dejo la hora con *Camila Rojas* hoy a las *16:00*."));
-    assert.equal((x.e.estado as any).datos.id, "c");
+    assert.ok(x.res!.texto.startsWith("A las 16:00 tengo a varios; te dejo con *") && x.res!.texto.includes("Si prefieres con ") && x.res!.texto.includes("Para confirmarla envíame"));
+    assert.equal((x.e.estado as any).etapa, "datos");
+  });
+  await caso("Un 'sí' con varias opciones y hora consultada: se asigna el primero; sin hora, se muestran las más cercanas", async () => {
+    const x = await r("si", { etapa: "oferta", datos: { horaExacta: "16:00", opciones: (OFERTA_VARIOS as any).datos.opciones } } as EstadoChat);
+    assert.ok(x.res!.texto.includes("Perfecto. Te dejo la hora con") && (x.e.estado as any).etapa === "datos");
+    const y = await r("dale", { etapa: "oferta", datos: { horaExacta: null, opciones: (OFERTA_VARIOS as any).datos.opciones } } as EstadoChat);
+    assert.ok(y.res!.texto.startsWith("¡Dale! Elige una y te pido tus datos:") && /• \*\d\d:\d\d\* con /.test(y.res!.texto));
   });
   await caso("Con el nombre en la misma frase elige directo", async () => {
     const x = await r("la de las 4 con Matías", OFERTA_VARIOS);

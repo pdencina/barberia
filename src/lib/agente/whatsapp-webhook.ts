@@ -1,8 +1,9 @@
 import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
 const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
 import { conLlamadaAReservar } from "./cta";
-import { esTextoMenu, listaDeMenu, textoDerivacionTelefono, pideHumano, pideCambio, textoCambio, textoNoTexto, esTextoCurso, listaDeCurso, textoCurso, textoDeBoton, pideInfoCursoGeneral, TITULO_CURSO_SEGUIR } from "./menu";
+import { esTextoMenu, listaDeMenu, textoDerivacionTelefono, pideHumano, pideCambio, textoCambio, textoNoTexto, esCierreConversacion, TEXTO_CIERRE, esAfirmativoSuelto, TEXTO_AFIRMATIVO_SUELTO, esTextoCurso, listaDeCurso, textoCurso, textoDeBoton, pideInfoCursoGeneral, TITULO_CURSO_SEGUIR } from "./menu";
 import { DEL_CURSO } from "./cta";
+import { enlacesPedidos } from "./archivos";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
 import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
@@ -199,10 +200,20 @@ export function crearManejadoresWebhook(config: {
                       else if (op === 2 || (op === null && pideInfoCursoGeneral(text))) { respuestaFaq = textoCurso(); await contar("respuestas_automaticas"); }
                       else if (op !== null) { consulta = CONSULTA_POR_OPCION[op]; desdeMenu = true; }
                     }
+                    // Pide el video del curso: el enlace va tal cual, sin pasar por la IA.
+                    if (respuestaFaq === null && tipo === "desconocido") {
+                      const enl = enlacesPedidos(consulta,datosNegocio?.negocio.linkReserva);
+                      if (enl.length > 0) { respuestaFaq = enl[0]; await contar("respuestas_automaticas"); }
+                    }
                     // Pide un archivo ("la malla del curso"): se responde corto y el archivo sale después, sin pasar por la IA.
                     if (respuestaFaq === null && tipo === "desconocido" && deps.archivos && text.split(/\s+/).filter(Boolean).length <= 10) {
                       const pedidos = deps.archivos.pedidos(consulta,datosNegocio?.negocio.linkReserva) as any[];
                       if (pedidos.length > 0 && typeof pedidos[0]?.caption === "string") { respuestaFaq = pedidos[0].caption; await contar("respuestas_automaticas"); }
+                    }
+                    // Gracias / chao, y un "sí" suelto sin pregunta pendiente: respuesta corta, sin IA.
+                    if (respuestaFaq === null && tipo === "desconocido" && deps.conMenu && !esBoton) {
+                      if (esCierreConversacion(text)) { respuestaFaq = TEXTO_CIERRE; await contar("respuestas_automaticas"); }
+                      else if (esAfirmativoSuelto(text)) { respuestaFaq = TEXTO_AFIRMATIVO_SUELTO; await contar("respuestas_automaticas"); }
                     }
                     // Pedir a una persona, o cambiar / cancelar una hora: respuesta directa (con el teléfono real), sin pasar por la IA.
                     if (respuestaFaq === null && tipo === "desconocido" && deps.derivarAlTelefono && !esBoton) {
