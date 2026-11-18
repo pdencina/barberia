@@ -1,7 +1,7 @@
 // Reserva por chat: memoria, reserva e indicadores simulados; sin red, sin base, sin llaves, sin depender del reloj.
 // Ejecutar: npx tsx scripts/test-agente-reserva-chat.ts
 import assert from "node:assert/strict";
-import { manejarReservaChat, type DependenciasReserva, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "../src/lib/agente/reserva-chat";
+import { manejarReservaChat, serviciosParaListar, type DependenciasReserva, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "../src/lib/agente/reserva-chat";
 import type { DatosFaq } from "../src/lib/agente/faq-fija";
 
 let casos = 0;
@@ -138,16 +138,21 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     assert.ok(x.res!.texto.startsWith("Me falta tu nombre completo y el servicio (el número de la lista).") && x.res!.texto.includes("Juan Pérez, juan@correo.cl, 1"));
     assert.equal((x.e.estado as any).datos.intentos, 1); assert.equal(x.e.creadas.length, 0);
     assert.ok(!JSON.stringify(x.e.estado).includes("juan@"));
-    const y = await r("Juan Pérez, 1", DATOS_ETAPA); assert.ok(y.res!.texto.startsWith("Me falta tu correo."));
-    const z = await r("juan@correo.cl, 1", DATOS_ETAPA); assert.ok(z.res!.texto.startsWith("Me falta tu nombre completo."));
-    const w = await r("Juan juan@correo.cl 1", DATOS_ETAPA); assert.ok(w.res!.texto.startsWith("Me falta tu nombre completo."), "nombre de una palabra");
+    const y = await r("Juan Pérez, 1", DATOS_ETAPA); assert.ok(y.res!.texto.includes("Me falta tu correo."));
+    const z = await r("juan@correo.cl, 1", DATOS_ETAPA); assert.ok(z.res!.texto.includes("Me falta tu nombre completo."));
+    const w = await r("Juan juan@correo.cl 1", DATOS_ETAPA); assert.ok(w.res!.texto.includes("Me falta tu nombre completo."), "nombre de una palabra");
   });
-  await caso("Tras 3 intentos fallidos deriva a una persona", async () => {
+  await caso("Tras 4 intentos fallidos deriva a una persona", async () => {
     const a = armar(DATOS_ETAPA);
     const r1 = await manejarReservaChat("hola", TEL, datos(), a.deps); assert.equal(r1!.derivar, undefined);
     const r2 = await manejarReservaChat("hola otra vez", TEL, datos(), a.deps); assert.equal(r2!.derivar, undefined);
-    const r3 = await manejarReservaChat("no sé", TEL, datos(), a.deps); assert.ok(r3 !== null);
+    const r3 = await manejarReservaChat("quizás", TEL, datos(), a.deps); assert.equal(r3!.derivar, undefined);
+    const r4 = await manejarReservaChat("tal vez", TEL, datos(), a.deps); assert.equal(r4!.derivar, true);
     assert.equal(a.e.estado, null);
+    // Un "sí" o "ok" no es un intento fallido: se le recuerda qué falta.
+    const b = armar(DATOS_ETAPA);
+    for (let i = 0; i < 5; i++) { const x = await manejarReservaChat("si", TEL, datos(), b.deps); assert.ok(x!.texto.includes("me falta tu nombre completo, tu correo y el servicio") && x!.derivar === undefined); }
+    assert.ok(b.e.estado !== null);
   });
   await caso("Datos peligrosos no se aceptan (HTML, enlaces)", async () => {
     for (const msg of ["Juan <b>Pérez</b> juan@correo.cl 1", "Juan Pérez juan@correo.cl 1 😀"]) { const x = await r(msg, DATOS_ETAPA); assert.equal(x.e.creadas.length, 0, msg); assert.ok(x.res!.texto.length > 0); }
@@ -202,5 +207,20 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   assert.ok(y!.texto.includes("tengo *19:00*") && y!.texto.includes("Responde *sí*"));
   const z = await manejarReservaChat("Si, quiero agendar", TEL, datos(), a.deps); // el estado quedó solo con Matías
   assert.ok(z!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto*"));
+  await caso("Servicios: sin repetidos, sin los de otro profesional, y se entiende por nombre", async () => {
+    const d: any = datos();
+    d.profesionales = [{ id: "pm", nombre: "Matías Soto", link: "https://x.invalid/m", duracionMin: 45 }, { id: "pn", nombre: "Nicolás Levels", link: "https://x.invalid/n", duracionMin: 30 }];
+    d.servicios = [
+      { id: "s1", nombre: "Corte de cabello ", precio: 17000, duracionMin: 45 }, { id: "s2", nombre: "Corte de cabello ", precio: 17000, duracionMin: 30 },
+      { id: "s3", nombre: "Corte Tijeras Nicolas", precio: 20000, duracionMin: 45 }, { id: "s4", nombre: "Corte + Barba simple", precio: 24000, duracionMin: 60 },
+    ];
+    const ETAPA_M: EstadoChat = { etapa: "datos", datos: { id: "pm", nombre: "Matías Soto", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } };
+    const conMatias = serviciosParaListar(d, "Matías Soto"); assert.deepEqual(conMatias.map((x) => x.nombre), ["Corte de cabello", "Corte + Barba simple"]);
+    assert.equal(serviciosParaListar(d, "Nicolás Levels").length, 3, "con Nicolás sí aparecen los suyos");
+    const x = await r("Juan Pérez, juan@correo.cl, corte de cabello", ETAPA_M, {}, d);
+    assert.equal(x.e.creadas.length, 1, "el servicio escrito con palabras alcanza");
+    const y = await r("corte + barba simple", ETAPA_M, {}, d);
+    assert.ok(y.res!.texto.includes("Anoté *Corte + Barba simple*") && (y.e.estado as any).datos.servicioId === "s4" && y.e.creadas.length === 0, "guarda el servicio (no es dato personal) y pide lo demás");
+  });
   console.log("OK cierre rápido");
 })();

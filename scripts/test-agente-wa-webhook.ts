@@ -120,6 +120,13 @@ async function pruebasDisponibilidad(){
     check("menu: la opción 1 muestra la disponibilidad",/disponib/i.test(mu.sent[0])&&!mu.sent[0].includes("Elige una opción")&&mu.notices.length===0);
     mu=await menu("hola buenas tardes quisiera saber si hacen peinados para novias");
     check("menu: una consulta larga que nadie entiende la ve una persona",mu.sent[0]==="Te contactará una persona."&&mu.notices.length===1);
+    { const tel=(f:any)=>{(f.deps as any).derivarAlTelefono=true;const d0=f.deps.datosDelNegocio;(f.deps as any).datosDelNegocio=async(id:string)=>{const d=await d0(id);return d?{...d,negocio:{...d.negocio,telefono:"+56 9 4266 6172"}}:d;};};
+      mu=await menu("hola buenas tardes quisiera saber si hacen peinados para novias",tel);
+      check("piloto: la derivación da el teléfono real con enlace wa.me",/^Para esto te atiende una persona del equipo\.\n\nEscríbenos por WhatsApp al \+56 9 4266 6172 y te ayudamos:\nhttps:\/\/wa\.me\/56942666172$/.test(mu.sent[0])&&mu.notices.length===1);
+      mu=await menu("4",tel);
+      check("piloto: la opción 4 también da el teléfono real",mu.sent[0].includes("https://wa.me/56942666172")&&mu.sent[0].startsWith("Perfecto, para otras consultas")&&mu.notices.length===1);
+      mu=await menu("hola buenas tardes quisiera saber si hacen peinados para novias",(f:any)=>{(f.deps as any).derivarAlTelefono=true;});
+      check("piloto: sin teléfono válido se usa el texto de siempre",mu.sent[0]==="Te contactará una persona."); }
     mu=await (async()=>{const x=armar(undefined);await enviar(x.f,"hola");return x.f;})();
     check("menu: apagado, un saludo se deriva como antes",mu.sent[0]==="Te contactará una persona."&&mu.notices.length===1);
     { // seguimiento: tras una oferta, "en la tarde" se entiende con el mismo profesional y la misma fecha

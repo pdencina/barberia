@@ -29,7 +29,7 @@ function main(){
  check(guia.includes("Minutos 11–15"));
  for(const texto of ["Estudio Levels (pruebas)","no se ejecutó","No actives nada ahora","permitirEnvio","permitirBorrado","false","ABIERTO","ficticios","no repitas"] )check(guia.includes(texto));
  const webhook=readFileSync("src/lib/agente/whatsapp-webhook.ts","utf8");
- check(webhook.includes('await responder("Te contactará una persona.")'));
+ check(webhook.includes('await responder((deps.derivarAlTelefono && textoDerivacionTelefono(datosMenu,"Para esto te atiende una persona del equipo.")) || "Te contactará una persona.")'));
  check(webhook.includes("deps.avisarAdministrador(n.tenantId)"));
  console.log(`OK ${casos} comprobaciones F2; guía no ejecutada, sin servicios ni mensajes reales.`);
 }

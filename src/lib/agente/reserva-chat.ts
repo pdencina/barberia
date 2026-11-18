@@ -8,11 +8,11 @@ import { ahoraChile, textoDeFecha, type Oferta } from "./disponibilidad";
 export const VIGENCIA_MIN = 30;
 export const MAX_RESERVAS_FUTURAS = 2; // desde aquí se pregunta si quiere otra de todas formas
 export const MAX_RESERVAS_TOTAL = 4; // tope duro por número
-export const MAX_INTENTOS_DATOS = 3;
-const MAX_SERVICIOS_LISTADOS = 6;
+export const MAX_INTENTOS_DATOS = 4;
+const MAX_SERVICIOS_LISTADOS = 8;
 
 export type CampoIndicador = "respuestas_automaticas" | "consultas_disponibilidad" | "ofertas_horas" | "reservas_iniciadas" | "reservas_cerradas" | "derivadas_persona";
-export interface Seleccion { id: string; nombre: string; duracionMin: number; fecha: string; hora: string; intentos: number }
+export interface Seleccion { id: string; nombre: string; duracionMin: number; fecha: string; hora: string; intentos: number; /** Servicio ya elegido (no es un dato personal): se conserva entre mensajes. */ servicioId?: string }
 export type EstadoChat = { etapa: "oferta"; datos: Oferta & { horaPendiente?: string; extraPendiente?: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string } } } | { etapa: "datos"; datos: Seleccion };
 export type ResultadoCreacion = { ok: true; citaId: string } | { ok: false; motivo: "ocupada" | "suspendido" | "otro" };
 export interface DependenciasReserva {
@@ -60,6 +60,21 @@ function nombreMencionado(t: string, nombre: string): boolean {
   return normalizar(nombre).split(" ").filter((x) => x.length >= 3).some((tok) => palabras.some((w) => w === tok || (w.length >= 4 && tok.startsWith(w))));
 }
 
+/** Servicios que se le muestran al cliente: sin repetidos (mismo nombre y precio) y sin los de otro profesional ("... Nicolás" si agenda con otra persona). */
+export function serviciosParaListar(datos: DatosFaq | null, profesional: string): Array<{ id?: string; nombre: string; precio: number | null }> {
+  const propio = normalizar(profesional), otros = new Set<string>();
+  for (const p of datos?.profesionales ?? []) for (const w of normalizar(p.nombre).split(" ")) if (w.length >= 4 && !propio.includes(w)) otros.add(w);
+  const vistos = new Set<string>(); const salida: Array<{ id?: string; nombre: string; precio: number | null }> = [];
+  for (const sv of datos?.servicios ?? []) {
+    if (!sv || typeof sv.id !== "string" || !datoSeguro(sv.nombre)) continue;
+    const n = normalizar(sv.nombre);
+    if (n.split(" ").some((w) => otros.has(w))) continue;
+    const k = `${n}|${sv.precio ?? ""}`; if (vistos.has(k)) continue; vistos.add(k);
+    salida.push({ id: sv.id, nombre: sv.nombre.trim(), precio: sv.precio ?? null });
+  }
+  return salida.slice(0, MAX_SERVICIOS_LISTADOS);
+}
+
 export async function manejarReservaChat(texto: unknown, telefono: string, datos: DatosFaq | null, deps: DependenciasReserva): Promise<RespuestaReserva> {
   const estado = await deps.leerEstado();
   if (!estado) return null;
@@ -69,7 +84,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
 
   // Pasa a pedir nombre, correo y servicio para la hora ya elegida.
   const empezarDatos = async (e: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string }): Promise<RespuestaReserva> => {
-    const servicios = (datos?.servicios ?? []).filter((s) => s && typeof s.id === "string" && datoSeguro(s.nombre)).slice(0, MAX_SERVICIOS_LISTADOS);
+    const servicios = serviciosParaListar(datos, e.nombre);
     if (servicios.length === 0) { await deps.borrarEstado(); return { texto: "Para dejar tu hora necesito que una persona te ayude con los detalles.", derivar: true }; }
     await deps.guardarEstado({ etapa: "datos", datos: { id: e.id, nombre: e.nombre, duracionMin: e.duracionMin, fecha: e.fecha, hora: e.hora, intentos: 0 } });
     await deps.contar("reservas_iniciadas");
@@ -153,18 +168,25 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   // Una pregunta nueva ("¿tienen hora a las 5:30?") sin correo no son sus datos: sigue el camino normal.
   if (!CORREO.test(texto) && PARECE_CONSULTA.test(t)) return null;
   if (!CARACTERES.test(texto)) return faltan(sel, deps, "Para confirmar necesito tus datos en texto simple.");
-  const servicios = (datos?.servicios ?? []).filter((s) => s && typeof s.id === "string" && datoSeguro(s.nombre)).slice(0, MAX_SERVICIOS_LISTADOS);
+  const servicios = serviciosParaListar(datos, sel.nombre);
   if (servicios.length === 0) { await deps.borrarEstado(); return { texto: "Para dejar tu hora necesito que una persona te ayude con los detalles.", derivar: true }; }
+  // Solo un "sí", "ok" o "dale": no son datos ni un intento fallido; se le recuerda qué falta.
+  if (AFIRMATIVO.test(t) && t.split(" ").length <= 3 && !CORREO.test(texto)) return { texto: `Perfecto. Para confirmarla me falta tu nombre completo, tu correo y el servicio.\n\n${ejemplo(servicios)}` };
   const correoM = CORREO.exec(texto);
   const correo = correoM ? correoM[0].toLowerCase() : null;
   let resto = correoM ? texto.replace(correoM[0], " ") : texto;
-  let servicio = servicios.length === 1 ? servicios[0] : null;
+  let servicio = servicios.length === 1 ? servicios[0] : (sel.servicioId ? servicios.find((x) => x.id === sel.servicioId) ?? null : null);
   if (!servicio) {
     const num = /(?:^|[\s,;])(\d{1,2})(?=$|[\s,;.)])/.exec(resto);
     if (num && Number(num[1]) >= 1 && Number(num[1]) <= servicios.length) { servicio = servicios[Number(num[1]) - 1]; resto = resto.replace(num[0], " "); }
     else {
       const porNombre = servicios.filter((s) => normalizar(texto).includes(normalizar(s.nombre)));
       if (porNombre.length === 1) { servicio = porNombre[0]; resto = resto.replace(new RegExp(porNombre[0].nombre.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), " "); }
+      else if (porNombre.length === 0) {
+        // Escribió el servicio con sus palabras ("corte de cabello"): sirve si calza con uno solo (un mismo nombre con precios distintos cuenta como varios).
+        const q = normalizar(texto.replace(correoM ? correoM[0] : "", " ")).replace(/[,;:.()#/_+@]+/g, " ").replace(/\s+/g, " ").trim();
+        if (q.length >= 4) { const cand = servicios.filter((x) => normalizar(x.nombre) === q || normalizar(x.nombre).startsWith(q + " ") || normalizar(x.nombre).includes(` ${q} `) ); if (cand.length === 1) { servicio = cand[0]; resto = " "; } }
+      }
     }
   }
   const pareceEnlace = /:\/\/|www\.|[A-Za-z0-9]\.[A-Za-z]{2,}/.test(resto);
@@ -176,7 +198,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   if (!correo) falta.push("tu correo");
   if (!servicio) falta.push("el servicio (el número de la lista)");
   if (falta.length > 0 || !correo || !servicio) {
-    return faltan(sel, deps, `Me falta ${unirFaltas(falta)}.\n\n${ejemplo(servicios)}`);
+    return faltan(servicio ? { ...sel, servicioId: servicio.id } : sel, deps, `${servicio ? `Anoté *${servicio.nombre}*. ` : ""}Me falta ${unirFaltas(falta)}.\n\n${ejemplo(servicios)}`);
   }
   const nombre = mayusculas(limpio);
   const r = await deps.crearReserva({ profesionalId: sel.id, fecha: sel.fecha, hora: sel.hora, servicioId: servicio.id!, nombre, correo, telefono });
@@ -199,7 +221,7 @@ async function faltan(sel: Seleccion, deps: DependenciasReserva, texto: string):
 }
 const unirFaltas = (a: string[]) => (a.length <= 1 ? a.join("") : `${a.slice(0, -1).join(", ")} y ${a[a.length - 1]}`);
 function ejemplo(servicios: Array<{ nombre: string }>): string {
-  const ej = servicios.length > 1 ? "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl, 1" : "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl";
+  const ej = servicios.length > 1 ? "Envíamelo todo junto en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl, 1" : "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl";
   return `${ej}\n\nEscribe *menú* para volver al inicio.`;
 }
 function pedirDatos(profesional: string, dia: string, hora: string, servicios: Array<{ nombre: string; precio: number | null }>): string {

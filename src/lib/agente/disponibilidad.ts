@@ -133,6 +133,7 @@ function profesionalesMencionados(t: string, perfiles: Perfil[]): Perfil[] {
   return coinciden.length > 0 && coinciden.length <= 3 ? coinciden : [];
 }
 
+const PRIMER_DISPONIBLE = /\b(primer(o)? (profesional )?disponible|cualquier(a)? (profesional|barbero)|con quien sea|quien tenga (hora|disponible))\b/;
 const PALABRA_HORA = /\b(hora|horas|cupo|cupos|disponib\w*|libre|libres|espacio|espacios|hueco|huecos|atiende|atienden|tiene|tienen|hay|queda|quedan|puede|pueden|agendar|reservar|cita|turno)\b/;
 const PREGUNTA_HORARIO = /\b(abren|abre|abrir|abierto|abiertos|cierran|cierra|cerrar|cerrado|atencion|horario|horarios)\b/;
 const NO_CONSULTA = /\b(cancelar|cancelo|cancela|anular|anulo|anula|cambiar|cambio|cambia|reagendar|reprogramar|mover|modificar|cuanto|cuesta|cuestan|precio|precios|valor|vale|descuento)\b/;
@@ -149,11 +150,11 @@ function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = f
   const hora = rango ? rango.d : interpretarHora(f.resto, franja);
   if (hora === "invalida") return null;
   const mencionados = profesionalesMencionados(t, perfiles);
-  const generica = /\b(tienen|tiene|hay|quedan|queda|alguna|algun)\b.*\b(hora|horas|cupo|cupos|espacio|espacios)\b|\b(hora|horas|cupo|cupos)\b.*\b(disponible|disponibles)\b/.test(t);
+  const generica = PRIMER_DISPONIBLE.test(t) || /\b(tienen|tiene|hay|quedan|queda|alguna|algun)\b.*\b(hora|horas|cupo|cupos|espacio|espacios)\b|\b(hora|horas|cupo|cupos)\b.*\b(disponible|disponibles)\b/.test(t);
   const rel = /\bm[aá]s (tarde|temprano)\b/.exec(t);
   const relativo: "despues" | "antes" | null = rel ? (rel[1] === "tarde" ? "despues" : "antes") : null;
   // Con una oferta reciente, un horario suelto ("en la tarde", "a las 4", "más tarde") se entiende como seguimiento.
-  const pide = (PALABRA_HORA.test(t) && (mencionados.length > 0 || f.explicita || hora !== null || franja !== null || generica)) || (seguimiento && (franja !== null || hora !== null || relativo !== null));
+  const pide = PRIMER_DISPONIBLE.test(t) || (PALABRA_HORA.test(t) && (mencionados.length > 0 || f.explicita || hora !== null || franja !== null || generica)) || (seguimiento && (franja !== null || hora !== null || relativo !== null));
   if (!pide) return null;
   return { fecha: f.fecha, fechaExplicita: f.explicita, hora, franja, profesionales: mencionados, relativo, ...(rango ? { rango } : {}) };
 }
