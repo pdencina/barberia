@@ -121,3 +121,13 @@ export function pideInfoCursoGeneral(texto: string): boolean {
   const w = n.split(" ").filter(Boolean);
   return w.length >= 2 && w.length <= 7 && /\bcurso\b/.test(n) && PIDE_INFO_CURSO.test(n) && !/\b(precio|cuesta|cuanto|valor|malla|temario|video|fecha|cuando|horario|donde|cupo|abono|certificad\w*|edad|requisito\w*)\b/.test(n);
 }
+
+/** Piloto con número aparte: cuando una persona debe intervenir, el cliente va al número real del negocio (donde sí hay quien responda).
+ *  null = el negocio no tiene un teléfono válido: se usa el texto de siempre. */
+export function textoDerivacionTelefono(datos: DatosFaq | null, intro: string): string | null {
+  const tel = datos?.negocio.telefono?.trim() ?? "";
+  if (!/^\+?[\d\s()-]{8,20}$/.test(tel)) return null;
+  const digitos = tel.replace(/\D/g, "");
+  if (digitos.length < 8 || digitos.length > 15) return null;
+  return `${intro}\n\nEscríbenos por WhatsApp al ${tel} y te ayudamos:\nhttps://wa.me/${digitos}`;
+}
