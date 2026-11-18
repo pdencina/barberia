@@ -27,6 +27,9 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
   if (kp0) {
     const rx: any = await supabase.from("kiosk_payments").select("kind, barber_id, client_id, items").eq("id", kioskPaymentId).maybeSingle();
     if (!rx.error && rx.data) Object.assign(kp0, rx.data);
+    // Varias citas pagadas juntas (migración 174).
+    const rm: any = await supabase.from("kiosk_payments").select("appointment_ids").eq("id", kioskPaymentId).maybeSingle();
+    if (!rm.error && rm.data) Object.assign(kp0, rm.data);
   }
   if (!kp0) return { ok: false, error: "Pago no encontrado" };
   if (kp0.status !== "paid") return { ok: false, error: "El pago aún no está confirmado" };
@@ -38,6 +41,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
     const tenantId: string = kp0.tenant_id;
     const esProducto = kp0.kind === "producto";
     let cita: any = null;
+    let citaIds: string[] = [];
     let barberId: string;
     let clientId: string | null;
     let items: Array<{ service_id: string | null; product_id?: string | null; name: string; price: number; quantity?: number }>;
@@ -54,8 +58,9 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
       cita = c;
       barberId = cita.barber_id;
       clientId = cita.client_id || null;
-      // Servicios de la cita con el precio guardado al reservar.
-      const { data: filas } = await supabase.from("appointment_services").select("service_id, price, services(name)").eq("appointment_id", cita.id);
+      // Servicios de la cita (y de las otras citas pagadas juntas) con el precio guardado al reservar.
+      citaIds = [cita.id, ...(Array.isArray(kp0.appointment_ids) ? kp0.appointment_ids : [])];
+      const { data: filas } = await supabase.from("appointment_services").select("service_id, price, services(name)").in("appointment_id", citaIds);
       items = (filas || []).map((f: any) => ({ service_id: f.service_id, name: f.services?.name || "Servicio", price: Math.round(Number(f.price) || 0) }));
       if (items.length === 0) throw new Error("La cita no tiene servicios");
     }
@@ -66,8 +71,12 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
     const total = Math.round(Number(kp0.amount) || 0);
     const subtotal = items.reduce((s: number, i: any) => s + i.price * (i.quantity || 1), 0);
     const discount = Math.max(0, subtotal - total);
-    const disp = cita ? await buscarAbonosDisponibles(supabase, { tenantId, clientId, appointmentId: cita.id }) : [];
-    const abonosUsados = cita ? disp.filter((x) => x.citaId === cita.id) : [];
+    // Abonos ya pagados de cada cita incluida.
+    const abonosUsados: Awaited<ReturnType<typeof buscarAbonosDisponibles>> = [];
+    for (const cid of citaIds) {
+      const disp = await buscarAbonosDisponibles(supabase, { tenantId, clientId, appointmentId: cid });
+      abonosUsados.push(...disp.filter((x) => x.citaId === cid));
+    }
     const abono = Math.min(discount, abonosUsados.reduce((s, x) => s + x.monto, 0));
     const medio = medioDePago(kp0.payment_type, kp0.card_type);
 
@@ -157,7 +166,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
 
     // Al cobrar, la cita queda completada (igual que en el POS).
     if (cita) try {
-      await supabase.from("appointments").update({ status: "completed", ...(correoEnviado ? { post_service_sent: true } : {}) }).eq("id", cita.id).in("status", ["scheduled", "confirmed", "in_progress"]);
+      await supabase.from("appointments").update({ status: "completed", ...(correoEnviado ? { post_service_sent: true } : {}) }).in("id", citaIds).in("status", ["scheduled", "confirmed", "in_progress"]);
     } catch (e) { console.error("Tótem: error completando la cita:", e); }
 
     await supabase.from("kiosk_payments").update({ sale_status: "done", sale_error: null }).eq("id", kioskPaymentId);

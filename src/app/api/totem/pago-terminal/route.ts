@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
-import { saldoCita } from "@/lib/totem-pago";
+import { citasParaCobro } from "@/lib/totem-citas";
 import { resolverTerminal, iniciarCobro, cancelarCobro } from "@/lib/totem-terminal";
 import { notify } from "@/lib/notify";
 
@@ -17,18 +17,12 @@ export async function POST(req: NextRequest) {
   if (!t) return NextResponse.json({ error: "Tótem no disponible" }, { status: 404 });
   if (!t.kiosk_terminal_enabled) return NextResponse.json({ error: "El cobro en la máquina no está activado en este local." }, { status: 403 });
 
-  const code = normalizarCodigo(body.code);
-  if (!body.appointmentId || code.length !== 5) return NextResponse.json({ error: "Falta el código" }, { status: 400 });
-  const { data: a } = await soloDiaDelTotem(supabase.from("appointments").select("id, status, checkin_code, barber_id").eq("id", body.appointmentId).eq("tenant_id", t.id)).maybeSingle();
-  if (!a || (a as any).checkin_code !== code || !["scheduled", "confirmed", "in_progress", "completed"].includes((a as any).status)) {
-    return NextResponse.json({ error: "No encontramos tu cita" }, { status: 404 });
-  }
-
-  const s = await saldoCita(supabase, (a as any).id);
-  if (!s || s.saldo <= 0) return NextResponse.json({ error: s && s.total > 0 ? "Tu cita ya está pagada con el abono." : "Esta cita no tiene un monto para cobrar. Avisa a quien te atiende." }, { status: 400 });
-
-  const { data: pagado } = await supabase.from("kiosk_payments").select("id").eq("appointment_id", (a as any).id).eq("status", "paid").limit(1).maybeSingle();
-  if (pagado) return NextResponse.json({ error: "Esta cita ya fue pagada desde el tótem." }, { status: 409 });
+  // Una o varias citas del mismo cliente con el mismo profesional (appointmentIds); se valida y se suma todo en el servidor.
+  const cc = await citasParaCobro(supabase, t.id, body.code, Array.isArray(body.appointmentIds) ? body.appointmentIds : [body.appointmentId]);
+  if (!cc.ok) return NextResponse.json({ error: cc.error }, { status: cc.status });
+  const a = { id: cc.primeraId, barber_id: cc.barberId };
+  const s = { saldo: cc.saldo, abono: cc.abono, total: cc.total };
+  const extraIds = cc.extraIds;
 
   const term = await resolverTerminal(supabase, t.id, (a as any).barber_id);
   if (!term) return NextResponse.json({ error: "Tu profesional no tiene una máquina de tarjetas conectada. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
@@ -43,7 +37,7 @@ export async function POST(req: NextRequest) {
     await supabase.from("kiosk_payments").update({ status: "cancelled" }).eq("id", (p as any).id);
   }
 
-  const fila = { tenant_id: t.id, appointment_id: (a as any).id, amount: s.saldo, method: "terminal", provider: term.proveedor, device: term.device };
+  const fila = { tenant_id: t.id, appointment_id: (a as any).id, ...(extraIds.length ? { appointment_ids: extraIds } : {}), amount: s.saldo, method: "terminal", provider: term.proveedor, device: term.device };
   // card_type (migración 169) sirve para registrar si fue débito o crédito; si la migración aún no está, se crea igual sin él.
   let ins: any = await supabase.from("kiosk_payments").insert({ ...fila, card_type: body.tarjeta === "credito" ? "credito" : "debito" }).select("id").single();
   if (ins.error && /card_type/i.test(ins.error.message)) ins = await supabase.from("kiosk_payments").insert(fila).select("id").single();

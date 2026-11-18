@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { saldoCita } from "@/lib/totem-pago";
 import { negocioDelTotem, normalizarCodigo, celular9, hoyChile, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 
 // POST {codigo, code?, phone?}: citas de HOY de ese negocio que calzan con el codigo corto (o, de respaldo, el celular).
@@ -27,8 +28,14 @@ export async function POST(req: NextRequest) {
   }
   const { data } = await q.order("date").order("start_time").limit(5);
 
+  // Lo que falta pagar de cada cita (para ofrecer pagar varias juntas). Siempre calculado en el servidor.
+  const saldos = new Map<string, number>();
+  for (const a of data || []) { const s = await saldoCita(supabase, (a as any).id); saldos.set((a as any).id, s?.saldo || 0); }
+
   const citas = (data || []).map((a: any) => ({
     id: a.id,
+    saldo: saldos.get(a.id) || 0,
+    barberId: a.barber_id || null,
     fecha: a.date === hoyChile() ? null : a.date,
     hora: String(a.start_time || "").slice(11, 16), // hora de Chile escrita como UTC
     servicio: (a.appointment_services || []).map((x: any) => x.services?.name).filter(Boolean).join(" + ") || "Tu cita",

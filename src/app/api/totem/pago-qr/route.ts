@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, demasiadosIntentos, ipDe } from "@/lib/totem";
-import { saldoCita } from "@/lib/totem-pago";
+import { citasParaCobro } from "@/lib/totem-citas";
 import { firmarNegocio } from "@/lib/deposit";
 import { tokensMercadoPago } from "@/lib/totem-terminal";
 
@@ -15,25 +15,18 @@ export async function POST(req: NextRequest) {
   if (!t) return NextResponse.json({ error: "Totem no disponible" }, { status: 404 });
   if (!t.kiosk_pay_qr_enabled) return NextResponse.json({ error: "El pago por QR no está activado en este local." }, { status: 403 });
 
-  const code = normalizarCodigo(body.code);
-  if (!body.appointmentId || code.length !== 5) return NextResponse.json({ error: "Falta el código" }, { status: 400 });
-  const { data: a } = await soloDiaDelTotem(supabase.from("appointments").select("id, status, checkin_code, barber_id").eq("id", body.appointmentId).eq("tenant_id", t.id)).maybeSingle();
-  if (!a || (a as any).checkin_code !== code || !["scheduled", "confirmed", "in_progress", "completed"].includes((a as any).status)) {
-    return NextResponse.json({ error: "No encontramos tu cita" }, { status: 404 });
-  }
-
-  const s = await saldoCita(supabase, (a as any).id);
-  if (!s || s.saldo <= 0) return NextResponse.json({ error: s && s.total > 0 ? "Tu cita ya está pagada con el abono." : "Esta cita no tiene un monto para cobrar. Avisa a quien te atiende." }, { status: 400 });
-
-  // Ya hay un cobro pagado de esta cita: no se cobra dos veces.
-  const { data: pagado } = await supabase.from("kiosk_payments").select("id").eq("appointment_id", (a as any).id).eq("status", "paid").limit(1).maybeSingle();
-  if (pagado) return NextResponse.json({ error: "Esta cita ya fue pagada desde el tótem." }, { status: 409 });
+  // Una o varias citas del mismo cliente con el mismo profesional (appointmentIds); se valida y se suma todo en el servidor (y no se cobra dos veces).
+  const cc = await citasParaCobro(supabase, t.id, body.code, Array.isArray(body.appointmentIds) ? body.appointmentIds : [body.appointmentId]);
+  if (!cc.ok) return NextResponse.json({ error: cc.error }, { status: cc.status });
+  const a = { id: cc.primeraId, barber_id: cc.barberId };
+  const s = { saldo: cc.saldo, abono: cc.abono, total: cc.total };
+  const extraIds = cc.extraIds;
 
   // Cuenta de Mercado Pago a la que entra el pago: la del profesional de la cita si trabaja en arriendo (como el POS); si no, la del negocio.
   const cred = { token: (await tokensMercadoPago(supabase, t.id, (a as any).barber_id))[0] || null };
   if (!cred.token) return NextResponse.json({ error: "Tu profesional no tiene Mercado Pago conectado. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
 
-  const { data: pago, error: errIns } = await supabase.from("kiosk_payments").insert({ tenant_id: t.id, appointment_id: (a as any).id, amount: s.saldo }).select("id").single();
+  const { data: pago, error: errIns } = await supabase.from("kiosk_payments").insert({ tenant_id: t.id, appointment_id: (a as any).id, ...(extraIds.length ? { appointment_ids: extraIds } : {}), amount: s.saldo }).select("id").single();
   if (errIns || !pago) return NextResponse.json({ error: "No pudimos crear el pago. Avisa a quien te atiende." }, { status: 500 });
 
   const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl").replace(/\/$/, "");
