@@ -19,7 +19,7 @@ const hhmm = (slot: string) => slot.slice(11, 16);
 // Nombre de una sección de servicios para mostrarlo: sin el punto final que a veces queda al escribirlo ("Salón." -> "Salón").
 const nombreCategoria = (c: string | null | undefined) => (String(c || "").trim().replace(/[.\s]+$/, "") || "Otros servicios");
 
-export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, onPick, agruparPorCategoria = false }: { tenantSlug: string; closedWeekdays: number[]; windowDays?: number | null; onPick: (p: TimePick) => void; agruparPorCategoria?: boolean }) {
+export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, onPick, agruparPorCategoria = false, kiosko = false }: { tenantSlug: string; closedWeekdays: number[]; windowDays?: number | null; onPick: (p: TimePick) => void; agruparPorCategoria?: boolean; kiosko?: boolean }) {
   const [phase, setPhase] = useState<"services" | "time" | "pro">("services");
   const [services, setServices] = useState<Svc[]>([]);
   // Con agruparPorCategoria (tótem y su QR) el cliente elige primero la sección (ej. Nicolás, Gabriel, Salón) y luego los servicios de esa sección.
@@ -58,7 +58,7 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
     if (phase !== "time" || !date || selected.length === 0) return;
     let cancelled = false;
     setLoadingSlots(true);
-    fetch(`/api/public/slots-by-time?tenant=${encodeURIComponent(tenantSlug)}&date=${date}&serviceIds=${selected.join(",")}`)
+    fetch(`/api/public/slots-by-time?tenant=${encodeURIComponent(tenantSlug)}&date=${date}&serviceIds=${selected.join(",")}${kiosko ? "&kiosko=1" : ""}`)
       .then((r) => r.json())
       .then((d) => { if (!cancelled) { setSlots(d.slots || []); setBarbers(d.barbers || {}); } })
       .catch(() => { if (!cancelled) { setSlots([]); setBarbers({}); } })
@@ -83,7 +83,7 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
     if (autoBusy) return;
     setAutoBusy(true);
     try {
-      const r = await fetch(`/api/public/first-available?tenant=${encodeURIComponent(tenantSlug)}&date=${date}&slot=${encodeURIComponent(slot)}&candidates=${ids.join(",")}`);
+      const r = await fetch(`/api/public/first-available?tenant=${encodeURIComponent(tenantSlug)}&date=${date}&slot=${encodeURIComponent(slot)}&candidates=${ids.join(",")}${kiosko ? "&kiosko=1" : ""}`);
       const d = await r.json();
       const id = d?.barber?.id && ids.includes(d.barber.id) ? d.barber.id : ids[0];
       const b = barbers[id];

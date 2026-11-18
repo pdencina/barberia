@@ -98,6 +98,8 @@ export default function BookingPage() {
   const [viewMode, setViewMode] = useState<"time" | "professional">("professional");
   // ?vista=ambas (tótem del local y su QR): siempre parte por horario, con el PRIMER PROFESIONAL DISPONIBLE, y deja elegir un profesional
   // con el botón de arriba; se aplica aunque el negocio tenga otra vista por defecto.
+  // En la pantalla del tótem (?kiosko=1) se ofrecen también las horas que empezaron hace menos de 15 min (llegó un poco tarde).
+  const kioskoQ = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("kiosko") === "1" ? "&kiosko=1" : "";
   const vistaAmbas = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("vista") === "ambas";
   // true = el cliente llego directo a un profesional (link personal o negocio con uno solo).
   const [directEntry, setDirectEntry] = useState(false);
@@ -287,7 +289,7 @@ export default function BookingPage() {
       setSlots([]); setSpots({});
       setSelectedSlot(preselectSlot.current);
       fetch(
-        `/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${totalDuration}`
+        `/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${totalDuration}${kioskoQ}`
       )
         .then((r) => r.json())
         .then((data) => { if (vigente) { setSlots(data.slots || []); setSpots(data.spots || {}); } })
@@ -302,7 +304,7 @@ export default function BookingPage() {
   useEffect(() => {
     if (!hasSpots || step !== "datetime" || !selectedBarber || !selectedDate || selectedServices.length === 0) return;
     const id = setInterval(() => {
-      fetch(`/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${totalDuration}`)
+      fetch(`/api/public/availability?barberId=${selectedBarber.id}&date=${selectedDate}&duration=${totalDuration}${kioskoQ}`)
         .then((r) => r.json())
         .then((data) => {
           const fresh: string[] = data.slots || [];
@@ -674,7 +676,7 @@ export default function BookingPage() {
 
         {/* Vista por horario: servicio → día y hora → profesional disponible */}
         {step === "barber" && activeView === "time" && (
-          <TimeFirstFlow tenantSlug={tenantSlugState} closedWeekdays={closedWeekdays} windowDays={businessInfo?.booking_window_days ?? null} onPick={handleTimePick} agruparPorCategoria={vistaAmbas} />
+          <TimeFirstFlow tenantSlug={tenantSlugState} closedWeekdays={closedWeekdays} windowDays={businessInfo?.booking_window_days ?? null} onPick={handleTimePick} agruparPorCategoria={vistaAmbas} kiosko={!!kioskoQ} />
         )}
 
         {/* Step 1: Barber (PRIMERO) */}
@@ -691,6 +693,7 @@ export default function BookingPage() {
                 const faParams = new URLSearchParams();
                 if (selectedDate) faParams.set("date", selectedDate);
                 if (tenantSlugState) faParams.set("tenant", tenantSlugState);
+                if (kioskoQ) faParams.set("kiosko", "1");
                 const res = await fetch(`/api/public/first-available?${faParams.toString()}`);
                 const data = await res.json();
                 if (data.barber) {
