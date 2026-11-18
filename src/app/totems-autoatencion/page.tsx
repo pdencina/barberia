@@ -9,7 +9,7 @@ import { Qr } from "@/components/totem/qr";
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
 type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "info" | "contacto" | "gracias";
-interface Cita { id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
+interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
 interface Info { whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
@@ -236,18 +236,18 @@ function Totem() {
     setPantalla("gracias");
   };
 
-  const crearPagoQr = async (c: Cita) => {
+  const crearPagoQr = async (c: Cita, ids?: string[]) => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("pago-qr", { appointmentId: c.id, code });
+    const { ok, d } = await post("pago-qr", { appointmentId: c.id, appointmentIds: ids, code });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos crear el pago"); return; }
     setPagoQr({ id: d.id, url: d.url, monto: d.monto, abono: d.abono });
     setPantalla("pagoqr");
   };
 
-  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito") => {
+  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito", ids?: string[]) => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, code, tarjeta });
+    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, appointmentIds: ids, code, tarjeta });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos enviar el cobro a la máquina"); return; }
     setPagoTerm({ id: d.id, monto: d.monto, abono: d.abono, profesional: d.profesional || null });
@@ -475,6 +475,26 @@ function Totem() {
           {volver}
           <h2 className="tt-display mb-6 text-6xl font-semibold">{citas.length > 1 ? "Encontramos estas citas" : "Esta es tu cita"}</h2>
           {msg && <p className={`mb-6 ${aviso}`}>{msg}</p>}
+          {/* Varias citas con el mismo profesional: se pueden pagar todas juntas, de una vez. */}
+          {modo === "pagar" && citas.length > 1 && citas.every((x) => x.barberId && x.barberId === citas[0].barberId && (x.saldo || 0) > 0) && (info.pagoTerminal || info.pagoQr) && (
+            <div className={`${caja} mb-5 grid items-center gap-x-12 gap-y-6 border-white/30 p-8 md:grid-cols-[1fr_1.2fr]`}>
+              <div>
+                <p className="tt-mono mb-2 text-lg uppercase tracking-[0.16em] text-white/50">Paga todo junto</p>
+                <p className="tt-display text-7xl font-semibold">{plata(citas.reduce((s, x) => s + (x.saldo || 0), 0))}</p>
+                <p className="mt-3 text-2xl text-white/70">{citas.map((x) => x.servicio).join(" + ")}</p>
+                <p className="mt-1 text-xl text-white/55">con {citas[0].profesional || "tu profesional"}</p>
+              </div>
+              <div className="space-y-4">
+                {info.pagoTerminal && (info.tarjetaElige ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>
+                    <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "credito", citas.map((x) => x.id))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>
+                  </div>
+                ) : <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
+                {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => crearPagoQr(citas[0], citas.map((x) => x.id))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
+              </div>
+            </div>
+          )}
           <div className="space-y-5">
             {citas.map((c) => (
               <div key={c.id} className={`${caja} grid items-center gap-x-12 gap-y-6 p-8 md:grid-cols-[1fr_1.2fr]`}>
