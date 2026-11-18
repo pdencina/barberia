@@ -4,6 +4,7 @@ import { GET as disponibilidadPublica } from "@/app/api/public/availability/rout
 import { crearManejadoresWebhook, crearRepositorioWebhook, accionesDesdeBase } from "@/lib/agente/whatsapp-webhook";
 import { enviarTexto, enviarArchivo, enviarLista } from "@/lib/agente/whatsapp-meta";
 import { archivosPedidos } from "@/lib/agente/archivos";
+import { leerTema, guardarTema } from "@/lib/agente/tema";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { POST as reservaPublica } from "@/app/api/public/book/route";
@@ -38,6 +39,7 @@ const handlers = () => crearManejadoresWebhook({
         leerEstado: async (tenantId, contactHash, ahora) => {
           const r = await db.from("agent_chat_state").select("etapa,datos,expires_at").eq("tenant_id", tenantId).eq("contact_hash", contactHash).maybeSingle();
           if (r.error || !r.data || new Date(r.data.expires_at).getTime() <= ahora) return null;
+          if (r.data.etapa === "tema") return null; // solo recuerda de qué se hablaba: no es una reserva en curso
           return { etapa: r.data.etapa, datos: r.data.datos } as any;
         },
         guardarEstado: async (tenantId, contactHash, estado, expiraMs) => {
@@ -82,7 +84,7 @@ const handlers = () => crearManejadoresWebhook({
       conCta: true,
       conMenu: true,
       derivarAlTelefono: true,
-      ia: async (tenantId, texto, datosNegocio) => {
+      ia: async (tenantId, texto, datosNegocio, contactHash) => {
         const llave = process.env.ANTHROPIC_API_KEY;
         if (!llave) return null;
         const c = await db.from("agent_ai_context").select("contexto,ia_activa,limite_mensual").eq("tenant_id", tenantId).maybeSingle();
@@ -94,7 +96,9 @@ const handlers = () => crearManejadoresWebhook({
         if (usados.error) return null;
         const total = (usados.data ?? []).reduce((a: number, r: any) => a + Number(r.total || 0), 0);
         if (total >= (typeof c.data.limite_mensual === "number" ? c.data.limite_mensual : TOPE_IA_POR_DEFECTO)) return null;
-        const r = await responderConIA(texto, { contexto: c.data.contexto, nombreNegocio: datosNegocio?.negocio.nombre ?? null, guiada: process.env.AGENTE_IA_GUIADA !== "0" }, {
+        const temaPrevio = contactHash ? await leerTema(db, tenantId, contactHash, Date.now()) : [];
+        let temaNuevo: number[] = [];
+        const r = await responderConIA(texto, { contexto: c.data.contexto, nombreNegocio: datosNegocio?.negocio.nombre ?? null, guiada: process.env.AGENTE_IA_GUIADA !== "0", tema: temaPrevio, onTema: (ids) => { temaNuevo = ids; } }, {
           llamar: async ({ modelo, sistema, usuario, maxTokens }) => {
             const res = await fetch("https://api.anthropic.com/v1/messages", {
               method: "POST", headers: { "x-api-key": llave, "anthropic-version": "2023-06-01", "content-type": "application/json" },
@@ -107,6 +111,7 @@ const handlers = () => crearManejadoresWebhook({
             return typeof t === "string" ? t : null;
           },
         });
+        if (r !== null && contactHash && temaNuevo.length > 0) await guardarTema(db, tenantId, contactHash, temaNuevo, Date.now());
         if (r !== null) await db.rpc("agent_whatsapp_contar", { p_tenant: tenantId, p_dia: ahoraChile(Date.now()).fecha, p_campo: "respuestas_ia" });
         return r;
       },

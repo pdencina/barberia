@@ -36,7 +36,7 @@ export interface DependenciasWebhook {
   horasLibres?: DependenciasDisponibilidad["horasLibres"];
   negocioInactivo?: (tenantId: string) => Promise<boolean>;
   // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
-  ia?: (tenantId: string, texto: string, datos: DatosFaq | null) => Promise<string | null>;
+  ia?: (tenantId: string, texto: string, datos: DatosFaq | null, contactHash?: string) => Promise<string | null>;
   // true: las respuestas informativas (reglas e IA) terminan con "¿Quieres agendar? Reserva aquí: <link>". Apagado si no se indica.
   conCta?: boolean;
   // true: si nada entiende el mensaje (o solo saluda) se muestra el menú de opciones en vez de "Te contactará una persona.".
@@ -261,7 +261,7 @@ export function crearManejadoresWebhook(config: {
                       }
                       // 3) Modo Avanzado (IA) con el contexto del negocio, solo si lo anterior no respondió.
                       if (respuestaFaq === null && deps.ia) {
-                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,consulta,datosNegocio),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva,consulta) : ia; } catch { /* sin IA: se deriva a una persona */ }
+                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,consulta,datosNegocio,p.remitenteHash),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva,consulta) : ia; } catch { /* sin IA: se deriva a una persona */ }
                       }
                     }
                   }
