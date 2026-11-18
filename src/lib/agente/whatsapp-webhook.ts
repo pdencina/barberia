@@ -1,7 +1,7 @@
 import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
 const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
 import { conLlamadaAReservar } from "./cta";
-import { esTextoMenu, listaDeMenu, esTextoCurso, listaDeCurso, textoCurso, textoDeBoton, pideInfoCursoGeneral, TITULO_CURSO_SEGUIR } from "./menu";
+import { esTextoMenu, listaDeMenu, textoDerivacionTelefono, esTextoCurso, listaDeCurso, textoCurso, textoDeBoton, pideInfoCursoGeneral, TITULO_CURSO_SEGUIR } from "./menu";
 import { DEL_CURSO } from "./cta";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
@@ -40,6 +40,8 @@ export interface DependenciasWebhook {
   conCta?: boolean;
   // true: si nada entiende el mensaje (o solo saluda) se muestra el menú de opciones en vez de "Te contactará una persona.".
   conMenu?: boolean;
+  // true: cuando debe intervenir una persona, se le da al cliente el teléfono real del negocio (piloto con número aparte para el agente).
+  derivarAlTelefono?: boolean;
   // Reserva por chat: memoria mínima del contacto (30 min), creación de la cita e indicadores. Sin esto no se agenda por chat.
   chat?: {
     leerEstado: (tenantId: string, contactHash: string, ahora: number) => Promise<EstadoChat | null>;
@@ -192,7 +194,7 @@ export function crearManejadoresWebhook(config: {
                     if (respuestaFaq === null && tipo === "desconocido" && deps.conMenu) {
                       // Respuesta a las opciones del menú: 1 reservar, 2 curso, 3 precios/horarios/ubicación, 4 una persona.
                       const op = opcionMenu(text);
-                      if (op === 4) { respuestaFaq = RESPUESTA_OTRAS; derivarChat = true; }
+                      if (op === 4) { respuestaFaq = (deps.derivarAlTelefono && textoDerivacionTelefono(datosNegocio,"Perfecto, para otras consultas te atiende una persona del equipo.")) || RESPUESTA_OTRAS; derivarChat = true; }
                       else if (op === 3 && infoGeneral(datosNegocio)) { const info = infoGeneral(datosNegocio) as string; respuestaFaq = deps.conCta ? conLlamadaAReservar(info,datosNegocio?.negocio.linkReserva) : info; await contar("respuestas_automaticas"); }
                       else if (op === 2 || (op === null && pideInfoCursoGeneral(text))) { respuestaFaq = textoCurso(); await contar("respuestas_automaticas"); }
                       else if (op !== null) { consulta = CONSULTA_POR_OPCION[op]; desdeMenu = true; }
@@ -269,7 +271,7 @@ export function crearManejadoresWebhook(config: {
                   if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
                 } else {
                   await contar("derivadas_persona");
-                  await responder("Te contactará una persona.");
+                  await responder((deps.derivarAlTelefono && textoDerivacionTelefono(datosMenu,"Para esto te atiende una persona del equipo.")) || "Te contactará una persona.");
                   if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
                 }
               }
