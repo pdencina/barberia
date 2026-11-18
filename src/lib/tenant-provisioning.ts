@@ -4,6 +4,7 @@
 // Extracted so both paths create a tenant the exact same way (settings, subscription,
 // admin user, default branch, welcome email) instead of drifting apart.
 import { createAdminSupabase } from "@/lib/supabase/server";
+import { bloqueDescargaApps } from "@/lib/app-links";
 
 export interface ProvisionTenantInput {
   name: string;
@@ -174,6 +175,8 @@ export async function provisionTenant(input: ProvisionTenantInput): Promise<Prov
       <a href="${appUrl}/login" style="display: block; text-align: center; background: #0F8B8D; color: white; padding: 14px 24px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 14px;">
         Ingresar al sistema
       </a>
+
+      ${bloqueDescargaApps()}
 
       <p style="color: #9CA3AF; font-size: 12px; text-align: center; margin: 20px 0 0;">
         Al ingresar por primera vez te pediremos crear tu propia contraseña.

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { BUSINESS_CATEGORY_VALUES } from "@/lib/business-categories";
+import { bloqueDescargaApps } from "@/lib/app-links";
 
 // SEGURIDAD (Nico, 25-sep): esta ruta lista/crea TODAS las empresas de la plataforma
 // (no solo la del que llama) y antes no verificaba el rol en el servidor — cualquiera
@@ -208,6 +209,8 @@ export async function POST(req: NextRequest) {
         Ingresar al sistema
       </a>
     </div>
+
+    ${bloqueDescargaApps()}
 
     <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #e5e7eb; text-align: center;">
       <p style="color: #8A94A6; font-size: 11px; margin: 0;">re-booking · rebooking.cl</p>
