@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireTenantRole } from "@/lib/supabase/server";
 import { limpiarSecciones, generarCodigoNegocio } from "@/lib/totem";
+import { enlaceWhatsapp, enlaceWeb } from "@/lib/totem-contacto";
 import { resolverTerminal, hayMaquinaPersonal, tokensMercadoPago } from "@/lib/totem-terminal";
 
 // GET/POST: configuracion del totem del negocio (solo administrador).
@@ -14,7 +15,13 @@ export async function GET(req: NextRequest) {
     if (!r2.error) return NextResponse.json({ desbloqueado: !!(r2.data as any)?.kiosk_unlocked, codigo: (r2.data as any)?.kiosk_code || null, enabled: !!(r2.data as any)?.kiosk_enabled, info: limpiarSecciones((r2.data as any)?.kiosk_info), pagoQr: false, falta165: true });
   }
   if (error) return NextResponse.json({ falta_migracion: true, codigo: null, desbloqueado: false, enabled: false, info: [] });
-  return NextResponse.json({ desbloqueado: !!(data as any)?.kiosk_unlocked, codigo: (data as any)?.kiosk_code || null, enabled: !!(data as any)?.kiosk_enabled, info: limpiarSecciones((data as any)?.kiosk_info), pagoQr: !!(data as any)?.kiosk_pay_qr_enabled, pagoTerminal: !!(data as any)?.kiosk_terminal_enabled, ventaAuto: ((await createAdminSupabase().from("tenants").select("kiosk_auto_sale").eq("id", guard.tenantId).maybeSingle()).data as any)?.kiosk_auto_sale !== false, terminalListo: !!(await resolverTerminal(createAdminSupabase(), guard.tenantId)) || (await hayMaquinaPersonal(createAdminSupabase(), guard.tenantId)), mpListo: (await tokensMercadoPago(createAdminSupabase(), guard.tenantId, null, true)).length > 0 });
+  return NextResponse.json({ desbloqueado: !!(data as any)?.kiosk_unlocked, codigo: (data as any)?.kiosk_code || null, enabled: !!(data as any)?.kiosk_enabled, info: limpiarSecciones((data as any)?.kiosk_info), pagoQr: !!(data as any)?.kiosk_pay_qr_enabled, pagoTerminal: !!(data as any)?.kiosk_terminal_enabled, ventaAuto: ((await createAdminSupabase().from("tenants").select("kiosk_auto_sale").eq("id", guard.tenantId).maybeSingle()).data as any)?.kiosk_auto_sale !== false, terminalListo: !!(await resolverTerminal(createAdminSupabase(), guard.tenantId)) || (await hayMaquinaPersonal(createAdminSupabase(), guard.tenantId)), mpListo: (await tokensMercadoPago(createAdminSupabase(), guard.tenantId, null, true)).length > 0, ...(await contactoGuardado(guard.tenantId)) });
+}
+
+// Valores guardados del QR de WhatsApp y de la web (vacío si no hay o falta la migración 173).
+async function contactoGuardado(tenantId: string) {
+  const { data, error } = await createAdminSupabase().from("tenants").select("kiosk_whatsapp, kiosk_web").eq("id", tenantId).maybeSingle();
+  return error ? { whatsapp: "", web: "" } : { whatsapp: (data as any)?.kiosk_whatsapp || "", web: (data as any)?.kiosk_web || "" };
 }
 
 export async function POST(req: NextRequest) {
@@ -28,6 +35,17 @@ export async function POST(req: NextRequest) {
   if (typeof body.pagoQr === "boolean") update.kiosk_pay_qr_enabled = body.pagoQr; // apagado por defecto
   if (typeof body.pagoTerminal === "boolean") update.kiosk_terminal_enabled = body.pagoTerminal; // apagado por defecto
   if (typeof body.ventaAuto === "boolean") update.kiosk_auto_sale = body.ventaAuto; // registrar la venta sola al pagar (migración 169)
+  // QR de WhatsApp y de la página web (migración 173): vacío = usa el teléfono y el sitio del negocio.
+  if (typeof body.whatsapp === "string") {
+    const v = body.whatsapp.trim();
+    if (v && !enlaceWhatsapp(v)) return NextResponse.json({ error: "El número de WhatsApp no es válido (ej. +56 9 1234 5678)" }, { status: 400 });
+    update.kiosk_whatsapp = v || null;
+  }
+  if (typeof body.web === "string") {
+    const v = body.web.trim();
+    if (v && !enlaceWeb(v)) return NextResponse.json({ error: "La dirección web no es válida (ej. www.mi-negocio.cl)" }, { status: 400 });
+    update.kiosk_web = v || null;
+  }
   if (body.nuevoCodigo === true) update.kiosk_code = generarCodigoNegocio(); // los equipos ya configurados dejan de abrir: hay que escribir el nuevo
   const { error } = await createAdminSupabase().from("tenants").update(update).eq("id", guard.tenantId);
   if (error) return NextResponse.json({ error: /kiosk/i.test(error.message) ? "Falta aplicar la migración 162 (o la 165)" : "No se pudo guardar" }, { status: 500 });

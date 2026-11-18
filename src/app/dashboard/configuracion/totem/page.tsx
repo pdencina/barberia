@@ -23,12 +23,14 @@ export default function ConfiguracionTotemPage() {
   const [pagoTerminal, setPagoTerminal] = useState(false);
   const [terminalListo, setTerminalListo] = useState(false);
   const [ventaAuto, setVentaAuto] = useState(true);
+  const [whatsapp, setWhatsapp] = useState("");
+  const [web, setWeb] = useState("");
   const tq = tenant?.id ? `?tenantId=${tenant.id}` : "";
 
   useEffect(() => {
     fetch(`/api/settings/totem${tq}`).then((r) => r.json()).then((d) => {
       if (d.error) return;
-      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo); setVentaAuto(d.ventaAuto !== false);
+      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo); setVentaAuto(d.ventaAuto !== false); setWhatsapp(d.whatsapp || ""); setWeb(d.web || "");
     }).catch(() => {}).finally(() => setLoading(false));
   }, [tq]);
 
@@ -46,7 +48,7 @@ export default function ConfiguracionTotemPage() {
 
   const guardar = async () => {
     setSaving(true);
-    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal, ventaAuto }) });
+    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal, ventaAuto, whatsapp, web }) });
     const d = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) return showToast(d.error || "No se pudo guardar", "error");
@@ -121,6 +123,15 @@ export default function ConfiguracionTotemPage() {
               const d = await res.json().catch(() => ({}));
               if (res.ok && d.codigo) { setCodigo(d.codigo); showToast("Código nuevo generado", "success"); } else showToast(d.error || "No se pudo cambiar", "error");
             }} className="text-xs font-semibold text-brand-gray underline">Generar un código nuevo</button>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
+            <div>
+              <p className="font-bold text-brand-dark">QR de WhatsApp y de tu página web</p>
+              <p className="text-xs text-brand-gray">En el inicio del tótem aparece «Contáctanos», con un QR para escribirte por WhatsApp y otro para tu página web. Si dejas un campo vacío se usa el teléfono y el sitio web de tu negocio.</p>
+            </div>
+            <input className={campo} placeholder="WhatsApp (ej. +56 9 1234 5678)" maxLength={60} value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} />
+            <input className={campo} placeholder="Página web (ej. www.mi-negocio.cl)" maxLength={120} value={web} onChange={(e) => setWeb(e.target.value)} />
           </div>
 
           <div className="space-y-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
