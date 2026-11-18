@@ -74,6 +74,15 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (body[field] !== undefined) updates[field] = body[field] === "" ? null : body[field];
   }
 
+  // Dias de prueba: «le quedan N dias desde hoy» (0 a 365). Se mueve el fin de la prueba en la empresa y, si su suscripcion sigue en prueba, tambien el fin de su periodo.
+  let finPrueba: string | null = null;
+  if (body.trial_days_left !== undefined && body.trial_days_left !== null && body.trial_days_left !== "") {
+    const n = Number(body.trial_days_left);
+    if (!Number.isInteger(n) || n < 0 || n > 365) return NextResponse.json({ error: "Los días de prueba deben ser un número entero entre 0 y 365." }, { status: 400 });
+    finPrueba = new Date(Date.now() + n * 86400000).toISOString();
+    updates.trial_ends_at = finPrueba;
+  }
+
   if (Object.keys(updates).length === 0) {
     return NextResponse.json({ error: "Nada para actualizar" }, { status: 400 });
   }
@@ -87,6 +96,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (finPrueba) {
+    await supabase.from("subscriptions").update({ current_period_end: finPrueba }).eq("tenant_id", params.id).eq("status", "trial").then(() => {}, () => {});
+    await supabase.from("audit_log").insert({ action: "trial_days_changed", entity_type: "tenant", entity_id: params.id, description: `Super admin cambió los días de prueba: termina el ${finPrueba.slice(0, 10)}`, metadata: { trial_ends_at: finPrueba } }).then(() => {}, () => {});
+  }
   return NextResponse.json(data);
 }
 

@@ -101,6 +101,8 @@ export default function SuperAdminTenantsPage() {
       email_quota_override: t.email_quota_override,
       business_category: t.business_category || "",
       kiosk_unlocked: !!t.kiosk_unlocked,
+      // Dias de prueba que le quedan (se edita solo mientras esta en prueba; vacio = no se cambia).
+      trial_days_left: t.status === "trial" && t.trial_ends_at ? daysLeft(t.trial_ends_at) : "",
     });
   };
 
@@ -108,10 +110,14 @@ export default function SuperAdminTenantsPage() {
     if (!editingTenant) return;
     setSavingEdit(true);
     try {
+      // Los días de prueba solo se envían si los cambiaste (si no, cada «Guardar» movería la fecha de término hasta un día).
+      const cuerpo: Record<string, any> = { ...editForm };
+      const igual = editingTenant.status === "trial" && editingTenant.trial_ends_at && Number(cuerpo.trial_days_left) === daysLeft(editingTenant.trial_ends_at);
+      if (cuerpo.trial_days_left === "" || cuerpo.trial_days_left === undefined || igual) delete cuerpo.trial_days_left;
       const res = await fetch(`/api/superadmin/tenants/${editingTenant.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(editForm),
+        body: JSON.stringify(cuerpo),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -692,6 +698,19 @@ export default function SuperAdminTenantsPage() {
                   </select>
                 </div>
               </div>
+              {editForm.status === "trial" && (
+                <div>
+                  <label className="text-xs font-medium text-brand-gray block mb-1">Días de prueba que le quedan (desde hoy)</label>
+                  <input type="number" min={0} max={365} step={1} value={editForm.trial_days_left ?? ""}
+                    onChange={(e) => setEditForm({ ...editForm, trial_days_left: e.target.value === "" ? "" : Number(e.target.value) })}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+                  <p className="mt-1 text-[11px] text-brand-gray">
+                    {editForm.trial_days_left === "" || editForm.trial_days_left === undefined
+                      ? "Déjalo vacío para no cambiar la fecha."
+                      : `La prueba termina el ${new Date(Date.now() + Number(editForm.trial_days_left) * 86400000).toLocaleDateString("es-CL", { day: "numeric", month: "long", year: "numeric" })}.`}
+                  </p>
+                </div>
+              )}
               <div>
                 <label className="text-xs font-medium text-brand-gray block mb-1">Max. profesionales</label>
                 <input type="number" min={1} value={editForm.max_professionals ?? ""}
