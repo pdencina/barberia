@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, limpiarSecciones } from "@/lib/totem";
+import { enlaceWhatsapp, enlaceWeb } from "@/lib/totem-contacto";
 import { proveedorTarjeta } from "@/lib/totem-terminal";
 
 // GET ?codigo=: datos publicos para pintar el totem (nombre, logo, productos a la venta y textos informativos).
@@ -22,7 +23,14 @@ export async function GET(req: NextRequest) {
   const { data: pros } = await supabase.from("profiles").select("id, name").eq("tenant_id", t.id).eq("role", "barber").neq("active", false).order("name").limit(40);
   const profesionales = (pros || []).map((p: any) => ({ id: p.id, name: p.name }));
 
+  // QR de contacto: lo configurado en el tótem; si falta, el teléfono y el sitio web del negocio. Sin la migración 173 simplemente no hay QR.
+  let whatsapp: string | null = null;
+  let web: string | null = null;
+  const { data: ct, error: ctError } = await supabase.from("tenants").select("kiosk_whatsapp, kiosk_web, phone, website").eq("id", t.id).maybeSingle();
+  if (!ctError && ct) { whatsapp = enlaceWhatsapp((ct as any).kiosk_whatsapp || (ct as any).phone); web = enlaceWeb((ct as any).kiosk_web || (ct as any).website); }
+
   return NextResponse.json({
+    whatsapp, web,
     profesionales,
     negocio: { name: t.name, logo_url: t.logo_url || null },
     // Dirección de reserva online del negocio (para el QR y para reservar en la propia pantalla).

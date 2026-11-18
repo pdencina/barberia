@@ -8,10 +8,10 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "info" | "gracias";
+type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "info" | "contacto" | "gracias";
 interface Cita { id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
-interface Info { negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
+interface Info { whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -400,6 +400,7 @@ function Totem() {
             <button className={boton} onClick={() => { setModo("pagar"); setPantalla("codigo"); }}><Opcion n="03" t="Quiero pagar" d="Con tarjeta, desde tu celular o en caja" /></button>
             {info.productos.length > 0 && <button className={boton} onClick={() => setPantalla("productos")}><Opcion n="04" t="Comprar un producto" d="Bebidas, energéticas y más" /></button>}
             {info.info.length > 0 && <button className={boton} onClick={() => setPantalla("info")}><Opcion n="05" t="Cursos, promociones y planes" d="Conoce lo que tenemos para ti" /></button>}
+            {(info.whatsapp || info.web) && <button className={boton} onClick={() => setPantalla("contacto")}><Opcion n={info.info.length > 0 ? "06" : "05"} t="Contáctanos" d="WhatsApp y página web con un QR" /></button>}
           </div>
         </section>
       )}
@@ -644,6 +645,28 @@ function Totem() {
               {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => crearPagoProducto("qr")}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
               <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={pedirProductos}>Prefiero pagar en caja (avisamos al equipo)</button>
             </div>
+          </div>
+        </section>
+      )}
+
+      {pantalla === "contacto" && (
+        <section className="flex flex-1 flex-col">
+          {volver}
+          <h2 className="tt-display mb-2 text-6xl font-semibold">Contáctanos</h2>
+          <p className="mb-8 text-2xl text-white/65">Abre la cámara de tu celular y apunta al código.</p>
+          <div className={`grid flex-1 items-stretch gap-6 ${info.whatsapp && info.web ? "md:grid-cols-2" : ""}`}>
+            {info.whatsapp && (
+              <div className={`${caja} flex flex-col items-center justify-center gap-6 p-10 text-center`}>
+                <Qr valor={info.whatsapp} tamano={360} />
+                <div><p className="tt-display text-4xl font-semibold">Escríbenos por WhatsApp</p><p className="mt-2 text-2xl text-white/65">Reservas, consultas y más.</p></div>
+              </div>
+            )}
+            {info.web && (
+              <div className={`${caja} flex flex-col items-center justify-center gap-6 p-10 text-center`}>
+                <Qr valor={info.web} tamano={360} />
+                <div><p className="tt-display text-4xl font-semibold">Nuestra página web</p><p className="mt-2 break-all text-2xl text-white/65">{info.web.replace(/^https?:\/\//, "")}</p></div>
+              </div>
+            )}
           </div>
         </section>
       )}
