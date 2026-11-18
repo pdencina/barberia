@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { barberDeCobroProductos } from "@/lib/totem-producto";
 import { confirmarPagoTotem } from "@/lib/totem-pago";
 import { resolverTerminal, consultarCobroDetalle } from "@/lib/totem-terminal";
 
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest) {
   if (!t || !/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ estado: "desconocido" }, { status: 404 });
 
   const cols = "id, tenant_id, appointment_id, amount, status, method, provider, external_id, created_at, checked_at";
-  let rk: any = await supabase.from("kiosk_payments").select(`${cols}, kind, barber_id, client_id`).eq("id", id).eq("tenant_id", t.id).maybeSingle();
+  let rk: any = await supabase.from("kiosk_payments").select(`${cols}, kind, barber_id, client_id, items`).eq("id", id).eq("tenant_id", t.id).maybeSingle();
   if (rk.error) rk = await supabase.from("kiosk_payments").select(cols).eq("id", id).eq("tenant_id", t.id).maybeSingle(); // migración 172 aún no aplicada
   const kp: any = rk.data;
   if (!kp) return NextResponse.json({ estado: "desconocido" }, { headers: { "Cache-Control": "no-store" } });
@@ -27,8 +28,9 @@ export async function GET(req: NextRequest) {
     if (desdeUltima >= 4000) {
       await supabase.from("kiosk_payments").update({ checked_at: new Date().toISOString() }).eq("id", kp.id);
       // La máquina es la del profesional de la cita (si tiene la suya) o la del negocio, igual que al crear el cobro.
-      let barberDeMaquina: string | null = kp.barber_id || null;
-      if (!barberDeMaquina && kp.appointment_id) { const { data: ap } = await supabase.from("appointments").select("barber_id").eq("id", kp.appointment_id).maybeSingle(); barberDeMaquina = (ap as any)?.barber_id || null; }
+      // En compras de productos, la máquina del profesional solo se usa si todo era cosmético (igual que al crear el cobro).
+      let barberDeMaquina: string | null = kp.kind === "producto" ? barberDeCobroProductos(kp.items, kp.barber_id) : (kp.barber_id || null);
+      if (!barberDeMaquina && kp.kind !== "producto" && kp.appointment_id) { const { data: ap } = await supabase.from("appointments").select("barber_id").eq("id", kp.appointment_id).maybeSingle(); barberDeMaquina = (ap as any)?.barber_id || null; }
       const term = await resolverTerminal(supabase, t.id, barberDeMaquina);
       const det: { estado: "approved" | "rejected" | "cancelled" | "pending"; tipoPago?: string | null; montos?: any } = term ? await consultarCobroDetalle(term, kp.external_id) : { estado: "pending" };
       const est = det.estado;
