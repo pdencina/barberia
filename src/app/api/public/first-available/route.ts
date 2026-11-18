@@ -106,7 +106,7 @@ export async function GET(req: NextRequest) {
   const datesToCheck = explicitDate ? [date] : Array.from({ length: 7 }, (_, i) => dateStrOffset(date, i));
   const firstDayOf = new Map<string, string>(); // profesional -> primer dia con horas (solo sin fecha elegida)
   const availableAll = await barbersWithFreeTime(notOff, (id) => firstDayWithSlots(datesToCheck, async (day) => {
-    const r = await fetch(`${origin}/api/public/availability?barberId=${id}&date=${day}&duration=${requestedDuration}`, { cache: "no-store" });
+    const r = await fetch(`${origin}/api/public/availability?barberId=${id}&date=${day}&duration=${requestedDuration}${searchParams.get("kiosko") === "1" ? "&kiosko=1" : ""}`, { cache: "no-store" });
     if (!r.ok) return null;
     const d = await r.json();
     if (Array.isArray(d?.slots) && d.slots.length > 0) firstDayOf.set(id, day);
@@ -145,7 +145,7 @@ export async function GET(req: NextRequest) {
       const origin = new URL(req.url).origin;
       const withSlots = await Promise.all(cands.map(async (c) => {
         try {
-          const r = await fetch(`${origin}/api/public/availability?barberId=${c.id}&date=${date}&duration=${duration}`, { cache: "no-store" });
+          const r = await fetch(`${origin}/api/public/availability?barberId=${c.id}&date=${date}&duration=${duration}${searchParams.get("kiosko") === "1" ? "&kiosko=1" : ""}`, { cache: "no-store" });
           const d = await r.json();
           return { ...c, firstSlot: (d.slots && d.slots[0]) || null };
         } catch { return c; }

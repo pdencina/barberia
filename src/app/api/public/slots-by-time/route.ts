@@ -64,7 +64,7 @@ export async function GET(req: NextRequest) {
   const results = await Promise.all(
     Object.values(barberInfo).map(async (b: any) => {
       try {
-        const r = await fetch(`${origin}/api/public/availability?barberId=${b.id}&date=${date}&duration=${b.duration}`, { cache: "no-store" });
+        const r = await fetch(`${origin}/api/public/availability?barberId=${b.id}&date=${date}&duration=${b.duration}${url.searchParams.get("kiosko") === "1" ? "&kiosko=1" : ""}`, { cache: "no-store" });
         const d = await r.json();
         return { id: b.id as string, slots: (d.slots || []) as string[] };
       } catch {

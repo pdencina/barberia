@@ -155,7 +155,10 @@ export async function publicAvailability(req: NextRequest, own?: { appointmentId
   // Get current time in Chile for "past slots" filter
   const nowChile = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Santiago" }));
   const todayStr = `${nowChile.getFullYear()}-${String(nowChile.getMonth() + 1).padStart(2, "0")}-${String(nowChile.getDate()).padStart(2, "0")}`;
-  const nowMinutes = nowChile.getHours() * 60 + nowChile.getMinutes();
+  // Solo en el tótem (?kiosko=1): se acepta a quien llega hasta 15 min tarde. Un bloque que empezó hace menos de 15 min sigue ofrecido (el profesional
+  // decide si lo atiende a esa hora o a la siguiente); así no se pierde todo el bloque. Más antiguo que eso, no aparece.
+  const toleranciaTotem = searchParams.get("kiosko") === "1" ? 15 : 0;
+  const nowMinutes = nowChile.getHours() * 60 + nowChile.getMinutes() - toleranciaTotem;
   const isToday = date === todayStr;
 
   // Pre-parse busy intervals (appointments + partial blocks + break) into [start,end] min.
@@ -201,7 +204,8 @@ export async function publicAvailability(req: NextRequest, own?: { appointmentId
     start >= startMinutes &&
     start + duration <= endMinutes &&
     !busyIntervals.some((iv) => start < iv.end && start + duration > iv.start);
-  const isPast = (start: number) => isToday && start <= nowMinutes;
+  // Sin tolerancia (todo menos el tótem) una hora ya empezada es pasada; con tolerancia, empezó hace MÁS de 15 min.
+  const isPast = (start: number) => isToday && (toleranciaTotem > 0 ? start < nowMinutes : start <= nowMinutes);
 
   const candidates = new Set<number>();
   let totalMin = startMinutes;
