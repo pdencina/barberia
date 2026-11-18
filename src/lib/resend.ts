@@ -263,6 +263,22 @@ interface SendBookingConfirmationParams {
 // El código personal del cliente para el tótem va en el correo de confirmación (activado por Nico el 17 nov 2026). Para ocultarlo: poner false.
 const MOSTRAR_CODIGO_LLEGADA_EN_CORREO = true;
 
+// Recuadro con el código personal del tótem para los correos de la cita (confirmación, modificación y recordatorio).
+// Solo sale si el negocio de la cita tiene el tótem desbloqueado; sin eso (o sin la migración 162) el correo sale igual, sin el recuadro.
+async function bloqueCodigoTotem(appointmentId?: string | null): Promise<string> {
+  if (!appointmentId || !MOSTRAR_CODIGO_LLEGADA_EN_CORREO) return "";
+  try {
+    const { createAdminSupabase } = await import("@/lib/supabase/server");
+    const sb = createAdminSupabase();
+    const { data: a } = await sb.from("appointments").select("checkin_code, tenant_id").eq("id", appointmentId).maybeSingle();
+    const code = (a as any)?.checkin_code;
+    if (!code) return "";
+    const { data: t } = await sb.from("tenants").select("kiosk_unlocked").eq("id", (a as any).tenant_id).maybeSingle();
+    if (!(t as any)?.kiosk_unlocked) return "";
+    return `<div style="text-align:center;margin:22px 0 0;padding:14px;border:1px dashed ${MAIL_ACCENT};border-radius:12px;"><div style="font-size:12px;color:#6B7280;">Tu código personal (digítalo en el tótem del local; es siempre el mismo)</div><div style="font-size:30px;letter-spacing:6px;font-weight:800;color:#111827;margin-top:4px;">${code}</div></div>`;
+  } catch { return ""; }
+}
+
 export async function sendBookingConfirmation(params: SendBookingConfirmationParams) {
   const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl, changeHours, businessPhone } = params;
 
@@ -282,14 +298,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
   });
 
   // Código corto para avisar tu llegada en el tótem del local (lo asigna la base al crear la cita; migración 162). Sin él, el correo sale igual.
-  let checkinCode: string | null = null;
-  if (appointmentId && MOSTRAR_CODIGO_LLEGADA_EN_CORREO) {
-    try {
-      const { createAdminSupabase } = await import("@/lib/supabase/server");
-      const r = await createAdminSupabase().from("appointments").select("checkin_code").eq("id", appointmentId).maybeSingle();
-      checkinCode = (r.data as any)?.checkin_code || null;
-    } catch { /* migración aún no aplicada */ }
-  }
+  const bloqueCodigo = await bloqueCodigoTotem(appointmentId);
 
   const html = mailShell({
     label: "Cita confirmada",
@@ -304,7 +313,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
       ${mailRow("Duración", `${duration} minutos`)}
       <tr><td style="padding:10px 0;font-size:13px;color:#6B7280;">Precio</td><td align="right" style="padding:10px 0;font-size:18px;color:${MAIL_ACCENT};font-weight:800;">$${price.toLocaleString("es-CL")}</td></tr>
     </table>
-    ${checkinCode ? `<div style="text-align:center;margin:22px 0 0;padding:14px;border:1px dashed ${MAIL_ACCENT};border-radius:12px;"><div style="font-size:12px;color:#6B7280;">Tu código personal (digítalo en el tótem del local; es siempre el mismo)</div><div style="font-size:30px;letter-spacing:6px;font-weight:800;color:#111827;margin-top:4px;">${checkinCode}</div></div>` : ""}
+    ${bloqueCodigo}
     ${appointmentId ? `<div style="text-align:center;margin:26px 0 6px;"><a href="https://www.re-booking.cl/cancel/${appointmentId}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Cancelar o modificar cita</a></div>` : ""}
     ${appointmentId && typeof changeHours === "number" ? `<p style="text-align:center;font-size:13px;color:#6B7280;margin:10px 0 0;">${fraseCorreoPlazo(changeHours)}</p>` : ""}
     ${lineaContactoHtml("¿Dudas?", businessPhone)}
@@ -361,6 +370,7 @@ export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParam
     timeZone: "UTC",
   });
 
+  const bloqueCodigo = await bloqueCodigoTotem(appointmentId);
   const html = mailShell({
     label: "Cita modificada",
     businessLogoUrl,
@@ -374,6 +384,7 @@ export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParam
       ${mailRow("Duración", `${duration} minutos`)}
       <tr><td style="padding:10px 0;font-size:13px;color:#6B7280;">Precio</td><td align="right" style="padding:10px 0;font-size:18px;color:${MAIL_ACCENT};font-weight:800;">$${price.toLocaleString("es-CL")}</td></tr>
     </table>
+    ${bloqueCodigo}
     ${appointmentId ? `<div style="text-align:center;margin:26px 0 6px;"><a href="https://www.re-booking.cl/cancel/${appointmentId}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Cancelar o modificar cita</a></div>` : ""}
     ${appointmentId && typeof changeHours === "number" ? `<p style="text-align:center;font-size:13px;color:#6B7280;margin:10px 0 0;">${fraseCorreoPlazo(changeHours)}</p>` : ""}
     ${lineaContactoHtml("¿Dudas?", businessPhone)}
@@ -493,6 +504,7 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
   });
 
   const appBase = process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl";
+  const bloqueCodigo = await bloqueCodigoTotem(appointmentId);
   const html = mailShell({
     label: "Recordatorio de cita",
     inner: `
@@ -503,6 +515,7 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
       <div style="font-size:14px;color:#374151;margin:2px 0 14px;">${dateStr}</div>
       <div style="border-top:1px solid #E5E7EB;padding-top:12px;font-size:13px;color:#6B7280;">Servicio: <strong style="color:#111827;">${serviceName}</strong><br>Profesional: <strong style="color:#111827;">${barberName}</strong></div>
     </div>
+    ${bloqueCodigo}
     ${appointmentId ? `<div style="text-align:center;margin:24px 0 4px;">
       <a href="${appBase}/api/public/confirm-attendance?id=${appointmentId}&action=confirm" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:11px 24px;border-radius:10px;font-weight:700;font-size:14px;margin:0 4px 8px;">✓ Asistiré</a>
       <a href="${appBase}/cancel/${appointmentId}" style="display:inline-block;background:#F3F4F6;color:#374151;text-decoration:none;padding:11px 24px;border-radius:10px;font-weight:700;font-size:14px;margin:0 4px 8px;">✕ No podré ir</a>
