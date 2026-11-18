@@ -1,7 +1,7 @@
 import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
 const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
 import { conLlamadaAReservar } from "./cta";
-import { esTextoMenu, listaDeMenu, textoDerivacionTelefono, esTextoCurso, listaDeCurso, textoCurso, textoDeBoton, pideInfoCursoGeneral, TITULO_CURSO_SEGUIR } from "./menu";
+import { esTextoMenu, listaDeMenu, textoDerivacionTelefono, pideHumano, pideCambio, textoCambio, textoNoTexto, esTextoCurso, listaDeCurso, textoCurso, textoDeBoton, pideInfoCursoGeneral, TITULO_CURSO_SEGUIR } from "./menu";
 import { DEL_CURSO } from "./cta";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
@@ -204,6 +204,11 @@ export function crearManejadoresWebhook(config: {
                       const pedidos = deps.archivos.pedidos(consulta,datosNegocio?.negocio.linkReserva) as any[];
                       if (pedidos.length > 0 && typeof pedidos[0]?.caption === "string") { respuestaFaq = pedidos[0].caption; await contar("respuestas_automaticas"); }
                     }
+                    // Pedir a una persona, o cambiar / cancelar una hora: respuesta directa (con el teléfono real), sin pasar por la IA.
+                    if (respuestaFaq === null && tipo === "desconocido" && deps.derivarAlTelefono && !esBoton) {
+                      if (pideCambio(text)) { const t = textoCambio(datosNegocio); if (t) { respuestaFaq = t; await contar("respuestas_automaticas"); } }
+                      else if (pideHumano(text)) { const t = textoDerivacionTelefono(datosNegocio,"Claro, te atiende una persona del equipo."); if (t) { respuestaFaq = t; derivarChat = true; } }
+                    }
                     if (respuestaFaq === null && tipo === "desconocido") {
                       // 2) Consulta de disponibilidad ("¿Matías tiene hora a las 3?"); si no aplica o falla, la FAQ.
                       if (deps.horasLibres) {
@@ -269,6 +274,11 @@ export function crearManejadoresWebhook(config: {
                   await contar("respuestas_automaticas");
                   // Los números del menú no deben leerse como elección de una oferta anterior: se empieza de cero.
                   if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
+                } else if (deps.derivarAlTelefono && !entradaTexto && p.tipo !== "button" && p.tipo !== "interactive") {
+                  // Foto, audio, documento...: no se leen. Se le dice qué hacer (o se ignora si es una reacción o un sticker).
+                  const dn = datosMenu ?? (deps.datosDelNegocio ? await deps.datosDelNegocio(n.tenantId).catch(() => null) : null);
+                  const t = textoNoTexto(p.tipo, dn);
+                  if (t) { await responder(t); await contar("respuestas_automaticas"); }
                 } else {
                   await contar("derivadas_persona");
                   await responder((deps.derivarAlTelefono && textoDerivacionTelefono(datosMenu,"Para esto te atiende una persona del equipo.")) || "Te contactará una persona.");

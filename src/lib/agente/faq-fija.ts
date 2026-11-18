@@ -97,11 +97,18 @@ function resolverUna(pedido:string,datos:DatosFaq|null):ResultadoFaq{
     if(!visibles.length)return traspaso("datos_incompletos");
     // No ofrecer elegir entre sucursales si ninguna tiene el dato pedido: derivar a una persona.
     const conDato=visibles.filter(s=>intencion==="direccion"?datoTexto(s.direccion):horarioLegible(s.horario)!==null);
-    if(!sucursalPedida&&!conDato.length)return traspaso("datos_incompletos");
-    if(!sucursalPedida)return {tipo:"respuesta",intencion,texto:`¿De qué sucursal necesitas ${intencion==="direccion"?"la dirección":"el horario"}? Sucursales: ${conDato.map(s=>s.nombre!.trim()).join("; ")}. Indica la sucursal en tu consulta.`};
-    const matches=visibles.filter(s=>normalizar(s.nombre!)===sucursalPedida);
-    if(matches.length!==1)return traspaso("coincidencia_ambigua");
-    direccion=matches[0].direccion;horario=matches[0].horario;
+    if(!sucursalPedida&&conDato.length===1){
+     // Una sola sucursal con el dato: es esa, no hace falta preguntar.
+     direccion=intencion==="direccion"?conDato[0].direccion:direccion;horario=intencion==="horario"?conDato[0].horario:horario;
+    }else if(!sucursalPedida&&!conDato.length){
+     // Negocio con una sola sucursal activa y el dato solo a nivel de negocio: es ese. Con varias sucursales y sin dato propio, una persona.
+     if(visibles.length!==1||(intencion==="direccion"?!datoTexto(direccion):horarioLegible(horario)===null))return traspaso("datos_incompletos");
+    }else if(!sucursalPedida)return {tipo:"respuesta",intencion,texto:`¿De qué sucursal necesitas ${intencion==="direccion"?"la dirección":"el horario"}? Sucursales: ${conDato.map(s=>s.nombre!.trim()).join("; ")}. Indica la sucursal en tu consulta.`};
+    else{
+     const matches=visibles.filter(s=>normalizar(s.nombre!)===sucursalPedida);
+     if(matches.length!==1)return traspaso("coincidencia_ambigua");
+     direccion=matches[0].direccion;horario=matches[0].horario;
+    }
    }else if(sucursalPedida)return traspaso("datos_incompletos");
   }
   let respuesta:string;

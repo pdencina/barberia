@@ -6,7 +6,7 @@ export type OpcionMenu = 1 | 2 | 3 | 4;
 // Mensajes largos que ninguna regla ni la IA entendió son una consulta real: los ve una persona, no se les muestra el menú.
 export const PALABRAS_CONSULTA_LARGA = 6;
 
-const SALUDO = /^(h?o+l+a+|holi+|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hello|que tal|saludos|buenas buenas)( .*)?$/;
+const SALUDO = /^(h?o+l+a+s?|holi+|wena+s?|weno+s?|hi|buenas|buenos dias|buen dia|buenas tardes|buenas noches|hey|hello|que tal|saludos|buenas buenas)( .*)?$/;
 
 export function esSaludo(texto: string): boolean {
   const n = normalizar(texto).replace(/[!¡.,]+/g, " ").replace(/\s+/g, " ").trim();
@@ -25,7 +25,7 @@ export function esSoloSaludo(texto: string): boolean {
   const n = normalizar(texto).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
   if (!n) return false;
   const palabras = n.split(" ");
-  return palabras.length <= 5 && /^(h?o+l+[ai]+|buenas|buenos|buen|hey|hello|saludos)/.test(palabras[0]) && palabras.every((w) => PALABRAS_SALUDO.has(w) || /^h?o+l+a+$/.test(w));
+  return palabras.length <= 5 && /^(h?o+l+[ai]+s?|wena+s?|weno+s?|hi|buenas|buenos|buen|hey|hello|saludos)/.test(palabras[0]) && palabras.every((w) => PALABRAS_SALUDO.has(w) || /^h?o+l+a+s?$/.test(w) || /^wena+s?$/.test(w));
 }
 
 const VOLVER_EXACTO = new Set(["volver", "inicio", "salir", "atras", "reiniciar", "empezar de nuevo", "empezar otra vez", "de nuevo", "otra vez", "olvidalo", "no quiero", "ya no quiero", "cancelar", "menu"]);
@@ -130,4 +130,30 @@ export function textoDerivacionTelefono(datos: DatosFaq | null, intro: string): 
   const digitos = tel.replace(/\D/g, "");
   if (digitos.length < 8 || digitos.length > 15) return null;
   return `${intro}\n\nEscríbenos por WhatsApp al ${tel} y te ayudamos:\nhttps://wa.me/${digitos}`;
+}
+
+// ---- Intenciones que no pasan por la IA: pedir a una persona, cambiar o cancelar una hora, y mensajes que no son texto.
+const norm = (t: string) => normalizar(t).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
+/** "quiero hablar con una persona", "un humano", "con el dueño": pide atención humana. */
+export function pideHumano(texto: string): boolean {
+  const n = norm(texto);
+  if (n.split(" ").length > 14) return false;
+  return /\b(hablar|conversar|comunicar(me)?|contactar(me)?|atender(me)?|pasame|pasenme|comunicame|llamen(me)?)\b.*\b(persona|humano|alguien|encargad[oa]|recepcion\w*|administrad\w+|due[nñ]o|asesor\w*|ejecutiv\w+|real)\b|\b(persona real|atencion humana|un humano|una persona|asesor humano)\b|\bno (eres|sos) (un )?(robot|bot)\b/.test(n);
+}
+/** Cancelar, cambiar, mover o reagendar una hora ya tomada. */
+export function pideCambio(texto: string): boolean {
+  const n = norm(texto);
+  if (n.split(" ").length > 16) return false;
+  return /\b(cancel\w*|anul\w*|reagend\w*|reprogram\w*)\b|\b(cambiar|cambio|mover|modificar|postergar|adelantar|atrasar)\b.*\b(hora|cita|dia|turno|reserva)\b|\bme equivoque de (dia|hora)\b|\bno (puedo|podre|alcanzo a) (ir|asistir|llegar)\b/.test(n);
+}
+export function textoCambio(datos: DatosFaq | null): string | null {
+  return textoDerivacionTelefono(datos, "Para cambiar o cancelar tu hora: si reservaste por la web, en el correo de confirmación hay un botón para hacerlo. También puedes escribirle a una persona del equipo.");
+}
+/** Respuesta a lo que no es texto (foto, audio, documento...). null = no responder (reacciones, stickers, ubicación). */
+export function textoNoTexto(tipo: string, datos: DatosFaq | null): string | null {
+  if (["reaction", "sticker", "location", "contacts", "unsupported", "system", "request_welcome", "ephemeral"].includes(tipo)) return null;
+  const intro = tipo === "audio" || tipo === "voice"
+    ? "Por aquí solo puedo leer mensajes escritos. Escríbeme tu consulta o toca *menú* para ver las opciones."
+    : "Recibí tu archivo, pero por aquí no puedo revisar fotos ni documentos. Si es para cotizar un servicio, una persona del equipo lo revisa:";
+  return textoDerivacionTelefono(datos, intro) ?? (tipo === "audio" || tipo === "voice" ? intro : null);
 }
