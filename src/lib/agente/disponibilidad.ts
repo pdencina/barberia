@@ -307,7 +307,7 @@ async function responderDisponibilidadBase(texto: unknown, datos: DatosFaq | nul
   const filas = (xs: typeof con) => xs.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}: ${horasTxt(cercanos(x.horas, q.hora, MAX_HORAS))}`).join("\n");
   if (hh !== null) {
     const exactos = con.filter((x) => x.horas.includes(hh));
-    if (exactos.length) return { tipo: "respuesta", texto: bloque(`A las *${hh}* ${dia(q.fecha)} tienen disponible:\n${exactos.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}`).join("\n")}`, cierre), oferta: { horaExacta: exactos.length === 1 ? hh : null, opciones: exactos.slice(0, 5).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
+    if (exactos.length) return { tipo: "respuesta", texto: bloque(`A las *${hh}* ${dia(q.fecha)} tienen disponible:\n${exactos.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}`).join("\n")}`, cierre), oferta: { horaExacta: hh, opciones: exactos.slice(0, 5).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
   }
   if (con.length && hh === null && con.length > MAX_PROFESIONALES_LISTA) {
     // Muchos profesionales con horas: se muestran las 3 primeras horas (cada una con alguien distinto) para poder elegir al tiro.

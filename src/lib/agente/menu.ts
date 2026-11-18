@@ -157,3 +157,18 @@ export function textoNoTexto(tipo: string, datos: DatosFaq | null): string | nul
     : "Recibí tu archivo, pero por aquí no puedo revisar fotos ni documentos. Si es para cotizar un servicio, una persona del equipo lo revisa:";
   return textoDerivacionTelefono(datos, intro) ?? (tipo === "audio" || tipo === "voice" ? intro : null);
 }
+
+// ---- Cierres de conversación y "sí" sueltos: se responden sin IA.
+/** "gracias", "chao", "ok", "ya filo", "nos vemos": el cliente cierra la conversación. */
+export function esCierreConversacion(texto: string): boolean {
+  const n = norm(texto);
+  if (!n || n.split(" ").length > 6) return false;
+  return /^(ah |ya |ok |okey |bueno |bacan |genial |perfecto |super |filo )*(muchas )?(gracias|grax|gracia|chao|chau|adios|nos vemos|hasta luego|ya filo|filo|bacan|listo|ok|okey|ya po|nopo|nada)( po| nomas| no mas| igual| bro| hermano| amigo| gracias| por todo)*( chao| nos vemos| adios)?$/.test(n) && !/^(ya po|ok|okey|listo|bacan)$/.test(n);
+}
+export const TEXTO_CIERRE = "¡De nada! Si necesitas algo más, escribe *menú*. ¡Que estés muy bien!";
+/** "sí", "dale", "ya po", "ok" sin una pregunta pendiente: no sabemos a qué dice que sí. */
+export function esAfirmativoSuelto(texto: string): boolean {
+  const n = norm(texto);
+  return /^(si|sii+|sipo|dale|dale po|ya|ya po|ya dale|ok|okey|listo|bueno|claro|perfecto|vale)$/.test(n);
+}
+export const TEXTO_AFIRMATIVO_SUELTO = "¡Dale! ¿Te ayudo a reservar? Dime el día y la hora que te acomoda (por ejemplo «mañana a las 5») o toca *menú*.";

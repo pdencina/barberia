@@ -184,6 +184,9 @@ R: Sí, entregamos un certificado de participación al finalizar el curso exitos
 P: ¿Necesito herramientas propias para el curso? ¿Tengo que comprar algo antes de empezar? ¿Puedo comprar un kit?
 R: No necesitas tenerlas antes de empezar: en la primera clase (online) te explicamos qué comprar para que no gastes de más. Para practicar fuera de clases sí necesitas tus implementos, como máquinas y tijeras. Podemos ofrecerte una cotización con descuento con todos los implementos recomendados.
 
+P: ¿Tienen un video del curso? Quiero ver el video de presentación.
+R: Sí, puedes ver el video de presentación del curso aquí: https://youtu.be/Cv4-g-LBzXo
+
 P: ¿Desde qué edad es el curso? ¿Puede hacerlo un menor de edad o mi hijo?
 R: Idealmente desde los 15 años, con supervisión y compromiso de un adulto que lo apoye. Si es menor de 15, el compromiso debe ser aún mayor: el adulto también debe participar en el proceso de aprendizaje en casa. Escríbenos para conversar cada caso.
 

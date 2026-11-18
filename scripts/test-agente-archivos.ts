@@ -1,20 +1,27 @@
 // Archivos del agente (malla del curso) y cierre del curso sin "agendar". Sin red: fetch simulado.
 // Ejecutar: npx tsx scripts/test-agente-archivos.ts
 import assert from "node:assert/strict";
-import { archivosPedidos } from "../src/lib/agente/archivos";
+import { archivosPedidos, enlacesPedidos } from "../src/lib/agente/archivos";
 import { enviarArchivo } from "../src/lib/agente/whatsapp-meta";
 import { conLlamadaAReservar } from "../src/lib/agente/cta";
 
-const LEVELS = "https://www.re-booking.cl/b/estudiolevels", PRUEBAS = "https://www.re-booking.cl/b/levels-pruebas-0xrf", OTRO = "https://www.re-booking.cl/b/otra-barberia";
+const LEVELS = "https://www.re-booking.cl/b/estudiolevels", LEVELS_PROD = "https://www.re-booking.cl/estudiolevels", PRUEBAS = "https://www.re-booking.cl/b/levels-pruebas-0xrf", OTRO = "https://www.re-booking.cl/b/otra-barberia";
 (async () => {
   assert.equal(archivosPedidos("me envías la malla del curso?", PRUEBAS).length, 1);
   assert.equal(archivosPedidos("cual es el temario", LEVELS).length, 1);
+  assert.equal(archivosPedidos("me envías la malla del curso?", LEVELS_PROD).length, 1, "el enlace limpio de producción también");
+  assert.equal(enlacesPedidos("el video del curso", LEVELS_PROD).length, 1);
   assert.equal(archivosPedidos("quiero ver el programa del curso", LEVELS).length, 1);
   assert.equal(archivosPedidos("cuanto cuesta el curso", LEVELS).length, 0);
   assert.equal(archivosPedidos("me envías la malla del curso?", OTRO).length, 0, "otros negocios no envían archivos");
   assert.equal(archivosPedidos("malla", null).length, 0);
   assert.equal(archivosPedidos(5, LEVELS).length, 0);
 
+  assert.ok(enlacesPedidos("quiero el video explicativo del curso de barbería", LEVELS)[0].includes("https://youtu.be/Cv4-g-LBzXo"));
+  assert.equal(enlacesPedidos("y el video?", PRUEBAS).length, 1);
+  assert.equal(enlacesPedidos("quiero el video", OTRO).length, 0, "solo Estudio Levels");
+  assert.equal(enlacesPedidos("podemos hacer una videollamada?", LEVELS).length, 0);
+  assert.equal(enlacesPedidos("cuanto cuesta el curso", LEVELS).length, 0);
   const llamadas: any[] = [];
   const deps = (st: number[] = [200, 200]) => ({ token: "t", version: "v20.0", phone_number_id: "123", fetch: async (url: string, o: any) => { llamadas.push({ url, o }); const s = st[llamadas.length - 1] ?? 200; return { status: s, json: async () => (url.endsWith("/media") ? { id: "MEDIA1" } : { messages: [{ id: "wamid.X" }] }) }; } });
   const arch = { nombre: "Malla.pdf", mime: "application/pdf", bytes: new Uint8Array([1, 2, 3]), caption: "Aquí va" };

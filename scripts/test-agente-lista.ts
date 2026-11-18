@@ -1,7 +1,7 @@
 // Menú como lista de WhatsApp (botones) y saludos con errores de tipeo. Sin red.
 // Ejecutar: npx tsx scripts/test-agente-lista.ts
 import assert from "node:assert/strict";
-import { pideHumano, pideCambio, textoCambio, textoNoTexto, textoDerivacionTelefono, textoDeBoton, pideInfoCursoGeneral, textoCurso, esTextoCurso, listaDeCurso, esSaludo, esSoloSaludo, textoMenu, esTextoMenu, listaDeMenu, opcionMenu } from "../src/lib/agente/menu";
+import { esCierreConversacion, esAfirmativoSuelto, pideHumano, pideCambio, textoCambio, textoNoTexto, textoDerivacionTelefono, textoDeBoton, pideInfoCursoGeneral, textoCurso, esTextoCurso, listaDeCurso, esSaludo, esSoloSaludo, textoMenu, esTextoMenu, listaDeMenu, opcionMenu } from "../src/lib/agente/menu";
 import { enviarLista } from "../src/lib/agente/whatsapp-meta";
 
 (async () => {
