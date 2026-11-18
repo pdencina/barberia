@@ -1,5 +1,6 @@
 // Simulador de conversaciones del agente con los datos REALES de un negocio (instantánea JSON, sin red ni llaves).
 // Uso: npx tsx scripts/simulador-conversacion.ts <instantanea.json> [guion.json]
+// IA_PENDIENTES=archivo.json guarda los mensajes que llegarían a la IA; IA_MAPA=archivo.json ({mensaje: respuesta}) simula sus respuestas.
 // El guion es una lista de conversaciones: [{ "titulo": "...", "mensajes": ["hola", {"boton":"c_malla"}, ...] }].
 // La IA se simula apagada: lo que llegaría a la IA se marca como "→ IA". Las horas libres se inventan (pero con la regla de la reserva real no se usa).
 import { readFileSync } from "node:fs";
@@ -9,6 +10,8 @@ import { crearRepositorioDatosNegocio } from "../src/lib/agente/datos-negocio";
 import { archivosPedidos } from "../src/lib/agente/archivos";
 import type { EventoUso } from "../src/lib/agente/limite-de-uso";
 
+const iaMapa: Record<string, string> = process.env.IA_MAPA ? JSON.parse(readFileSync(process.env.IA_MAPA, "utf8")) : {};
+const iaPendientes = new Set<string>();
 const snap = JSON.parse(readFileSync(process.argv[2], "utf8"));
 const guion = process.argv[3] ? JSON.parse(readFileSync(process.argv[3], "utf8")) : [];
 const AHORA = Date.UTC(2026, 10, 19, 15, 0); // jueves 19-nov-2026, 12:00 Chile
@@ -62,7 +65,7 @@ function crear() {
     contar: async () => {},
   };
   (deps as any).conMenu = true; (deps as any).conCta = true; (deps as any).derivarAlTelefono = true;
-  (deps as any).ia = async () => null;
+  (deps as any).ia = async (_t: string, texto: string) => { iaPendientes.add(texto); return iaMapa[texto] ?? null; };
   (deps as any).responderLista = async (_n: any, _p: any, l: any) => { sent.push(`[LISTA] ${l.cuerpo.replace(/\n+/g, " / ")}  {${l.filas.map((f: any) => f.title).join(" | ")}}`); return { estado: "aceptado" }; };
   (deps as any).archivos = { pedidos: (c: string, l: string) => archivosPedidos(c, l), enviar: async (_n: any, _p: any, a: any) => { extras.push(`[ARCHIVO] ${a.nombre}`); } };
   const h = crearManejadoresWebhook({ secretoFirma: secret, tokenVerificacion: "v", salHashes: salt, crearDependencias: () => deps });
@@ -84,4 +87,5 @@ function crear() {
       console.log(`  👤 ${txt}\n  🤖 ${await s.enviar(m)}`);
     }
   }
+  if (process.env.IA_PENDIENTES) (await import("node:fs")).writeFileSync(process.env.IA_PENDIENTES, JSON.stringify(Array.from(iaPendientes), null, 1));
 })();

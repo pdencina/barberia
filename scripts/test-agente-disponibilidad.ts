@@ -32,9 +32,10 @@ function deps(agenda: Agenda, flags: { cerrado?: string[]; ventana?: string[]; f
     },
   };
 }
-const texto = async (msg: string, a: Agenda = {}, d: DatosFaq | null = datos(), f = {}) => {
+// Las pruebas viejas comparan el texto exacto: se les quita el aviso de "a las 3" = 15:00 (que se prueba aparte).
+const texto = async (msg: string, a: Agenda = {}, d: DatosFaq | null = datos(), f = {}, conNota = false) => {
   const r = await responderDisponibilidad(msg, d, deps(a, f));
-  return r.tipo === "respuesta" ? r.texto : null;
+  return r.tipo === "respuesta" ? (conNota ? r.texto : r.texto.replace(/^Ojo: entendí[^\n]*\n\n/, "")) : null;
 };
 const M = "https://sintetico.invalid/negocio/matias-soto";
 
@@ -160,9 +161,15 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
   await caso("Muchos profesionales con horas: resume en vez de listar horas", async () => {
     const ag: Agenda = { "m|2026-11-03": ["15:00", "16:00"], "c|2026-11-03": ["15:00"], "d|2026-11-03": ["17:00"], "v|2026-11-03": ["18:00"] };
     const t = await texto("tienen hora hoy", ag);
-    assert.equal(t, `Hay horas disponibles hoy con 4 profesionales: Matías, Camila, Diego, Valentina.\n¿Con quién y en qué horario te acomoda? (por ejemplo «Matías en la tarde»)\n\nO reserva tú aquí: ${GENERAL}`);
+    assert.equal(t, `Estas son las próximas horas hoy:\n• *15:00* con *Matías Soto*, *Camila Rojas*\n• *17:00* con *Diego Fuentes*\n• *18:00* con *Valentina Paredes*\n\nDime cuál te sirve (por ejemplo «la de las 15:00»), o con quién prefieres, o qué horario buscas.\n\nO reserva tú aquí: ${GENERAL}`);
     const pocos = await texto("tienen hora hoy", { "m|2026-11-03": ["15:00", "16:00"], "c|2026-11-03": ["15:00"] });
     assert.ok(pocos !== null && pocos.startsWith("Hay disponibilidad hoy:\n• *Matías Soto*: 15:00 · 16:00\n• *Camila Rojas*: 15:00"), "con 3 o menos profesionales se listan");
+  });
+  await caso("Hora ambigua: 'a las 6' o '06:00' se entiende de la tarde y se le avisa; con am/pm o franja no", async () => {
+    const ag = { "m|2026-11-03": ["18:00", "19:00"] };
+    for (const msg of ["matias tiene hora hoy a las 6?", "matias a las 06:00 hoy", "matias hoy a las 6:00"]) { const t = await texto(msg, ag, datos(), {}, true); assert.ok(t !== null && t.startsWith("Ojo: entendí *las 6") && t.includes("*18:00* (6 de la tarde)") && t.includes("Si te referías a la mañana, dime."), msg); }
+    const t7 = await texto("matias hoy a las 7", ag, datos(), {}, true); assert.ok(t7!.includes("*las 7* como las *19:00*"));
+    for (const msg of ["matias hoy a las 6 pm", "matias hoy a las 6 de la tarde", "matias hoy a las 6 de la mañana", "matias hoy a las 18:00", "matias hoy a las 9", "tienen hora para el 6 de diciembre"]) { const t = await texto(msg, ag, datos(), {}, true); assert.ok(t === null || !t.startsWith("Ojo:"), msg); }
   });
   await caso("Tramo de horas ('entre las 14 o las 15'): exactas, cercanas o lo más próximo, con el link al final", async () => {
     const link = "También te dejamos el link de Matías para que veas los horarios disponibles:\nhttps://sintetico.invalid/negocio/matias-soto";

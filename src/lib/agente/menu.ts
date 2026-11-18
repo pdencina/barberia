@@ -20,7 +20,7 @@ export function opcionMenu(texto: string): OpcionMenu | null {
 }
 
 // Saludo y nada más: reinicia la conversación. "hola quiero reservar" NO cuenta: trae una petición.
-const PALABRAS_SALUDO = new Set(["hola", "holi", "holaa", "ola", "buenas", "buenos", "buen", "dia", "dias", "tardes", "noches", "hey", "hello", "saludos", "que", "tal", "como", "estas", "estan", "todos", "todo", "bien", "a"]);
+const PALABRAS_SALUDO = new Set(["po", "poh", "pos", "amigo", "amigos", "hermano", "bro", "broder", "compadre", "compa", "socio", "cabros", "gente", "ahi", "oye", "cachai", "hola", "holi", "holaa", "ola", "buenas", "buenos", "buen", "dia", "dias", "tardes", "noches", "hey", "hello", "saludos", "que", "tal", "como", "estas", "estan", "todos", "todo", "bien", "a"]);
 export function esSoloSaludo(texto: string): boolean {
   const n = normalizar(texto).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
   if (!n) return false;

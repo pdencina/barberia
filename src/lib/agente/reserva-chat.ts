@@ -118,7 +118,13 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     } else if (estado.datos.horaPendiente) {
       // Dijo una hora que tienen varios profesionales y se le preguntó con quién: ahora basta el nombre.
       for (const o of op) if (o.horas.includes(estado.datos.horaPendiente) && nombreMencionado(t, o.nombre)) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: estado.datos.horaPendiente });
-      if (elegidas.length === 0) return null;
+      if (elegidas.length === 0) {
+        const candidatos = op.filter((o) => o.horas.includes(estado.datos.horaPendiente!));
+        // "con cualquiera", "el primero", "da lo mismo": se toma el primero. Si no, se repite la pregunta en vez de perder al cliente.
+        if (/\b(cualquiera|el primero|la primera|da lo mismo|me da lo mismo|el que sea|con quien sea|con el que (tenga|haya)|el que tenga|el que quede)\b/.test(t) && candidatos.length > 0) { const o = candidatos[0]; elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: estado.datos.horaPendiente }); }
+        else if (candidatos.length > 1) return { texto: `Para dejarte la hora de las ${estado.datos.horaPendiente} necesito saber con quién:\n${candidatos.slice(0, 5).map((o) => `• *${o.nombre}* ${textoDeFecha(o.fecha, hoy)}`).join("\n")}\n\nEscríbeme el nombre o dime «con cualquiera».` };
+        else return null;
+      }
     } else if (op.some((o) => nombreMencionado(t, o.nombre))) {
       // Solo dijo con quién ("con Matías"): si la consulta era por una hora exacta, es esa; si no, se le piden las horas de esa persona.
       const quien = op.filter((o) => nombreMencionado(t, o.nombre));
