@@ -4,7 +4,7 @@
 -- No guarda mensajes de clientes. El contexto es información comercial del negocio (sin datos personales de clientes ni claves).
 CREATE TABLE IF NOT EXISTS public.agent_ai_context (
   tenant_id uuid PRIMARY KEY REFERENCES public.tenants(id) ON DELETE CASCADE,
-  contexto text NOT NULL DEFAULT '' CHECK (char_length(contexto) <= 12000),
+  contexto text NOT NULL DEFAULT '' CHECK (char_length(contexto) <= 30000),
   ia_activa boolean NOT NULL DEFAULT false,
   updated_at timestamptz NOT NULL DEFAULT now()
 );

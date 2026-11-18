@@ -182,3 +182,6 @@ Nico autorizó a Codex a **desarrollar de punta a punta mientras Claude no tiene
 9. **Cómo hablar con Nico:** español, informal, simple y corto; pasos numerados y detallados; avanzar programando, no explicando; no preguntar lo ya decidido (traspaso y `CLAUDE.md`); pronombres neutros si no se conocen; nunca imprimir llaves, tokens ni contenido de `.env*`.
 10. **Cierre de cada tarea (máximo 8 líneas):** rama y enlace de PR, qué cambia, pruebas que pasan, qué NO probaste, migración aplicada (dónde) y qué decisión necesitas de Nico. Luego actualiza la bitácora del traspaso.
 11. **Límites que siguen duros:** no mergear, no desplegar, no tocar `.env*` ni secretos, no enviar correos/WhatsApp/cobros reales, no usar datos personales reales en pruebas, no tocar producción fuera de lo que autoriza el punto 5.
+
+## 17. TRASPASO ENTRE HERRAMIENTAS (léelo primero si vas a continuar el agente de WhatsApp con IA)
+El estado vivo, el método paso a paso, el entorno de pruebas y los pendientes están en **`docs/agente/TRASPASO-SESION-IA.md`**. Es la fuente única para continuar el trabajo entre Claude Code y Codex: léelo completo antes de empezar y **actualiza su sección 9 ("Estado") al terminar**, en el mismo PR.
