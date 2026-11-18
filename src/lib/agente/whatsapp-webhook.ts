@@ -1,6 +1,8 @@
 import { responderFaq, normalizar, type DatosFaq } from "./faq-fija";
 const INTENCION_AGENDAR = /\b(agendar|agendame|agendarme|reservar|reservame|reserva|agenda|confirmo|quiero)\b/;
 import { conLlamadaAReservar } from "./cta";
+import { esTextoMenu, listaDeMenu, esTextoCurso, listaDeCurso, textoCurso, textoDeBoton, pideInfoCursoGeneral, TITULO_CURSO_SEGUIR } from "./menu";
+import { DEL_CURSO } from "./cta";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
 import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
@@ -50,6 +52,10 @@ export interface DependenciasWebhook {
   };
   accion: (tipo: "confirmar" | "cancelar", c: { tenantId: string; clienteId: string; referenciaRecordatorio: string }) => Promise<ResultadoAccionCita>;
   responder: (negocio: NegocioWebhook, para: string, texto: string) => Promise<unknown>;
+  // Archivos (malla del curso, folletos): se envían después del texto cuando el cliente los pide. Opcional.
+  // Menú como lista de WhatsApp (botón). Si falla o no existe, se envía el menú numerado de siempre.
+  responderLista?: (negocio: NegocioWebhook, para: string, lista: ReturnType<typeof listaDeMenu>) => Promise<unknown>;
+  archivos?: { pedidos: (consulta: string, linkReserva: string | null | undefined) => unknown[]; enviar: (negocio: NegocioWebhook, para: string, archivo: any) => Promise<unknown> };
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
 }
 export class MigracionWebhookPendiente extends Error { constructor() { super("Falta aplicar la migración del webhook"); } }
@@ -90,12 +96,14 @@ export function crearManejadoresWebhook(config: {
           const n = businesses.get(entry.persistible.phone_number_id)!;
           let key: string | null = null;
           try {
-            const p = entry.persistible, text = entry.memoria.leerTexto(), para = entry.memoria.leerRemitente();
+            const p = entry.persistible, textoRecibido = entry.memoria.leerTexto(), para = entry.memoria.leerRemitente();
+            // Botones y listas llegan como su id: se traducen al texto que el flujo ya entiende.
+            const textoBoton = textoDeBoton(p.tipo, textoRecibido), esBoton = textoBoton !== null, text = textoBoton ?? textoRecibido;
             if (!para) { totals.omitidos++; continue; }
             const eventKey = crearClaveEventoEntrante({tenantId:n.tenantId,referenciaProveedor:p.id});
             // No se guarda texto: HMAC evita diccionarios de frases frecuentes sobre el hash.
             // Un texto que excede la memoria del extractor no trae contenido: se agrupa bajo un marcador fijo para que el límite de repetidos lo alcance.
-            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,text ?? (p.tipo === "text" ? "texto-fuera-de-memoria" : p.id)])).digest("hex");
+            const messageHash = createHmac("sha256",config.salHashes).update(JSON.stringify([n.tenantId,p.tipo,textoRecibido ?? (p.tipo === "text" ? "texto-fuera-de-memoria" : p.id)])).digest("hex");
             const ahora = deps.ahora();
             const admitted = await deps.repo.admitir({key:eventKey,tenantId:n.tenantId,contactHash:p.remitenteHash,messageHash,ahora});
             if (admitted.repetido) { totals.repetidos++; continue; }
@@ -113,10 +121,16 @@ export function crearManejadoresWebhook(config: {
               if (tipo === "no_quiero_mensajes") await deps.repo.guardarBaja(n.tenantId,p.remitenteHash);
               await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue;
             }
-            const responder = async (body: string, acuseBaja = false) => {
-              if (!acuseBaja && await deps.repo.baja(n.tenantId,p.remitenteHash)) return;
+            const habilitado = async (acuseBaja: boolean) => {
+              if (!acuseBaja && await deps.repo.baja(n.tenantId,p.remitenteHash)) return false;
               const vigente = await deps.repo.negocio(n.phoneNumberId);
-              if (!vigente?.enabled || vigente.tenantId !== n.tenantId || vigente.phoneNumberId !== n.phoneNumberId) return;
+              return !!vigente?.enabled && vigente.tenantId === n.tenantId && vigente.phoneNumberId === n.phoneNumberId;
+            };
+            const responder = async (body: string, acuseBaja = false) => {
+              if (!(await habilitado(acuseBaja))) return;
+              if (deps.responderLista && (esTextoMenu(body) || esTextoCurso(body))) {
+                try { const r: any = await deps.responderLista(n,para,esTextoCurso(body) ? listaDeCurso() : listaDeMenu(body)); if (r && r.estado === "aceptado") return; } catch { /* se envía el menú de texto */ }
+              }
               await deps.responder(n,para,body);
             };
             if (tipo === "no_quiero_mensajes") {
@@ -141,13 +155,16 @@ export function crearManejadoresWebhook(config: {
                 let consulta: string = typeof text === "string" ? text : "";
                 const chat = deps.chat;
                 const contar = async (c: CampoIndicador) => { if (chat) { try { await chat.contar(n.tenantId,c,deps.ahora()); } catch { /* indicador: no debe romper la respuesta */ } } };
-                if (p.tipo === "text" && typeof text === "string" && deps.datosDelNegocio && (tipo === "desconocido" || chat)) {
+                const entradaTexto = p.tipo === "text" || esBoton; // los botones del menú llegan como su texto equivalente
+                if (entradaTexto && typeof text === "string" && deps.datosDelNegocio && (tipo === "desconocido" || chat)) {
                   const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
                     : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                   if (!ref) {
                     // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
                     const datosNegocio = await deps.datosDelNegocio(n.tenantId);
                     datosMenu = datosNegocio;
+                    // Tocar un botón es una decisión nueva: se deja atrás cualquier reserva a medias.
+                    if (esBoton && chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
                     // 0) "menú", "volver" o un saludo suelto: se sale de cualquier reserva en curso y se empieza de cero.
                     let reiniciado = false;
                     if (deps.conMenu && tipo === "desconocido" && (esVolver(text) || esSoloSaludo(text))) {
@@ -177,7 +194,13 @@ export function crearManejadoresWebhook(config: {
                       const op = opcionMenu(text);
                       if (op === 4) { respuestaFaq = RESPUESTA_OTRAS; derivarChat = true; }
                       else if (op === 3 && infoGeneral(datosNegocio)) { const info = infoGeneral(datosNegocio) as string; respuestaFaq = deps.conCta ? conLlamadaAReservar(info,datosNegocio?.negocio.linkReserva) : info; await contar("respuestas_automaticas"); }
+                      else if (op === 2 || (op === null && pideInfoCursoGeneral(text))) { respuestaFaq = textoCurso(); await contar("respuestas_automaticas"); }
                       else if (op !== null) { consulta = CONSULTA_POR_OPCION[op]; desdeMenu = true; }
+                    }
+                    // Pide un archivo ("la malla del curso"): se responde corto y el archivo sale después, sin pasar por la IA.
+                    if (respuestaFaq === null && tipo === "desconocido" && deps.archivos && text.split(/\s+/).filter(Boolean).length <= 10) {
+                      const pedidos = deps.archivos.pedidos(consulta,datosNegocio?.negocio.linkReserva) as any[];
+                      if (pedidos.length > 0 && typeof pedidos[0]?.caption === "string") { respuestaFaq = pedidos[0].caption; await contar("respuestas_automaticas"); }
                     }
                     if (respuestaFaq === null && tipo === "desconocido") {
                       // 2) Consulta de disponibilidad ("¿Matías tiene hora a las 3?"); si no aplica o falla, la FAQ.
@@ -216,22 +239,29 @@ export function crearManejadoresWebhook(config: {
                       }
                       if (respuestaFaq === null) {
                         const faq = responderFaq(consulta,datosNegocio);
-                        if (faq.tipo === "respuesta") { respuestaFaq = deps.conCta ? conLlamadaAReservar(faq.texto,datosNegocio?.negocio.linkReserva) : faq.texto; await contar("respuestas_automaticas"); }
+                        if (faq.tipo === "respuesta") { respuestaFaq = deps.conCta ? conLlamadaAReservar(faq.texto,datosNegocio?.negocio.linkReserva,consulta) : faq.texto; await contar("respuestas_automaticas"); }
                       }
                       // 3) Modo Avanzado (IA) con el contexto del negocio, solo si lo anterior no respondió.
                       if (respuestaFaq === null && deps.ia) {
-                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,consulta,datosNegocio),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva) : ia; } catch { /* sin IA: se deriva a una persona */ }
+                        try { const ia = await conTiempoMaximo(deps.ia(n.tenantId,consulta,datosNegocio),9000); respuestaFaq = ia !== null && deps.conCta ? conLlamadaAReservar(ia,datosNegocio?.negocio.linkReserva,consulta) : ia; } catch { /* sin IA: se deriva a una persona */ }
                       }
                     }
                   }
                 }
                 if (respuestaFaq !== null) {
                   await responder(respuestaFaq);
+                  if (deps.archivos && !derivarChat && entradaTexto) {
+                    try { for (const a of deps.archivos.pedidos(typeof text === "string" ? text : "", datosMenu?.negocio.linkReserva)) await deps.archivos.enviar(n,para,a); } catch { /* el texto ya salió; el archivo es un extra */ }
+                  }
+                  // Tras una respuesta del curso, la lista de lo que suele querer ver el cliente: camino directo, sin preguntas abiertas.
+                  if (deps.responderLista && !derivarChat && p.tipo !== "button" && !esTextoCurso(respuestaFaq) && (DEL_CURSO.test(respuestaFaq) || DEL_CURSO.test(consulta)) && !esTextoMenu(respuestaFaq)) {
+                    try { if (await habilitado(false)) await deps.responderLista(n,para,listaDeCurso(TITULO_CURSO_SEGUIR)); } catch { /* la respuesta ya salió */ }
+                  }
                   if (derivarChat) {
                     await contar("derivadas_persona");
                     if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
                   }
-                } else if (deps.conMenu && tipo === "desconocido" && p.tipo === "text" && typeof text === "string" && !desdeMenu && !esConsultaLarga(text)) {
+                } else if (deps.conMenu && tipo === "desconocido" && entradaTexto && typeof text === "string" && !desdeMenu && !esConsultaLarga(text)) {
                   // No entendido o solo saluda: opciones en vez de derivar (no se avisa al administrador).
                   await responder(textoMenu(datosMenu, esSaludo(text) ? "saludo" : "no_entendi"));
                   await contar("respuestas_automaticas");
