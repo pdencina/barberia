@@ -1,7 +1,7 @@
 // IA del modo Avanzado como INTÉRPRETE: elige fragmentos del contexto; nunca redacta. Modelo simulado, sin red ni llaves.
 // Ejecutar: npx tsx scripts/test-agente-ia.ts
 import assert from "node:assert/strict";
-import { datosRespaldados, leerGuiada, responderConIA, fragmentar, leerElegidos, sistemaPrompt, MAX_FRAGMENTOS } from "../src/lib/agente/ia-respuesta";
+import { mensajeConTema, datosRespaldados, leerGuiada, responderConIA, fragmentar, leerElegidos, sistemaPrompt, MAX_FRAGMENTOS } from "../src/lib/agente/ia-respuesta";
 import { mensajeAdmitidoParaIA } from "../src/lib/agente/ia-guardas";
 
 const CONTEXTO = `NEGOCIO
@@ -87,6 +87,22 @@ const num = (parte: string) => frags.find((f) => f.texto.includes(parte))!.n;
     assert.ok(datosRespaldados("El corte cuesta $12.000 y dura 45 minutos.", CONTEXTO));
     assert.ok(datosRespaldados("Abrimos a las 10:00.", CONTEXTO));
     assert.ok(!datosRespaldados("Abrimos a las 11:00.", CONTEXTO));
+  });
+  await caso("Memoria de tema: el seguimiento viaja con las líneas anteriores y se recuerdan las nuevas; los ids inválidos se ignoran", async () => {
+    const fr = fragmentar(CONTEXTO);
+    assert.equal(mensajeConTema("y con barba?", undefined, fr), "y con barba?");
+    assert.equal(mensajeConTema("y con barba?", [999, -1, 0], fr), "y con barba?");
+    const u = mensajeConTema("y con barba?", [1, 1, 2, 999], fr);
+    assert.ok(u.startsWith("TEMA ANTERIOR (de qué se estaba hablando):\n- " + fr[0].texto) && u.includes("- " + fr[1].texto) && u.endsWith("MENSAJE DEL CLIENTE: y con barba?"));
+    assert.equal((u.match(/^- /gm) ?? []).length, 2, "sin repetidos");
+    const m = modelo('{"ids":[2]}'); let recordado: number[] = [];
+    const r = await responderConIA("y con barba?", { contexto: CONTEXTO, nombreNegocio: "X", tema: [1], onTema: (ids) => { recordado = ids; } }, m.deps);
+    assert.equal(r, fr[1].respuesta); assert.deepEqual(recordado, [2]);
+    assert.ok(m.llamadas[0].usuario.includes("TEMA ANTERIOR") && m.llamadas[0].sistema.includes("TEMA ANTERIOR"));
+    const sin = modelo('{"ids":[]}'); let llamado = false;
+    assert.equal(await responderConIA("y con barba?", { contexto: CONTEXTO, nombreNegocio: "X", tema: [1], onTema: () => { llamado = true; } }, sin.deps), null);
+    assert.equal(llamado, false, "si no responde nada no se recuerda nada");
+    const bomba = modelo('{"ids":[1]}'); assert.equal(await responderConIA("hola?? precio", { contexto: CONTEXTO, nombreNegocio: "X", onTema: () => { throw new Error("falla"); } }, bomba.deps), fr[0].respuesta, "recordar es un extra: no rompe la respuesta");
   });
   console.log(`OK ${n} grupos de casos de IA intérprete (fragmentos, guardas, prompt); modelo simulado, sin red ni llaves.`);
 })();
