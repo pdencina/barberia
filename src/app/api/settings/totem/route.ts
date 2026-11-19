@@ -21,7 +21,9 @@ export async function GET(req: NextRequest) {
 // Valores guardados del QR de WhatsApp y de la web (vacío si no hay o falta la migración 173).
 async function contactoGuardado(tenantId: string) {
   const { data, error } = await createAdminSupabase().from("tenants").select("kiosk_whatsapp, kiosk_web").eq("id", tenantId).maybeSingle();
-  return error ? { whatsapp: "", web: "" } : { whatsapp: (data as any)?.kiosk_whatsapp || "", web: (data as any)?.kiosk_web || "" };
+  const m = await createAdminSupabase().from("tenants").select("kiosk_modules").eq("id", tenantId).maybeSingle(); // migración 175
+  const modulos = !m.error && (m.data as any)?.kiosk_modules ? Number((m.data as any).kiosk_modules) : 1;
+  return error ? { whatsapp: "", web: "", modulos } : { whatsapp: (data as any)?.kiosk_whatsapp || "", web: (data as any)?.kiosk_web || "", modulos };
 }
 
 export async function POST(req: NextRequest) {
@@ -45,6 +47,12 @@ export async function POST(req: NextRequest) {
     const v = body.web.trim();
     if (v && !enlaceWeb(v)) return NextResponse.json({ error: "La dirección web no es válida (ej. www.mi-negocio.cl)" }, { status: 400 });
     update.kiosk_web = v || null;
+  }
+  // Cantidad de tótems (módulos) del local: 1 a 9 (migración 175).
+  if (body.modulos !== undefined) {
+    const n = Math.floor(Number(body.modulos));
+    if (!(n >= 1 && n <= 9)) return NextResponse.json({ error: "La cantidad de tótems debe ser entre 1 y 9" }, { status: 400 });
+    update.kiosk_modules = n;
   }
   if (body.nuevoCodigo === true) update.kiosk_code = generarCodigoNegocio(); // los equipos ya configurados dejan de abrir: hay que escribir el nuevo
   const { error } = await createAdminSupabase().from("tenants").update(update).eq("id", guard.tenantId);

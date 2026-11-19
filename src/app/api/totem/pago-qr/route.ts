@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, demasiadosIntentos, ipDe, moduloDe } from "@/lib/totem";
 import { citasParaCobro } from "@/lib/totem-citas";
 import { firmarNegocio } from "@/lib/deposit";
 import { tokensMercadoPago } from "@/lib/totem-terminal";
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
   const cred = { token: (await tokensMercadoPago(supabase, t.id, (a as any).barber_id))[0] || null };
   if (!cred.token) return NextResponse.json({ error: "Tu profesional no tiene Mercado Pago conectado. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
 
-  const { data: pago, error: errIns } = await supabase.from("kiosk_payments").insert({ tenant_id: t.id, appointment_id: (a as any).id, ...(extraIds.length ? { appointment_ids: extraIds } : {}), amount: s.saldo }).select("id").single();
+  const { data: pago, error: errIns } = await supabase.from("kiosk_payments").insert({ tenant_id: t.id, appointment_id: (a as any).id, ...(extraIds.length ? { appointment_ids: extraIds } : {}), ...(moduloDe(req) > 0 ? { module: moduloDe(req) } : {}), amount: s.saldo }).select("id").single();
   if (errIns || !pago) return NextResponse.json({ error: "No pudimos crear el pago. Avisa a quien te atiende." }, { status: 500 });
 
   const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl").replace(/\/$/, "");

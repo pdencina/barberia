@@ -11,7 +11,7 @@ import { Qr } from "@/components/totem/qr";
 type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "info" | "contacto" | "gracias";
 interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
-interface Info { whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
+interface Info { modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -93,6 +93,18 @@ function Totem() {
   const [codigo, setCodigo] = useState<string | null>(null); // null = aún leyendo el equipo; "" = sin configurar
   const [escrito, setEscrito] = useState("");
   const [tocesLogo, setTocesLogo] = useState(0);
+  // Módulo de ESTE equipo (Módulo 1, 2…): se elige una vez y se guarda en el equipo. Va en cada llamada para que dos tótems del local no se estorben.
+  const [modulo, setModulo] = useState(0);
+  const moduloRef = useRef(0);
+  moduloRef.current = modulo;
+  const fx = (url: string, init: RequestInit = {}) =>
+    fetch(url, { ...init, headers: { ...(init.headers || {}), ...(moduloRef.current ? { "x-totem-modulo": String(moduloRef.current) } : {}) } });
+  useEffect(() => {
+    let n = parseInt(params.get("modulo") || "", 10);
+    if (!(n >= 1 && n <= 9)) { try { n = parseInt(localStorage.getItem("totem_modulo") || "", 10); } catch { n = NaN; } }
+    if (n >= 1 && n <= 9) setModulo(n);
+  }, [params]);
+  const elegirModulo = (n: number) => { try { localStorage.setItem("totem_modulo", String(n)); } catch { /* */ } setModulo(n); };
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
   const [pantalla, setPantalla] = useState<Pantalla>("inicio");
@@ -162,7 +174,7 @@ function Totem() {
   useEffect(() => {
     if (!codigo) return;
     setError(""); setInfo(null);
-    fetch(`/api/totem/info?codigo=${encodeURIComponent(codigo)}`).then(async (r) => {
+    fx(`/api/totem/info?codigo=${encodeURIComponent(codigo)}`).then(async (r) => {
       if (!r.ok) {
         try { localStorage.removeItem("totem_codigo"); } catch { /* */ }
         setMsg("Ese código no existe o el tótem está apagado. Revísalo en Configuración > Tótem de autoatención.");
@@ -177,7 +189,7 @@ function Totem() {
   }, [codigo]);
 
   const post = async (ruta: string, cuerpo: Record<string, any>) => {
-    const r = await fetch(`/api/totem/${ruta}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo, ...cuerpo }) });
+    const r = await fx(`/api/totem/${ruta}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo, ...cuerpo }) });
     const d = await r.json().catch(() => ({}));
     return { ok: r.ok, d };
   };
@@ -197,7 +209,7 @@ function Totem() {
     if (pantalla !== "vincular" || !vinculo?.token || !codigo) return;
     const t = setInterval(async () => {
       try {
-        const r = await fetch(`/api/totem/vincular/estado?codigo=${encodeURIComponent(codigo)}&t=${vinculo.token}`);
+        const r = await fx(`/api/totem/vincular/estado?codigo=${encodeURIComponent(codigo)}&t=${vinculo.token}`);
         const d = await r.json();
         if (d.estado === "expirado") { setVinculo(null); setMsg("El código QR venció. Vuelve a tocar «Ver mi código»."); setPantalla("codigo"); }
         else if (d.estado === "vinculado") setVinculo((v) => (v && !v.code ? { ...v, code: d.code, nombre: d.nombre || "" } : v));
@@ -281,7 +293,7 @@ function Totem() {
     if (pantalla !== "pagoterm" || !pagoTerm || !codigo) return;
     const t = setInterval(async () => {
       try {
-        const r = await fetch(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoTerm.id}`);
+        const r = await fx(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoTerm.id}`);
         const d = await r.json();
         if (d.estado === "paid") { setGracias("¡Pago recibido! Gracias. Ya avisamos a tu profesional."); setPantalla("gracias"); }
         else if (d.estado === "failed") { setPagoTerm(null); setMsg("La máquina no aprobó el pago. Puedes intentar de nuevo o pagar con el equipo."); setPantalla(origenPago); }
@@ -297,7 +309,7 @@ function Totem() {
     if (pantalla !== "pagoqr" || !pagoQr || !codigo) return;
     const t = setInterval(async () => {
       try {
-        const r = await fetch(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoQr.id}`);
+        const r = await fx(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoQr.id}`);
         const d = await r.json();
         if (d.estado === "paid") { setGracias("¡Pago recibido! Gracias. Ya avisamos a tu profesional."); setPantalla("gracias"); }
       } catch { /* se reintenta */ }
@@ -367,6 +379,26 @@ function Totem() {
   if (error) return <main className={`flex min-h-screen items-center justify-center p-10 text-center text-3xl ${colorFondo}`}>{error}</main>;
   if (!info) return <main className={`flex min-h-screen items-center justify-center text-2xl ${colorFondo}`}>Cargando…</main>;
 
+  // Local con varios tótems: la primera vez, este equipo elige qué módulo es (queda guardado).
+  if ((info.modulos || 1) > 1 && !(modulo >= 1 && modulo <= (info.modulos || 1))) {
+    return (
+      <div className="relative min-h-screen bg-[#0A0A0A]">
+        <Fondo />
+        <main className={`${contenedor} text-white`}>
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <h1 className="tt-display mb-3 text-6xl font-semibold">¿Qué módulo es este tótem?</h1>
+            <p className="mb-10 max-w-3xl text-2xl text-white/65">Se elige una sola vez y queda guardado en este equipo. Cada módulo trabaja por separado.</p>
+            <div className="flex flex-wrap justify-center gap-5">
+              {Array.from({ length: info.modulos || 1 }).map((_, i) => (
+                <button key={i} className={`${boton} !w-auto min-w-[16rem] justify-center`} onClick={() => elegirModulo(i + 1)}>Módulo {i + 1}</button>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   const total = info.productos.reduce((s, p) => s + (carrito[p.id] || 0) * p.price, 0);
 
   return (
@@ -377,14 +409,14 @@ function Totem() {
         // Personal del local: 5 toques seguidos al nombre del negocio vuelven a pedir el código.
         const n = tocesLogo + 1; setTocesLogo(n);
         setTimeout(() => setTocesLogo(0), 3000);
-        if (n >= 5) { try { localStorage.removeItem("totem_codigo"); } catch { /* */ } setEscrito(""); setCodigo(""); inicio(); }
+        if (n >= 5) { try { localStorage.removeItem("totem_codigo"); localStorage.removeItem("totem_modulo"); } catch { /* */ } setModulo(0); setEscrito(""); setCodigo(""); inicio(); }
       }}>
         {info.negocio.logo_url && (
           // El logo del negocio va sobre un cuadro claro: muchos logos son oscuros y se perderían sobre el negro.
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={info.negocio.logo_url} alt={info.negocio.name} className="h-20 w-20 rounded-3xl bg-white object-contain p-2" />
         )}
-        <p className="tt-mono text-lg uppercase tracking-[0.16em] text-white/60">{info.negocio.name}</p>
+        <p className="tt-mono text-lg uppercase tracking-[0.16em] text-white/60">{info.negocio.name}{(info.modulos || 1) > 1 && modulo ? ` · Módulo ${modulo}` : ""}</p>
       </header>
 
       {pantalla === "inicio" && (
