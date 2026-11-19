@@ -8,7 +8,7 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "info" | "contacto" | "gracias";
+type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "info" | "contacto" | "gracias";
 interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null }
 interface Info { modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
@@ -122,6 +122,10 @@ function Totem() {
   const [vendedor, setVendedor] = useState<{ code?: string; barberId?: string; nombre?: string } | null>(null);
   const [codigoProd, setCodigoProd] = useState("");
   const [origenPago, setOrigenPago] = useState<"cita" | "pagoprod">("cita");
+  // Agregar o cambiar el servicio de la cita antes de pagar.
+  const [svcCita, setSvcCita] = useState<Cita | null>(null);
+  const [svcLista, setSvcLista] = useState<{ id: string; name: string; price: number; duration: number }[]>([]);
+  const [svcSel, setSvcSel] = useState<string[]>([]);
   const [vinculo, setVinculo] = useState<{ token: string; url: string; code?: string; nombre?: string } | null>(null); // «Ver mi código»: QR → correo en el celular
   const [instalador, setInstalador] = useState<any>(null); // evento «beforeinstallprompt» de Chrome (instalar como aplicación)
   const [instalada, setInstalada] = useState(false);
@@ -246,6 +250,24 @@ function Totem() {
     if (!ok) { setMsg(d.error || "No pudimos avisar"); return; }
     setGracias("Listo, ya le avisamos al equipo que quieres pagar. En un momento te atienden en caja.");
     setPantalla("gracias");
+  };
+
+  const abrirServicios = async (c: Cita) => {
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("cita-servicios", { appointmentId: c.id, code });
+    setCargando(false);
+    if (!ok) { setMsg(d.error || "No pudimos cargar los servicios"); return; }
+    setSvcCita(c); setSvcLista(d.servicios || []); setSvcSel(d.actuales || []);
+    setPantalla("servicios");
+  };
+
+  const guardarServicios = async () => {
+    if (!svcCita || svcSel.length === 0) return;
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("cita-servicios", { appointmentId: svcCita.id, code, serviceIds: svcSel });
+    if (!ok) { setCargando(false); setMsg(d.error || "No pudimos cambiar el servicio"); return; }
+    await buscar(code); // vuelve a leer la cita con el servicio y el monto nuevos
+    setCargando(false);
   };
 
   const crearPagoQr = async (c: Cita, ids?: string[]) => {
@@ -547,6 +569,7 @@ function Totem() {
                         ) : <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "debito")}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
                         {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
                         <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>
+                        <button className={secundario} disabled={cargando} onClick={() => abrirServicios(c)}>{cargando ? "Cargando…" : "Agregar o cambiar servicio"}</button>
                         <p className="pt-1 text-center text-xl text-white/60">Si pagas en caja, le avisamos a {c.profesional || "tu profesional"} y al equipo para que te atiendan.</p>
                       </div>
                     : c.llego
@@ -559,6 +582,32 @@ function Totem() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {pantalla === "servicios" && svcCita && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => { setMsg(""); setPantalla("cita"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Volver a mi cita</button>
+          <h2 className="tt-display mb-2 text-6xl font-semibold">Tu servicio</h2>
+          <p className="mb-6 text-2xl text-white/65">Toca los servicios que quieres. Puedes agregar uno más (por ejemplo, cejas) o cambiar el que reservaste.</p>
+          {msg && <p className={`mb-5 ${aviso}`}>{msg}</p>}
+          <div className="grid gap-4 pb-6 md:grid-cols-2">
+            {svcLista.map((s) => {
+              const on = svcSel.includes(s.id);
+              return (
+                <button key={s.id} onClick={() => setSvcSel((l) => (l.includes(s.id) ? l.filter((x) => x !== s.id) : [...l, s.id].slice(0, 6)))}
+                  className={`flex items-center justify-between gap-4 rounded-2xl border p-5 text-left transition active:scale-[0.995] ${on ? "border-white bg-white text-[#0A0A0A]" : "border-white/[0.12] bg-white/[0.04]"}`}>
+                  <span className="min-w-0"><span className="block truncate text-3xl font-bold">{s.name}</span><span className={`block text-2xl ${on ? "text-black/60" : "text-white/65"}`}>{plata(s.price)}{s.duration ? ` · ${s.duration} min` : ""}</span></span>
+                  <span aria-hidden className="text-4xl">{on ? "✓" : "+"}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="sticky bottom-0 mt-auto bg-[#0A0A0A] pt-4">
+            <button className={principal} disabled={svcSel.length === 0 || cargando} onClick={guardarServicios}>
+              {cargando ? "Guardando…" : svcSel.length ? `Confirmar · ${plata(svcLista.filter((s) => svcSel.includes(s.id)).reduce((n, s) => n + s.price, 0))}` : "Elige un servicio"}
+            </button>
           </div>
         </section>
       )}
