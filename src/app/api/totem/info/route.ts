@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, limpiarSecciones } from "@/lib/totem";
+import { isCosmeticCategory } from "@/lib/product-commission";
 import { enlaceWhatsapp, enlaceWeb } from "@/lib/totem-contacto";
 import { proveedorTarjeta } from "@/lib/totem-terminal";
 
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   // Solo lo que se vende al cliente (no insumos/arriendo): si el negocio no distingue tipos, se muestran los activos con stock.
   const productos = (prods || [])
     .filter((p: any) => !p.product_type || p.product_type === "retail" || p.product_type === "sale" || p.product_type === "venta")
-    .map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price), category: p.category || null }));
+    .map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price), category: p.category || null, cosmetico: isCosmeticCategory(p.category) }));
 
   // Profesionales para «¿Quién te atendió?» al comprar productos sin cita (solo nombre; nada más sale al público).
   const { data: pros } = await supabase.from("profiles").select("id, name").eq("tenant_id", t.id).eq("role", "barber").neq("active", false).order("name").limit(40);

@@ -8,9 +8,9 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "info" | "contacto" | "gracias";
+type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "info" | "contacto" | "gracias";
 interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
-interface Producto { id: string; name: string; price: number; category: string | null }
+interface Producto { id: string; name: string; price: number; category: string | null; cosmetico?: boolean }
 interface Info { modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
@@ -126,6 +126,10 @@ function Totem() {
   const [svcCita, setSvcCita] = useState<Cita | null>(null);
   const [svcLista, setSvcLista] = useState<{ id: string; name: string; price: number; duration: number }[]>([]);
   const [svcSel, setSvcSel] = useState<string[]>([]);
+  // Antes de pagar se ofrece un producto para el cabello (solo cosméticos): una sola vez por atención.
+  const [upsellHecho, setUpsellHecho] = useState(false);
+  const [extra, setExtra] = useState<Record<string, number>>({});
+  const pendienteRef = useRef<((pr: { id: string; cantidad: number }[]) => void) | null>(null);
   const [vinculo, setVinculo] = useState<{ token: string; url: string; code?: string; nombre?: string } | null>(null); // «Ver mi código»: QR → correo en el celular
   const [instalador, setInstalador] = useState<any>(null); // evento «beforeinstallprompt» de Chrome (instalar como aplicación)
   const [instalada, setInstalada] = useState(false);
@@ -134,7 +138,7 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita");
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita"); setUpsellHecho(false); setExtra({}); pendienteRef.current = null;
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
@@ -252,6 +256,21 @@ function Totem() {
     setPantalla("gracias");
   };
 
+  // Antes de cobrar (tarjeta o QR) se pregunta si quiere agregar un producto para el cabello. Solo una vez por atención y solo si hay cosméticos.
+  const cosmeticos = (info?.productos || []).filter((p) => p.cosmetico);
+  const conUpsell = (fn: (pr: { id: string; cantidad: number }[]) => void) => {
+    if (upsellHecho || cosmeticos.length === 0) { fn([]); return; }
+    pendienteRef.current = fn; setMsg(""); setPantalla("upsell");
+  };
+  const seguirDelUpsell = (agregar: boolean) => {
+    const fn = pendienteRef.current; pendienteRef.current = null;
+    const pr = agregar ? Object.entries(extra).filter(([, n]) => n > 0).map(([id, cantidad]) => ({ id, cantidad })) : [];
+    setUpsellHecho(true);
+    if (!agregar) setExtra({});
+    setPantalla("cita");
+    if (fn) fn(pr);
+  };
+
   const abrirServicios = async (c: Cita) => {
     setCargando(true); setMsg("");
     const { ok, d } = await post("cita-servicios", { appointmentId: c.id, code });
@@ -270,18 +289,18 @@ function Totem() {
     setCargando(false);
   };
 
-  const crearPagoQr = async (c: Cita, ids?: string[]) => {
+  const crearPagoQr = async (c: Cita, ids?: string[], productos?: { id: string; cantidad: number }[]) => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("pago-qr", { appointmentId: c.id, appointmentIds: ids, code });
+    const { ok, d } = await post("pago-qr", { appointmentId: c.id, appointmentIds: ids, code, productos });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos crear el pago"); return; }
     setPagoQr({ id: d.id, url: d.url, monto: d.monto, abono: d.abono });
     setPantalla("pagoqr");
   };
 
-  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito", ids?: string[]) => {
+  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito", ids?: string[], productos?: { id: string; cantidad: number }[]) => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, appointmentIds: ids, code, tarjeta });
+    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, appointmentIds: ids, code, tarjeta, productos });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos enviar el cobro a la máquina"); return; }
     setPagoTerm({ id: d.id, monto: d.monto, abono: d.abono, profesional: d.profesional || null });
@@ -541,11 +560,11 @@ function Totem() {
               <div className="space-y-4">
                 {info.pagoTerminal && (info.tarjetaElige ? (
                   <div className="grid grid-cols-2 gap-4">
-                    <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>
-                    <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "credito", citas.map((x) => x.id))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>
+                    <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>
+                    <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "credito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>
                   </div>
-                ) : <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
-                {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => crearPagoQr(citas[0], citas.map((x) => x.id))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
+                ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
+                {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(citas[0], citas.map((x) => x.id), pr))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
               </div>
             </div>
           )}
@@ -563,11 +582,11 @@ function Totem() {
                     ? <div className="space-y-4">
                         {info.pagoTerminal && (info.tarjetaElige ? (
                           <div className="grid grid-cols-2 gap-4">
-                            <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "debito")}>{cargando ? "Enviando…" : "Pagar con débito"}</button>
-                            <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "credito")}>{cargando ? "Enviando…" : "Pagar con crédito"}</button>
+                            <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando…" : "Pagar con débito"}</button>
+                            <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "credito", undefined, pr))}>{cargando ? "Enviando…" : "Pagar con crédito"}</button>
                           </div>
-                        ) : <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "debito")}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
-                        {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
+                        ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
+                        {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(c, undefined, pr))}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
                         <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>
                         <button className={secundario} disabled={cargando} onClick={() => abrirServicios(c)}>{cargando ? "Cargando…" : "Agregar o cambiar servicio"}</button>
                         <p className="pt-1 text-center text-xl text-white/60">Si pagas en caja, le avisamos a {c.profesional || "tu profesional"} y al equipo para que te atiendan.</p>
@@ -582,6 +601,32 @@ function Totem() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {pantalla === "upsell" && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => { pendienteRef.current = null; setPantalla("cita"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Volver a mi cita</button>
+          <h2 className="tt-display mb-2 text-6xl font-semibold">¿Deseas agregar un producto para tu cabello?</h2>
+          <p className="mb-6 text-2xl text-white/65">Si quieres llevarte alguno, tócalo y se suma a tu pago. Si no, sigue con «No, gracias».</p>
+          <div className="grid gap-4 pb-6 md:grid-cols-2">
+            {cosmeticos.map((p) => (
+              <div key={p.id} className={`${caja} flex items-center justify-between gap-4 p-5`}>
+                <div className="min-w-0"><p className="truncate text-3xl font-bold">{p.name}</p><p className="text-2xl text-white/65">{plata(p.price)}</p></div>
+                <div className="flex items-center gap-4">
+                  <button className="h-16 w-16 rounded-xl border border-white/20 bg-white/[0.08] text-4xl font-bold active:bg-white/15" onClick={() => setExtra((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))}>−</button>
+                  <span className="w-10 text-center text-4xl font-semibold">{extra[p.id] || 0}</span>
+                  <button className="h-16 w-16 rounded-xl border border-white/20 bg-white/[0.08] text-4xl font-bold active:bg-white/15" onClick={() => setExtra((c) => ({ ...c, [p.id]: Math.min(5, (c[p.id] || 0) + 1) }))}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="sticky bottom-0 mt-auto space-y-3 bg-[#0A0A0A] pt-4">
+            {cosmeticos.some((p) => (extra[p.id] || 0) > 0) && (
+              <button className={principal} onClick={() => seguirDelUpsell(true)}>Agregar y pagar · {plata(cosmeticos.reduce((n, p) => n + (extra[p.id] || 0) * p.price, 0))} de productos</button>
+            )}
+            <button className={cosmeticos.some((p) => (extra[p.id] || 0) > 0) ? secundario : principal} onClick={() => seguirDelUpsell(false)}>No, gracias. Deseo pagar</button>
           </div>
         </section>
       )}
