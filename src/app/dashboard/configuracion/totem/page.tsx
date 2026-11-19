@@ -23,6 +23,7 @@ export default function ConfiguracionTotemPage() {
   const [pagoTerminal, setPagoTerminal] = useState(false);
   const [terminalListo, setTerminalListo] = useState(false);
   const [ventaAuto, setVentaAuto] = useState(true);
+  const [modulos, setModulos] = useState(1);
   const [whatsapp, setWhatsapp] = useState("");
   const [web, setWeb] = useState("");
   const tq = tenant?.id ? `?tenantId=${tenant.id}` : "";
@@ -30,7 +31,7 @@ export default function ConfiguracionTotemPage() {
   useEffect(() => {
     fetch(`/api/settings/totem${tq}`).then((r) => r.json()).then((d) => {
       if (d.error) return;
-      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo); setVentaAuto(d.ventaAuto !== false); setWhatsapp(d.whatsapp || ""); setWeb(d.web || "");
+      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo); setVentaAuto(d.ventaAuto !== false); setModulos(Number(d.modulos) || 1); setWhatsapp(d.whatsapp || ""); setWeb(d.web || "");
     }).catch(() => {}).finally(() => setLoading(false));
   }, [tq]);
 
@@ -48,7 +49,7 @@ export default function ConfiguracionTotemPage() {
 
   const guardar = async () => {
     setSaving(true);
-    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal, ventaAuto, whatsapp, web }) });
+    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal, ventaAuto, whatsapp, web, modulos }) });
     const d = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) return showToast(d.error || "No se pudo guardar", "error");
@@ -123,6 +124,16 @@ export default function ConfiguracionTotemPage() {
               const d = await res.json().catch(() => ({}));
               if (res.ok && d.codigo) { setCodigo(d.codigo); showToast("Código nuevo generado", "success"); } else showToast(d.error || "No se pudo cambiar", "error");
             }} className="text-xs font-semibold text-brand-gray underline">Generar un código nuevo</button>
+          </div>
+
+          <div className="space-y-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
+            <div>
+              <p className="font-bold text-brand-dark">Cantidad de tótems del local</p>
+              <p className="text-xs text-brand-gray">Cada pantalla es un «Módulo» (1, 2…). Al abrir el tótem en cada equipo se elige su número y trabajan de forma independiente: un cliente en el Módulo 1 no bloquea al del Módulo 2.</p>
+            </div>
+            <select className={campo} value={modulos} onChange={(e) => setModulos(Number(e.target.value))}>
+              {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n === 1 ? "1 tótem" : `${n} tótems (Módulo 1 a ${n})`}</option>)}
+            </select>
           </div>
 
           <div className="space-y-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">

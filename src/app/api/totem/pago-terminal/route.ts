@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe, moduloDe } from "@/lib/totem";
 import { citasParaCobro } from "@/lib/totem-citas";
+import { armarItemsProductos } from "@/lib/totem-producto";
 import { resolverTerminal, iniciarCobro, cancelarCobro } from "@/lib/totem-terminal";
 import { notify } from "@/lib/notify";
 
@@ -21,7 +22,15 @@ export async function POST(req: NextRequest) {
   const cc = await citasParaCobro(supabase, t.id, body.code, Array.isArray(body.appointmentIds) ? body.appointmentIds : [body.appointmentId]);
   if (!cc.ok) return NextResponse.json({ error: cc.error }, { status: cc.status });
   const a = { id: cc.primeraId, barber_id: cc.barberId };
-  const s = { saldo: cc.saldo, abono: cc.abono, total: cc.total };
+  // Productos (cosméticos) que el cliente agregó antes de pagar: se cobran junto al servicio, con precios del servidor.
+  let extraItems: any[] | null = null;
+  let extraTotal = 0;
+  if (Array.isArray(body.productos) && body.productos.length) {
+    const c = await armarItemsProductos(supabase, t.id, body.productos, true);
+    if (!c.ok) return NextResponse.json({ error: c.error }, { status: c.status });
+    extraItems = c.items; extraTotal = c.total;
+  }
+  const s = { saldo: cc.saldo + extraTotal, abono: cc.abono, total: cc.total + extraTotal };
   const extraIds = cc.extraIds;
 
   const term = await resolverTerminal(supabase, t.id, (a as any).barber_id);
@@ -30,14 +39,17 @@ export async function POST(req: NextRequest) {
   // Una máquina atiende un cobro a la vez (cada profesional en arriendo tiene la suya): si ESA máquina tiene otro cobro pendiente
   // hace menos de 3 minutos (de otra cita) se pide esperar. Si el pendiente es de esta misma cita (el cliente reintentó), se cancela y se crea uno nuevo.
   const hace3 = new Date(Date.now() - 3 * 60_000).toISOString();
-  const { data: pendientes } = await supabase.from("kiosk_payments").select("id, appointment_id, external_id").eq("tenant_id", t.id).eq("method", "terminal").eq("device", term.device).eq("status", "pending").gte("created_at", hace3);
+  const { data: pendientes } = await supabase.from("kiosk_payments").select("id, appointment_id, external_id, module").eq("tenant_id", t.id).eq("method", "terminal").eq("device", term.device).eq("status", "pending").gte("created_at", hace3);
+  const modulo = moduloDe(req);
   for (const p of pendientes || []) {
-    if ((p as any).appointment_id !== (a as any).id) return NextResponse.json({ error: "La máquina está atendiendo a otra persona. Intenta en un momento." }, { status: 409 });
+    // Un cobro pendiente del MISMO módulo es de alguien que ya se fue o reintenta: se cancela. Solo bloquea el de OTRO módulo con la misma máquina física.
+    const mismoModulo = modulo > 0 && Number((p as any).module) === modulo;
+    if (!mismoModulo && (p as any).appointment_id !== (a as any).id) return NextResponse.json({ error: "La máquina está atendiendo a otra persona. Intenta en un momento." }, { status: 409 });
     if ((p as any).external_id) await cancelarCobro(term, (p as any).external_id);
     await supabase.from("kiosk_payments").update({ status: "cancelled" }).eq("id", (p as any).id);
   }
 
-  const fila = { tenant_id: t.id, appointment_id: (a as any).id, ...(extraIds.length ? { appointment_ids: extraIds } : {}), amount: s.saldo, method: "terminal", provider: term.proveedor, device: term.device };
+  const fila = { ...(extraItems ? { items: extraItems } : {}), tenant_id: t.id, appointment_id: (a as any).id, ...(extraIds.length ? { appointment_ids: extraIds } : {}), ...(modulo > 0 ? { module: modulo } : {}), amount: s.saldo, method: "terminal", provider: term.proveedor, device: term.device };
   // card_type (migración 169) sirve para registrar si fue débito o crédito; si la migración aún no está, se crea igual sin él.
   let ins: any = await supabase.from("kiosk_payments").insert({ ...fila, card_type: body.tarjeta === "credito" ? "credito" : "debito" }).select("id").single();
   if (ins.error && /card_type/i.test(ins.error.message)) ins = await supabase.from("kiosk_payments").insert(fila).select("id").single();

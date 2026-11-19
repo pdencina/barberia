@@ -63,6 +63,10 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
       const { data: filas } = await supabase.from("appointment_services").select("service_id, price, services(name)").in("appointment_id", citaIds);
       items = (filas || []).map((f: any) => ({ service_id: f.service_id, name: f.services?.name || "Servicio", price: Math.round(Number(f.price) || 0) }));
       if (items.length === 0) throw new Error("La cita no tiene servicios");
+      // Productos (cosméticos) que el cliente agregó antes de pagar: van en la misma venta, con los precios guardados al crear el cobro.
+      for (const p of Array.isArray(kp0.items) ? kp0.items : []) {
+        items.push({ service_id: null, product_id: p.product_id, name: p.name, price: Math.round(Number(p.price) || 0), quantity: Math.max(1, Number(p.quantity) || 1) });
+      }
     }
 
     // Totales como en el POS: total = lo cobrado por el servicio (SIN la propina); el descuento es lo que ya estaba pagado (abono) o cualquier diferencia.
@@ -106,8 +110,8 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
     })));
 
     // Productos: baja el stock y deja el movimiento, igual que el POS.
-    if (esProducto) {
-      for (const i of items) {
+    {
+      for (const i of items.filter((x: any) => x.product_id)) {
         try {
           const { data: pr } = await supabase.from("products").select("stock").eq("id", i.product_id).eq("tenant_id", tenantId).maybeSingle();
           if (pr) {

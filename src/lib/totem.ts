@@ -62,8 +62,18 @@ export function demasiadosIntentos(clave: string, max = 20, ventanaMs = 60_000):
   return lista.length > max;
 }
 
+// Módulo del tótem (1, 2, 3...): cada pantalla del local manda su número en x-totem-modulo. 0 = sin módulo (celular u otra pantalla).
+export function moduloDe(req: Request): number {
+  const n = parseInt(req.headers.get("x-totem-modulo") || "", 10);
+  return Number.isFinite(n) && n >= 1 && n <= 9 ? n : 0;
+}
+
+// Clave para limitar intentos: IP + módulo. Dos tótems del mismo local comparten la IP de internet, así que sin el módulo
+// se descontaban intentos el uno al otro y uno podía quedar bloqueado por el uso del otro.
 export function ipDe(req: Request): string {
-  return (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "local";
+  const ip = (req.headers.get("x-forwarded-for") || "").split(",")[0].trim() || "local";
+  const m = moduloDe(req);
+  return m ? `${ip}#m${m}` : ip;
 }
 
 // Negocio por slug con el totem encendido. Devuelve null si no existe, esta suspendido o no activó el totem.

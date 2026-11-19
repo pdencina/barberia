@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, demasiadosIntentos, ipDe, moduloDe } from "@/lib/totem";
 import { citasParaCobro } from "@/lib/totem-citas";
+import { armarItemsProductos } from "@/lib/totem-producto";
 import { firmarNegocio } from "@/lib/deposit";
 import { tokensMercadoPago } from "@/lib/totem-terminal";
 
@@ -19,14 +20,22 @@ export async function POST(req: NextRequest) {
   const cc = await citasParaCobro(supabase, t.id, body.code, Array.isArray(body.appointmentIds) ? body.appointmentIds : [body.appointmentId]);
   if (!cc.ok) return NextResponse.json({ error: cc.error }, { status: cc.status });
   const a = { id: cc.primeraId, barber_id: cc.barberId };
-  const s = { saldo: cc.saldo, abono: cc.abono, total: cc.total };
+  // Productos (cosméticos) que el cliente agregó antes de pagar: se cobran junto al servicio, con precios del servidor.
+  let extraItems: any[] | null = null;
+  let extraTotal = 0;
+  if (Array.isArray(body.productos) && body.productos.length) {
+    const c = await armarItemsProductos(supabase, t.id, body.productos, true);
+    if (!c.ok) return NextResponse.json({ error: c.error }, { status: c.status });
+    extraItems = c.items; extraTotal = c.total;
+  }
+  const s = { saldo: cc.saldo + extraTotal, abono: cc.abono, total: cc.total + extraTotal };
   const extraIds = cc.extraIds;
 
   // Cuenta de Mercado Pago a la que entra el pago: la del profesional de la cita si trabaja en arriendo (como el POS); si no, la del negocio.
   const cred = { token: (await tokensMercadoPago(supabase, t.id, (a as any).barber_id))[0] || null };
   if (!cred.token) return NextResponse.json({ error: "Tu profesional no tiene Mercado Pago conectado. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
 
-  const { data: pago, error: errIns } = await supabase.from("kiosk_payments").insert({ tenant_id: t.id, appointment_id: (a as any).id, ...(extraIds.length ? { appointment_ids: extraIds } : {}), amount: s.saldo }).select("id").single();
+  const { data: pago, error: errIns } = await supabase.from("kiosk_payments").insert({ ...(extraItems ? { items: extraItems } : {}), tenant_id: t.id, appointment_id: (a as any).id, ...(extraIds.length ? { appointment_ids: extraIds } : {}), ...(moduloDe(req) > 0 ? { module: moduloDe(req) } : {}), amount: s.saldo }).select("id").single();
   if (errIns || !pago) return NextResponse.json({ error: "No pudimos crear el pago. Avisa a quien te atiende." }, { status: 500 });
 
   const baseUrl = (process.env.NEXT_PUBLIC_BASE_URL || process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl").replace(/\/$/, "");

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { negocioDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
+import { negocioDelTotem, primerNombre, demasiadosIntentos, ipDe, moduloDe } from "@/lib/totem";
 import { armarCompraProductos, barberDeCobroProductos } from "@/lib/totem-producto";
 import { resolverTerminal, iniciarCobro, tokensMercadoPago } from "@/lib/totem-terminal";
 import { firmarNegocio } from "@/lib/deposit";
@@ -22,14 +22,17 @@ export async function POST(req: NextRequest) {
   const compra = await armarCompraProductos(supabase, t.id, { productos: body.productos, code: body.code, barberId: body.barberId });
   if (!compra.ok) return NextResponse.json({ error: compra.error, pedirProfesional: !!compra.pedirProfesional }, { status: compra.status });
 
-  const fila = { tenant_id: t.id, kind: "producto", barber_id: compra.vendedor.id, client_id: compra.clienteId, items: compra.items, amount: compra.total };
+  const fila = { ...(moduloDe(req) > 0 ? { module: moduloDe(req) } : {}), tenant_id: t.id, kind: "producto", barber_id: compra.vendedor.id, client_id: compra.clienteId, items: compra.items, amount: compra.total };
 
   if (medio === "terminal") {
     // Bebidas/consumibles nunca van a la máquina del profesional: solo un carrito 100% cosmético usa la suya.
     const term = await resolverTerminal(supabase, t.id, barberDeCobroProductos(compra.items, compra.vendedor.id));
     if (!term) return NextResponse.json({ error: "Esa máquina de tarjetas no está conectada. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
     const hace3 = new Date(Date.now() - 3 * 60_000).toISOString();
-    const { data: ocupada } = await supabase.from("kiosk_payments").select("id").eq("tenant_id", t.id).eq("method", "terminal").eq("device", term.device).eq("status", "pending").gte("created_at", hace3).limit(1).maybeSingle();
+    // Solo cuenta el cobro pendiente de OTRO módulo con la misma máquina física; uno del mismo módulo es de alguien que ya se fue.
+    let qOcupada: any = supabase.from("kiosk_payments").select("id").eq("tenant_id", t.id).eq("method", "terminal").eq("device", term.device).eq("status", "pending").gte("created_at", hace3);
+    if (moduloDe(req) > 0) qOcupada = qOcupada.or(`module.is.null,module.neq.${moduloDe(req)}`);
+    const { data: ocupada } = await qOcupada.limit(1).maybeSingle();
     if (ocupada) return NextResponse.json({ error: "La máquina está atendiendo a otra persona. Intenta en un momento." }, { status: 409 });
 
     const card_type = body.tarjeta === "credito" ? "credito" : "debito";

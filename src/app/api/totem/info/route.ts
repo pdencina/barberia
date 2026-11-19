@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, limpiarSecciones } from "@/lib/totem";
+import { isCosmeticCategory } from "@/lib/product-commission";
 import { enlaceWhatsapp, enlaceWeb } from "@/lib/totem-contacto";
 import { proveedorTarjeta } from "@/lib/totem-terminal";
 
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
   // Solo lo que se vende al cliente (no insumos/arriendo): si el negocio no distingue tipos, se muestran los activos con stock.
   const productos = (prods || [])
     .filter((p: any) => !p.product_type || p.product_type === "retail" || p.product_type === "sale" || p.product_type === "venta")
-    .map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price), category: p.category || null }));
+    .map((p: any) => ({ id: p.id, name: p.name, price: Number(p.price), category: p.category || null, cosmetico: isCosmeticCategory(p.category) }));
 
   // Profesionales para «¿Quién te atendió?» al comprar productos sin cita (solo nombre; nada más sale al público).
   const { data: pros } = await supabase.from("profiles").select("id, name").eq("tenant_id", t.id).eq("role", "barber").neq("active", false).order("name").limit(40);
@@ -29,7 +30,12 @@ export async function GET(req: NextRequest) {
   const { data: ct, error: ctError } = await supabase.from("tenants").select("kiosk_whatsapp, kiosk_web, phone, website").eq("id", t.id).maybeSingle();
   if (!ctError && ct) { whatsapp = enlaceWhatsapp((ct as any).kiosk_whatsapp || (ct as any).phone); web = enlaceWeb((ct as any).kiosk_web || (ct as any).website); }
 
+  // Cuántos tótems (módulos) tiene el local; sin la migración 175 es 1.
+  const { data: mod, error: modError } = await supabase.from("tenants").select("kiosk_modules").eq("id", t.id).maybeSingle();
+  const modulos = !modError && (mod as any)?.kiosk_modules ? Math.min(9, Math.max(1, Number((mod as any).kiosk_modules))) : 1;
+
   return NextResponse.json({
+    modulos,
     whatsapp, web,
     profesionales,
     negocio: { name: t.name, logo_url: t.logo_url || null },

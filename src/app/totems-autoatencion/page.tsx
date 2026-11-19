@@ -8,10 +8,10 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "info" | "contacto" | "gracias";
+type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "info" | "contacto" | "gracias";
 interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
-interface Producto { id: string; name: string; price: number; category: string | null }
-interface Info { whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
+interface Producto { id: string; name: string; price: number; category: string | null; cosmetico?: boolean }
+interface Info { modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -93,6 +93,18 @@ function Totem() {
   const [codigo, setCodigo] = useState<string | null>(null); // null = aún leyendo el equipo; "" = sin configurar
   const [escrito, setEscrito] = useState("");
   const [tocesLogo, setTocesLogo] = useState(0);
+  // Módulo de ESTE equipo (Módulo 1, 2…): se elige una vez y se guarda en el equipo. Va en cada llamada para que dos tótems del local no se estorben.
+  const [modulo, setModulo] = useState(0);
+  const moduloRef = useRef(0);
+  moduloRef.current = modulo;
+  const fx = (url: string, init: RequestInit = {}) =>
+    fetch(url, { ...init, headers: { ...(init.headers || {}), ...(moduloRef.current ? { "x-totem-modulo": String(moduloRef.current) } : {}) } });
+  useEffect(() => {
+    let n = parseInt(params.get("modulo") || "", 10);
+    if (!(n >= 1 && n <= 9)) { try { n = parseInt(localStorage.getItem("totem_modulo") || "", 10); } catch { n = NaN; } }
+    if (n >= 1 && n <= 9) setModulo(n);
+  }, [params]);
+  const elegirModulo = (n: number) => { try { localStorage.setItem("totem_modulo", String(n)); } catch { /* */ } setModulo(n); };
   const [info, setInfo] = useState<Info | null>(null);
   const [error, setError] = useState("");
   const [pantalla, setPantalla] = useState<Pantalla>("inicio");
@@ -110,6 +122,14 @@ function Totem() {
   const [vendedor, setVendedor] = useState<{ code?: string; barberId?: string; nombre?: string } | null>(null);
   const [codigoProd, setCodigoProd] = useState("");
   const [origenPago, setOrigenPago] = useState<"cita" | "pagoprod">("cita");
+  // Agregar o cambiar el servicio de la cita antes de pagar.
+  const [svcCita, setSvcCita] = useState<Cita | null>(null);
+  const [svcLista, setSvcLista] = useState<{ id: string; name: string; price: number; duration: number }[]>([]);
+  const [svcSel, setSvcSel] = useState<string[]>([]);
+  // Antes de pagar se ofrece un producto para el cabello (solo cosméticos): una sola vez por atención.
+  const [upsellHecho, setUpsellHecho] = useState(false);
+  const [extra, setExtra] = useState<Record<string, number>>({});
+  const pendienteRef = useRef<((pr: { id: string; cantidad: number }[]) => void) | null>(null);
   const [vinculo, setVinculo] = useState<{ token: string; url: string; code?: string; nombre?: string } | null>(null); // «Ver mi código»: QR → correo en el celular
   const [instalador, setInstalador] = useState<any>(null); // evento «beforeinstallprompt» de Chrome (instalar como aplicación)
   const [instalada, setInstalada] = useState(false);
@@ -118,7 +138,7 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita");
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita"); setUpsellHecho(false); setExtra({}); pendienteRef.current = null;
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
@@ -162,7 +182,7 @@ function Totem() {
   useEffect(() => {
     if (!codigo) return;
     setError(""); setInfo(null);
-    fetch(`/api/totem/info?codigo=${encodeURIComponent(codigo)}`).then(async (r) => {
+    fx(`/api/totem/info?codigo=${encodeURIComponent(codigo)}`).then(async (r) => {
       if (!r.ok) {
         try { localStorage.removeItem("totem_codigo"); } catch { /* */ }
         setMsg("Ese código no existe o el tótem está apagado. Revísalo en Configuración > Tótem de autoatención.");
@@ -177,7 +197,7 @@ function Totem() {
   }, [codigo]);
 
   const post = async (ruta: string, cuerpo: Record<string, any>) => {
-    const r = await fetch(`/api/totem/${ruta}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo, ...cuerpo }) });
+    const r = await fx(`/api/totem/${ruta}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ codigo, ...cuerpo }) });
     const d = await r.json().catch(() => ({}));
     return { ok: r.ok, d };
   };
@@ -197,7 +217,7 @@ function Totem() {
     if (pantalla !== "vincular" || !vinculo?.token || !codigo) return;
     const t = setInterval(async () => {
       try {
-        const r = await fetch(`/api/totem/vincular/estado?codigo=${encodeURIComponent(codigo)}&t=${vinculo.token}`);
+        const r = await fx(`/api/totem/vincular/estado?codigo=${encodeURIComponent(codigo)}&t=${vinculo.token}`);
         const d = await r.json();
         if (d.estado === "expirado") { setVinculo(null); setMsg("El código QR venció. Vuelve a tocar «Ver mi código»."); setPantalla("codigo"); }
         else if (d.estado === "vinculado") setVinculo((v) => (v && !v.code ? { ...v, code: d.code, nombre: d.nombre || "" } : v));
@@ -236,18 +256,51 @@ function Totem() {
     setPantalla("gracias");
   };
 
-  const crearPagoQr = async (c: Cita, ids?: string[]) => {
+  // Antes de cobrar (tarjeta o QR) se pregunta si quiere agregar un producto para el cabello. Solo una vez por atención y solo si hay cosméticos.
+  const cosmeticos = (info?.productos || []).filter((p) => p.cosmetico);
+  const conUpsell = (fn: (pr: { id: string; cantidad: number }[]) => void) => {
+    if (upsellHecho || cosmeticos.length === 0) { fn([]); return; }
+    pendienteRef.current = fn; setMsg(""); setPantalla("upsell");
+  };
+  const seguirDelUpsell = (agregar: boolean) => {
+    const fn = pendienteRef.current; pendienteRef.current = null;
+    const pr = agregar ? Object.entries(extra).filter(([, n]) => n > 0).map(([id, cantidad]) => ({ id, cantidad })) : [];
+    setUpsellHecho(true);
+    if (!agregar) setExtra({});
+    setPantalla("cita");
+    if (fn) fn(pr);
+  };
+
+  const abrirServicios = async (c: Cita) => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("pago-qr", { appointmentId: c.id, appointmentIds: ids, code });
+    const { ok, d } = await post("cita-servicios", { appointmentId: c.id, code });
+    setCargando(false);
+    if (!ok) { setMsg(d.error || "No pudimos cargar los servicios"); return; }
+    setSvcCita(c); setSvcLista(d.servicios || []); setSvcSel(d.actuales || []);
+    setPantalla("servicios");
+  };
+
+  const guardarServicios = async () => {
+    if (!svcCita || svcSel.length === 0) return;
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("cita-servicios", { appointmentId: svcCita.id, code, serviceIds: svcSel });
+    if (!ok) { setCargando(false); setMsg(d.error || "No pudimos cambiar el servicio"); return; }
+    await buscar(code); // vuelve a leer la cita con el servicio y el monto nuevos
+    setCargando(false);
+  };
+
+  const crearPagoQr = async (c: Cita, ids?: string[], productos?: { id: string; cantidad: number }[]) => {
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("pago-qr", { appointmentId: c.id, appointmentIds: ids, code, productos });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos crear el pago"); return; }
     setPagoQr({ id: d.id, url: d.url, monto: d.monto, abono: d.abono });
     setPantalla("pagoqr");
   };
 
-  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito", ids?: string[]) => {
+  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito", ids?: string[], productos?: { id: string; cantidad: number }[]) => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, appointmentIds: ids, code, tarjeta });
+    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, appointmentIds: ids, code, tarjeta, productos });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos enviar el cobro a la máquina"); return; }
     setPagoTerm({ id: d.id, monto: d.monto, abono: d.abono, profesional: d.profesional || null });
@@ -281,7 +334,7 @@ function Totem() {
     if (pantalla !== "pagoterm" || !pagoTerm || !codigo) return;
     const t = setInterval(async () => {
       try {
-        const r = await fetch(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoTerm.id}`);
+        const r = await fx(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoTerm.id}`);
         const d = await r.json();
         if (d.estado === "paid") { setGracias("¡Pago recibido! Gracias. Ya avisamos a tu profesional."); setPantalla("gracias"); }
         else if (d.estado === "failed") { setPagoTerm(null); setMsg("La máquina no aprobó el pago. Puedes intentar de nuevo o pagar con el equipo."); setPantalla(origenPago); }
@@ -297,7 +350,7 @@ function Totem() {
     if (pantalla !== "pagoqr" || !pagoQr || !codigo) return;
     const t = setInterval(async () => {
       try {
-        const r = await fetch(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoQr.id}`);
+        const r = await fx(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoQr.id}`);
         const d = await r.json();
         if (d.estado === "paid") { setGracias("¡Pago recibido! Gracias. Ya avisamos a tu profesional."); setPantalla("gracias"); }
       } catch { /* se reintenta */ }
@@ -367,6 +420,26 @@ function Totem() {
   if (error) return <main className={`flex min-h-screen items-center justify-center p-10 text-center text-3xl ${colorFondo}`}>{error}</main>;
   if (!info) return <main className={`flex min-h-screen items-center justify-center text-2xl ${colorFondo}`}>Cargando…</main>;
 
+  // Local con varios tótems: la primera vez, este equipo elige qué módulo es (queda guardado).
+  if ((info.modulos || 1) > 1 && !(modulo >= 1 && modulo <= (info.modulos || 1))) {
+    return (
+      <div className="relative min-h-screen bg-[#0A0A0A]">
+        <Fondo />
+        <main className={`${contenedor} text-white`}>
+          <div className="flex flex-1 flex-col items-center justify-center text-center">
+            <h1 className="tt-display mb-3 text-6xl font-semibold">¿Qué módulo es este tótem?</h1>
+            <p className="mb-10 max-w-3xl text-2xl text-white/65">Se elige una sola vez y queda guardado en este equipo. Cada módulo trabaja por separado.</p>
+            <div className="flex flex-wrap justify-center gap-5">
+              {Array.from({ length: info.modulos || 1 }).map((_, i) => (
+                <button key={i} className={`${boton} !w-auto min-w-[16rem] justify-center`} onClick={() => elegirModulo(i + 1)}>Módulo {i + 1}</button>
+              ))}
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   const total = info.productos.reduce((s, p) => s + (carrito[p.id] || 0) * p.price, 0);
 
   return (
@@ -377,14 +450,14 @@ function Totem() {
         // Personal del local: 5 toques seguidos al nombre del negocio vuelven a pedir el código.
         const n = tocesLogo + 1; setTocesLogo(n);
         setTimeout(() => setTocesLogo(0), 3000);
-        if (n >= 5) { try { localStorage.removeItem("totem_codigo"); } catch { /* */ } setEscrito(""); setCodigo(""); inicio(); }
+        if (n >= 5) { try { localStorage.removeItem("totem_codigo"); localStorage.removeItem("totem_modulo"); } catch { /* */ } setModulo(0); setEscrito(""); setCodigo(""); inicio(); }
       }}>
         {info.negocio.logo_url && (
           // El logo del negocio va sobre un cuadro claro: muchos logos son oscuros y se perderían sobre el negro.
           /* eslint-disable-next-line @next/next/no-img-element */
           <img src={info.negocio.logo_url} alt={info.negocio.name} className="h-20 w-20 rounded-3xl bg-white object-contain p-2" />
         )}
-        <p className="tt-mono text-lg uppercase tracking-[0.16em] text-white/60">{info.negocio.name}</p>
+        <p className="tt-mono text-lg uppercase tracking-[0.16em] text-white/60">{info.negocio.name}{(info.modulos || 1) > 1 && modulo ? ` · Módulo ${modulo}` : ""}</p>
       </header>
 
       {pantalla === "inicio" && (
@@ -487,11 +560,11 @@ function Totem() {
               <div className="space-y-4">
                 {info.pagoTerminal && (info.tarjetaElige ? (
                   <div className="grid grid-cols-2 gap-4">
-                    <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>
-                    <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "credito", citas.map((x) => x.id))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>
+                    <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>
+                    <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "credito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>
                   </div>
-                ) : <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
-                {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => crearPagoQr(citas[0], citas.map((x) => x.id))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
+                ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
+                {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(citas[0], citas.map((x) => x.id), pr))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
               </div>
             </div>
           )}
@@ -509,12 +582,13 @@ function Totem() {
                     ? <div className="space-y-4">
                         {info.pagoTerminal && (info.tarjetaElige ? (
                           <div className="grid grid-cols-2 gap-4">
-                            <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "debito")}>{cargando ? "Enviando…" : "Pagar con débito"}</button>
-                            <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "credito")}>{cargando ? "Enviando…" : "Pagar con crédito"}</button>
+                            <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando…" : "Pagar con débito"}</button>
+                            <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "credito", undefined, pr))}>{cargando ? "Enviando…" : "Pagar con crédito"}</button>
                           </div>
-                        ) : <button className={principal} disabled={cargando} onClick={() => crearPagoTerminal(c, "debito")}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
-                        {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => crearPagoQr(c)}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
+                        ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
+                        {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(c, undefined, pr))}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
                         <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>
+                        <button className={secundario} disabled={cargando} onClick={() => abrirServicios(c)}>{cargando ? "Cargando…" : "Agregar o cambiar servicio"}</button>
                         <p className="pt-1 text-center text-xl text-white/60">Si pagas en caja, le avisamos a {c.profesional || "tu profesional"} y al equipo para que te atiendan.</p>
                       </div>
                     : c.llego
@@ -527,6 +601,58 @@ function Totem() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {pantalla === "upsell" && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => { pendienteRef.current = null; setPantalla("cita"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Volver a mi cita</button>
+          <h2 className="tt-display mb-2 text-6xl font-semibold">¿Deseas agregar un producto para tu cabello?</h2>
+          <p className="mb-6 text-2xl text-white/65">Si quieres llevarte alguno, tócalo y se suma a tu pago. Si no, sigue con «No, gracias».</p>
+          <div className="grid gap-4 pb-6 md:grid-cols-2">
+            {cosmeticos.map((p) => (
+              <div key={p.id} className={`${caja} flex items-center justify-between gap-4 p-5`}>
+                <div className="min-w-0"><p className="truncate text-3xl font-bold">{p.name}</p><p className="text-2xl text-white/65">{plata(p.price)}</p></div>
+                <div className="flex items-center gap-4">
+                  <button className="h-16 w-16 rounded-xl border border-white/20 bg-white/[0.08] text-4xl font-bold active:bg-white/15" onClick={() => setExtra((c) => ({ ...c, [p.id]: Math.max(0, (c[p.id] || 0) - 1) }))}>−</button>
+                  <span className="w-10 text-center text-4xl font-semibold">{extra[p.id] || 0}</span>
+                  <button className="h-16 w-16 rounded-xl border border-white/20 bg-white/[0.08] text-4xl font-bold active:bg-white/15" onClick={() => setExtra((c) => ({ ...c, [p.id]: Math.min(5, (c[p.id] || 0) + 1) }))}>+</button>
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="sticky bottom-0 mt-auto space-y-3 bg-[#0A0A0A] pt-4">
+            {cosmeticos.some((p) => (extra[p.id] || 0) > 0) && (
+              <button className={principal} onClick={() => seguirDelUpsell(true)}>Agregar y pagar · {plata(cosmeticos.reduce((n, p) => n + (extra[p.id] || 0) * p.price, 0))} de productos</button>
+            )}
+            <button className={cosmeticos.some((p) => (extra[p.id] || 0) > 0) ? secundario : principal} onClick={() => seguirDelUpsell(false)}>No, gracias. Deseo pagar</button>
+          </div>
+        </section>
+      )}
+
+      {pantalla === "servicios" && svcCita && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => { setMsg(""); setPantalla("cita"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Volver a mi cita</button>
+          <h2 className="tt-display mb-2 text-6xl font-semibold">Tu servicio</h2>
+          <p className="mb-6 text-2xl text-white/65">Toca los servicios que quieres. Puedes agregar uno más (por ejemplo, cejas) o cambiar el que reservaste.</p>
+          {msg && <p className={`mb-5 ${aviso}`}>{msg}</p>}
+          <div className="grid gap-4 pb-6 md:grid-cols-2">
+            {svcLista.map((s) => {
+              const on = svcSel.includes(s.id);
+              return (
+                <button key={s.id} onClick={() => setSvcSel((l) => (l.includes(s.id) ? l.filter((x) => x !== s.id) : [...l, s.id].slice(0, 6)))}
+                  className={`flex items-center justify-between gap-4 rounded-2xl border p-5 text-left transition active:scale-[0.995] ${on ? "border-white bg-white text-[#0A0A0A]" : "border-white/[0.12] bg-white/[0.04]"}`}>
+                  <span className="min-w-0"><span className="block truncate text-3xl font-bold">{s.name}</span><span className={`block text-2xl ${on ? "text-black/60" : "text-white/65"}`}>{plata(s.price)}{s.duration ? ` · ${s.duration} min` : ""}</span></span>
+                  <span aria-hidden className="text-4xl">{on ? "✓" : "+"}</span>
+                </button>
+              );
+            })}
+          </div>
+          <div className="sticky bottom-0 mt-auto bg-[#0A0A0A] pt-4">
+            <button className={principal} disabled={svcSel.length === 0 || cargando} onClick={guardarServicios}>
+              {cargando ? "Guardando…" : svcSel.length ? `Confirmar · ${plata(svcLista.filter((s) => svcSel.includes(s.id)).reduce((n, s) => n + s.price, 0))}` : "Elige un servicio"}
+            </button>
           </div>
         </section>
       )}
