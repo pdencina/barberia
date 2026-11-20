@@ -80,6 +80,12 @@ export async function PATCH(
   const supabase = createAdminSupabase();
   const body = await req.json();
 
+  // El administrador del negocio no se puede desactivar (se quedaria sin acceso). Solo Super admin puede.
+  if (body.active === false && auth.role !== "super_admin") {
+    const { data: objetivo } = await supabase.from("profiles").select("role").eq("id", params.id).maybeSingle();
+    if (objetivo?.role === "admin") return NextResponse.json({ error: "La cuenta del administrador no se puede desactivar ni eliminar: perderías el acceso al negocio. Si no atiendes clientes, quítate de la agenda desde tu perfil." }, { status: 400 });
+  }
+
   // Only allow updating specific fields
   const allowedFields = [
     "name", "email", "phone", "active", "work_mode",
@@ -215,12 +221,17 @@ export async function DELETE(
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id, name, email, active")
+    .select("id, name, email, active, role")
     .eq("id", barberId)
     .single();
 
   if (!profile) {
     return NextResponse.json({ error: "Profesional no encontrado" }, { status: 404 });
+  }
+
+  // El administrador del negocio nunca se elimina desde aqui: quedaria un negocio sin nadie que pueda entrar. Solo Super admin puede.
+  if ((profile as any).role === "admin" && auth.role !== "super_admin") {
+    return NextResponse.json({ error: "La cuenta del administrador no se puede desactivar ni eliminar: perderías el acceso al negocio. Si no atiendes clientes, quítate de la agenda desde tu perfil." }, { status: 400 });
   }
 
   if (profile.active) {
