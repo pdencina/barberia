@@ -89,6 +89,7 @@ export default function SuperAdminTenantsPage() {
 
   const openEdit = (t: Tenant) => {
     setEditingTenant(t);
+    setRestaurado(null);
     setEditForm({
       name: t.name,
       admin_name: t.admin_name || "",
@@ -104,6 +105,23 @@ export default function SuperAdminTenantsPage() {
       // Dias de prueba que le quedan (se edita solo mientras esta en prueba; vacio = no se cambia).
       trial_days_left: t.status === "trial" && t.trial_ends_at ? daysLeft(t.trial_ends_at) : "",
     });
+  };
+
+  // Restaura la cuenta del administrador (si se eliminó a sí mismo o se perdió su acceso): crea de nuevo su usuario y perfil y le manda el correo con una clave temporal.
+  const [restaurando, setRestaurando] = useState(false);
+  const [restaurado, setRestaurado] = useState<{ email: string; clave: string; correo: boolean } | null>(null);
+  const restaurarAdmin = async () => {
+    if (!editingTenant) return;
+    if (!window.confirm(`¿Restaurar el acceso del administrador de "${editingTenant.name}" (${editingTenant.admin_email})? Se vuelve a crear su cuenta con una clave temporal y se le envía por correo. No se toca nada del negocio.`)) return;
+    setRestaurando(true);
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${editingTenant.id}/restaurar-admin`, { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(d?.error || "No se pudo restaurar", "error"); return; }
+      setRestaurado({ email: d.email, clave: d.temp_password, correo: !!d.correoEnviado });
+      showToast(d.correoEnviado ? "Cuenta restaurada y correo enviado" : "Cuenta restaurada (el correo no salió: pásale la clave tú)", d.correoEnviado ? "success" : "error");
+      fetchTenants();
+    } finally { setRestaurando(false); }
   };
 
   const saveEdit = async () => {
@@ -751,6 +769,19 @@ export default function SuperAdminTenantsPage() {
                 <input type="checkbox" className="mt-0.5 h-4 w-4" checked={!!editForm.kiosk_unlocked} onChange={(e) => setEditForm({ ...editForm, kiosk_unlocked: e.target.checked })} />
                 <span className="text-sm"><span className="block font-medium text-brand-dark">Tótem de autoatención (servicio aparte)</span><span className="text-xs text-brand-gray">Servicio con costo mensual. Si está desmarcado, el negocio no ve la opción y su tótem no abre.</span></span>
               </label>
+              {/* Acceso del administrador: si se eliminó o perdió su cuenta, se vuelve a crear sin tocar los datos del negocio. */}
+              <div className="rounded-xl border border-gray-200 p-3">
+                <p className="text-sm font-medium text-brand-dark">Acceso del administrador</p>
+                <p className="mt-0.5 text-xs text-brand-gray">Si {editingTenant.admin_email || "el administrador"} se eliminó o no puede entrar, esto vuelve a crear su cuenta con una clave temporal y se la envía por correo.</p>
+                <button type="button" onClick={restaurarAdmin} disabled={restaurando} className="mt-2 rounded-lg border border-brand-blue px-3 py-1.5 text-xs font-semibold text-brand-blue hover:bg-brand-blue/5 disabled:opacity-50">
+                  {restaurando ? "Restaurando…" : "Restaurar acceso del administrador"}
+                </button>
+                {restaurado && (
+                  <p className="mt-2 rounded-lg bg-green-50 p-2 text-xs text-green-800">
+                    Listo: <b>{restaurado.email}</b>. {restaurado.correo ? "Se le envió el correo con sus datos." : "El correo no salió."} Clave temporal: <code className="font-mono">{restaurado.clave}</code>
+                  </p>
+                )}
+              </div>
             </div>
             <div className="flex gap-2 pt-4">
               <button onClick={() => setEditingTenant(null)}

@@ -200,19 +200,27 @@ export default function BarberosPage() {
                 <td className="p-4">{b.email || "-"}</td>
                 <td className="p-4">{b.phone || "-"}</td>
                 <td className="p-4 text-right">
-                  {!scheduleOnly && (
+                  {!scheduleOnly && b.role === "admin" && (
+                    <span className="text-[11px] text-gray-400" title="La cuenta del administrador no se puede desactivar ni eliminar">Administrador de la cuenta</span>
+                  )}
+                  {!scheduleOnly && b.role !== "admin" && (
                   <button onClick={async (e) => {
                     e.stopPropagation();
                     // This only deactivates (hides from agenda/booking) — it does NOT
                     // free up the email. Use "Eliminar definitivamente" in the
                     // inactive list below for that.
                     if (!confirm(`Desactivar a "${b.name}"? Ya no aparecera en agenda ni booking. Su cuenta y correo seguiran existiendo; si quieres liberar el correo, luego usa "Eliminar definitivamente" en la lista de inactivos.`)) return;
-                    await fetch(`/api/barberos/${b.id}`, {
+                    const res = await fetch(`/api/barberos/${b.id}`, {
                       method: "PATCH",
                       headers: { "Content-Type": "application/json" },
                       body: JSON.stringify({ active: false }),
                     });
-                    showToast("Profesional desactivado", "success");
+                    if (!res.ok) {
+                      const d = await res.json().catch(() => ({}));
+                      showToast(d?.error || "No se pudo desactivar", "error");
+                      return;
+                    }
+                    showToast("Profesional desactivado. Lo encuentras abajo, en «Profesionales desactivados», para reactivarlo cuando quieras.", "success");
                     fetchBarbers();
                   }} className="px-3 py-1 text-xs border border-red-200 text-red-600 rounded-lg hover:bg-red-50">
                     Desactivar
@@ -248,16 +256,23 @@ export default function BarberosPage() {
                   </div>
                   <div className="flex gap-2 flex-shrink-0">
                     <button onClick={async () => {
-                      await fetch(`/api/barberos/${b.id}`, {
+                      const res = await fetch(`/api/barberos/${b.id}`, {
                         method: "PATCH",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({ active: true }),
                       });
+                      if (!res.ok) {
+                        // Por ejemplo: el plan ya no tiene un asiento libre (Basic = 1 profesional). Se explica en vez de decir «reactivado».
+                        const d = await res.json().catch(() => ({}));
+                        showToast(d?.error || "No se pudo reactivar", "error");
+                        return;
+                      }
                       showToast("Profesional reactivado", "success");
                       fetchBarbers();
                     }} className="px-3 py-1 text-xs border border-green-200 text-green-700 rounded-lg hover:bg-green-50">
                       Reactivar
                     </button>
+                    {b.role !== "admin" && (
                     <button onClick={async () => {
                       if (!confirm(`Eliminar DEFINITIVAMENTE a "${b.name}" (${b.email})? Esto libera su correo para poder reusarlo. Solo se puede si no tiene citas, ventas ni comisiones registradas. Esta accion no se puede deshacer.`)) return;
                       const res = await fetch(`/api/barberos/${b.id}`, { method: "DELETE" });
@@ -271,6 +286,7 @@ export default function BarberosPage() {
                     }} className="px-3 py-1 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700">
                       Eliminar definitivamente
                     </button>
+                    )}
                   </div>
                 </div>
               ))}
