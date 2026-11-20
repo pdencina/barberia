@@ -124,6 +124,20 @@ export default function SuperAdminTenantsPage() {
     } finally { setRestaurando(false); }
   };
 
+  // Reenvía el acceso (clave temporal nueva + correo) a un administrador que nunca ha entrado.
+  const reenviarAcceso = async () => {
+    if (!editingTenant) return;
+    if (!window.confirm(`¿Reenviar el acceso a ${editingTenant.admin_email}? Se le pone una clave temporal nueva y se le manda el correo con sus datos y los links de la app. Solo funciona si nunca ha entrado.`)) return;
+    setRestaurando(true);
+    try {
+      const res = await fetch(`/api/superadmin/tenants/${editingTenant.id}/restaurar-admin`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accion: "reenviar" }) });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) { showToast(d?.error || "No se pudo reenviar", "error"); return; }
+      setRestaurado({ email: d.email, clave: d.temp_password, correo: !!d.correoEnviado });
+      showToast(d.correoEnviado ? "Acceso reenviado" : "No salió el correo: pásale la clave tú", d.correoEnviado ? "success" : "error");
+    } finally { setRestaurando(false); }
+  };
+
   const saveEdit = async () => {
     if (!editingTenant) return;
     setSavingEdit(true);
@@ -774,7 +788,10 @@ export default function SuperAdminTenantsPage() {
                 <p className="text-sm font-medium text-brand-dark">Acceso del administrador</p>
                 <p className="mt-0.5 text-xs text-brand-gray">Si {editingTenant.admin_email || "el administrador"} se eliminó o no puede entrar, esto vuelve a crear su cuenta con una clave temporal y se la envía por correo.</p>
                 <button type="button" onClick={restaurarAdmin} disabled={restaurando} className="mt-2 rounded-lg border border-brand-blue px-3 py-1.5 text-xs font-semibold text-brand-blue hover:bg-brand-blue/5 disabled:opacity-50">
-                  {restaurando ? "Restaurando…" : "Restaurar acceso del administrador"}
+                  {restaurando ? "Procesando…" : "Restaurar acceso del administrador"}
+                </button>
+                <button type="button" onClick={reenviarAcceso} disabled={restaurando} className="ml-2 mt-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-brand-dark hover:bg-gray-50 disabled:opacity-50" title="Para quien nunca ha entrado: nueva clave temporal y correo con sus datos">
+                  Reenviar acceso (nunca ha entrado)
                 </button>
                 {restaurado && (
                   <p className="mt-2 rounded-lg bg-green-50 p-2 text-xs text-green-800">

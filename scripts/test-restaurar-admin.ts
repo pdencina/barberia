@@ -1,10 +1,10 @@
 // Restaurar la cuenta del administrador (si se elimino a si mismo). Uso: npx tsx scripts/test-restaurar-admin.ts
-import { restaurarAdmin, generarClaveTemporal } from "../src/lib/restaurar-admin";
+import { restaurarAdmin, reenviarAcceso, generarClaveTemporal } from "../src/lib/restaurar-admin";
 process.env.RESEND_API_KEY = "x";
 let fallos = 0;
 const ok = (c: boolean, n: string) => { if (!c) { fallos++; console.log("FALLA:", n); } else console.log("OK  ", n); };
 
-function fake(o: { tenant: any; admins?: any[]; usuarioExiste?: boolean }) {
+function fake(o: { tenant: any; admins?: any[]; usuarioExiste?: boolean; usuario?: any }) {
   const log: any = { perfil: null, tenantUpd: null, creado: null, claveActualizada: null, audit: 0 };
   const consulta = (tabla: string) => {
     const q: any = { _eq: {} as any, _op: "" };
@@ -20,6 +20,7 @@ function fake(o: { tenant: any; admins?: any[]; usuarioExiste?: boolean }) {
     from: (t: string) => consulta(t),
     auth: { admin: {
       createUser: async (a: any) => { log.creado = a; return o.usuarioExiste ? { data: null, error: { message: "A user with this email address has already been registered" } } : { data: { user: { id: "nuevo-id" } }, error: null }; },
+      getUserById: async () => ({ data: { user: o.usuario === undefined ? null : o.usuario } }),
       listUsers: async () => ({ data: { users: [{ id: "viejo-id", email: o.tenant.admin_email }] } }),
       updateUserById: async (id: string, a: any) => { log.claveActualizada = { id, ...a }; return { error: null }; },
     } },
@@ -61,5 +62,28 @@ const basic = { id: "t1", name: "Th_diamond", plan: "basic", status: "trial", ma
   ({ sb, log } = fake({ tenant: null }));
   r = await restaurarAdmin(sb, "t1");
   ok(!r.ok && (r as any).status === 404, "empresa inexistente");
+
+  // ---- Reenviar acceso: solo a quien NUNCA ha entrado ----
+  const admin = { id: "a1", email: "dueno@ejemplo.cl", active: true };
+  ({ sb, log } = fake({ tenant: basic, admins: [admin], usuario: { id: "a1", email: "dueno@ejemplo.cl", last_sign_in_at: null } }));
+  r = await reenviarAcceso(sb, "t1");
+  ok(r.ok && r.email === "dueno@ejemplo.cl" && log.claveActualizada?.id === "a1" && String(log.claveActualizada?.password).length >= 8, "reenviar: a quien nunca entró le pone una clave temporal nueva");
+  ok(log.tenantUpd?.must_change_password === true && !log.creado && !log.perfil, "reenviar: pide cambiar la clave y NO crea otra cuenta ni perfil");
+
+  ({ sb, log } = fake({ tenant: basic, admins: [admin], usuario: { id: "a1", email: "dueno@ejemplo.cl", last_sign_in_at: "2026-11-10T10:00:00Z" } }));
+  r = await reenviarAcceso(sb, "t1");
+  ok(!r.ok && (r as any).status === 409 && !log.claveActualizada, "reenviar: si ya entró alguna vez NO se toca su clave");
+
+  ({ sb, log } = fake({ tenant: basic, admins: [] }));
+  r = await reenviarAcceso(sb, "t1");
+  ok(!r.ok && (r as any).status === 409 && !log.claveActualizada, "reenviar: sin administrador activo se sugiere restaurar");
+
+  ({ sb, log } = fake({ tenant: basic, admins: [admin], usuario: null }));
+  r = await reenviarAcceso(sb, "t1");
+  ok(!r.ok && (r as any).status === 409, "reenviar: sin cuenta de acceso se sugiere restaurar");
+
+  ({ sb, log } = fake({ tenant: null }));
+  r = await reenviarAcceso(sb, "t1");
+  ok(!r.ok && (r as any).status === 404, "reenviar: empresa inexistente");
   process.exit(fallos ? 1 : 0);
 })();
