@@ -80,6 +80,16 @@ export async function PATCH(
   const supabase = createAdminSupabase();
   const body = await req.json();
 
+  // Si el administrador es el UNICO que atiende clientes, no puede dejar de atender: el negocio se quedaria sin nadie para reservar
+  // («No hay profesionales disponibles» en el link de reserva).
+  if (body.also_attends_clients === false) {
+    const { data: yo } = await supabase.from("profiles").select("role, tenant_id, also_attends_clients").eq("id", params.id).maybeSingle();
+    if (yo?.role === "admin" && yo.also_attends_clients) {
+      const { count: otros } = await supabase.from("profiles").select("id", { count: "exact", head: true }).eq("tenant_id", yo.tenant_id).eq("active", true).eq("role", "barber").neq("id", params.id);
+      if (!otros) return NextResponse.json({ error: "Eres la única persona que atiende en tu negocio: si dejas de atender, nadie podrá reservar contigo. Primero agrega a otro profesional." }, { status: 400 });
+    }
+  }
+
   // El administrador del negocio no se puede desactivar (se quedaria sin acceso). Solo Super admin puede.
   if (body.active === false && auth.role !== "super_admin") {
     const { data: objetivo } = await supabase.from("profiles").select("role").eq("id", params.id).maybeSingle();
