@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { esNegocioDeUnaPersona } from "@/lib/negocio-una-persona";
 import { createAdminSupabase, authorizeBarberManagement } from "@/lib/supabase/server";
 import { todayInChile, dateStrOffset, chileDayBoundsUtc } from "@/lib/utils";
 import { isLedgerEnabled } from "@/lib/ledger";
@@ -28,7 +29,7 @@ export async function GET(req: NextRequest) {
   // Get barber info
   const { data: barber } = await supabase
     .from("profiles")
-    .select("id, name, work_mode, commission_rate, rental_daily_rate, tenant_id")
+    .select("id, name, role, work_mode, commission_rate, rental_daily_rate, tenant_id")
     .eq("id", barberId)
     .single();
 
@@ -78,6 +79,9 @@ export async function GET(req: NextRequest) {
   // Calculate earnings based on mode
   let earned = 0;
   let mode = barber.work_mode || "commission";
+  // Dueño de un negocio de una sola persona: no paga comision ni arriendo (todo lo que vende es suyo).
+  const soloDueno = (barber as any).role === "admin" && (await esNegocioDeUnaPersona(supabase, (barber as any).tenant_id));
+  if (soloDueno) mode = "rental";
 
   if (mode === "commission") {
     const rate = barber.commission_rate || 40;
@@ -202,7 +206,7 @@ export async function GET(req: NextRequest) {
   }));
 
   return NextResponse.json({
-    barber: { name: barber.name, mode, commissionRate: barber.commission_rate, rentalRate: barber.rental_daily_rate },
+    barber: { name: barber.name, mode, commissionRate: barber.commission_rate, rentalRate: soloDueno ? 0 : barber.rental_daily_rate, soloDueno },
     month: {
       earned,
       totalSales,

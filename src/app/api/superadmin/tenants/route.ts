@@ -156,7 +156,7 @@ export async function POST(req: NextRequest) {
       tenant_id: tenant.id,
       active: true,
       // En un negocio de un solo profesional (Lite, Basic) el dueño es quien atiende: aparece en la agenda y se puede reservar con él.
-      ...(maxProfessionals <= 1 ? { also_attends_clients: true } : {}),
+      ...(maxProfessionals <= 1 ? { also_attends_clients: true, work_mode: "rental", rental_daily_rate: 0 } : {}),
     });
   }
 

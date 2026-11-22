@@ -61,7 +61,7 @@ export async function POST(req: NextRequest) {
       tenant_id: tenant.id,
       role: "admin",
       phone: phone || null,
-      ...(Number(professionals) === 1 ? { also_attends_clients: true } : {}), // trabaja solo: el dueño es el profesional
+      ...(Number(professionals) === 1 ? { also_attends_clients: true, work_mode: "rental", rental_daily_rate: 0 } : {}), // trabaja solo: el dueño es el profesional
     })
     .eq("id", authData.user.id);
 

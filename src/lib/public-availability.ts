@@ -1,4 +1,5 @@
 import { fetchAllRows } from "@/lib/accounting";
+import { esNegocioDeUnaPersona, limitarPorNegocio } from "@/lib/negocio-una-persona";
 import { NextRequest, NextResponse } from "next/server";
 import { loadBreaks, breaksForDay, type BreakItem } from "@/lib/breaks";
 import { createAdminSupabase } from "@/lib/supabase/server";
@@ -57,6 +58,16 @@ export async function publicAvailability(req: NextRequest, own?: { appointmentId
     openTime = barberSchedule.start_time || "10:00";
     closeTime = barberSchedule.end_time || "20:00";
     dayBreaks = breaksForDay(await loadBreaks(supabase, [barberId]), barberId, { day_of_week: dayOfWeek, ...(barberSchedule as any) });
+    // Negocio de una sola persona: manda el horario del negocio que configuro el dueño (si el dia esta cerrado, no hay horas; si cierra antes, se recorta).
+    try {
+      const { data: perfilNegocio } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).maybeSingle();
+      if (await esNegocioDeUnaPersona(supabase, perfilNegocio?.tenant_id)) {
+        const { data: filaNegocio } = await supabase.from("business_hours").select("is_closed, open_time, close_time").eq("tenant_id", perfilNegocio!.tenant_id).eq("day_of_week", dayOfWeek).maybeSingle();
+        const lim = limitarPorNegocio({ open: String(openTime).slice(0, 5), close: String(closeTime).slice(0, 5) }, filaNegocio as any);
+        if (lim.closed) return NextResponse.json({ slots: [], date, barberId, closed: true });
+        openTime = lim.open; closeTime = lim.close;
+      }
+    } catch { /* si no se puede revisar el horario del negocio, rige el del profesional como siempre */ }
   } else {
     // Fallback to tenant's business hours
     // Get barber's tenant
