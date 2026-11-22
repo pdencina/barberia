@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, canAccessBarber } from "@/lib/supabase/server";
 import { loadBreaks, breaksForDay } from "@/lib/breaks";
+import { horarioInicial } from "@/lib/horario-inicial";
 
 // GET: Get schedule for a barber
 export async function GET(req: NextRequest) {
@@ -19,18 +20,14 @@ export async function GET(req: NextRequest) {
     .eq("barber_id", barberId)
     .order("day_of_week");
 
-  // If no schedule exists, return defaults (all days working 10-20)
+  // Sin horario guardado: se propone el HORARIO DEL NEGOCIO (si lo tiene) y, si no, lunes a sabado de 10 a 20.
   if (!data || data.length === 0) {
-    const defaults = Array.from({ length: 7 }, (_, i) => ({
-      barber_id: barberId,
-      day_of_week: i,
-      is_working: i !== 0, // Sunday off by default
-      start_time: "10:00",
-      end_time: "20:00",
-      break_start: null,
-      break_end: null,
-    }));
-    return NextResponse.json(defaults.map((d) => ({ ...d, breaks: [] })));
+    let negocio: any[] = [];
+    try {
+      const { data: perfil } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).maybeSingle();
+      if (perfil?.tenant_id) negocio = ((await supabase.from("business_hours").select("day_of_week, is_closed, open_time, close_time").eq("tenant_id", perfil.tenant_id)).data as any[]) || [];
+    } catch { /* sin horario del negocio se usan los de siempre */ }
+    return NextResponse.json(horarioInicial(barberId, negocio).map((d) => ({ ...d, breaks: [] })));
   }
 
   const table = await loadBreaks(supabase, [barberId]);

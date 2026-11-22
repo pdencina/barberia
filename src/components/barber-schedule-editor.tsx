@@ -102,6 +102,9 @@ export function BarberScheduleEditor({ barberId, showToast }: { barberId: string
 
   return (
     <div className="space-y-2.5">
+      <p className="rounded-xl bg-brand-blue/5 px-3 py-2 text-xs text-brand-gray">
+        Este es el horario con el que tus clientes pueden reservar. Revisa las horas de cada día: <b>lo que dejes abierto aquí aparece como disponible en tu link de reserva</b>, aunque el «Horario del negocio» de Configuración sea más corto.
+      </p>
       {dayOrder.map((dow) => {
         const day = byDow.get(dow);
         if (!day) return null;
