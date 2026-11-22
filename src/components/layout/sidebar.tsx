@@ -181,7 +181,7 @@ interface SidebarProps {
 // to redirect a waitlist to). Arriendo (chair rental) is NOT hidden anymore: an
 // independent professional (like Saray) rents her own chair and needs to track it —
 // hiding it left her without a way to manage her rental.
-const SOLO_BUSINESS_HIDDEN_ROUTES = ["/dashboard/recepcion", "/dashboard/waitlist"];
+const SOLO_BUSINESS_HIDDEN_ROUTES = ["/dashboard/recepcion", "/dashboard/waitlist", "/dashboard/comisiones", "/dashboard/arriendo"]; // un negocio de una sola persona no tiene equipo al que pagar comision ni arriendo
 
 // Ocultas temporalmente a pedido de Pablo (2026-09-23): no se borra nada del codigo,
 // solo se saca de la navegacion. Facil de revertir quitando la ruta de esta lista.

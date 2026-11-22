@@ -11,4 +11,6 @@ ok(pag.includes("Dueño del negocio") && /data\.solo_dueno \?/.test(pag), "en ve
 const bil = leer("src/app/api/wallet/route.ts");
 ok(bil.includes("if (soloDueno) mode = \"rental\"") && bil.includes("soloDueno"), "Mi Billetera: el dueño solo se queda con el 100% (sin comisión)");
 for (const f of ["src/lib/tenant-provisioning.ts", "src/app/api/superadmin/tenants/route.ts", "src/app/api/auth/signup-business/route.ts"]) ok(/work_mode: "rental", rental_daily_rate: 0/.test(leer(f)), `${f}: el dueño de un negocio de 1 profesional nace sin comisión ni arriendo`);
+const menu = leer("src/components/layout/sidebar.tsx");
+ok(/SOLO_BUSINESS_HIDDEN_ROUTES = \[[^\]]*"\/dashboard\/comisiones"[^\]]*"\/dashboard\/arriendo"/.test(menu), "el menú oculta Comisiones y Arriendo en un negocio de una sola persona");
 process.exit(fallos ? 1 : 0);
