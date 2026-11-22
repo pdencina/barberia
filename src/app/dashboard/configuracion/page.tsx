@@ -670,6 +670,14 @@ export default function ConfiguracionPage() {
         </a>
       )}
 
+      {/* Herramientas avanzadas: juntas en un solo desplegable para no llenar la pantalla */}
+      {isAdmin && (totemDesbloqueado || puedeCfg("boletaSii") || puedeCfg("honorarios") || puedeCfg("publicidad") || puedeCfg("agenteWhatsapp")) && (
+      <details className="group rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between p-4">
+          <span><span className="block font-bold text-brand-dark">Más herramientas</span><span className="block text-xs text-brand-gray">Tótem, boletas, publicidad y WhatsApp</span></span>
+          <span className="text-xs font-semibold text-brand-blue group-open:hidden">Ver →</span>
+        </summary>
+        <div className="space-y-2 p-3 pt-0">
       {/* Tótem de autoatención (migración 162): apagado por defecto */}
       {isAdmin && totemDesbloqueado && (
         <a href="/dashboard/configuracion/totem" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
@@ -682,9 +690,6 @@ export default function ConfiguracionPage() {
         </a>
       )}
 
-      </div>
-
-      <div className={tab === "negocio" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Boleta electronica SII del negocio (migracion 116, apagada por defecto) */}
       {isAdmin && puedeCfg("boletaSii") && (
         <a href="/dashboard/configuracion/boleta-sii" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
@@ -744,6 +749,9 @@ export default function ConfiguracionPage() {
         </a>
       )}
 
+        </div>
+      </details>
+      )}
       </div>
 
       <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>

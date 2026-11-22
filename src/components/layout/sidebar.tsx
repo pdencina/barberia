@@ -114,39 +114,39 @@ const sections: NavSection[] = [
     ],
   },
   {
-    // Equipo, sucursales, configuracion y la cuenta personal.
-    title: "Negocio",
+    // Las personas: profesionales y todo lo que se les paga o descansan.
+    title: "Equipo",
     items: [
       { name: "Profesionales", href: "/dashboard/barberos", icon: Scissors, minRole: "admin" },
-      { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin", cap: "sucursales" },
-      { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin", liteOnly: true },
-      { name: "Ocupación", href: "/dashboard/ocupacion", icon: Gauge, minRole: "admin", basicLocked: true },
+      { name: "Vacaciones", href: "/dashboard/vacaciones", icon: Plane, minRole: "admin", onlyRoles: ["admin", "super_admin"] },
       { name: "Mis vacaciones", href: "/dashboard/vacaciones", icon: Plane, minRole: "barber", onlyRoles: ["barber"] },
-      {
-        name: "Mi negocio", href: "/dashboard/mi-negocio", icon: Briefcase, minRole: "admin",
-        // Fase 6: lo que se administra del negocio, junto en un solo menu.
-        children: [
-          { name: "Vacaciones", href: "/dashboard/vacaciones", icon: Plane, minRole: "admin" },
-          { name: "Comisiones", href: "/dashboard/comisiones", icon: Percent, minRole: "barber", feature: "commissions", basicLocked: true },
-          { name: "Arriendo", href: "/dashboard/arriendo", icon: KeyRound, minRole: "admin", feature: "rental", basicLocked: true },
-          { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
-          { name: "Proveedores", href: "/dashboard/proveedores", icon: Truck, minRole: "admin", basicLocked: true },
-          { name: "Mensajes de WhatsApp", href: "/dashboard/mi-negocio/mensajes", icon: MessageCircle, minRole: "admin" },
-          { name: "Remuneraciones", href: "/dashboard/remuneraciones", icon: FileText, minRole: "super_admin" }, // oculto a los negocios hasta terminar las pruebas
-        ],
-      },
+      { name: "Comisiones", href: "/dashboard/comisiones", icon: Percent, minRole: "barber", feature: "commissions", basicLocked: true },
+      { name: "Arriendo", href: "/dashboard/arriendo", icon: KeyRound, minRole: "admin", feature: "rental", basicLocked: true },
+      { name: "Ocupación", href: "/dashboard/ocupacion", icon: Gauge, minRole: "admin", basicLocked: true },
+      { name: "Remuneraciones", href: "/dashboard/remuneraciones", icon: FileText, minRole: "super_admin" }, // oculto a los negocios hasta terminar las pruebas
+    ],
+  },
+  {
+    // Lo que ofreces y con qué: servicios, productos, proveedores, sucursales y la configuración.
+    title: "Mi negocio",
+    items: [
+      { name: "Servicios", href: "/dashboard/servicios", icon: Tag, minRole: "admin" },
+      { name: "Inventario", href: "/dashboard/inventario", icon: Package, minRole: "admin", feature: "inventory" },
+      { name: "Proveedores", href: "/dashboard/proveedores", icon: Truck, minRole: "admin", basicLocked: true },
+      { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin", cap: "sucursales" },
+      { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin", feature: "pos", basicLocked: true },
+      { name: "Mensajes de WhatsApp", href: "/dashboard/mi-negocio/mensajes", icon: MessageCircle, minRole: "admin" },
       { name: "Precios", href: "/dashboard/precios", icon: Tag, minRole: "super_admin" },
       { name: "Galería", href: "/dashboard/galeria", icon: Image, minRole: "admin" },
       { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin", basicLocked: true, cap: "cobrosOnline" },
-      {
-        name: "Configuración", href: "/dashboard/configuracion", icon: Settings, minRole: "admin",
-        // Terminal POS e Inventario son hijos de Configuracion (Comisiones, Arriendo, Servicios y Proveedores ahora viven en Mi negocio).
-        children: [
-          { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin", feature: "pos", basicLocked: true },
-          { name: "Inventario", href: "/dashboard/inventario", icon: Package, minRole: "admin", feature: "inventory" },
-          { name: "Plan y facturación", href: "/dashboard/configuracion/facturacion", icon: CreditCard, minRole: "admin" },
-        ],
-      },
+      { name: "Configuración", href: "/dashboard/configuracion", icon: Settings, minRole: "admin" },
+      { name: "Plan y facturación", href: "/dashboard/configuracion/facturacion", icon: CreditCard, minRole: "admin" },
+    ],
+  },
+  {
+    // Lo personal de cada usuario.
+    title: "Mi cuenta",
+    items: [
       { name: "Avisos", href: "/dashboard/avisos", icon: Bell, minRole: "barber" },
       { name: "Mi Perfil", href: "/dashboard/mi-perfil", icon: UserCircle, minRole: "barber" },
       { name: "Ayuda y soporte", href: "/dashboard/soporte", icon: LifeBuoy, minRole: "barber" },
