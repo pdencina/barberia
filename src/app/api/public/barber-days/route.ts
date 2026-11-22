@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { vacationDates } from "@/lib/vacations";
+import { esNegocioDeUnaPersona } from "@/lib/negocio-una-persona";
 import { todayInChile, dateStrOffset } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -30,11 +31,13 @@ export async function GET(req: NextRequest) {
     hours = data || [];
   }
 
+  // Negocio de una sola persona: un dia que el negocio cerro tampoco se ofrece, aunque el horario del profesional lo tenga abierto.
+  const unaPersona = await esNegocioDeUnaPersona(supabase, profile?.tenant_id);
   const closedDays: number[] = [];
   for (let day = 0; day < 7; day++) {
     const own = (schedule || []).find((s) => s.day_of_week === day);
     if (own) {
-      if (!own.is_working) closedDays.push(day);
+      if (!own.is_working || (unaPersona && hours.find((h) => h.day_of_week === day)?.is_closed)) closedDays.push(day);
       continue;
     }
     if (hours.find((h) => h.day_of_week === day)?.is_closed) closedDays.push(day);
