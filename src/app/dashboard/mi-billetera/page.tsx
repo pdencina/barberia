@@ -21,7 +21,7 @@ interface WalletMovement {
 }
 
 interface WalletData {
-  barber: { name: string; mode: string; commissionRate: number; rentalRate: number };
+  barber: { name: string; mode: string; commissionRate: number; rentalRate: number; soloDueno?: boolean };
   month: { earned: number; totalSales: number; projected: number; projectedFromAppts: number; txCount: number; upcomingAppts: number; tips?: number };
   today: { earnings: number; sales: number; tips?: number };
   dailyEarnings: Array<{ day: string; amount: number }>;
@@ -283,7 +283,9 @@ export default function MiBilleteraPage() {
       {/* Info */}
       <div className="bg-brand-blue/5 border border-brand-blue/20 rounded-2xl p-4 text-xs text-brand-blue">
         <p className="font-medium mb-1">Como se calcula?</p>
-        {data.barber.mode === "commission" ? (
+        {data.barber.soloDueno ? (
+          <p>Eres el dueño y atiendes solo: todo lo que vendes es tuyo, sin comisión ni arriendo. La proyeccion se basa en las citas ya agendadas para el resto del mes.</p>
+        ) : data.barber.mode === "commission" ? (
           <p>Tu ganancia es el {data.barber.commissionRate}% de cada venta que realizas. La proyeccion se basa en las citas ya agendadas para el resto del mes.</p>
         ) : (
           <p>Como profesional en arriendo, tus ventas son tuyas. El arriendo de estacion se descuenta por separado en el cierre mensual.</p>

@@ -30,6 +30,7 @@ interface Professional {
   active: boolean;
   avatar_url: string | null;
   role: string;
+  solo_dueno?: boolean; // dueño de un negocio de una sola persona: no se le pregunta por comisión ni arriendo
 }
 
 
@@ -270,11 +271,15 @@ export default function EditProfessionalPage() {
         </div>
         <div>
           <h1 className="text-xl font-bold text-gray-900">{data.name}</h1>
-          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-            data.work_mode === "commission" ? "bg-purple-100 text-purple-700" : "bg-orange-100 text-orange-700"
-          }`}>
-            {data.work_mode === "commission" ? "Comisión" : "Arriendo"}
-          </span>
+          {data.solo_dueno ? (
+            <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-700">Dueño del negocio</span>
+          ) : (
+            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+              data.work_mode === "commission" ? "bg-purple-100 text-purple-700" : "bg-orange-100 text-orange-700"
+            }`}>
+              {data.work_mode === "commission" ? "Comisión" : "Arriendo"}
+            </span>
+          )}
         </div>
       </div>
 
@@ -282,7 +287,7 @@ export default function EditProfessionalPage() {
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist">
         {([
           { key: "datos", label: "Datos personales", show: true },
-          { key: "trabajo", label: "Modalidad de trabajo", show: !isReceptionistProfile },
+          { key: "trabajo", label: "Modalidad de trabajo", show: !isReceptionistProfile && !data.solo_dueno },
           { key: "horario", label: "Horario", show: !isReceptionistProfile },
           { key: "servicios", label: "Servicios", show: !isReceptionistProfile },
           { key: "presentacion", label: "Presentación", show: !isReceptionistProfile },

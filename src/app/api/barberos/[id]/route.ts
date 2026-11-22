@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, authorizeBarberManagement, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { slugify } from "@/lib/utils";
 import { pinWriteFields } from "@/lib/pin";
+import { esNegocioDeUnaPersona } from "@/lib/negocio-una-persona";
 import { cambioUsaAsiento, puedeAgregarAsiento, MENSAJE_SIN_ASIENTOS } from "@/lib/seats";
 
 
@@ -61,7 +62,9 @@ export async function GET(
   }
   // Nunca se manda al navegador la huella del PIN ni la clave temporal.
   const { personal_pin_hash: _h, temp_password: _t, ...safe } = data as any;
-  return NextResponse.json({ ...safe, booking_slug: bookingSlug, tenant_slug: tenantSlug });
+  // Dueño de un negocio de una sola persona: todo lo que vende es suyo, así que la pantalla no le pregunta por comisión ni arriendo.
+  const soloDueno = (data as any).role === "admin" && !!(data as any).also_attends_clients && (await esNegocioDeUnaPersona(supabase, data.tenant_id));
+  return NextResponse.json({ ...safe, booking_slug: bookingSlug, tenant_slug: tenantSlug, solo_dueno: soloDueno });
 }
 
 // PATCH: Update professional profile (mode, rates, etc.)
