@@ -11,6 +11,7 @@ import { buscarAyuda } from "@/lib/oti/buscar";
 import { entenderBloqueo, etiquetaFecha, type MiembroEquipo, type PedidoBloqueo } from "@/lib/oti/bloqueo";
 import { CATALOGO, type EntradaOti } from "@/lib/oti/catalogo";
 import { norm } from "@/lib/oti/texto";
+import { PIDE_DIAGNOSTICO } from "@/lib/oti/diagnostico";
 import { entenderConsulta, NOMBRE_MEDIO, periodo, type ConsultaOti } from "@/lib/oti/consulta";
 import { useOtiVisible, ocultarOti, mostrarOti, leerPosicion, guardarPosicion, type PosicionOti } from "@/lib/oti/visibilidad";
 import { MEDIOS_PAGO_NEGOCIO, pareceDelNegocio } from "@/lib/oti/negocio";
@@ -36,6 +37,9 @@ const SUGERENCIAS = [
   { titulo: "Anotar un ingreso personal", frase: "Recibí $ por " },
   { titulo: "Ver mis gastos del mes", frase: "¿Cuánto gasté este mes?" },
   { titulo: "Dejar una nota", frase: "Recuérdame ", soloAdmin: true },
+  { titulo: "Revisar por qué no pueden reservar", frase: "Mis clientes no pueden reservar", soloAdmin: true },
+  { titulo: "¿Cuánto vendimos ayer?", frase: "¿Cuánto vendimos ayer?", soloAdmin: true },
+  { titulo: "¿Cómo vendo más?", frase: "¿Cómo puedo vender más?", soloAdmin: true },
 ];
 // Ejemplos de pedidos de cierre: se muestran mientras la persona escribe algo parecido.
 const EJEMPLOS_CIERRE = ["Cierra mañana mi agenda", "Cierra el domingo mi agenda", "Cierra del 28 al 30 de octubre mi agenda"];
@@ -281,6 +285,16 @@ export function OtiWidget() {
       }
       setFaltaMonto(null);
 
+      // «Mis clientes no pueden reservar»: Oti revisa el negocio (solo administrador) y dice que encontro. Solo lee, no cambia nada.
+      if (esAdmin && PIDE_DIAGNOSTICO.test(norm(pregunta))) {
+        setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "Déjame revisar tu negocio…" }]);
+        try {
+          const res = await fetch("/api/oti/diagnostico", { cache: "no-store" });
+          const d = await res.json().catch(() => ({}));
+          setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: res.ok ? d.texto : (d?.error || "No pude revisarlo ahora. Intenta de nuevo.") }]);
+        } catch { setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto: "No pude conectar. Revisa tu conexión e intenta de nuevo." }]); }
+        return;
+      }
       // 0) ¿Es una pregunta de cifras del negocio? Solo administrador; el servidor lo vuelve a validar (negocio y rol salen de la sesión).
       const eq = await cargarEquipo();
       const cons = entenderConsulta(pregunta, todayInChile(), eq);
