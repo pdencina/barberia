@@ -27,6 +27,7 @@ import { BusinessQuoteNote } from "@/components/dashboard/business-quote-note";
 import { SuperAdminDashboard } from "@/components/dashboard/superadmin-dashboard";
 import { BirthdaysCard } from "@/components/dashboard/birthdays-card";
 import { AvisoCorreos } from "@/components/dashboard/aviso-correos";
+import { ChecklistInicial } from "@/components/dashboard/checklist-inicial";
 import { SupplyRequestsCard } from "@/components/dashboard/supply-requests-card";
 import { ProblemReportsCard } from "@/components/dashboard/problem-reports-card";
 import { BookingRuleCard } from "@/components/dashboard/booking-rule-card";
@@ -379,6 +380,7 @@ export default function DashboardPage() {
 
       {/* Aviso discreto cuando los correos del mes se estan agotando (administrador y recepcionista) */}
       {isAtLeast("receptionist") && <AvisoCorreos />}
+      {effectiveRole === "admin" && <ChecklistInicial />}
 
       {/* Stat Cards: Ventas destacada + 4 metricas */}
       <div className={`grid grid-cols-2 gap-2.5 md:grid-cols-3 md:gap-3 ${conVentas ? (conFrecuencia ? "lg:grid-cols-[minmax(0,2fr)_repeat(5,minmax(0,1fr))]" : "lg:grid-cols-[minmax(0,2fr)_repeat(4,minmax(0,1fr))]") : (conFrecuencia ? "lg:grid-cols-5" : "lg:grid-cols-4")}`}>
