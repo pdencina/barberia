@@ -30,17 +30,17 @@ t("«pagar comisiones» -> comisiones", top("pagar comisiones") === "comisiones"
 t("«marcar el arriendo como pagado» -> arriendo", top("quiero pagar el arriendo") === "arriendo");
 // variaciones de conjugacion y plural (lo que de verdad escribe la gente)
 t("«¿Cómo cambio el precio de un servicio?» (la sugerencia del panel) -> guia de servicios", top("¿Cómo cambio el precio de un servicio?") === "t-crear-servicio");
-t("«como agrego un profesional» -> equipo", top("como agrego un profesional") === "equipo");
-t("«como creo un cupon» -> cupones", top("como creo un cupon") === "cupones");
+t("«como agrego un profesional» -> equipo", ["equipo", "k-agregar-profesional"].includes(top("como agrego un profesional") as string));
+t("«como creo un cupon» -> cupones", ["cupones", "k-crear-cupon"].includes(top("como creo un cupon") as string));
 t("«como bloqueo un dia» -> bloquear", top("como bloqueo un dia") === "bloquear");
-t("«como invito a un profesional» -> equipo", top("como invito a un profesional") === "equipo");
+t("«como invito a un profesional» -> equipo", ["equipo", "k-agregar-profesional"].includes(top("como invito a un profesional") as string));
 t("«donde veo mis comisiones» -> comisiones", top("donde veo mis comisiones") === "comisiones");
 t("«como configuro mercadopago» -> mercadopago", top("como configuro mercadopago") === "mercadopago");
 t("«como envio una boleta» -> boletas", top("como envio una boleta") === "boletas");
-t("«cambiar el plan» -> plan", top("quiero cambiar mi plan") === "plan");
+t("«cambiar el plan» -> plan", ["plan", "k-cambiar-plan"].includes(top("quiero cambiar mi plan") as string));
 t("las tres sugerencias del panel encuentran respuesta o son un pedido de bloqueo", ["¿Cómo agrego MercadoPago?", "¿Cómo cambio el precio de un servicio?"].every((q) => buscarAyuda(q).length > 0));
 t("«como cobro con debito» -> punto de venta", top("como cobro con debito") === "pos");
-t("«como cierro el mes» -> cierre mensual (y no es un bloqueo)", top("como cierro el mes") === "cierre-mensual" && pide("como cierro el mes") === null);
+t("«como cierro el mes» -> cierre mensual (y no es un bloqueo)", ["cierre-mensual", "k-informe-fin-de-mes"].includes(top("como cierro el mes") as string) && pide("como cierro el mes") === null);
 t("«quiero ver mis ventas» -> ingresos y egresos", top("quiero ver mis ventas") === "finanzas");
 t("«como cancelo una cita» -> guia de cancelar", top("como cancelo una cita") === "t-cancelar-mover-cita");
 // ---------- cobertura del menu: Oti debe conocer TODAS las pantallas del menu (menos las del equipo de re-booking) ----------
@@ -161,7 +161,7 @@ t("«donde esta mi link para que reserven» -> t-reserva-online-link", top("dond
 t("«mis clientes dicen que no aparecen horas para reservar» -> t-cliente-no-puede-reservar", top("mis clientes dicen que no aparecen horas para reservar") === "t-cliente-no-puede-reservar", String(top("mis clientes dicen que no aparecen horas para reservar")));
 t("«quiero cambiar los colores de la pagina de reservas» -> t-colores-reserva", top("quiero cambiar los colores de la pagina de reservas") === "t-colores-reserva", String(top("quiero cambiar los colores de la pagina de reservas")));
 t("«olvide mi clave y no puedo entrar» -> t-iniciar-sesion", top("olvide mi clave y no puedo entrar") === "t-iniciar-sesion", String(top("olvide mi clave y no puedo entrar")));
-t("«tengo una planilla con mis clientes en excel» -> t-importar-clientes", top("tengo una planilla con mis clientes en excel") === "t-importar-clientes", String(top("tengo una planilla con mis clientes en excel")));
+t("«tengo una planilla con mis clientes en excel» -> t-importar-clientes", ["t-importar-clientes", "k-importar-clientes"].includes(top("tengo una planilla con mis clientes en excel") as string), String(top("tengo una planilla con mis clientes en excel")));
 t("«la caja no cuadra, falta plata» -> t-caja-descuadre", top("la caja no cuadra, falta plata") === "t-caja-descuadre", String(top("la caja no cuadra, falta plata")));
 t("«como hago para llenar la agenda, tengo horas libres» -> t-mas-clientes", top("como hago para llenar la agenda, tengo horas libres") === "t-mas-clientes", String(top("como hago para llenar la agenda, tengo horas libres")));
 t("«por que una opcion aparece bloqueada en mi menu» -> t-plan-modulos", top("por que una opcion aparece bloqueada en mi menu") === "t-plan-modulos", String(top("por que una opcion aparece bloqueada en mi menu")));

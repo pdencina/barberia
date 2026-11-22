@@ -430,5 +430,6 @@ export const PANTALLAS: EntradaOti[] = [
 ];
 
 import { TAREAS } from "./tareas";
+import { CONOCIMIENTO } from "./conocimiento";
 // Pantallas del menu + guias de tareas («como hago X»).
-export const CATALOGO: EntradaOti[] = [...PANTALLAS, ...TAREAS];
+export const CATALOGO: EntradaOti[] = [...PANTALLAS, ...TAREAS, ...CONOCIMIENTO];

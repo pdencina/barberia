@@ -51,7 +51,7 @@ export const TAREAS: EntradaOti[] = [
   },
   {
     id: "t-devolver-venta", titulo: "Anular o corregir una venta", para: "Administrador",
-    claves: ["anular una venta", "me equivoque en una venta", "corregir una venta", "borrar una venta", "venta mal cobrada", "devolver el dinero", "reembolso", "cobre de mas", "cobre mal", "editar una venta", "cambiar el metodo de pago de una venta"],
+    claves: ["anular una venta", "me equivoque en una venta", "corregir una venta", "borrar una venta", "venta mal cobrada", "devolver el dinero", "reembolso", "cobre de mas", "cobre mal", "editar una venta", "cambiar el metodo de pago de una venta", "me equivoque al cobrar", "cobre mal a un cliente"],
     resumen: "Las ventas se revisan y corrigen en «Ingresos/Egresos». Las correcciones quedan registradas en la auditoria. Si no encuentras como corregir algo puntual, avisa a soporte con el detalle y lo vemos.",
     ruta: "/dashboard/finanzas",
   },
@@ -82,7 +82,7 @@ export const TAREAS: EntradaOti[] = [
   },
   {
     id: "t-vacaciones-bloqueos", titulo: "Vacaciones, permisos y bloqueos", para: "Administrador",
-    claves: ["salir de vacaciones", "se va de vacaciones", "permiso de un profesional", "licencia", "no va a estar", "bloquear una semana", "bloquear la tarde", "cerrar una hora", "reunion", "imprevisto", "dia libre de un profesional"],
+    claves: ["salir de vacaciones", "se va de vacaciones", "permiso de un profesional", "licencia", "no va a estar", "bloquear una semana", "bloquear la tarde", "cerrar una hora", "reunion", "imprevisto", "dia libre de un profesional", "me voy de viaje", "me voy una semana", "me voy una semana de viaje", "salgo de viaje"],
     resumen: "Para varios dias seguidos usa «Vacaciones» (menu Mi negocio). Para una hora o un dia puntual, bloquea desde el Calendario. Tambien puedo bloquearlo yo: escribeme, por ejemplo, «cierra manana a Nicolas».",
     ruta: "/dashboard/vacaciones",
   },
