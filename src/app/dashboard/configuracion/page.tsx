@@ -657,134 +657,6 @@ export default function ConfiguracionPage() {
         {lite && <span title="Disponible en planes superiores" className="inline-flex cursor-not-allowed items-center gap-1 whitespace-nowrap rounded-full border border-dashed border-gray-200 px-3 py-1.5 text-xs font-semibold text-gray-400">Caja y más</span>}
       </div>
 
-      <div className={tab === "negocio" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
-      {/* Preferencias de reservas: banner, logo, Google Maps y tipo de vista */}
-      {isAdmin && (
-        <a href="/dashboard/configuracion/reservas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><ImageIcon className="h-5 w-5" /></div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-brand-dark">Preferencias de reservas</p>
-            <p className="text-xs text-brand-gray">Logo, imagen del negocio, Google Maps y cómo ven tus clientes la reserva</p>
-          </div>
-          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
-        </a>
-      )}
-
-      {/* Herramientas avanzadas: juntas en un solo desplegable para no llenar la pantalla */}
-      {isAdmin && (totemDesbloqueado || puedeCfg("boletaSii") || puedeCfg("honorarios") || puedeCfg("publicidad") || puedeCfg("agenteWhatsapp")) && (
-      <details className="group rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white shadow-sm">
-        <summary className="flex cursor-pointer list-none items-center justify-between p-4">
-          <span><span className="block font-bold text-brand-dark">Más herramientas</span><span className="block text-xs text-brand-gray">Tótem, boletas, publicidad y WhatsApp</span></span>
-          <span className="text-xs font-semibold text-brand-blue group-open:hidden">Ver →</span>
-        </summary>
-        <div className="space-y-2 p-3 pt-0">
-      {/* Tótem de autoatención (migración 162): apagado por defecto */}
-      {isAdmin && totemDesbloqueado && (
-        <a href="/dashboard/configuracion/totem" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><ImageIcon className="h-5 w-5" /></div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-brand-dark">Tótem de autoatención</p>
-            <p className="text-xs text-brand-gray">Pantalla en el local para avisar llegada, registrarse, pedir productos e informarse</p>
-          </div>
-          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
-        </a>
-      )}
-
-      {/* Boleta electronica SII del negocio (migracion 116, apagada por defecto) */}
-      {isAdmin && puedeCfg("boletaSii") && (
-        <a href="/dashboard/configuracion/boleta-sii" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-brand-dark">Boleta electrónica (SII)</p>
-            <p className="text-xs text-brand-gray">Conecta tu proveedor y emite la boleta automáticamente al cobrar</p>
-          </div>
-          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
-        </a>
-      )}
-
-      {/* Boletas de honorarios de profesionales por comision (migracion 119) */}
-      {isAdmin && puedeCfg("honorarios") && (
-        <a href="/dashboard/honorarios" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-brand-dark">Boletas de honorarios</p>
-            <p className="text-xs text-brand-gray">Cuánto debe emitir cada profesional, boletas recibidas y retención del mes</p>
-          </div>
-          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
-        </a>
-      )}
-
-      {/* Publicidad: de que anuncio viene cada reserva por link (migracion 112, apagado por defecto) */}
-      {/* Publicidad: conectar el Pixel de Meta del negocio y ver cuantas reservas vienen de anuncios (migraciones 112 y 150) */}
-      {isAdmin && puedeCfg("publicidad") && (
-        <a href="/dashboard/origen-de-reservas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-brand-dark">Publicidad</p>
-            <p className="text-xs text-brand-gray">Conecta tus anuncios de Meta y mira cuántos clientes reservan gracias a ellos</p>
-          </div>
-          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
-        </a>
-      )}
-      {/* Indicadores del agente de WhatsApp */}
-      {isAdmin && puedeCfg("agenteWhatsapp") && (
-        <a href="/dashboard/whatsapp-indicadores" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-brand-dark">Indicadores de WhatsApp</p>
-            <p className="text-xs text-brand-gray">Reservas cerradas por el agente y consultas atendidas, por mes</p>
-          </div>
-          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
-        </a>
-      )}
-      {/* Preguntas y respuestas del agente de WhatsApp */}
-      {isAdmin && puedeCfg("agenteWhatsapp") && (
-        <a href="/dashboard/whatsapp-preguntas" className="flex items-center gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4 shadow-sm transition-colors hover:border-brand-blue/40">
-          <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-brand-blue/10 text-brand-blue"><Globe className="h-5 w-5" /></div>
-          <div className="min-w-0 flex-1">
-            <p className="font-bold text-brand-dark">Preguntas del agente</p>
-            <p className="text-xs text-brand-gray">Escribe una vez tus respuestas (curso, pagos, cómo llegar) y el agente las usa</p>
-          </div>
-          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
-        </a>
-      )}
-
-        </div>
-      </details>
-      )}
-      </div>
-
-      <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
-      {/* Booking Link */}
-      <div className="bg-gradient-to-r from-brand-blue/5 to-brand-accent/5 rounded-2xl border border-brand-blue/20 p-4 md:p-6 space-y-3">
-        <div className="flex items-center gap-2">
-          <Globe className="w-5 h-5 text-brand-blue" />
-          <h2 className="font-bold text-brand-dark">Link de Reserva Online</h2>
-        </div>
-        <p className="text-sm text-brand-gray">
-          Comparte este link para que tus clientes agenden directamente. Aparecen todos los profesionales disponibles.
-        </p>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 bg-white dark:bg-brand-white border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono text-brand-dark truncate">
-            {bookingUrl}
-          </div>
-          <button onClick={copyLink}
-            className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-brand-blue/90 transition-colors">
-            <Copy className="w-4 h-4" />
-            Copiar
-          </button>
-          <a href={bookingUrl} target="_blank" rel="noopener noreferrer"
-            className="p-2.5 bg-white dark:bg-brand-white border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
-            <ExternalLink className="w-4 h-4 text-brand-gray" />
-          </a>
-        </div>
-        <p className="text-xs text-brand-gray">
-          Cada profesional tambien tiene su link personal en su perfil (seccion Profesionales).
-        </p>
-      </div>
-
-      </div>
-
       <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Business Data */}
       <div className="bg-white dark:bg-brand-white rounded-2xl shadow-sm border border-gray-100 dark:border-white/10 p-4 md:p-6 space-y-4">
@@ -854,6 +726,134 @@ export default function ConfiguracionPage() {
         </div>
       </div>
 
+      </div>
+
+      <div className={tab === "negocio" ? "space-y-3 md:space-y-6" : "hidden"}>
+      {/* Booking Link */}
+      <div className="bg-gradient-to-r from-brand-blue/5 to-brand-accent/5 rounded-2xl border border-brand-blue/20 p-4 md:p-6 space-y-3">
+        <div className="flex items-center gap-2">
+          <Globe className="w-5 h-5 text-brand-blue" />
+          <h2 className="font-bold text-brand-dark">Link de Reserva Online</h2>
+        </div>
+        <p className="text-sm text-brand-gray">
+          Comparte este link para que tus clientes agenden directamente. Aparecen todos los profesionales disponibles.
+        </p>
+        <div className="flex items-center gap-2">
+          <div className="flex-1 bg-white dark:bg-brand-white border border-gray-200 dark:border-white/10 rounded-xl px-4 py-2.5 text-sm font-mono text-brand-dark truncate">
+            {bookingUrl}
+          </div>
+          <button onClick={copyLink}
+            className="flex items-center gap-1.5 px-4 py-2.5 bg-brand-blue text-white rounded-xl text-sm font-medium hover:bg-brand-blue/90 transition-colors">
+            <Copy className="w-4 h-4" />
+            Copiar
+          </button>
+          <a href={bookingUrl} target="_blank" rel="noopener noreferrer"
+            className="p-2.5 bg-white dark:bg-brand-white border border-gray-200 dark:border-white/10 rounded-xl hover:bg-gray-50 dark:hover:bg-white/5 transition-colors">
+            <ExternalLink className="w-4 h-4 text-brand-gray" />
+          </a>
+        </div>
+        <p className="text-xs text-brand-gray">
+          Cada profesional tambien tiene su link personal en su perfil (seccion Profesionales).
+        </p>
+      </div>
+
+      </div>
+
+      <div className={tab === "negocio" && !lite ? "space-y-3 md:space-y-6" : "hidden"}>
+      {/* Preferencias de reservas: banner, logo, Google Maps y tipo de vista */}
+      {isAdmin && (
+        <a href="/dashboard/configuracion/reservas" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue"><ImageIcon className="h-4 w-4" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-brand-dark">Preferencias de reservas</p>
+            <p className="truncate text-[11px] text-brand-gray">Logo, imagen del negocio, Google Maps y cómo ven tus clientes la reserva</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+
+      {/* Herramientas avanzadas: juntas en un solo desplegable para no llenar la pantalla */}
+      {isAdmin && (totemDesbloqueado || puedeCfg("boletaSii") || puedeCfg("honorarios") || puedeCfg("publicidad") || puedeCfg("agenteWhatsapp")) && (
+      <details className="group rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white shadow-sm">
+        <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2">
+          <span><span className="block text-sm font-semibold text-brand-dark">Más herramientas</span><span className="block text-[11px] text-brand-gray">Tótem, boletas, publicidad y WhatsApp</span></span>
+          <span className="text-xs font-semibold text-brand-blue group-open:hidden">Ver →</span>
+        </summary>
+        <div className="space-y-1.5 p-2 pt-0">
+      {/* Tótem de autoatención (migración 162): apagado por defecto */}
+      {isAdmin && totemDesbloqueado && (
+        <a href="/dashboard/configuracion/totem" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue"><ImageIcon className="h-4 w-4" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-brand-dark">Tótem de autoatención</p>
+            <p className="truncate text-[11px] text-brand-gray">Pantalla en el local para avisar llegada, registrarse, pedir productos e informarse</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+
+      {/* Boleta electronica SII del negocio (migracion 116, apagada por defecto) */}
+      {isAdmin && puedeCfg("boletaSii") && (
+        <a href="/dashboard/configuracion/boleta-sii" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue"><Globe className="h-4 w-4" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-brand-dark">Boleta electrónica (SII)</p>
+            <p className="truncate text-[11px] text-brand-gray">Conecta tu proveedor y emite la boleta automáticamente al cobrar</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+
+      {/* Boletas de honorarios de profesionales por comision (migracion 119) */}
+      {isAdmin && puedeCfg("honorarios") && (
+        <a href="/dashboard/honorarios" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue"><Globe className="h-4 w-4" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-brand-dark">Boletas de honorarios</p>
+            <p className="truncate text-[11px] text-brand-gray">Cuánto debe emitir cada profesional, boletas recibidas y retención del mes</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+
+      {/* Publicidad: de que anuncio viene cada reserva por link (migracion 112, apagado por defecto) */}
+      {/* Publicidad: conectar el Pixel de Meta del negocio y ver cuantas reservas vienen de anuncios (migraciones 112 y 150) */}
+      {isAdmin && puedeCfg("publicidad") && (
+        <a href="/dashboard/origen-de-reservas" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue"><Globe className="h-4 w-4" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-brand-dark">Publicidad</p>
+            <p className="truncate text-[11px] text-brand-gray">Conecta tus anuncios de Meta y mira cuántos clientes reservan gracias a ellos</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+      {/* Indicadores del agente de WhatsApp */}
+      {isAdmin && puedeCfg("agenteWhatsapp") && (
+        <a href="/dashboard/whatsapp-indicadores" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue"><Globe className="h-4 w-4" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-brand-dark">Indicadores de WhatsApp</p>
+            <p className="truncate text-[11px] text-brand-gray">Reservas cerradas por el agente y consultas atendidas, por mes</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+      {/* Preguntas y respuestas del agente de WhatsApp */}
+      {isAdmin && puedeCfg("agenteWhatsapp") && (
+        <a href="/dashboard/whatsapp-preguntas" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
+          <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue"><Globe className="h-4 w-4" /></div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-brand-dark">Preguntas del agente</p>
+            <p className="truncate text-[11px] text-brand-gray">Escribe una vez tus respuestas (curso, pagos, cómo llegar) y el agente las usa</p>
+          </div>
+          <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
+        </a>
+      )}
+
+        </div>
+      </details>
+      )}
       </div>
 
       <div className={tab === "horario" ? "space-y-3 md:space-y-6" : "hidden"}>
