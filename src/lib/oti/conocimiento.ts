@@ -428,4 +428,10 @@ export const CONOCIMIENTO: EntradaOti[] = [
     resumen: "Los datos de tus clientes son de tu negocio y solo los ve tu equipo según su rol. Al reservar online, el cliente puede aceptar o no recibir promociones. Las opciones de privacidad están en Configuración > Privacidad.",
     ruta: "/dashboard/configuracion",
   },
+  {
+    id: "k-errores-comunes-configuracion", titulo: "Los errores más comunes al configurar un negocio nuevo", para: "Administrador",
+    claves: ["errores comunes al configurar", "que se me puede estar olvidando", "revisar mi configuracion", "checklist de configuracion", "mi negocio esta bien configurado", "problemas mas comunes", "que suelen olvidar los negocios nuevos"],
+    resumen: "Lo que más se repite: 1) sin servicios creados; 2) nadie con «atiende clientes» activado; 3) el horario del profesional deja horas abiertas que el del negocio tiene cerradas (por defecto se propone 10 a 20); 4) sin colación; 5) abono activado sin Mercado Pago conectado; 6) pocos días para agendar; 7) sin logo, teléfono ni dirección; 8) no probar el link en ventana privada; 9) no compartir el link; 10) no instalar la app. En tu Inicio verás la tarjeta «Deja tu negocio listo» con cada paso.",
+    ruta: "/dashboard",
+  },
 ];
