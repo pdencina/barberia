@@ -322,14 +322,24 @@ async function pruebasAdmin(){
     };
     return {f,avisos,consultas:()=>consultasAdmin};
   };
-  { // el administrador no se atiende como cliente: reporte, instrucción y confirmación
+  { // el administrador: reporte, aviso con confirmación "guardar"; y fuera de eso, se le responde como cliente
     const x=armar(true);
     await enviar(x.f,"reporte");
     check("admin: el reporte sale solo cuando lo pide",x.f.sent[0].startsWith("📊 Reporte")&&x.f.sent[0].includes("Reservas cerradas por el chat: 3")&&x.f.notices.length===0);
-    await enviar(x.f,"El viernes 27 cerramos a las 13:00");
-    check("admin: una instrucción pide confirmación y no se guarda aún",x.f.sent[1].includes("¿Lo guardo?")&&x.avisos[0]?.estado==="pendiente");
+    await enviar(x.f,"aviso: el viernes 27 cerramos a las 13:00");
+    check("admin: un aviso pide confirmación y no se guarda aún",x.f.sent[1].includes("*guardar*")&&x.avisos[0]?.estado==="pendiente");
     await enviar(x.f,"si");
-    check("admin: con sí queda guardada",x.f.sent[2].startsWith("Guardado ✅")&&x.avisos[0].estado==="activo"&&x.f.notices.length===0);
+    check("admin: un 'sí' normal no confirma el aviso (se atiende como cliente)",x.avisos[0].estado==="pendiente"&&!x.f.sent[2]?.startsWith("Guardado"));
+    await enviar(x.f,"guardar");
+    check("admin: con 'guardar' queda guardado",x.f.sent[x.f.sent.length-1].startsWith("Guardado ✅")&&x.avisos[0].estado==="activo");
+    const antes=x.f.sent.length;
+    await enviar(x.f,"A qué hora cierran?");
+    check("admin: lo demás lo responde como a un cliente (con el aviso vigente)",x.f.sent.length===antes+1&&x.f.sent[antes].includes("📌 Aviso: el viernes 27 cerramos a las 13:00")&&!x.f.sent[antes].includes("Modo administrador"));
+  }
+  { // un cliente cualquiera NO es administrador: nada de lo anterior le funciona ni se le menciona
+    const x=armar(false);
+    for(const m of ["ayuda","reporte","aviso: mañana cerramos todo el día","guardar","avisos","borrar 1"]) await enviar(x.f,m);
+    check("admin: para un cliente esas palabras no cambian nada ni muestran el modo administrador",x.avisos.length===0&&x.f.sent.every(t=>!t.includes("Modo administrador")&&!t.includes("📊 Reporte")&&!t.includes("Guardado ✅")&&!t.includes("*guardar*")));
   }
   { // un cliente (no administrador) que pregunta por horario ve los avisos vigentes
     const x=armar(false);

@@ -1,7 +1,9 @@
-// Número administrador del agente de WhatsApp: el dueño escribe desde su número registrado y el agente NO lo trata como cliente.
-//  - "reporte" / "reporte hoy" / "reporte mes": resumen de los indicadores, SOLO cuando lo pide.
-//  - Cualquier otra frase es una instrucción (p. ej. "el viernes 27 cerramos a las 13:00"): se muestra y se pide confirmación (sí/no)
-//    antes de guardarla como AVISO; así una frase suelta o un celular ajeno no cambia nada sin que el dueño lo confirme.
+// Número administrador del agente de WhatsApp. SOLO el número registrado (tabla agent_admin_contacts, comparado con el remitente que
+// firma Meta) puede usar estos comandos; para cualquier otra persona nada de esto existe ni se menciona. El administrador, además,
+// conversa con el agente COMO UN CLIENTE NORMAL: solo estas palabras claras lo activan (todo lo demás devuelve null = flujo de cliente):
+//  - "ayuda": lista de comandos. "reporte" / "reporte hoy" / "reporte mes": resumen de indicadores, SOLO cuando lo pide.
+//  - "aviso: el viernes 27 cerramos a las 13:00" (o "instrucción: ..."): se muestra y se pide confirmación con "guardar" o "descartar"
+//    (palabras que no se usan en una conversación normal) antes de guardarla como AVISO.
 //  - "avisos" los lista; "borrar 2" quita uno.
 // Un aviso solo INFORMA a los clientes que preguntan por horario u horas: no cierra la agenda real ni bloquea horas de la reserva web.
 // Determinista (sin IA); lo único que se guarda es el texto del aviso y su fecha de término.
@@ -25,9 +27,10 @@ export interface OperacionesAdmin {
   reporte: (desde: string, hasta: string) => Promise<Record<string, number>>;
 }
 
-const AFIRMATIVO = /^(?:si|sii+|dale|ok|okey|listo|confirmo|confirmado|guardalo|guardala|guardalo por favor|de acuerdo|claro)$/;
-const NEGATIVO = /^(?:no|nop|cancelar|cancela|descartar|descartalo|olvidalo|mejor no)$/;
-const AYUDA = "Hola, estás en el modo administrador de Estudio Levels.\n\n• *reporte*: resumen de los últimos 7 días (también *reporte hoy* o *reporte mes*)\n• *avisos*: lista de avisos vigentes\n• *borrar 2*: quita el aviso 2\n• Cualquier otra frase es una instrucción para el agente; por ejemplo: «el viernes 27 cerramos a las 13:00». Te la muestro y la guardo cuando confirmes con *sí*.\n\nLos avisos solo informan a los clientes que preguntan por horarios u horas; no bloquean la agenda.";
+const GUARDAR = /^(?:guardar|guardalo|guardala)$/;
+const DESCARTAR = /^(?:descartar|descartalo|descartala)$/;
+const INSTRUCCION = /^(?:aviso|avisar|instrucci[oó]n|anota|anotar)\s*:?\s+([\s\S]+)$/i;
+const AYUDA = "Modo administrador de Estudio Levels (solo tu número lo ve):\n\n• *reporte*: resumen de los últimos 7 días (también *reporte hoy* o *reporte mes*)\n• *aviso: el viernes 27 cerramos a las 13:00*: te lo muestro y lo guardo cuando escribas *guardar* (o *descartar*)\n• *avisos*: lista de avisos vigentes\n• *borrar 2*: quita el aviso 2\n\nLos avisos solo informan a los clientes que preguntan por horarios u horas; no bloquean la agenda. Todo lo demás que escribas, el agente lo responde como a un cliente.";
 
 const limpiar = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
 
@@ -38,15 +41,16 @@ function textoReporte(r: Record<string, number>, titulo: string) {
   return `📊 Reporte ${titulo}\n\n• Respuestas automáticas: ${n("respuestas_automaticas")}\n• Consultas de disponibilidad: ${n("consultas_disponibilidad")}\n• Horas ofrecidas: ${n("ofertas_horas")}\n• Reservas iniciadas por el chat: ${n("reservas_iniciadas")}\n• Reservas cerradas por el chat: ${n("reservas_cerradas")}\n• Derivadas a una persona: ${n("derivadas_persona")}`;
 }
 
-export async function manejarAdmin(texto: string, ops: OperacionesAdmin, ahoraMs: number): Promise<string> {
+/** null = no es un comando de administrador: el mensaje se atiende como el de cualquier cliente. */
+export async function manejarAdmin(texto: string, ops: OperacionesAdmin, ahoraMs: number): Promise<string | null> {
   const hoy = ahoraChile(ahoraMs).fecha;
   const t = normalizar(texto).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
   const original = limpiar(texto);
 
-  if (/^(?:ayuda|menu|hola|buenas|buenos dias|buenas tardes|help)$/.test(t)) return AYUDA;
+  if (/^(?:ayuda|ayuda admin|admin)$/.test(t)) return AYUDA;
 
   // ---- reporte (solo cuando lo pide)
-  if (/^(?:reporte|informe|resumen)\b/.test(t)) {
+  if (/^reporte\b/.test(t)) {
     const mes = /\bmes\b/.test(t), dia = /\bhoy\b/.test(t);
     const desde = dia ? hoy : mes ? `${hoy.slice(0, 8)}01` : sumar(hoy, -6);
     return textoReporte(await ops.reporte(desde, hoy), dia ? "de hoy" : mes ? "del mes" : "de los últimos 7 días");
@@ -66,23 +70,26 @@ export async function manejarAdmin(texto: string, ops: OperacionesAdmin, ahoraMs
     return `Listo, quité el aviso ${borrar[1]}.`;
   }
 
-  // ---- confirmación de una instrucción pendiente
-  if (AFIRMATIVO.test(t) || NEGATIVO.test(t)) {
+  // ---- confirmación de una instrucción pendiente: solo con las palabras "guardar" / "descartar" y solo si hay una pendiente
+  if (GUARDAR.test(t) || DESCARTAR.test(t)) {
     const p = await ops.pendiente(ahoraMs);
-    if (!p) return "No tengo ninguna instrucción pendiente. Escríbeme lo que quieres que informe a los clientes, o *ayuda*.";
-    if (NEGATIVO.test(t)) { await ops.descartarPendientes(); return "Listo, no guardé nada."; }
-    if ((await ops.activos(hoy)).length >= MAX_AVISOS_ACTIVOS) return `Ya hay ${MAX_AVISOS_ACTIVOS} avisos vigentes. Quita alguno con *borrar N* (mira la lista con *avisos*) y vuelve a confirmar.`;
+    if (!p) return null; // sin nada pendiente es una palabra más de la conversación
+    if (DESCARTAR.test(t)) { await ops.descartarPendientes(); return "Listo, no guardé nada."; }
+    if ((await ops.activos(hoy)).length >= MAX_AVISOS_ACTIVOS) return `Ya hay ${MAX_AVISOS_ACTIVOS} avisos vigentes. Quita alguno con *borrar N* (mira la lista con *avisos*) y vuelve a escribir *guardar*.`;
     await ops.confirmar(p.id);
     return `Guardado ✅ Los clientes que pregunten por horarios u horas verán: «${p.texto}» (hasta ${fechaCorta(p.hasta, hoy)}).\n\nRecuerda que esto solo informa; la agenda de la reserva web no se bloquea.`;
   }
 
-  // ---- una instrucción nueva: se muestra y se pide confirmación
-  if (original.length < 8) return AYUDA;
-  if (original.length > MAX_AVISO) return `Es muy largo (máximo ${MAX_AVISO} caracteres). Resúmelo y me lo vuelves a mandar.`;
-  const f = interpretarFecha(original.toLowerCase().normalize("NFD").replace(/([aeiou])[\u0300-\u036f]+/g, "$1").normalize("NFC"), hoy); // conserva la ñ de "mañana"
+  // ---- una instrucción nueva ("aviso: ..."): se muestra y se pide confirmación
+  const m = INSTRUCCION.exec(original);
+  if (!m) return null;
+  const cuerpo = limpiar(m[1]);
+  if (cuerpo.length < 8) return "Escribe el aviso completo, por ejemplo: *aviso: el viernes 27 cerramos a las 13:00*.";
+  if (cuerpo.length > MAX_AVISO) return `Es muy largo (máximo ${MAX_AVISO} caracteres). Resúmelo y me lo vuelves a mandar.`;
+  const f = interpretarFecha(cuerpo.toLowerCase().normalize("NFD").replace(/([aeiou])[\u0300-\u036f]+/g, "$1").normalize("NFC"), hoy); // conserva la ñ de "mañana"
   const hasta = f !== "invalida" && f.explicita ? f.fecha : sumar(hoy, VIGENCIA_AVISO_DIAS);
-  await ops.guardarPendiente(original, hasta);
-  return `Voy a informar esto a los clientes que pregunten por horarios u horas:\n\n«${original}»\n\nVigente hasta ${fechaCorta(hasta, hoy)}. ¿Lo guardo? Responde *sí* o *no*.`;
+  await ops.guardarPendiente(cuerpo, hasta);
+  return `Voy a informar esto a los clientes que pregunten por horarios u horas:\n\n«${cuerpo}»\n\nVigente hasta ${fechaCorta(hasta, hoy)}. Escribe *guardar* para dejarlo o *descartar* para cancelarlo.`;
 }
 
 /** Solo las consultas de horario / horas / disponibilidad llevan los avisos (no el menú, el curso ni las derivaciones). */
