@@ -235,6 +235,12 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   const a4 = armar({ etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
   await manejarReservaChat("Juan Pérez juan@correo.cl corte y cejas", TEL, sv, a4.deps);
   assert.deepEqual([a4.e.creadas[0]?.nombre, a4.e.creadas[0]?.servicioId], ["Juan Pérez", "s9"]);
+  // El caso de la prueba real: nombre, correo y "corte" en tres líneas (y también con etiquetas).
+  for (const msg of ["carlitos run\ncarlitos24k@gmail.com\ncorte", "Nombre: carlitos run\nCorreo: carlitos24k@gmail.com\nServicio: corte", "carlitos run, carlitos24k@gmail.com, Corte"]) {
+    const a5 = armar({ etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
+    await manejarReservaChat(msg, TEL, sv, a5.deps);
+    assert.deepEqual([a5.e.creadas[0]?.nombre, a5.e.creadas[0]?.correo, a5.e.creadas[0]?.servicioId], ["Carlitos Run", "carlitos24k@gmail.com", "s1"], msg);
+  }
   console.log("OK servicio por palabras");
 })();
 (async () => {

@@ -180,3 +180,6 @@ Quinta fila del menú ("Manicure", de las últimas) y primera fila renombrada "R
 2. **"Corte más barba" se tomó como nombre** y pisó "Bleiner". Ahora el nombre ya dado no se pisa y el servicio se entiende por palabras en cualquier orden (`reserva-chat.ts`); si calza con varios se muestra una lista acotada (`opcionesServicio`), y si uno solo tiene exactamente esas palabras, gana ("corte y cejas" = "Corte + Cejas").
 3. **Nombres con mala ortografía** ("dilan" = Dylan, "filipe" = Felipe): `src/lib/agente/nombres.ts` (`palabraCalza`: pronunciación aproximada y una letra de diferencia) usado en reserva y disponibilidad.
 4. **"no sé cuál elegir" cancelaba la reserva** (empezaba con "no"). Ahora solo cancelan frases cortas como "no", "no gracias", "mejor no".
+
+## 20. Datos en tres líneas (24 nov, prueba de Carlitos)
+"carlitos run / correo / corte" dejaba el servicio sin entender porque varios servicios empiezan con "corte". Ahora "corte" a secas es el corte básico (el servicio llamado exactamente Corte / Corte de cabello / Corte clásico / Corte simple, si existe) aunque venga junto al nombre, y se aceptan etiquetas ("Nombre: ... Correo: ... Servicio: ...").

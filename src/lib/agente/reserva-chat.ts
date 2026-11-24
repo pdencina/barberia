@@ -227,7 +227,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   if (AFIRMATIVO.test(t) && t.split(" ").length <= 3 && !CORREO.test(texto)) return await siguientePaso(sel, true, servicios, deps);
   const correoM = CORREO.exec(texto);
   const correoNuevo = correoM ? correoM[0].toLowerCase() : null;
-  let resto = correoM ? texto.replace(correoM[0], " ") : texto;
+  // Acepta datos con etiquetas ("Nombre: Carlitos Run / Correo: ... / Servicio: corte"): se quitan las etiquetas.
+  let resto = (correoM ? texto.replace(correoM[0], " ") : texto).replace(/\b(nombre completo|nombre|correo electronico|correo|email|e-mail|mail|servicio)\s*:/gi, " ");
   let servicio = todosServicios.length === 1 ? todosServicios[0] : (sel.servicioId ? todosServicios.find((x) => x.id === sel.servicioId) ?? null : null);
   if (!servicio) {
     const num = /(?:^|[\s,;])(\d{1,2})(?=$|[\s,;.)])/.exec(resto);
@@ -251,11 +252,13 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     const vocab = Array.from(new Set(todosServicios.flatMap((x) => toks(x.nombre))));
     const mt = Array.from(new Set(toks(resto).filter((w) => vocab.some((v) => palabraCalza(w, v)))));
     const otras = toks(resto).filter((w) => !mt.includes(w)).length;
-    if (mt.length >= 2 || (mt.length === 1 && otras === 0)) {
+    if (mt.length >= 2 || (mt.length === 1 && (otras === 0 || mt[0] === "corte"))) { // "corte" a secas se entiende aunque venga con el nombre
       const cand = todosServicios.filter((x) => { const st = toks(x.nombre); return mt.every((m) => st.some((v) => palabraCalza(m, v))); });
       // Si uno solo tiene EXACTAMENTE esas palabras ("corte y cejas" = "Corte + Cejas", no "Corte + Barba + Cejas"), ese gana.
       const exacto = cand.filter((x) => toks(x.nombre).length === mt.length);
-      const unico = cand.length === 1 ? cand[0] : exacto.length === 1 ? exacto[0] : null;
+      // "corte" a secas es el corte básico ("Corte de cabello" / "Corte"): no hace falta preguntar entre todos los que empiezan con corte.
+      const basico = cand.filter((x) => /^(corte|corte de cabello|corte clasico|corte simple)$/.test(normalizar(x.nombre)));
+      const unico = cand.length === 1 ? cand[0] : exacto.length === 1 ? exacto[0] : mt.length === 1 && mt[0] === "corte" && basico.length >= 1 ? basico[0] : null;
       if (unico) { servicio = unico; for (const m of mt) resto = resto.replace(new RegExp(`\\b${m}\\b`, "gi"), " "); resto = resto.replace(/\b(m[aá]s|y|con)\b/gi, " ").replace(/\+/g, " "); }
       else if (cand.length > 1 && cand.length <= 8) ambiguos = cand;
     }
