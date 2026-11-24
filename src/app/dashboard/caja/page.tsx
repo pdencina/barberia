@@ -95,6 +95,7 @@ export default function CajaPage() {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const menuRef = useRef<HTMLTableCellElement | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [anular, setAnular] = useState<{ tx: any; pin: string; motivo: string; nota: string } | null>(null);
 
   // Portón de PIN (solo Recepcion): antes de editar o eliminar, guarda que accion quedo
   // pendiente y para que movimiento, hasta que se valide el PIN de un administrador.
@@ -246,20 +247,21 @@ export default function CajaPage() {
     });
   };
 
-  const doDelete = async (id: string, pin: string) => {
+  const doDelete = async (id: string, pin: string, motivo: string, nota: string) => {
     setDeletingId(id);
     const res = await fetch(`/api/caja/${id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pin: pin || undefined }),
+      body: JSON.stringify({ pin: pin || undefined, motivo, nota }),
     });
     setDeletingId(null);
     if (res.ok) {
-      showToast("Movimiento eliminado", "success");
+      setAnular(null);
+      showToast("Venta anulada", "success");
       fetchData();
     } else {
       const err = await res.json().catch(() => ({} as any));
-      showToast(err.error || "No se pudo eliminar", "error");
+      showToast(err.error || "No se pudo anular", "error");
     }
   };
 
@@ -277,23 +279,8 @@ export default function CajaPage() {
   const handleMenuDelete = async (tx: any) => {
     setOpenMenuId(null);
     if (isAdmin) {
-      // Administrador no necesita PIN, pero se le pide doble confirmacion para evitar
-      // errores (dos pasos distintos, no el mismo dialogo repetido).
-      const ok1 = await confirm({
-        title: "Eliminar movimiento",
-        message: `Eliminar el movimiento de ${formatCurrency(Number(tx.total))} (${tx.barberName || "sin profesional"})?`,
-        confirmText: "Eliminar",
-        variant: "danger",
-      });
-      if (!ok1) return;
-      const ok2 = await confirm({
-        title: "Confirmar eliminacion",
-        message: "Esta accion no se puede deshacer desde aqui. Confirmas definitivamente?",
-        confirmText: "Si, eliminar",
-        variant: "danger",
-      });
-      if (!ok2) return;
-      await doDelete(tx.id, "");
+      // Administrador no necesita PIN: se le pide el motivo (y confirma en la misma ventana).
+      setAnular({ tx, pin: "", motivo: "", nota: "" });
     } else {
       setGatePin("");
       setGateError("");
@@ -320,7 +307,7 @@ export default function CajaPage() {
     if (action === "edit") {
       openEditModal(tx, gatePin);
     } else {
-      await doDelete(tx.id, gatePin);
+      setAnular({ tx, pin: gatePin, motivo: "", nota: "" });
     }
   };
 
@@ -886,7 +873,7 @@ export default function CajaPage() {
                                     {openMenuId === t.id && (
                                       <div className="absolute right-3 top-10 z-10 bg-white rounded-lg shadow-lg border border-gray-100 py-1 w-36 text-left">
                                         <button onClick={() => handleMenuEdit(t)} className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Modificar</button>
-                                        <button onClick={() => handleMenuDelete(t)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Eliminar</button>
+                                        <button onClick={() => handleMenuDelete(t)} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50">Anular venta</button>
                                       </div>
                                     )}
                                   </>
@@ -1019,6 +1006,31 @@ export default function CajaPage() {
         </div>
       )}
 
+      {/* Anular venta: pide el motivo; la venta no se borra, queda anulada con su motivo y quién la anuló */}
+      {anular && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setAnular(null)}>
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-brand-dark">Anular venta</h3>
+            <p className="text-sm text-brand-gray mt-1">{formatCurrency(Number(anular.tx.total))} — {anular.tx.barberName || "sin profesional"}. Deja de contar en la caja, los informes y la billetera. Queda guardada con el motivo.</p>
+            <div className="mt-4 space-y-2">
+              {[["duplicada", "Venta duplicada (se registró dos veces)"], ["monto", "Monto o servicio mal ingresado"], ["profesional_cliente", "Profesional o cliente equivocado"], ["devolucion", "Se devolvió el dinero al cliente"], ["otro", "Otro motivo"]].map(([k, l]) => (
+                <label key={k} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-sm cursor-pointer ${anular.motivo === k ? "border-red-400 bg-red-50" : "border-gray-200"}`}>
+                  <input type="radio" name="motivo-anulacion" checked={anular.motivo === k} onChange={() => setAnular({ ...anular, motivo: k })} />{l}
+                </label>
+              ))}
+              {anular.motivo === "otro" && (
+                <input value={anular.nota} onChange={(e) => setAnular({ ...anular, nota: e.target.value })} maxLength={300} placeholder="¿Cuál fue el motivo?" className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm" />
+              )}
+            </div>
+            <div className="flex gap-2 mt-4">
+              <button onClick={() => setAnular(null)} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">Cancelar</button>
+              <button onClick={() => doDelete(anular.tx.id, anular.pin, anular.motivo, anular.nota)} disabled={!anular.motivo || (anular.motivo === "otro" && anular.nota.trim().length < 3) || deletingId === anular.tx.id}
+                className="flex-1 py-2.5 bg-red-600 text-white rounded-xl text-sm font-medium hover:bg-red-700 disabled:opacity-50">{deletingId === anular.tx.id ? "Anulando..." : "Anular venta"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PIN gate — solo Recepcion, antes de modificar o eliminar un movimiento */}
       {pinGate && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" onClick={() => setPinGate(null)}>
@@ -1030,7 +1042,7 @@ export default function CajaPage() {
                 </svg>
               </div>
               <h3 className="text-lg font-bold text-brand-dark">
-                {pinGate.action === "edit" ? "Modificar movimiento" : "Eliminar movimiento"}
+                {pinGate.action === "edit" ? "Modificar movimiento" : "Anular venta"}
               </h3>
               <p className="text-sm text-brand-gray mt-1">Requiere PIN de administrador.</p>
             </div>

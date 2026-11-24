@@ -12,7 +12,7 @@ import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase
 // movimiento al tenant del que llama), esta ruta SI verifica que el movimiento pertenezca
 // al negocio del usuario antes de tocarlo — mismo patron ya corregido en ~21 rutas.
 async function authorize(pin?: string) {
-  const { role, tenantId } = await getCurrentUserRoleAndTenant();
+  const { role, tenantId, userId } = await getCurrentUserRoleAndTenant();
 
   if (role !== "admin" && role !== "super_admin" && role !== "receptionist") {
     return { denied: NextResponse.json({ error: "No autorizado" }, { status: 403 }) } as const;
@@ -36,7 +36,7 @@ async function authorize(pin?: string) {
     }
   }
 
-  return { denied: null, role, tenantId } as const;
+  return { denied: null, role, tenantId, userId } as const;
 }
 
 // Confirms the transaction exists and belongs to the caller's business (super_admin is
@@ -104,6 +104,16 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   return NextResponse.json({ success: true });
 }
 
+// Motivos para anular una venta (quedan en la auditoría y en la nota de la venta).
+const MOTIVOS_ANULACION: Record<string, string> = {
+  duplicada: "Venta duplicada (se registró dos veces)",
+  monto: "Monto o servicio mal ingresado",
+  profesional_cliente: "Profesional o cliente equivocado",
+  devolucion: "Se devolvió el dinero al cliente",
+  otro: "Otro motivo",
+};
+
+// ANULAR una venta: no se borra, queda «cancelled» con su motivo y quién la anuló (Caja, Finanzas y las billeteras solo cuentan las «completed»).
 export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
   const body = await req.json().catch(() => ({} as any));
   const auth = await authorize(body.pin);
@@ -112,16 +122,33 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const owned = await loadOwnedTransaction(params.id, auth.role, auth.tenantId);
   if (owned.error) return owned.error;
 
-  const supabase = createAdminSupabase();
+  const clave = String(body.motivo || "");
+  const nota = String(body.nota || "").trim().slice(0, 300);
+  if (!MOTIVOS_ANULACION[clave]) return NextResponse.json({ error: "Elige el motivo de la anulación." }, { status: 400 });
+  if (clave === "otro" && nota.length < 3) return NextResponse.json({ error: "Escribe cuál fue el motivo." }, { status: 400 });
 
-  // Soft delete (misma convencion que /api/finanzas/[id]): reusa el status "cancelled" en
-  // vez de borrar la fila. La consulta GET de Caja ya filtra .eq("status","completed"), asi
-  // que el movimiento desaparece de inmediato mientras se conserva para auditoria.
+  const supabase = createAdminSupabase();
+  const { data: tx } = await supabase.from("transactions").select("id, status, total, notes, created_at, client:clients(name), barber:profiles!barber_id(name)").eq("id", params.id).maybeSingle();
+  if (!tx) return NextResponse.json({ error: "Movimiento no encontrado" }, { status: 404 });
+  if ((tx as any).status === "cancelled") return NextResponse.json({ error: "Esta venta ya estaba anulada." }, { status: 409 });
+
+  const { data: quien } = auth.userId ? await supabase.from("profiles").select("name").eq("id", auth.userId).maybeSingle() : { data: null as any };
+  const motivoTxt = MOTIVOS_ANULACION[clave] + (nota ? `: ${nota}` : "");
+  const anotacion = `Anulada por ${(quien as any)?.name || "el equipo"} — ${motivoTxt}`;
+
+  // Soft delete (misma convención que /api/finanzas/[id]): se conserva la fila para auditoría.
   const { error } = await supabase
     .from("transactions")
-    .update({ status: "cancelled" })
+    .update({ status: "cancelled", notes: ((tx as any).notes ? `${(tx as any).notes} | ` : "") + anotacion })
     .eq("id", params.id);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  await supabase.from("audit_log").insert({
+    action: "transaction_cancel", entity_type: "transaction", entity_id: params.id,
+    description: `Venta anulada $${Number((tx as any).total).toLocaleString("es-CL")}${(tx as any).client?.name ? ` — ${(tx as any).client.name}` : ""}${(tx as any).barber?.name ? ` (${(tx as any).barber.name})` : ""} — ${motivoTxt}`,
+    user_id: auth.userId || null, user_name: (quien as any)?.name || null,
+    metadata: { motivo: clave, nota, total: Number((tx as any).total), vendida_el: (tx as any).created_at },
+  }).then(() => {}, () => {});
   return NextResponse.json({ success: true });
 }
