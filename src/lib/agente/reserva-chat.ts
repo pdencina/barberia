@@ -61,9 +61,16 @@ function coincideHora(hora: string, q: { h: number; m: number; mer: "am" | "pm" 
   if (q.mer === "am") return H < 12;
   return true;
 }
-function nombreMencionado(t: string, nombre: string): boolean {
+/** Cuántas palabras del nombre aparecen en el mensaje ("dylan perez" calza 2 con Dylan Perez y 1 con Enzo Perez). */
+function puntajeNombre(t: string, nombre: string): number {
   const palabras = Array.from(new Set(t.split(/[^a-zñ0-9]+/).filter((w) => w.length >= 3)));
-  return normalizar(nombre).split(" ").filter((x) => x.length >= 3).some((tok) => palabras.some((w) => w === tok || (w.length >= 4 && tok.startsWith(w))));
+  return normalizar(nombre).split(" ").filter((x) => x.length >= 3).filter((tok) => palabras.some((w) => w === tok || (w.length >= 4 && tok.startsWith(w)))).length;
+}
+function nombreMencionado(t: string, nombre: string): boolean { return puntajeNombre(t, nombre) > 0; }
+/** Los que mejor calzan con lo escrito: si dos comparten un apellido, gana quien calza con nombre y apellido. */
+function mejoresCoincidencias<T extends { nombre: string }>(t: string, xs: T[]): T[] {
+  const p = xs.map((x) => puntajeNombre(t, x.nombre)), max = Math.max(0, ...p);
+  return max > 0 ? xs.filter((_, i) => p[i] === max) : [];
 }
 
 const MAX_SERVICIOS_MOSTRADOS = 6;
@@ -138,7 +145,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       for (const o of op) for (const hora of o.horas) if (coincideHora(hora, q)) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora });
     } else if (estado.datos.horaPendiente) {
       // Dijo una hora que tienen varios profesionales y se le preguntó con quién: ahora basta el nombre.
-      for (const o of op) if (o.horas.includes(estado.datos.horaPendiente) && nombreMencionado(t, o.nombre)) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: estado.datos.horaPendiente });
+      for (const o of mejoresCoincidencias(t, op.filter((x) => x.horas.includes(estado.datos.horaPendiente!)))) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: estado.datos.horaPendiente });
       if (elegidas.length === 0) {
         const candidatos = op.filter((o) => o.horas.includes(estado.datos.horaPendiente!));
         // "con cualquiera", "el primero", "da lo mismo": se toma el primero. Si no, se repite la pregunta en vez de perder al cliente.
@@ -148,7 +155,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       }
     } else if (op.some((o) => nombreMencionado(t, o.nombre))) {
       // Solo dijo con quién ("con Matías"): si la consulta era por una hora exacta, es esa; si no, se le piden las horas de esa persona.
-      const quien = op.filter((o) => nombreMencionado(t, o.nombre));
+      const quien = mejoresCoincidencias(t, op);
       const exacta = estado.datos.horaExacta;
       // "Matías en la tarde" / "más tarde": pide un horario, no solo la persona. Lo resuelve la consulta de disponibilidad.
       if (!exacta && /\b(?:en|por|de) la (?:manana|mañana|tarde|noche)\b|\btemprano\b|\bm[aá]s tarde\b/.test(t)) return null;
@@ -176,7 +183,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
         return { texto: `¡Dale! Elige una y te pido tus datos:\n${combos.map((c) => `• *${c.h}* con ${c.o.nombre.split(" ").slice(0, 2).join(" ")} ${textoDeFecha(c.o.fecha, hoy)}`).join("\n")}\n\nEscríbeme, por ejemplo: «la de las ${combos[0].h}».` };
       }
     } else return null;
-    const conNombre = elegidas.filter((e) => nombreMencionado(t, e.nombre));
+    const conNombre = mejoresCoincidencias(t, elegidas);
     if (conNombre.length > 0) elegidas = conNombre;
     const resumen = () => op.slice(0, 4).map((o) => `• *${o.nombre}* ${textoDeFecha(o.fecha, hoy)}: ${o.horas.slice(0, 3).join(" · ")}`).join("\n");
     if (elegidas.length === 0) return { texto: `Esa hora no está entre las que te ofrecí. Estas son las opciones:\n${resumen()}\n\nEscríbeme la hora que prefieras, por ejemplo: «la de las ${op[0].horas[0]}».` };
