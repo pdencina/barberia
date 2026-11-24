@@ -83,6 +83,45 @@ const handlers = () => crearManejadoresWebhook({
       // Modo Avanzado (IA): solo si el negocio lo activó, hay llave y no se pasó del tope del mes. Falla cerrado: ante cualquier duda, null.
       conCta: true,
       conMenu: true,
+      // Número administrador (migración 015): reportes bajo pedido y avisos confirmados por el dueño. Si la migración falta, nada de esto se activa.
+      admin: {
+        esAdmin: async (tenantId, telefono) => {
+          const r = await db.from("agent_admin_contacts").select("telefono").eq("tenant_id", tenantId).eq("telefono", String(telefono).replace(/\D/g, "")).maybeSingle();
+          return !r.error && !!r.data;
+        },
+        operaciones: (tenantId) => ({
+          pendiente: async (ahoraMs) => {
+            const r = await db.from("agent_avisos").select("id,texto,hasta,created_at").eq("tenant_id", tenantId).eq("estado", "pendiente").order("created_at", { ascending: false }).limit(1).maybeSingle();
+            if (r.error) throw new Error("avisos");
+            if (!r.data || ahoraMs - new Date(r.data.created_at).getTime() > 30 * 60000) return null;
+            return { id: r.data.id, texto: r.data.texto, hasta: r.data.hasta };
+          },
+          guardarPendiente: async (texto, hasta) => {
+            await db.from("agent_avisos").delete().eq("tenant_id", tenantId).eq("estado", "pendiente");
+            const r = await db.from("agent_avisos").insert({ tenant_id: tenantId, texto, hasta, estado: "pendiente" });
+            if (r.error) throw new Error("avisos");
+          },
+          confirmar: async (id) => { const r = await db.from("agent_avisos").update({ estado: "activo" }).eq("tenant_id", tenantId).eq("id", id); if (r.error) throw new Error("avisos"); },
+          descartarPendientes: async () => { await db.from("agent_avisos").delete().eq("tenant_id", tenantId).eq("estado", "pendiente"); },
+          activos: async (hoy) => {
+            const r = await db.from("agent_avisos").select("id,texto,hasta").eq("tenant_id", tenantId).eq("estado", "activo").gte("hasta", hoy).order("created_at", { ascending: true }).limit(20);
+            if (r.error) throw new Error("avisos");
+            return (r.data ?? []) as any;
+          },
+          borrar: async (id) => { await db.from("agent_avisos").delete().eq("tenant_id", tenantId).eq("id", id); },
+          reporte: async (desde, hasta) => {
+            const r = await db.from("agent_whatsapp_indicadores").select("campo,total").eq("tenant_id", tenantId).gte("dia", desde).lte("dia", hasta);
+            if (r.error) throw new Error("indicadores");
+            const suma: Record<string, number> = {};
+            for (const x of (r.data ?? []) as any[]) suma[x.campo] = (suma[x.campo] ?? 0) + Number(x.total ?? 0);
+            return suma;
+          },
+        }),
+        avisosVigentes: async (tenantId, hoy) => {
+          const r = await db.from("agent_avisos").select("texto").eq("tenant_id", tenantId).eq("estado", "activo").gte("hasta", hoy).order("created_at", { ascending: true }).limit(3);
+          return r.error ? [] : ((r.data ?? []) as any[]).map((x) => String(x.texto));
+        },
+      },
       derivarAlTelefono: true,
       ia: async (tenantId, texto, datosNegocio, contactHash) => {
         const llave = process.env.ANTHROPIC_API_KEY;
