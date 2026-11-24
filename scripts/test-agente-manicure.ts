@@ -11,7 +11,7 @@ assert.ok(l.filas.every((f) => f.title.length <= 24));
 
 // Submenú: tres filas con sus botones y títulos válidos.
 const sub = listaDeManicure();
-assert.deepEqual(sub.filas.map((f) => f.id), ["k_reservar", "k_trabajos", "k_menu"]); assert.ok(sub.filas.every((f) => f.title.length <= 24 && (f.description ?? "").length <= 72));
+assert.deepEqual(sub.filas.map((f) => f.id), ["k_reservar", "k_trabajos", "k_menu"]); assert.ok(sub.filas.every((f) => f.title.length <= 24 && ((f as { description?: string }).description ?? "").length <= 72));
 assert.ok(esTextoManicure(textoManicure()) && !esTextoManicure("Hola"));
 
 // Cada botón vuelve como su texto y ese texto produce la respuesta correcta.
