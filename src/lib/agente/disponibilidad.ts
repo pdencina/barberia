@@ -184,6 +184,15 @@ async function responderDisponibilidadBase(texto: unknown, datos: DatosFaq | nul
   if (!t) return SIN;
   const perfiles = perfilesDe(datos);
   if (perfiles.length === 0) return SIN;
+  // Solo el nombre de un profesional ("felipe meza", "con Matías"): se entiende como "¿tiene horas?" y se le muestran las suyas.
+  {
+    const sinCon = sinTildes(t).replace(/^(?:con|para|quiero con|quiero hora con|hora con|agendame con|agendame|me agendas con)\s+/, "").trim();
+    const ws = sinCon.split(/\s+/).filter(Boolean);
+    if (ws.length >= 1 && ws.length <= 3) {
+      const dueños = perfiles.filter((p) => { const toks = sinTildes(p.nombre).split(" ").filter((x) => x.length >= 3); return ws.every((w) => toks.some((tok) => w === tok || (w.length >= 4 && tok.startsWith(w)))); });
+      if (dueños.length === 1) t = `${sinTildes(dueños[0].nombre)} tiene hora`;
+    }
+  }
   const ahora = ahoraChile(deps.ahora());
   const seguimiento = !!deps.fechaPorDefecto;
   const q = interpretar(t, ahora.fecha, perfiles, seguimiento);
@@ -309,23 +318,13 @@ async function responderDisponibilidadBase(texto: unknown, datos: DatosFaq | nul
     const exactos = con.filter((x) => x.horas.includes(hh));
     if (exactos.length) return { tipo: "respuesta", texto: bloque(`A las *${hh}* ${dia(q.fecha)} tienen disponible:\n${exactos.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}`).join("\n")}`, cierre), oferta: { horaExacta: hh, opciones: exactos.slice(0, 5).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
   }
-  // "¿Quién atiende el miércoles?" / "¿qué barberos tienen?": se lista a cada profesional con sus primeras horas, para elegir tocando o escribiendo.
-  const pideQuien = /\b(quien|quienes|que barberos|que profesionales|cuales barberos|cuales profesionales|que peluqueros)\b/.test(normalizar(t));
-  if (con.length && pideQuien) {
-    const lista = con.slice(0, 8).map((x) => `• ${nombreNegrita(x.p.nombre.trim().split(" ").slice(0, 2).join(" "))}: ${x.horas.slice(0, 3).join(" · ")}`).join("\n");
-    const resumen = `${hh !== null ? `A las *${hh}* ${dia(q.fecha)}` : mayus(dia(q.fecha))} atienden:\n${lista}${con.length > 8 ? `\n· y ${con.length - 8} más` : ""}\n\nDime con quién y a qué hora (por ejemplo «${con[0].p.nombre.trim().split(" ")[0]} a las ${con[0].horas[0]}») y te pido tus datos.`;
-    return { tipo: "respuesta", texto: bloque(resumen, conNota(`O reserva tú aquí: ${general}`)), oferta: { horaExacta: hh !== null && con.some((x) => x.horas.includes(hh)) ? hh : null, opciones: con.slice(0, 10).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
-  }
-  if (con.length && hh === null && con.length > MAX_PROFESIONALES_LISTA) {
-    // Muchos profesionales con horas: se muestran las 3 primeras horas (cada una con alguien distinto) para poder elegir al tiro.
-    const porHora = new Map<string, typeof con>();
-    for (const x of con) { const h = x.horas[0]; porHora.set(h, [...(porHora.get(h) ?? []), x]); }
-    const horasTop = Array.from(porHora.keys()).sort().slice(0, 3);
-    const primeras = horasTop.map((h) => ({ h, xs: porHora.get(h)! }));
-    const corto = (x: (typeof con)[number]) => nombreNegrita(x.p.nombre.trim().split(" ").slice(0, 2).join(" "));
-    const lista = primeras.map((e) => `• *${e.h}* con ${e.xs.slice(0, 3).map(corto).join(", ")}${e.xs.length > 3 ? " y más" : ""}`).join("\n");
-    const resumen = `Estas son las próximas horas ${dia(q.fecha)}${franjaTxt}:\n${lista}\n\nDime cuál te sirve (por ejemplo «la de las ${primeras[0].h}»), o con quién prefieres, o qué horario buscas.`;
-    return { tipo: "respuesta", texto: bloque(resumen, conNota(`O reserva tú aquí: ${general}`)), oferta: { horaExacta: null, opciones: [...primeras.flatMap((e) => e.xs), ...con.filter((x) => !primeras.some((e) => e.xs.includes(x)))].filter((x, i, a) => a.indexOf(x) === i).slice(0, 10).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
+  // Sin hora ni profesional ("¿tienen hora hoy?", "¿quién atiende el miércoles?"): solo QUIÉN tiene horas, sin listar horarios (abruma).
+  // Quien está cerrado todo el día (bloqueo manual) o ya no tiene horas por la hora actual no aparece: no devuelve horas libres.
+  if (con.length && hh === null) {
+    const corto = (n: string) => nombreNegrita(n.trim().split(" ").slice(0, 2).join(" "));
+    const primera = con.map((x) => x.horas[0]).sort()[0];
+    const resumen = `${mayus(dia(q.fecha))}${franjaTxt} tienen horas disponibles:\n${con.slice(0, 12).map((x) => `• ${corto(x.p.nombre)}`).join("\n")}\n\nLa primera hora libre es a las *${primera}*.\n¿Con quién te agendo? Dime el nombre (y la hora si ya tienes una en mente) y te muestro sus horas.`;
+    return { tipo: "respuesta", texto: bloque(resumen, conNota(`O reserva tú aquí: ${general}`)), oferta: { horaExacta: null, opciones: con.slice(0, 12).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
   }
   if (con.length) return { tipo: "respuesta", texto: bloque(hh !== null ? `A las ${hh} no hay hora ${dia(q.fecha)}.\nHoras más cercanas:\n${filas(con)}` : `Hay disponibilidad ${dia(q.fecha)}${franjaTxt}${con.some((x) => x.horas.length > MAX_HORAS) ? ". Las horas más próximas:" : ":"}\n${filas(con)}`, cierre), oferta: { horaExacta: null, opciones: con.slice(0, 5).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
   for (let i = 1; i <= MAX_DIAS_ADELANTE; i++) {
