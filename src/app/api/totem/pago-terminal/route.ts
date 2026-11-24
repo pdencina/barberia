@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe, moduloDe } from "@/lib/totem";
-import { citasParaCobro } from "@/lib/totem-citas";
+import { citasParaCobro, citasDeOtrasPersonas } from "@/lib/totem-citas";
 import { armarItemsProductos } from "@/lib/totem-producto";
 import { resolverTerminal, iniciarCobro, cancelarCobro } from "@/lib/totem-terminal";
 import { notify } from "@/lib/notify";
@@ -30,8 +30,11 @@ export async function POST(req: NextRequest) {
     if (!c.ok) return NextResponse.json({ error: c.error }, { status: c.status });
     extraItems = c.items; extraTotal = c.total;
   }
-  const s = { saldo: cc.saldo + extraTotal, abono: cc.abono, total: cc.total + extraTotal };
-  const extraIds = cc.extraIds;
+  // Otras personas que pagan en el mismo cobro (cada una con su código y su propia venta).
+  const otras = await citasDeOtrasPersonas(supabase, t.id, cc, body.otros);
+  if (!otras.ok) return NextResponse.json({ error: otras.error }, { status: otras.status });
+  const s = { saldo: cc.saldo + otras.saldo + extraTotal, abono: cc.abono + otras.abono, total: cc.total + otras.total + extraTotal };
+  const extraIds = [...cc.extraIds, ...otras.extraIds];
 
   const term = await resolverTerminal(supabase, t.id, (a as any).barber_id);
   if (!term) return NextResponse.json({ error: "Tu profesional no tiene una máquina de tarjetas conectada. Elige pagar en caja y avisamos al equipo." }, { status: 400 });

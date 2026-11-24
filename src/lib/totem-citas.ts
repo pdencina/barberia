@@ -33,3 +33,31 @@ export async function citasParaCobro(supabase: any, tenantId: string, codeRaw: u
   const orden = ids.filter((id) => citas.some((c) => c.id === id));
   return { ok: true, primeraId: orden[0], barberId: citas[0].barber_id, extraIds: orden.slice(1), total, abono, saldo };
 }
+
+// Cobro compartido: además de las citas del cliente principal, las de OTRAS personas (cada una con su propio código) que pagan en el mismo cobro.
+// body.otros = [{ code, appointmentIds }]. Todas deben ser del mismo profesional; cada persona sigue teniendo su propia venta.
+export type CobroCompartido =
+  | { ok: true; extraIds: string[]; saldo: number; abono: number; total: number }
+  | { ok: false; error: string; status: number };
+
+export async function citasDeOtrasPersonas(supabase: any, tenantId: string, principal: { primeraId: string; extraIds: string[]; barberId: string }, otrosRaw: unknown): Promise<CobroCompartido> {
+  const otros: any[] = Array.isArray(otrosRaw) ? otrosRaw.slice(0, 3) : [];
+  const usadas = new Set<string>([principal.primeraId, ...principal.extraIds]);
+  const extraIds: string[] = [];
+  let saldo = 0, abono = 0, total = 0;
+  const codigos = new Set<string>();
+  for (const o of otros) {
+    const code = normalizarCodigo(o?.code);
+    if (codigos.has(code)) return { ok: false, error: "Ese código ya está en el pago.", status: 400 };
+    codigos.add(code);
+    const c = await citasParaCobro(supabase, tenantId, o?.code, o?.appointmentIds);
+    if (!c.ok) return c;
+    if (c.barberId !== principal.barberId) return { ok: false, error: "Solo se pueden pagar juntas las citas con el mismo profesional.", status: 400 };
+    for (const id of [c.primeraId, ...c.extraIds]) {
+      if (usadas.has(id)) return { ok: false, error: "Esa cita ya está en el pago.", status: 400 };
+      usadas.add(id); extraIds.push(id);
+    }
+    saldo += c.saldo; abono += c.abono; total += c.total;
+  }
+  return { ok: true, extraIds, saldo, abono, total };
+}
