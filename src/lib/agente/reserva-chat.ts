@@ -227,7 +227,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   if (AFIRMATIVO.test(t) && t.split(" ").length <= 3 && !CORREO.test(texto)) return await siguientePaso(sel, true, servicios, deps);
   const correoM = CORREO.exec(texto);
   const correoNuevo = correoM ? correoM[0].toLowerCase() : null;
-  let resto = correoM ? texto.replace(correoM[0], " ") : texto;
+  // Acepta datos con etiquetas ("Nombre: Carlitos Run / Correo: ... / Servicio: corte"): se quitan las etiquetas.
+  let resto = (correoM ? texto.replace(correoM[0], " ") : texto).replace(/\b(nombre completo|nombre|correo electronico|correo|email|e-mail|mail|servicio)\s*:/gi, " ");
   let servicio = todosServicios.length === 1 ? todosServicios[0] : (sel.servicioId ? todosServicios.find((x) => x.id === sel.servicioId) ?? null : null);
   if (!servicio) {
     const num = /(?:^|[\s,;])(\d{1,2})(?=$|[\s,;.)])/.exec(resto);
@@ -245,27 +246,31 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   }
   // Escribió el servicio con sus palabras en otro orden ("corte más barba" = "Corte + Barba simple"): se compara por palabras sueltas.
   let ambiguos: typeof servicios | null = null;
+  const STOP = new Set(["de", "con", "y", "mas", "el", "la", "un", "una", "los", "las", "quiero", "para", "por", "favor", "mi", "me"]);
+  const toks = (x: string) => normalizar(x).split(/[^a-zñ0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w));
+  const vocab = Array.from(new Set(todosServicios.flatMap((x) => toks(x.nombre))));
   if (!servicio) {
-    const STOP = new Set(["de", "con", "y", "mas", "el", "la", "un", "una", "los", "las", "quiero", "para", "por", "favor", "mi", "me"]);
-    const toks = (x: string) => normalizar(x).split(/[^a-zñ0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w));
-    const vocab = Array.from(new Set(todosServicios.flatMap((x) => toks(x.nombre))));
     const mt = Array.from(new Set(toks(resto).filter((w) => vocab.some((v) => palabraCalza(w, v)))));
     const otras = toks(resto).filter((w) => !mt.includes(w)).length;
-    if (mt.length >= 2 || (mt.length === 1 && otras === 0)) {
+    if (mt.length >= 2 || (mt.length === 1 && (otras === 0 || mt[0] === "corte"))) { // "corte" a secas se entiende aunque venga con el nombre
       const cand = todosServicios.filter((x) => { const st = toks(x.nombre); return mt.every((m) => st.some((v) => palabraCalza(m, v))); });
       // Si uno solo tiene EXACTAMENTE esas palabras ("corte y cejas" = "Corte + Cejas", no "Corte + Barba + Cejas"), ese gana.
       const exacto = cand.filter((x) => toks(x.nombre).length === mt.length);
-      const unico = cand.length === 1 ? cand[0] : exacto.length === 1 ? exacto[0] : null;
+      // "corte" a secas es el corte básico ("Corte de cabello" / "Corte"): no hace falta preguntar entre todos los que empiezan con corte.
+      const basico = cand.filter((x) => /^(corte|corte de cabello|corte clasico|corte simple)$/.test(normalizar(x.nombre)));
+      const unico = cand.length === 1 ? cand[0] : exacto.length === 1 ? exacto[0] : mt.length === 1 && mt[0] === "corte" && basico.length >= 1 ? basico[0] : null;
       if (unico) { servicio = unico; for (const m of mt) resto = resto.replace(new RegExp(`\\b${m}\\b`, "gi"), " "); resto = resto.replace(/\b(m[aá]s|y|con)\b/gi, " ").replace(/\+/g, " "); }
       else if (cand.length > 1 && cand.length <= 8) ambiguos = cand;
     }
   }
   const pareceEnlace = /:\/\/|www\.|[A-Za-z0-9]\.[A-Za-z]{2,}/.test(resto);
   const limpio = pareceEnlace ? "" : resto.replace(/[,;:.()#/_+@\d]+/g, " ").replace(/\s+/g, " ").trim();
-  const palabras = limpio.split(" ").filter(Boolean);
-  const nombreOk = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'’\- ]{4,60}$/.test(limpio) && palabras.length >= 2 && palabras.length <= 6 && palabras.every((w) => /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(w));
+  // Un nombre no lleva palabras de servicios ("corte", "barba", "cejas"...) ni es una frase larga: si se pegó algo así, se saca; y más de 4 palabras no es un nombre.
+  const palabras = limpio.split(" ").filter(Boolean).filter((w) => !vocab.includes(normalizar(w)));
+  const nombreLimpio = palabras.join(" ");
+  const nombreOk = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'’\- ]{4,60}$/.test(nombreLimpio) && palabras.length >= 2 && palabras.length <= 4 && palabras.every((w) => /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(w));
   // Los datos se van juntando de a uno: lo nuevo se suma a lo que ya se había dado, y se pide solo lo que falta.
-  const nombreNuevo = nombreOk ? mayusculas(limpio) : null;
+  const nombreNuevo = nombreOk ? mayusculas(nombreLimpio) : null;
   const nombre = sel.cliente ?? nombreNuevo ?? null; // el nombre ya dado no se pisa con otra frase (p. ej. el nombre de un servicio)
   const correo = correoNuevo ?? sel.correo ?? null;
   if (!nombre || !correo || !servicio) {

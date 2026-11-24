@@ -235,6 +235,24 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   const a4 = armar({ etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
   await manejarReservaChat("Juan Pérez juan@correo.cl corte y cejas", TEL, sv, a4.deps);
   assert.deepEqual([a4.e.creadas[0]?.nombre, a4.e.creadas[0]?.servicioId], ["Juan Pérez", "s9"]);
+  // El caso de la prueba real: nombre, correo y "corte" en tres líneas (y también con etiquetas).
+  for (const msg of ["carlitos run\ncarlitos24k@gmail.com\ncorte", "Nombre: carlitos run\nCorreo: carlitos24k@gmail.com\nServicio: corte", "carlitos run, carlitos24k@gmail.com, Corte"]) {
+    const a5 = armar({ etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
+    await manejarReservaChat(msg, TEL, sv, a5.deps);
+    assert.deepEqual([a5.e.creadas[0]?.nombre, a5.e.creadas[0]?.correo, a5.e.creadas[0]?.servicioId], ["Carlitos Run", "carlitos24k@gmail.com", "s1"], msg);
+  }
+  // Reglas del nombre: sin palabras de servicios y máximo 4 palabras.
+  const B = () => armar({ etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
+  const n1 = B(); await manejarReservaChat("Carlitos Run Corte", TEL, sv, n1.deps);
+  assert.equal((n1.e.estado as any).datos.cliente, "Carlitos Run", "'Corte' no se queda en el nombre");
+  const n2 = B(); await manejarReservaChat("barba Juan Pérez cejas", TEL, sv, n2.deps);
+  assert.equal((n2.e.estado as any).datos.cliente, "Juan Pérez");
+  const n3 = B(); const rr = await manejarReservaChat("gracias muchas gracias por todo amigo querido", TEL, sv, n3.deps);
+  assert.ok(!(n3.e.estado as any).datos.cliente && rr!.texto.includes("nombre"), "una frase larga no es un nombre");
+  const n4 = B(); await manejarReservaChat("Juan Carlos Pérez González", TEL, sv, n4.deps);
+  assert.equal((n4.e.estado as any).datos.cliente, "Juan Carlos Pérez González", "cuatro palabras sí");
+  const n5 = B(); await manejarReservaChat("Ana María De La Fuente", TEL, sv, n5.deps);
+  assert.ok(!(n5.e.estado as any).datos.cliente || (n5.e.estado as any).datos.cliente.split(" ").length <= 4);
   console.log("OK servicio por palabras");
 })();
 (async () => {
