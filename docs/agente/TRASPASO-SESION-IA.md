@@ -183,3 +183,12 @@ Quinta fila del menú ("Manicure", de las últimas) y primera fila renombrada "R
 
 ## 20. Datos en tres líneas (24 nov, prueba de Carlitos)
 "carlitos run / correo / corte" dejaba el servicio sin entender porque varios servicios empiezan con "corte". Ahora "corte" a secas es el corte básico (el servicio llamado exactamente Corte / Corte de cabello / Corte clásico / Corte simple, si existe) aunque venga junto al nombre, y se aceptan etiquetas ("Nombre: ... Correo: ... Servicio: ...").
+
+## 21. Consultas difíciles por WhatsApp (24 nov 2026)
+- Idea de Nico: cuando el agente no sabe responder, le escribe al dueño (número admin 56984939625) en el mismo chat; el dueño da una instrucción y el agente responde al cliente y lo guarda en la base de conocimiento.
+- Código: `src/lib/agente/consultas.ts` (lógica pura, modelo inyectado), enganche en `whatsapp-webhook.ts` (`deps.consultas`, `esConsultable`) y adaptador en `route.ts`. Migración `docs/agente/sql/016_consultas_pendientes.sql` (`agent_consultas`; la fila se BORRA al cerrar: no se conserva teléfono ni pregunta).
+- Cuándo se consulta: mensaje largo que nada responde, o pregunta con «?» de 3+ palabras que iba al menú. Saludos y texto suelto siguen al menú. Tope 10 abiertas; una por cliente; si no se puede avisar al dueño, se deriva al teléfono como antes.
+- Dueño responde con `N: instrucción` o citando el aviso. `N: enviar: texto` (textual, sin IA, no se guarda), `N: descartar`, `consultas`, `saber`, `olvidar N`. Si algo no queda claro, la IA pregunta y la siguiente instrucción se suma.
+- Guardas: la IA solo usa la instrucción y el contexto; cifras/enlaces/horas deben estar en ellos (`datosRespaldados`). Se guarda en `agent_faq_custom` con `orden = 1000` (así se listan y se pueden olvidar).
+- Límite de WhatsApp: el aviso al dueño y la respuesta al cliente solo salen dentro de las 24 h desde el último mensaje de cada uno. Si el dueño no escribió en 24 h, el aviso falla y se deriva como antes (a futuro: plantilla aprobada).
+- Pruebas: `scripts/test-agente-consultas.ts` (12 casos) y 8 casos en `test-agente-wa-webhook.ts`. También se actualizó el enlace esperado `/whatsapp` (#463 había dejado esa prueba en rojo).

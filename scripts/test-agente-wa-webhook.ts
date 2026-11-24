@@ -96,7 +96,7 @@ async function pruebasDisponibilidad(){
     check("ia: responde lo que nada anterior pudo",f.sent[0]==="Sí, hacemos degradé."&&f.notices.length===0&&llamadas.length===1);
     const c=armar(undefined);(c.f.deps as any).conCta=true;(c.f.deps as any).ia=async()=>"Sí, hacemos degradé.";
     await enviar(c.f,"hacen degrade?");
-    check("cta: la respuesta de la IA termina con la invitación a reservar",c.f.sent[0]==="Sí, hacemos degradé.\n\n¿Quieres agendar? Reserva aquí:\nhttps://synthetic.invalid/b/local-A");
+    check("cta: la respuesta de la IA termina con la invitación a reservar",c.f.sent[0]==="Sí, hacemos degradé.\n\n¿Quieres agendar? Reserva aquí:\nhttps://synthetic.invalid/b/local-A/whatsapp");
     const menu=async(t:string,cfg:(f:any)=>void=()=>{},horas?:any)=>{const w=armar(horas);(w.f.deps as any).conMenu=true;cfg(w.f);await enviar(w.f,t);return w.f;};
     let mu=await menu("hola");
     check("menu: un saludo muestra las 4 opciones sin avisar a nadie",mu.sent[0].startsWith("¡Hola! Soy el asistente de Local A. ¿En qué te puedo ayudar? Elige una opción:")&&mu.sent[0].includes("1. Deseo reservar.")&&mu.sent[0].includes("4. Otras preguntas.")&&mu.notices.length===0);
@@ -355,6 +355,52 @@ async function pruebasAdmin(){
     check("admin: sin migración 015 se atiende como siempre",x.f.sent.length===1&&!x.f.sent[0].includes("modo administrador"));
   }
 }
+async function pruebasConsultas(){
+  const enviar=async(f:ReturnType<typeof fixture>,text:string,context?:string)=>{await f.handlers.POST(request(payload({context:context?{id:context}:undefined,text:{body:text}})));};
+  const armar=(esAdmin:boolean,abrirOk=true)=>{
+    const f=fixture();conectarFaq(f);
+    const abiertas:Array<{tel:string;pregunta:string}>=[];const llamadas:string[]=[];
+    (f.deps as any).admin={esAdmin:async()=>esAdmin,operaciones:()=>({pendiente:async()=>null,guardarPendiente:async()=>{},confirmar:async()=>{},descartarPendientes:async()=>{},activos:async()=>[],borrar:async()=>{},reporte:async()=>({})}),avisosVigentes:async()=>[]};
+    (f.deps as any).consultas={
+      abrir:async(_n:any,_h:string,tel:string,pregunta:string)=>{if(!abrirOk)return false;abiertas.push({tel,pregunta});return true;},
+      operaciones:()=>({
+        buscar:async(r:any)=>("numero" in r?(r.numero===3?{id:"c3",numero:3,telefono:"56911112222",pregunta:"pregunta",notas:null}:null):(r.wamid==="wamid.AVISO"?{id:"c3",numero:3,telefono:"56911112222",pregunta:"pregunta",notas:null}:null)),
+        abiertas:async()=>[],guardarNotas:async()=>{},contexto:async()=>"",redactar:async()=>{llamadas.push("ia");return null;},
+        enviarAlCliente:async()=>true,guardarSaber:async()=>true,cerrar:async()=>{},saberLista:async()=>[],saberBorrar:async()=>{},
+      }),
+    };
+    return {f,abiertas,llamadas};
+  };
+  const larga="Hola quiero saber si el curso de barbería sirve para alguien que trabaja de noche y cómo pagarlo";
+  { // una consulta larga que nada sabe responder: se registra, el cliente recibe la espera y NO la derivación al teléfono
+    const x=armar(false);await enviar(x.f,larga);
+    check("consultas: el cliente recibe la espera y se abre la consulta",x.abiertas.length===1&&x.abiertas[0].pregunta===larga&&x.f.sent.length===1&&x.f.sent[0].includes("Déjame confirmarlo con el equipo"));
+  }
+  { // una pregunta corta con signo de pregunta que cae en el menú también se consulta; un saludo o texto sin pregunta no
+    const x=armar(false);await enviar(x.f,"¿Hacen cejas con hilo?");
+    check("consultas: la pregunta corta con ? se consulta",x.abiertas.length===1&&x.f.sent[0].includes("Déjame confirmarlo"));
+    const y=armar(false);await enviar(y.f,"hola");await enviar(y.f,"asdf qwer zxcv");
+    check("consultas: saludos y texto sin pregunta siguen yendo al menú, sin consulta",y.abiertas.length===0&&y.f.sent.length===2&&y.f.sent.every(t=>!t.includes("Déjame confirmarlo")));
+  }
+  { // si no se puede consultar (sin ventana de 24 h, sin migración), se deriva como antes
+    const x=armar(false,false);await enviar(x.f,larga);
+    check("consultas: sin poder avisar al dueño se deriva como antes",x.abiertas.length===0&&x.f.sent.length===1&&!x.f.sent[0].includes("Déjame confirmarlo"));
+    const y=armar(false);(y.f.deps as any).consultas.abrir=async()=>{throw new Error("sin tabla");};await enviar(y.f,larga);
+    check("consultas: si falla la base se deriva como antes",y.f.sent.length===1&&!y.f.sent[0].includes("Déjame confirmarlo"));
+  }
+  { // el dueño: 'N: instrucción' y citar el aviso llegan al manejador; la IA se llama; el resto es conversación normal
+    const x=armar(true);await enviar(x.f,"3: dile que sí");
+    check("consultas: 'N: instrucción' del dueño llega al manejador",x.llamadas.length===1&&x.f.sent[0].startsWith("No pude armar la respuesta"));
+    const y=armar(true);await enviar(y.f,"dile que sí","wamid.AVISO");
+    check("consultas: citar el aviso también",y.llamadas.length===1);
+    const z=armar(true);await enviar(z.f,"9: algo");await enviar(z.f,"hola");
+    check("consultas: sin consulta con ese número es conversación normal",z.llamadas.length===0&&z.abiertas.length===0);
+  }
+  { // un cliente cualquiera NO puede responder consultas aunque escriba lo mismo
+    const x=armar(false);await enviar(x.f,"3: dile que sí, regalo");await enviar(x.f,"dile que sí","wamid.AVISO");
+    check("consultas: un cliente no puede responder consultas",x.llamadas.length===0&&x.f.sent.every(t=>!t.includes("Respondí la consulta")&&!t.includes("No pude armar")));
+  }
+}
 async function pruebasManicure(){
   const enviar=async(f:ReturnType<typeof fixture>,text:string)=>{await f.handlers.POST(request(payload({context:undefined,text:{body:text}})));};
   const armar=()=>{
@@ -414,6 +460,7 @@ async function main(){
   await pruebasBotonesReserva();
   await pruebasManicure();
   await pruebasAdmin();
+  await pruebasConsultas();
   await pruebasDisponibilidad();
   let f=fixture();
   check("GET challenge",await(await f.handlers.GET(new Request("https://test.invalid/?hub.mode=subscribe&hub.verify_token=verify_synthetic&hub.challenge=123"))).text()==="123");

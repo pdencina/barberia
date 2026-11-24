@@ -8,6 +8,7 @@ import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMen
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
 import { responderDisponibilidad, ahoraChile, type DependenciasDisponibilidad } from "./disponibilidad";
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
+import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, type OperacionesConsulta } from "./consultas";
 import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
 import { fetchAllRows } from "../accounting";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
@@ -44,6 +45,12 @@ export interface DependenciasWebhook {
     /** Textos de los avisos vigentes que se muestran a los clientes que preguntan por horarios u horas. */
     avisosVigentes: (tenantId: string, hoy: string) => Promise<string[]>;
   };
+  /** Consultas difíciles (consultas.ts): el agente se las pasa al dueño por WhatsApp y guarda lo que él responda. Sin esto se deriva al teléfono como antes. */
+  consultas?: {
+    operaciones: (n: NegocioWebhook) => OperacionesConsulta;
+    /** true = quedó registrada y el dueño fue avisado. false = no se pudo (sin migración, sin ventana de 24 h...): se deriva como antes. */
+    abrir: (n: NegocioWebhook, contactHash: string, telefono: string, pregunta: string) => Promise<boolean>;
+  };
   // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
   ia?: (tenantId: string, texto: string, datos: DatosFaq | null, contactHash?: string) => Promise<string | null>;
   // true: las respuestas informativas (reglas e IA) terminan con "¿Quieres agendar? Reserva aquí: <link>". Apagado si no se indica.
@@ -70,6 +77,8 @@ export interface DependenciasWebhook {
   archivos?: { pedidos: (consulta: string, linkReserva: string | null | undefined) => unknown[]; enviar: (negocio: NegocioWebhook, para: string, archivo: any) => Promise<unknown> };
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
 }
+/** ¿Vale la pena preguntarle al dueño? Una pregunta de verdad (con "?" y 3 palabras o más) o un mensaje largo; nunca un saludo ni texto suelto. */
+const esConsultable = (t: string) => !esSaludo(t) && (esConsultaLarga(t) || (/\?/.test(t) && t.trim().split(/\s+/).length >= 3));
 export class MigracionWebhookPendiente extends Error { constructor() { super("Falta aplicar la migración del webhook"); } }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const hour = 60 * 60 * 1000;
@@ -150,9 +159,13 @@ export function crearManejadoresWebhook(config: {
               let esAdmin = false;
               try { esAdmin = await deps.admin.esAdmin(n.tenantId,para); } catch { /* sin tabla o falla: se atiende como cliente */ }
               if (esAdmin) {
-                let respuestaAdmin: string | null;
+                let respuestaAdmin: string | null = null;
+                // Primero las consultas difíciles ("3: dile que sí...", o citando el aviso); si no es una, los comandos de siempre.
+                if (deps.consultas) { try { respuestaAdmin = await manejarConsultaAdmin(text,p.context_id,deps.consultas.operaciones(n)); } catch { respuestaAdmin = null; } }
+                if (respuestaAdmin === null) {
                 try { respuestaAdmin = await manejarAdmin(text,deps.admin.operaciones(n.tenantId),deps.ahora()); }
                 catch { respuestaAdmin = null; /* sin tabla o falla: se atiende como cliente */ }
+                }
                 // null = no es un comando de administrador: el mensaje sigue el camino normal de cualquier cliente.
                 if (respuestaAdmin !== null) { await responder(respuestaAdmin); await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++; continue; }
               }
@@ -327,9 +340,15 @@ export function crearManejadoresWebhook(config: {
                     if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
                   }
                 } else if (deps.conMenu && tipo === "desconocido" && entradaTexto && typeof text === "string" && !desdeMenu && !esConsultaLarga(text)) {
+                  // Una pregunta de verdad (con "?" y 3 palabras o más) que nada supo responder: se la consulta al dueño. Si no se puede, el menú de siempre.
+                  let consultada = false;
+                  if (deps.consultas && esConsultable(text)) { try { consultada = await deps.consultas.abrir(n,p.remitenteHash,para,text); } catch { consultada = false; } }
+                  if (consultada) { await responder(TEXTO_AL_CLIENTE); await contar("derivadas_persona"); }
+                  else {
                   // No entendido o solo saluda: opciones en vez de derivar (no se avisa al administrador).
                   await responder(textoMenu(datosMenu, esSaludo(text) ? "saludo" : "no_entendi"));
                   await contar("respuestas_automaticas");
+                  }
                   // Los números del menú no deben leerse como elección de una oferta anterior: se empieza de cero.
                   if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
                 } else if (deps.derivarAlTelefono && !entradaTexto && p.tipo !== "button" && p.tipo !== "interactive") {
@@ -339,7 +358,11 @@ export function crearManejadoresWebhook(config: {
                   if (t) { await responder(t); await contar("respuestas_automaticas"); }
                 } else {
                   await contar("derivadas_persona");
-                  await responder((deps.derivarAlTelefono && textoDerivacionTelefono(datosMenu,"Para esto te atiende una persona del equipo.")) || "Te contactará una persona.");
+                  // Consulta difícil: se le pregunta al dueño por WhatsApp y se le responde al cliente por aquí. Si no se puede, se deriva al teléfono como antes.
+                  let consultada = false;
+                  if (deps.consultas && entradaTexto && typeof text === "string" && esConsultable(text)) { try { consultada = await deps.consultas.abrir(n,p.remitenteHash,para,text); } catch { consultada = false; } }
+                  if (consultada) await responder(TEXTO_AL_CLIENTE);
+                  else await responder((deps.derivarAlTelefono && textoDerivacionTelefono(datosMenu,"Para esto te atiende una persona del equipo.")) || "Te contactará una persona.");
                   if (await deps.repo.reclamarAviso(n.tenantId,p.remitenteHash,key,deps.ahora())) await deps.avisarAdministrador(n.tenantId);
                 }
               }
