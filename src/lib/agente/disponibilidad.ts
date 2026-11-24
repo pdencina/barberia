@@ -145,6 +145,11 @@ const NO_CONSULTA = /\b(cancelar|cancelo|cancela|anular|anulo|anula|cambiar|camb
 function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = false): Consulta | null {
   if (PREGUNTA_HORARIO.test(t) || NO_CONSULTA.test(t)) return null;
   let franja: Franja | null = null;
+  // Tras una oferta, "tarde" / "noche" / "y en la tarde" sueltos piden esa franja con la misma persona y fecha (antes caían en las preguntas frecuentes).
+  if (seguimiento) {
+    const solo = /^(?:y\s+)?(?:(?:en|por|para|de)\s+la\s+)?(tarde|noche)(?:\s+nom[aá]s|\s+no m[aá]s|\s+porfa|\s+por favor)?[\s?!.]*$/.exec(t.trim());
+    if (solo) franja = solo[1] as Franja;
+  }
   let texto = t.replace(/\b(?:en|por|de|durante|esta) la (mañana|tarde|noche)\b/g, (_, f: string) => { franja = f === "mañana" ? "manana" : (f as Franja); return " "; });
   texto = texto.replace(/\besta (mañana|tarde|noche)\b/g, (_, f: string) => { franja = f === "mañana" ? "manana" : (f as Franja); return " hoy "; });
   if (/\btemprano\b/.test(texto) && !/\bm[aá]s temprano\b/.test(texto)) { franja = "manana"; texto = texto.replace(/\btemprano\b/, " "); }

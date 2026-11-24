@@ -280,5 +280,19 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
       assert.ok(r.tipo === "respuesta" && r.texto.includes(`*${quien}`) && !r.texto.includes("Enzo"), `${msg} :: ${r.tipo === "respuesta" ? r.texto : "sin consulta"}`);
     }
   });
+  await caso("Seguimiento: 'tarde' / 'noche' sueltos piden esa franja con la misma persona (no caen en otras respuestas)", async () => {
+    const muchas = ["10:00", "10:45", "11:30", "12:15", "13:00", "13:45", "14:30", "15:15", "16:00", "17:30"];
+    const a = { "c|2026-11-03": muchas };
+    const seg = { ...deps(a), fechaPorDefecto: "2026-11-03", profesionalPorDefecto: "c", horasOfrecidas: muchas };
+    for (const msg of ["tarde", "y en la tarde", "en la tarde", "Tarde?", "tarde nomás"]) {
+      const r = await responderDisponibilidad(msg, datos(), seg);
+      assert.ok(r.tipo === "respuesta" && r.texto.includes("Camila Rojas") && r.texto.includes("en la tarde") && r.texto.includes("13:00") && !r.texto.includes("10:00 ·"), `${msg} :: ${r.tipo === "respuesta" ? r.texto : "sin consulta"}`);
+    }
+    // Sin una oferta previa, "tarde" solo no es una consulta.
+    assert.equal((await responderDisponibilidad("tarde", datos(), deps(a))).tipo, "sin_consulta");
+    // "mañana" suelto sigue siendo el día de mañana, no la franja.
+    const m = await responderDisponibilidad("mañana", datos(), seg);
+    assert.ok(m.tipo !== "respuesta" || !m.texto.includes("en la mañana"));
+  });
   console.log(`OK ${casos} casos de disponibilidad; reloj fijo y agenda simulada; sin red, base ni llaves.`);
 })();
