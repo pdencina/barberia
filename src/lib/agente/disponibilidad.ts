@@ -147,6 +147,11 @@ function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = f
   let texto = t.replace(/\b(?:en|por|de|durante|esta) la (mañana|tarde|noche)\b/g, (_, f: string) => { franja = f === "mañana" ? "manana" : (f as Franja); return " "; });
   texto = texto.replace(/\besta (mañana|tarde|noche)\b/g, (_, f: string) => { franja = f === "mañana" ? "manana" : (f as Franja); return " hoy "; });
   if (/\btemprano\b/.test(texto) && !/\bm[aá]s temprano\b/.test(texto)) { franja = "manana"; texto = texto.replace(/\btemprano\b/, " "); }
+  // Seguimiento de una oferta: "tarde", "de tarde", "tarde porfa" o "noche" a secas son un horario (no "más tarde", que se mide contra las horas ya dadas).
+  if (seguimiento && !franja) {
+    const suelta = /(?<!m[aá]s )(?<![a-zñáéíóú])(tarde|noche)\b/.exec(texto);
+    if (suelta) { franja = suelta[1] as Franja; texto = texto.replace(suelta[0], " "); }
+  }
   const f = interpretarFecha(texto, hoy);
   if (f === "invalida") return null;
   const rango = interpretarRango(f.resto, franja);

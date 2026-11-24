@@ -200,6 +200,10 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     const con = (extra: Partial<ReturnType<typeof deps>> = {}) => { const d = deps(ag); d.fechaPorDefecto = "2026-11-04"; d.profesionalPorDefecto = "v"; Object.assign(d, extra); return d; };
     const tarde = await responderDisponibilidad("me gustaría en la tarde", datos(), con());
     assert.ok(tarde.tipo === "respuesta" && tarde.texto.startsWith("*Valentina Paredes* tiene disponible mañana (miércoles 4 de noviembre) en la tarde:\n12:15 · 13:00 · 16:00 · 17:30"), "franja suelta");
+    for (const msg of ["tarde", "de tarde", "tarde porfa"]) {
+      const suelta = await responderDisponibilidad(msg, datos(), con());
+      assert.ok(suelta.tipo === "respuesta" && suelta.texto.includes("en la tarde:\n12:15 · 13:00 · 16:00 · 17:30"), `«${msg}» a secas es la franja de la tarde`);
+    }
     const hora = await responderDisponibilidad("a las 4", datos(), con());
     assert.ok(hora.tipo === "respuesta" && hora.texto.includes("Valentina Paredes") && hora.texto.includes("16:00"), "hora suelta");
     const tardeRel = await responderDisponibilidad("tienes más tarde?", datos(), con({ horasOfrecidas: ["10:00", "10:45", "12:15"] }));
