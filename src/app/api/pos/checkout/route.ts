@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { todayInChile } from "@/lib/utils";
 import { checkTotalsPure, checkAgainstCatalog } from "@/lib/checkout-check";
+import { buscarVentaRepetida, textoVentaRepetida } from "@/lib/venta-segura";
 import { buscarAbonosDisponibles, marcarAbonosAplicados, type AbonoDisponible } from "@/lib/abonos-disponibles";
 
 export async function POST(req: NextRequest) {
@@ -28,6 +29,34 @@ export async function POST(req: NextRequest) {
   if (callerRole !== "super_admin" && tenantId !== callerTenant) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
+
+  // SEGURIDAD DE CUADRATURA (segunda capa; la primera es el aviso en la pantalla): si ya hay una venta igual (mismo cliente, profesional y monto)
+  // de hace pocos minutos, no se registra otra a menos que la persona confirme que es realmente distinta. Cubre cortes de luz, doble toque y reintentos.
+  if (body.confirmarRepetida !== true) {
+    try {
+      const previa = await buscarVentaRepetida(supabase, { tenantId, barberId, clientId: clientId || null, total: Number(total) });
+      if (previa) return NextResponse.json({ code: "venta_repetida", error: textoVentaRepetida(previa), previa }, { status: 409 });
+    } catch (e) { console.error("[venta-repetida] error ignorado:", e); }
+  }
+
+  // Cita de esta venta: la venta queda ENLAZADA a ella (para que el calendario muestre «pagada» y todo cuadre). Si viene del boton «Cobrar»
+  // se usa esa cita; si se cobra directo, la cita de HOY de ese cliente con ese profesional, solo cuando hay exactamente una (no se adivina).
+  const activas = ["scheduled", "confirmed", "in_progress"];
+  let citaVinculada: { id: string; status: string } | null = null;
+  try {
+    if (appointmentId) {
+      const { data: a } = await supabase.from("appointments").select("id, barber_id, status, tenant_id").eq("id", appointmentId).maybeSingle();
+      if (a && a.barber_id === barberId && a.tenant_id === tenantId && a.status !== "cancelled") citaVinculada = { id: a.id, status: a.status };
+    } else if (clientId && barberId) {
+      const { data: list } = await supabase.from("appointments").select("id, status").eq("client_id", clientId).eq("barber_id", barberId).eq("date", todayInChile()).in("status", [...activas, "completed"]);
+      const libres: { id: string; status: string }[] = [];
+      for (const c of (list as any[]) || []) {
+        const { data: ya } = await supabase.from("transactions").select("id").eq("appointment_id", c.id).limit(1);
+        if (!(ya as any[])?.length) libres.push(c);
+      }
+      if (libres.length === 1) citaVinculada = libres[0];
+    }
+  } catch (e) { console.error("[cita-vinculada] error ignorado:", e); }
 
   // Abono pagado al reservar: se vuelve a verificar en el servidor (nunca se confía en el navegador). El navegador ya lo incluyó
   // en "discount" para que el total sea lo que falta cobrar. Vale el abono de la cita o el que la clienta pagó por otra cita
@@ -84,13 +113,14 @@ export async function POST(req: NextRequest) {
     tenant_id: tenantId,
     created_by: issuedBy,
     origin,
+    ...(citaVinculada ? { appointment_id: citaVinculada.id } : {}),
     ...((barberProfile as any)?.branch_id ? { branch_id: (barberProfile as any).branch_id } : {}),
     ...(abono > 0 ? { prepaid_amount: abono } : {}),
   };
   let { data: tx, error } = await supabase.from("transactions").insert(txRow).select().single();
-  if (error && /origin|created_by|prepaid_amount/i.test(error.message)) {
+  if (error && /origin|created_by|prepaid_amount|appointment_id/i.test(error.message)) {
     // Migraciones 090/097 aun no aplicadas: se guarda la venta igual, sin esos datos.
-    const { origin: _o, created_by: _c, prepaid_amount: _p, branch_id: _b, ...legacy } = txRow;
+    const { origin: _o, created_by: _c, prepaid_amount: _p, branch_id: _b, appointment_id: _a, ...legacy } = txRow;
     ({ data: tx, error } = await supabase.from("transactions").insert(legacy).select().single());
   }
   if (error || !tx) return NextResponse.json({ error: error?.message || "No se pudo registrar la venta" }, { status: 500 });
@@ -331,25 +361,7 @@ export async function POST(req: NextRequest) {
   // profesional, pero solo cuando hay exactamente una (si hubiera dos, no se adivina). Nunca
   // debe hacer fallar el cobro.
   try {
-    const active = ["scheduled", "confirmed", "in_progress"];
-    let apptToComplete: string | null = null;
-    if (appointmentId) {
-      const { data: a } = await supabase
-        .from("appointments")
-        .select("id, barber_id, status")
-        .eq("id", appointmentId)
-        .maybeSingle();
-      if (a && a.barber_id === barberId && active.includes(a.status)) apptToComplete = a.id;
-    } else if (clientId && barberId) {
-      const { data: list } = await supabase
-        .from("appointments")
-        .select("id")
-        .eq("client_id", clientId)
-        .eq("barber_id", barberId)
-        .eq("date", todayInChile())
-        .in("status", active);
-      if (list && list.length === 1) apptToComplete = list[0].id;
-    }
+    const apptToComplete: string | null = citaVinculada && activas.includes(citaVinculada.status) ? citaVinculada.id : null;
     if (apptToComplete) {
       await supabase.from("appointments").update({ status: "completed", ...(receiptEmailSent ? { post_service_sent: true } : {}) }).eq("id", apptToComplete);
     }

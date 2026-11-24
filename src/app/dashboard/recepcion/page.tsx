@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { patchCita } from "@/lib/patch-cita";
 import { pedirMotivoCancelacion, camposMotivo, type MotivoElegido } from "@/lib/motivo-cancelacion-bus";
 import { createClient } from "@/lib/supabase/client";
 import { useToast } from "@/components/ui/toast";
@@ -112,11 +113,8 @@ export default function RecepcionPage() {
     let motivo: MotivoElegido | false = false;
     if (status === "cancelled") { motivo = await pedirMotivoCancelacion(); if (motivo === false) return; }
 
-    await fetch(`/api/appointments/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, ...(status === "cancelled" && motivo ? camposMotivo(motivo) : {}) }),
-    });
+    const res = await patchCita(id, { status, ...(status === "cancelled" && motivo ? camposMotivo(motivo) : {}) });
+    if (!res || !res.ok) return;
 
     // Notify barber when client arrives (status = in_progress)
     if (status === "in_progress") {

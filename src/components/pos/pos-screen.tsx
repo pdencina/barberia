@@ -586,7 +586,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
     await processCheckout();
   };
 
-  const processCheckout = async () => {
+  const processCheckout = async (confirmarRepetida = false) => {
     setProcessing(true);
     setShowTipModal(false); // un aviso de propina de la venta anterior no debe quedar colgado
     try {
@@ -613,8 +613,23 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
           appointmentId: appointmentId || null,
           origin: standby ? "standby" : "pos",
           issuedBy: standby ? standby.barber.id : undefined,
+          ...(confirmarRepetida ? { confirmarRepetida: true } : {}),
         }),
       });
+      if (res.status === 409) {
+        // Primera capa: aviso antes de repetir una venta (la segunda capa es el servidor, que ya la detuvo).
+        const j = await res.json().catch(() => ({}));
+        if (j?.code === "venta_repetida") {
+          if (window.confirm(`${j.error}\n\nAceptar = SÍ, es otra venta distinta.\nCancelar = no registrarla.`)) return processCheckout(true);
+          showToast("Venta no registrada: ya existía una igual.", "info");
+          return;
+        }
+      }
+      if (!res.ok && res.status !== 409) {
+        const j = await res.json().catch(() => ({}));
+        showToast(j?.error || "No se pudo registrar la venta. Revisa en Caja si quedó guardada antes de repetirla.", "error");
+        return;
+      }
       if (res.ok) {
         const result = await res.json();
         setAppointmentId(null);
