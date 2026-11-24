@@ -80,6 +80,7 @@ const num = (parte: string) => frags.find((f) => f.texto.includes(parte))!.n;
     assert.equal(leerGuiada("Cuesta $99.999 el corte.", CONTEXTO), null);
     assert.equal(leerGuiada("Escríbenos a https://otro.cl/x", CONTEXTO), null);
     assert.equal(leerGuiada("NO_RESPONDER", CONTEXTO), null);
+    for (const t of ["No tengo información específica sobre tratamientos para cabello graso, eso lo confirmamos por aquí con el equipo.", "Eso lo confirmamos con el equipo y te avisamos.", "No tengo el dato exacto, te lo confirmo."]) assert.equal(leerGuiada(t, CONTEXTO), null, t);
     assert.equal(leerGuiada('{"ids":[1]}', CONTEXTO), null);
     assert.equal(leerGuiada("x".repeat(500), CONTEXTO), null);
   });
