@@ -733,7 +733,12 @@ function Totem() {
           </div>
           {msg && <p className={`mb-4 ${aviso}`}>{msg}</p>}
           <div className="sticky bottom-0 mt-auto bg-[#0A0A0A] pt-4">
-            <button className={principal} disabled={total === 0 || cargando} onClick={() => { setMsg(""); setVendedor(null); setPantalla("quien"); }}>{total > 0 ? `Continuar · ${plata(total)}` : "Elige un producto"}</button>
+            <button className={principal} disabled={total === 0 || cargando} onClick={() => {
+              setMsg("");
+              // Solo consumibles (bebidas, energéticas…): son del estudio, no se pregunta por profesional. Con algún cosmético sí.
+              const hayCosmetico = info.productos.some((p) => (carrito[p.id] || 0) > 0 && p.cosmetico);
+              if (!hayCosmetico) { setVendedor({}); setPantalla("pagoprod"); } else { setVendedor(null); setPantalla("quien"); }
+            }}>{total > 0 ? `Continuar · ${plata(total)}` : "Elige un producto"}</button>
           </div>
         </section>
       )}
@@ -770,10 +775,10 @@ function Totem() {
 
       {pantalla === "pagoprod" && vendedor && (
         <section className="flex flex-1 flex-col">
-          <button onClick={() => { setMsg(""); setPantalla("quien"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Cambiar</button>
+          <button onClick={() => { setMsg(""); setPantalla(vendedor.code || vendedor.barberId ? "quien" : "productos"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Cambiar</button>
           <div className="grid flex-1 items-center gap-x-16 gap-y-8 md:grid-cols-2">
             <div>
-              <p className="tt-mono mb-3 text-lg uppercase tracking-[0.16em] text-white/50">{vendedor.nombre ? `Vendido por ${vendedor.nombre}` : `Con tu código ${vendedor.code}`}</p>
+              <p className="tt-mono mb-3 text-lg uppercase tracking-[0.16em] text-white/50">{vendedor.nombre ? `Vendido por ${vendedor.nombre}` : vendedor.code ? `Con tu código ${vendedor.code}` : "Tu compra"}</p>
               <h2 className="tt-display mb-4 text-6xl font-semibold">Paga tus productos</h2>
               <p className="tt-display text-8xl font-semibold">{plata(total)}</p>
               <ul className="mt-6 space-y-1 text-2xl text-white/70">

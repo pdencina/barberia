@@ -42,14 +42,15 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
     const esProducto = kp0.kind === "producto";
     let cita: any = null;
     let citaIds: string[] = [];
-    let barberId: string;
+    let barberId: string | null;
     let clientId: string | null;
     let items: Array<{ service_id: string | null; product_id?: string | null; name: string; price: number; quantity?: number }>;
     if (esProducto) {
       // Venta de productos: el vendedor y el carrito se guardaron al crear el cobro (precios del servidor).
-      barberId = kp0.barber_id;
+      // Solo consumibles (bebidas…): la venta es del estudio y no lleva profesional. Con algún cosmético sí hace falta quién vendió.
+      barberId = kp0.barber_id || null;
       clientId = kp0.client_id || null;
-      if (!barberId) throw new Error("Falta el profesional que vendió");
+      if (!barberId && (Array.isArray(kp0.items) ? kp0.items : []).some((i: any) => i.cosmetico)) throw new Error("Falta el profesional que vendió");
       items = (Array.isArray(kp0.items) ? kp0.items : []).map((i: any) => ({ service_id: null, product_id: i.product_id, name: i.name, price: Math.round(Number(i.price) || 0), quantity: Math.max(1, Number(i.quantity) || 1) }));
       if (items.length === 0) throw new Error("La compra no tiene productos");
     } else {
@@ -84,7 +85,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
     const abono = Math.min(discount, abonosUsados.reduce((s, x) => s + x.monto, 0));
     const medio = medioDePago(kp0.payment_type, kp0.card_type);
 
-    const { data: barberProfile } = await supabase.from("profiles").select("name, branch_id").eq("id", barberId).maybeSingle();
+    const { data: barberProfile } = barberId ? await supabase.from("profiles").select("name, branch_id").eq("id", barberId).maybeSingle() : { data: null as any };
     const txRow: Record<string, any> = {
       type: "income", status: "completed", subtotal, discount, total,
       payment_method: medio, client_id: clientId, barber_id: barberId, coupon_id: null, tenant_id: tenantId,
@@ -147,7 +148,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
     let boleta: { folio: number; pdfUrl: string | null; pdfBase64: string | null } | null = null;
     try {
       const { emitForTransaction } = await import("@/lib/sii-emit");
-      const r = await emitForTransaction(supabase, tenantId, tx.id, { onlyAuto: true, barberId });
+      const r = await emitForTransaction(supabase, tenantId, tx.id, { onlyAuto: true, ...(barberId ? { barberId } : {}) });
       if (r.ok && r.folio) boleta = { folio: r.folio, pdfUrl: r.pdfUrl || null, pdfBase64: r.pdfBase64 || null };
     } catch (e) { console.error("Tótem: error emitiendo boleta:", e); }
 
@@ -160,7 +161,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
         await sendReceipt({
           to: cli.email, clientName: cli.name || "Cliente", transactionId: tx.id,
           items: items.map((i: any) => ({ description: i.name, quantity: i.quantity || 1, unitPrice: i.price, total: i.price * (i.quantity || 1) })),
-          subtotal, discount, total, paymentMethod: medio, date: new Date(), barberName: barberProfile?.name || "Tu profesional",
+          subtotal, discount, total, paymentMethod: medio, date: new Date(), barberName: barberProfile?.name || (barberId ? "Tu profesional" : "Estudio"),
           businessLogoUrl: enl.logoUrl, businessName: enl.name,
           boletaFolio: boleta?.folio ?? null, boletaPdfUrl: boleta?.pdfUrl ?? null, boletaPdfBase64: boleta?.pdfBase64 ?? null, links: enl.links,
         });
