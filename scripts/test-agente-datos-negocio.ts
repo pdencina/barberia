@@ -50,7 +50,7 @@ async function main(){
  check("servicios activos propios",r?.servicios.length===1&&r.servicios[0].nombre==="Corte A"&&r.servicios[0].precio===10000&&r.servicios[0].duracionMin===30);
  check("horas se adaptan a HH:mm",r?.horario.find(h=>h.dia===1)?.abre==="10:00"&&r.horario.find(h=>h.dia===1)?.cierra==="20:00");
  check("cerrado no inventa horas",r?.horario[0].cerrado===true&&r.horario[0].abre===null&&r.horario[0].cierra===null);
- check("link del tenant con helper inyectado",r?.negocio.linkReserva==="https://synthetic.invalid/b/negocio-a"&&f.flags.links===1);
+ check("link del tenant con helper inyectado",r?.negocio.linkReserva==="https://synthetic.invalid/b/negocio-a/whatsapp"&&f.flags.links===1);
  check("whitelist sin datos privados",!JSON.stringify(r).includes("NO_PUBLICAR")&&!JSON.stringify(r).includes("Servicio B")&&!JSON.stringify(r).includes("NO_MEZCLAR"));
  check("solo lectura",f.flags.writes===0);
  const b=await f.repo.datosDelNegocio("B");check("segundo negocio aislado",b?.negocio.nombre==="Negocio B"&&b.servicios.length===1&&b.servicios[0].nombre==="Servicio B");
@@ -85,12 +85,12 @@ async function main(){
  for(const slug of [null,"","a/b","a?tenant=B","a#B"]){f=fixture();f.tables.tenants[0].slug=slug;r=await f.repo.datosDelNegocio("A");check("slug ausente/inválido =>link null sin inventar",r?.negocio.linkReserva===null&&f.flags.links===0);}
  f=fixture();const wrong=crearRepositorioDatosNegocio(f.db,{enlace:async()=>"https://synthetic.invalid/b/negocio-b"});assert.equal(await wrong.datosDelNegocio("A"),null);casos++;
  f=fixture();const generic=crearRepositorioDatosNegocio(f.db,{enlace:async()=>"https://synthetic.invalid/booking"});assert.equal(await generic.datosDelNegocio("A"),null);casos++;
- f=fixture();const real=await crearRepositorioDatosNegocio(f.db).datosDelNegocio("A");check("helper REAL de URL con DB simulada",!!real?.negocio.linkReserva?.endsWith("/negocio-a")&&f.queries.some(q=>q.select==="slug"&&q.single&&q.filters.some(([k,v])=>k==="id"&&v==="A")));
+ f=fixture();const real=await crearRepositorioDatosNegocio(f.db).datosDelNegocio("A");check("helper REAL de URL con DB simulada",!!real?.negocio.linkReserva?.endsWith("/negocio-a/whatsapp")&&f.queries.some(q=>q.select==="slug"&&q.single&&q.filters.some(([k,v])=>k==="id"&&v==="A")));
  // Profesionales reservables y su link personal.
  let serialPro=0;const pro=(over:Record<string,unknown>)=>({id:`p${String(++serialPro).padStart(3,"0")}`,tenant_id:"A",name:"Bleiner Santos",booking_slug:"bleiner",active:true,role:"barber",also_attends_clients:false,privado:"NO_PUBLICAR",...over});
  f=fixture();f.tables.profiles=[pro({}),pro({name:"Admin Sin Agenda",booking_slug:"admin-sin",role:"admin"}),pro({name:"Admin Atiende",booking_slug:"admin-atiende",role:"admin",also_attends_clients:true}),pro({name:"Inactivo",booking_slug:"inactivo",active:false}),pro({name:"Ajeno",booking_slug:"ajeno",tenant_id:"B"}),pro({name:"Slug Malo",booking_slug:"MALO/../x"}),pro({name:"Sin Slug",booking_slug:null})];
  r=await f.repo.datosDelNegocio("A");
- check("profesionales: solo reservables activos del negocio, con link personal",JSON.stringify(r?.profesionales)===JSON.stringify([{id:"p001",nombre:"Bleiner Santos",link:"https://synthetic.invalid/negocio-a/bleiner",duracionMin:null},{id:"p003",nombre:"Admin Atiende",link:"https://synthetic.invalid/negocio-a/admin-atiende",duracionMin:null}]));
+ check("profesionales: solo reservables activos del negocio, con link personal",JSON.stringify(r?.profesionales)===JSON.stringify([{id:"p001",nombre:"Bleiner Santos",link:"https://synthetic.invalid/negocio-a/bleiner-whatsapp",duracionMin:null},{id:"p003",nombre:"Admin Atiende",link:"https://synthetic.invalid/negocio-a/admin-atiende-whatsapp",duracionMin:null}]));
  check("profesionales: nunca expone columnas privadas",!JSON.stringify(r).includes("NO_PUBLICAR"));
  check("profesionales: consulta filtrada por negocio y activos",f.queries.filter(q=>q.table==="profiles").every(q=>q.filters.some(([k,v])=>k==="tenant_id"&&v==="A")&&q.filters.some(([k,v])=>k==="active"&&v===true)));
  f=fixture();f.tables.profiles=[pro({})];f.flags.failTable="profiles";r=await f.repo.datosDelNegocio("A");
