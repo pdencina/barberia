@@ -6,7 +6,8 @@ for (const t of ["Hola", "hola!", "Holaaa", "buenas", "Buenos días", "hola buen
 for (const t of ["hola quiero reservar con camila mañana", "quiero una hora", "asdf", ""]) assert.equal(esSaludo(t), false, t);
 
 for (const [t, o] of [["1", 1], [" 2 ", 2], ["3.", 3], ["4)", 4], ["opción 2", 2], ["opcion 3", 3], ["la 4", 4], ["el 1", 1], ["numero 2", 2]] as const) assert.equal(opcionMenu(t), o, t);
-for (const t of ["5", "0", "12", "1 y 2", "quiero la 4 por favor", "hola", "2 cortes", "a las 3"]) assert.equal(opcionMenu(t), null, t);
+for (const t of ["6", "0", "12", "1 y 2", "quiero la 4 por favor", "hola", "2 cortes", "a las 3"]) assert.equal(opcionMenu(t), null, t);
+assert.equal(opcionMenu("5"), 5); assert.equal(opcionMenu("opción 5"), 5); // 5 = Manicure
 
 assert.equal(esConsultaLarga("quien es el mejor"), false);
 assert.equal(esConsultaLarga("hola buenas tardes quisiera saber si hacen peinados"), true);

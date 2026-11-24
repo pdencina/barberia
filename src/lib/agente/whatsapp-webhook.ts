@@ -8,6 +8,7 @@ import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMen
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
 import { responderDisponibilidad, ahoraChile, type DependenciasDisponibilidad } from "./disponibilidad";
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
+import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
 import { fetchAllRows } from "../accounting";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
@@ -139,8 +140,8 @@ export function crearManejadoresWebhook(config: {
             };
             const responder = async (body: string, acuseBaja = false) => {
               if (!(await habilitado(acuseBaja))) return;
-              if (deps.responderLista && (esTextoMenu(body) || esTextoCurso(body))) {
-                try { const r: any = await deps.responderLista(n,para,esTextoCurso(body) ? listaDeCurso() : listaDeMenu(body)); if (r && r.estado === "aceptado") return; } catch { /* se envía el menú de texto */ }
+              if (deps.responderLista && (esTextoMenu(body) || esTextoCurso(body) || esTextoManicure(body))) {
+                try { const r: any = await deps.responderLista(n,para,esTextoCurso(body) ? listaDeCurso() : esTextoManicure(body) ? listaDeManicure() : listaDeMenu(body)); if (r && r.estado === "aceptado") return; } catch { /* se envía el menú de texto */ }
               }
               await deps.responder(n,para,body);
             };
@@ -197,6 +198,15 @@ export function crearManejadoresWebhook(config: {
                       reiniciado = true;
                       await contar("respuestas_automaticas");
                     }
+                    // 0b) Manicure: otra línea de negocio, aparte de la barbería. Sale de cualquier reserva en curso y NO pasa por disponibilidad, reservas ni IA.
+                    if (!reiniciado && deps.conMenu && tipo === "desconocido") {
+                      const mani = respuestaManicure(text);
+                      if (mani !== null) {
+                        if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
+                        respuestaFaq = mani; reiniciado = true;
+                        await contar("respuestas_automaticas");
+                      }
+                    }
                     // 1) Conversación de reserva en curso (elegir hora, enviar datos).
                     if (chat && !reiniciado) {
                       try {
@@ -219,6 +229,7 @@ export function crearManejadoresWebhook(config: {
                       if (op === 4) { respuestaFaq = (deps.derivarAlTelefono && textoDerivacionTelefono(datosNegocio,"Perfecto, para otras consultas te atiende una persona del equipo.")) || RESPUESTA_OTRAS; derivarChat = true; }
                       else if (op === 3 && infoGeneral(datosNegocio)) { const info = infoGeneral(datosNegocio) as string; respuestaFaq = deps.conCta ? conLlamadaAReservar(info,datosNegocio?.negocio.linkReserva) : info; await contar("respuestas_automaticas"); }
                       else if (op === 2 || (op === null && pideInfoCursoGeneral(text))) { respuestaFaq = textoCurso(); await contar("respuestas_automaticas"); }
+                      else if (op === 5) { respuestaFaq = textoManicure(); await contar("respuestas_automaticas"); } // sin reserva en curso, el 5 del menú es Manicure
                       else if (op !== null) { consulta = CONSULTA_POR_OPCION[op]; desdeMenu = true; }
                     }
                     // Pide el video del curso: el enlace va tal cual, sin pasar por la IA.
@@ -290,7 +301,7 @@ export function crearManejadoresWebhook(config: {
                     }
                   }
                 }
-                if (respuestaFaq !== null && deps.admin && !derivarChat && !esTextoMenu(respuestaFaq) && !esTextoCurso(respuestaFaq) && pideHorario(consulta)) {
+                if (respuestaFaq !== null && deps.admin && !derivarChat && !esTextoMenu(respuestaFaq) && !esTextoCurso(respuestaFaq) && !esTextoManicure(respuestaFaq) && !esRespuestaManicure(respuestaFaq) && pideHorario(consulta)) {
                   // Avisos del dueño (p. ej. "el viernes 27 cerramos a las 13:00") en las respuestas sobre horarios u horas.
                   try { respuestaFaq = conAvisos(respuestaFaq, await deps.admin.avisosVigentes(n.tenantId, ahoraChile(deps.ahora()).fecha)); } catch { /* sin avisos: la respuesta sale igual */ }
                 }
@@ -307,6 +318,9 @@ export function crearManejadoresWebhook(config: {
                   // Tras una respuesta del curso, la lista de lo que suele querer ver el cliente: camino directo, sin preguntas abiertas.
                   if (deps.responderLista && !derivarChat && p.tipo !== "button" && !esTextoCurso(respuestaFaq) && (DEL_CURSO.test(respuestaFaq) || DEL_CURSO.test(consulta)) && !esTextoMenu(respuestaFaq)) {
                     try { if (await habilitado(false)) await deps.responderLista(n,para,listaDeCurso(TITULO_CURSO_SEGUIR)); } catch { /* la respuesta ya salió */ }
+                  }
+                  if (deps.responderLista && !derivarChat && p.tipo !== "button" && esRespuestaManicure(respuestaFaq)) {
+                    try { if (await habilitado(false)) await deps.responderLista(n,para,listaDeManicure(TITULO_MANICURE_SEGUIR)); } catch { /* la respuesta ya salió */ }
                   }
                   if (derivarChat) {
                     await contar("derivadas_persona");
