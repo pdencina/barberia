@@ -355,8 +355,41 @@ async function pruebasAdmin(){
     check("admin: sin migración 015 se atiende como siempre",x.f.sent.length===1&&!x.f.sent[0].includes("modo administrador"));
   }
 }
+async function pruebasManicure(){
+  const enviar=async(f:ReturnType<typeof fixture>,text:string)=>{await f.handlers.POST(request(payload({context:undefined,text:{body:text}})));};
+  const armar=()=>{
+    const f=fixture(),data=conectarFaq(f);(f.deps as any).conMenu=true;
+    data.tables.profiles=[{id:"pm",tenant_id:"tenantA",name:"Matías Soto",booking_slug:"matias-soto",active:true,role:"barber",also_attends_clients:false,slot_duration:45}];
+    const listas:any[]=[];(f.deps as any).responderLista=async(_n:unknown,_p:unknown,l:any)=>{listas.push(l);return {estado:"aceptado"};};
+    const memoria=new Map<string,any>();
+    (f.deps as any).chat={
+      leerEstado:async(t:string,c:string)=>memoria.get(t+c)??null,guardarEstado:async(t:string,c:string,e:any)=>{memoria.set(t+c,e);},borrarEstado:async(t:string,c:string)=>{memoria.delete(t+c);},
+      reservasFuturas:async()=>0,crearReserva:async()=>({ok:false,motivo:"otro"}),contar:async()=>{},
+    };
+    f.deps.horasLibres=(async(_id:string,fecha:string)=>({slots:[`${fecha}T15:00:00`],cerrado:false,fueraDeVentana:false})) as any;
+    return {f,listas,memoria};
+  };
+  { const x=armar();
+    await enviar(x.f,"manicure");
+    check("manicure: escribir 'manicure' muestra su submenú (lista) y nada de la barbería",x.listas.length===1&&x.listas[0].filas.map((r:any)=>r.id).join()==="k_reservar,k_trabajos,k_menu"&&x.f.sent.length===0&&x.f.notices.length===0);
+    await enviar(x.f,"precio manicure");
+    check("manicure: precios y reservar dan el enlace de Looky, sin avisos ni horas de la barbería",x.f.sent[0].includes("https://www.re-booking.cl/looky-estudio")&&!x.f.sent[0].includes("disponib")&&x.listas.length===2&&x.listas[1].cuerpo.includes("¿Qué más quieres ver de manicure?"));
+    await enviar(x.f,"quiero conocer los trabajos de manicure");
+    check("manicure: los trabajos dan el enlace de Para ellas",x.f.sent[1].includes("https://estudiolevels.com/para-ellas"));
+  }
+  { // sin cruce: en medio de una reserva de barbería, hablar de manicure la deja atrás; y reservar barbería no menciona manicure
+    const x=armar();
+    await enviar(x.f,"matias tiene hora hoy");
+    check("manicure: hay una oferta de barbería guardada",x.memoria.size===1&&!x.f.sent[0].includes("manicure"));
+    await enviar(x.f,"y hacen uñas?");
+    check("manicure: sale de la reserva en curso y responde manicure",x.memoria.size===0&&x.listas.length===1);
+    await enviar(x.f,"tienen hora hoy");
+    check("manicure: después, 'tienen hora hoy' vuelve a ser barbería (disponibilidad), sin enlaces de manicure",!x.f.sent[x.f.sent.length-1].includes("looky-estudio")&&/disponib|tiene|tienen/i.test(x.f.sent[x.f.sent.length-1]));
+  }
+}
 async function main(){
   await pruebasFaq();
+  await pruebasManicure();
   await pruebasAdmin();
   await pruebasDisponibilidad();
   let f=fixture();

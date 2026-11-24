@@ -2,7 +2,7 @@
 // solo si no hay una reserva en curso (esa conversación se atiende antes).
 import { normalizar, datoSeguro, responderFaq, type DatosFaq } from "./faq-fija";
 
-export type OpcionMenu = 1 | 2 | 3 | 4;
+export type OpcionMenu = 1 | 2 | 3 | 4 | 5;
 // Mensajes largos que ninguna regla ni la IA entendió son una consulta real: los ve una persona, no se les muestra el menú.
 export const PALABRAS_CONSULTA_LARGA = 6;
 
@@ -15,7 +15,7 @@ export function esSaludo(texto: string): boolean {
 
 /** "1", "2.", "opcion 3", "la 4": la opción elegida, o null. */
 export function opcionMenu(texto: string): OpcionMenu | null {
-  const m = /^(?:(?:opcion|la|el|numero|n)\s*)?([1-4])[\s.)!]*$/.exec(normalizar(texto).trim());
+  const m = /^(?:(?:opcion|la|el|numero|n)\s*)?([1-5])[\s.)!]*$/.exec(normalizar(texto).trim());
   return m ? (Number(m[1]) as OpcionMenu) : null;
 }
 
@@ -60,7 +60,7 @@ export function textoMenu(datos: DatosFaq | null, tipo: "saludo" | "no_entendi" 
   const encabezado = tipo === "saludo"
     ? `¡Hola! ${nombre ? `Soy el asistente de ${nombre}. ` : ""}¿En qué te puedo ayudar? Elige una opción:`
     : tipo === "volver" ? "Volvamos al inicio. Elige una opción:" : "No entendí lo que me escribes. Por favor elige una de estas opciones:";
-  return `${encabezado}\n\n1. Deseo reservar.\n2. Quiero información del curso.\n3. Quiero información de precios, horarios y ubicación.\n4. Otras preguntas.${tel ? `\n\nSi tienes dudas, llámanos al ${tel}, con gusto te atenderemos.` : ""}`;
+  return `${encabezado}\n\n1. Deseo reservar.\n2. Quiero información del curso.\n3. Quiero información de precios, horarios y ubicación.\n4. Otras preguntas.\n5. Manicure.${tel ? `\n\nSi tienes dudas, llámanos al ${tel}, con gusto te atenderemos.` : ""}`;
 }
 
 /** Opción 3: horario, dirección y precios, cada uno con su regla de siempre. Solo lo que el negocio tiene cargado; null si no hay nada. */
@@ -76,15 +76,16 @@ export function infoGeneral(datos: DatosFaq | null): string | null {
 
 // Menú como lista de WhatsApp (botón "Ver opciones"): cada fila responde con su número, que el flujo ya entiende como opción.
 const FILAS_MENU = [
-  { id: "m1", title: "Reservar una hora" },
+  { id: "m1", title: "Reservar hora | Barbería" }, // WhatsApp admite 24 caracteres por título
   { id: "m2", title: "Información del curso" },
   { id: "m3", title: "Precios y horarios", description: "Precios, horarios y ubicación" },
   { id: "m4", title: "Otras preguntas" },
+  { id: "m5", title: "Manicure", description: "Reservar, precios y trabajos" }, // siempre de las últimas y aparte de la barbería
 ] as const;
 export const BOTON_MENU = "Ver opciones";
 export function esTextoMenu(cuerpo: string): boolean { return /\n1\. Deseo reservar\.\n2\./.test(cuerpo); }
 export function listaDeMenu(cuerpo: string): { cuerpo: string; boton: string; filas: readonly { id: string; title: string; description?: string }[] } {
-  const sinNumeros = cuerpo.replace(/\n*1\. Deseo reservar\.\n2\. [^\n]*\n3\. [^\n]*\n4\. [^\n]*\n*/, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
+  const sinNumeros = cuerpo.replace(/\n*1\. Deseo reservar\.\n2\. [^\n]*\n3\. [^\n]*\n4\. [^\n]*(?:\n5\. [^\n]*)?\n*/, "\n\n").replace(/\n{3,}/g, "\n\n").trim();
   return { cuerpo: sinNumeros.replace(/Elige una opción:|elige una de estas opciones:/i, (m) => m.replace(/:$/, " en el botón:")), boton: BOTON_MENU, filas: FILAS_MENU };
 }
 
@@ -105,7 +106,7 @@ export function esTextoCurso(cuerpo: string): boolean { return cuerpo.startsWith
 export function listaDeCurso(titulo: string = TITULO_CURSO) { return { cuerpo: titulo, boton: BOTON_MENU, filas: BOTON_FILAS_CURSO }; }
 
 const CONSULTA_BOTON: Record<string, string> = {
-  m1: "1", m2: "2", m3: "3", m4: "4",
+  m1: "1", m2: "2", m3: "3", m4: "4", m5: "manicure", k_reservar: "manicure reservar hora y precios", k_trabajos: "manicure conocer los trabajos", k_menu: "menú",
   r1: "1", r2: "2", r3: "3", r4: "4", r5: "5", r6: "6", r7: "7", r8: "8", // opciones de la reserva por chat (profesional o servicio)
   c_malla: "quiero la malla del curso de barbería", c_valor: "cuánto cuesta el curso de barbería y cómo reservo mi cupo",
   c_fechas: "cuándo comienza el curso de barbería y en qué horario son las clases", c_video: "quiero el video explicativo del curso de barbería",
