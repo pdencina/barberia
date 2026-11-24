@@ -174,3 +174,9 @@ Webhook: `ListaReserva` (rc.lista) se envía con `responderLista` usando el text
 
 ## 18. Opción Manicure (24 nov 2026)
 Quinta fila del menú ("Manicure", de las últimas) y primera fila renombrada "Reservar hora | Barbería" (WhatsApp admite 24 caracteres por título). `src/lib/agente/manicure.ts`: submenú con "Reservar hora / Precios" → https://www.re-booking.cl/looky-estudio y "Conocer los trabajos" → https://estudiolevels.com/para-ellas, más "Volver al menú". Es **otra línea de negocio**: se atiende antes de la reserva en curso, la disponibilidad y la IA (sale de una reserva de barbería si el cliente habla de manicure) y no recibe los avisos del administrador; la barbería nunca menciona manicure. La fila Manicure vuelve como el texto "manicure" (no como "5", que se confundiría con una hora). Un "5" suelto sin reserva en curso también abre Manicure.
+
+## 19. Errores de la prueba real del 24 nov (video de Nico y Dylan)
+1. **Tocar una opción de la reserva (ids `r1..r8`) borraba la reserva** (el webhook trataba todo botón como "decisión nueva") → "No entendí lo que me escribes". Ahora solo los botones del menú/curso/manicure dejan atrás la reserva.
+2. **"Corte más barba" se tomó como nombre** y pisó "Bleiner". Ahora el nombre ya dado no se pisa y el servicio se entiende por palabras en cualquier orden (`reserva-chat.ts`); si calza con varios se muestra una lista acotada (`opcionesServicio`), y si uno solo tiene exactamente esas palabras, gana ("corte y cejas" = "Corte + Cejas").
+3. **Nombres con mala ortografía** ("dilan" = Dylan, "filipe" = Felipe): `src/lib/agente/nombres.ts` (`palabraCalza`: pronunciación aproximada y una letra de diferencia) usado en reserva y disponibilidad.
+4. **"no sé cuál elegir" cancelaba la reserva** (empezaba con "no"). Ahora solo cancelan frases cortas como "no", "no gracias", "mejor no".

@@ -211,6 +211,33 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   console.log("OK nombre solo");
 })();
 (async () => {
+  // Errores vistos en el video del 24-nov: "Corte más barba" no debe pisar el nombre ni quedar sin entender.
+  const sv = datos([
+    { id: "s1", nombre: "Corte de cabello", precio: 17000, duracionMin: 45 }, { id: "s6", nombre: "Corte + Barba simple", precio: 24000, duracionMin: 60 },
+    { id: "s7", nombre: "Corte + Barba + Cejas", precio: 26000, duracionMin: 60 }, { id: "s9", nombre: "Corte + Cejas", precio: 18000, duracionMin: 45 },
+  ]);
+  const ETAPA: EstadoChat = { etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0, cliente: "Bleiner Useche", correo: "b@gmail.com" } };
+  const a1 = armar(ETAPA);
+  const r1 = await manejarReservaChat("Corte más barba", TEL, sv, a1.deps);
+  assert.ok(r1!.texto.startsWith("Hay más de uno parecido, ¿cuál de estos?\n1. Corte + Barba simple ($24.000)\n2. Corte + Barba + Cejas ($26.000)"), r1!.texto);
+  assert.equal((a1.e.estado as any).datos.cliente, "Bleiner Useche", "el nombre no se pisa con 'Corte más barba'");
+  assert.deepEqual((a1.e.estado as any).datos.opcionesServicio, ["s6", "s7"]); assert.equal(r1!.lista?.filas.length, 2);
+  const r2 = await manejarReservaChat("2", TEL, sv, a1.deps); // tocar la opción 2 de la lista acotada
+  assert.deepEqual(a1.e.creadas, [{ profesionalId: "d", fecha: "2026-11-03", hora: "15:15", servicioId: "s7", nombre: "Bleiner Useche", correo: "b@gmail.com", telefono: TEL }], JSON.stringify(a1.e.creadas));
+  assert.ok(r2!.texto.startsWith("¡Listo, Bleiner!"));
+  // Si calza con uno solo, lo toma directo ("corte y cejas" = "Corte + Cejas").
+  const a2 = armar(ETAPA); await manejarReservaChat("corte y cejas", TEL, sv, a2.deps);
+  assert.equal(a2.e.creadas[0]?.servicioId, "s9");
+  // Una frase que no es servicio ni da datos nuevos no cambia el nombre.
+  const a3 = armar(ETAPA); await manejarReservaChat("no sé cuál elegir", TEL, sv, a3.deps);
+  assert.equal((a3.e.estado as any).datos.cliente, "Bleiner Useche");
+  // Primera frase con todo junto: nombre + correo + servicio en otro orden.
+  const a4 = armar({ etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
+  await manejarReservaChat("Juan Pérez juan@correo.cl corte y cejas", TEL, sv, a4.deps);
+  assert.deepEqual([a4.e.creadas[0]?.nombre, a4.e.creadas[0]?.servicioId], ["Juan Pérez", "s9"]);
+  console.log("OK servicio por palabras");
+})();
+(async () => {
   // Dos profesionales con el mismo apellido: "con dylan perez" es Dylan, no Enzo (bug visto en la prueba real del 24-nov).
   const hom: EstadoChat = { etapa: "oferta", datos: { horaExacta: null, opciones: [
     { id: "e", nombre: "Enzo Perez", duracionMin: 45, fecha: "2026-11-03", horas: ["13:15", "15:00"] },
@@ -222,6 +249,8 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   assert.ok(x2!.texto.startsWith("Con *Enzo Perez* hoy tengo: 13:15 · 15:00"), x2!.texto);
   const x3 = await manejarReservaChat("dylan a las 3", TEL, datos(), armar(hom).deps);
   assert.ok(x3!.texto.startsWith("Perfecto. Te dejo la hora con *Dylan Perez* hoy a las *15:00*."), x3!.texto);
+  const x5 = await manejarReservaChat("con dilan perez", TEL, datos(), armar(hom).deps);
+  assert.ok(x5!.texto.startsWith("Con *Dylan Perez* hoy tengo:"), "dilan = Dylan: " + x5!.texto);
   const x4 = await manejarReservaChat("la de las 3 con dylan perez", TEL, datos(), armar(hom).deps);
   assert.ok(x4!.texto.startsWith("Perfecto. Te dejo la hora con *Dylan Perez* hoy a las *15:00*."), x4!.texto);
   console.log("OK mismo apellido");

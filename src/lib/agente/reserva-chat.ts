@@ -4,6 +4,7 @@
 // TODO en un solo mensaje, sin guardar datos a medias. La cita se crea con las mismas reglas de la reserva web (inyectada).
 import { normalizar, mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fija";
 import { ahoraChile, textoDeFecha, type Oferta } from "./disponibilidad";
+import { palabraCalza } from "./nombres";
 
 export const VIGENCIA_MIN = 30;
 export const MAX_RESERVAS_FUTURAS = 2; // desde aquí se pregunta si quiere otra de todas formas
@@ -13,7 +14,7 @@ const MAX_SERVICIOS_LISTADOS = 8;
 
 export type CampoIndicador = "respuestas_automaticas" | "consultas_disponibilidad" | "ofertas_horas" | "reservas_iniciadas" | "reservas_cerradas" | "derivadas_persona";
 /** Lo que el cliente ya fue entregando de a uno (nombre y correo) se guarda solo mientras dura la reserva (VIGENCIA_MIN) y se borra al terminar. */
-export interface Seleccion { id: string; nombre: string; duracionMin: number; fecha: string; hora: string; intentos: number; /** Servicio ya elegido (no es un dato personal): se conserva entre mensajes. */ servicioId?: string; cliente?: string; correo?: string }
+export interface Seleccion { id: string; nombre: string; duracionMin: number; fecha: string; hora: string; intentos: number; /** Servicio ya elegido (no es un dato personal): se conserva entre mensajes. */ servicioId?: string; cliente?: string; correo?: string; /** Servicios ya acotados ("corte más barba" calza con varios): el número elegido se lee contra esta lista. */ opcionesServicio?: string[] }
 export type EstadoChat = { etapa: "oferta"; datos: Oferta & { horaPendiente?: string; extraPendiente?: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string } } } | { etapa: "datos"; datos: Seleccion };
 export type ResultadoCreacion = { ok: true; citaId: string } | { ok: false; motivo: "ocupada" | "suspendido" | "otro" };
 export interface DependenciasReserva {
@@ -64,7 +65,7 @@ function coincideHora(hora: string, q: { h: number; m: number; mer: "am" | "pm" 
 /** Cuántas palabras del nombre aparecen en el mensaje ("dylan perez" calza 2 con Dylan Perez y 1 con Enzo Perez). */
 function puntajeNombre(t: string, nombre: string): number {
   const palabras = Array.from(new Set(t.split(/[^a-zñ0-9]+/).filter((w) => w.length >= 3)));
-  return normalizar(nombre).split(" ").filter((x) => x.length >= 3).filter((tok) => palabras.some((w) => w === tok || (w.length >= 4 && tok.startsWith(w)))).length;
+  return normalizar(nombre).split(" ").filter((x) => x.length >= 3).filter((tok) => palabras.some((w) => palabraCalza(w, tok))).length;
 }
 function nombreMencionado(t: string, nombre: string): boolean { return puntajeNombre(t, nombre) > 0; }
 /** Los que mejor calzan con lo escrito: si dos comparten un apellido, gana quien calza con nombre y apellido. */
@@ -109,7 +110,9 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     return { texto: `${nota ? nota + "\n\n" : ""}${pedirDatos(e.nombre, textoDeFecha(e.fecha, hoy), e.hora, servicios)}` };
   };
 
-  if (NEGATIVO.test(t)) {
+  // "no", "no gracias", "mejor no" cancelan; "no sé cuál elegir" o "no tengo correo" son dudas y NO deben cancelar la reserva.
+  const cancela = NEGATIVO.test(t) && t.split(" ").length <= 4 && !/^no (se|sé|estoy seguro|estoy segura|tengo|entiendo|encuentro|puedo|me acuerdo)\b/.test(t);
+  if (cancela) {
     await deps.borrarEstado();
     return { texto: "Sin problema, no agendé nada. Si quieres ver otras horas, escríbeme, por ejemplo: «tienen hora mañana»." };
   }
@@ -228,7 +231,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   let servicio = todosServicios.length === 1 ? todosServicios[0] : (sel.servicioId ? todosServicios.find((x) => x.id === sel.servicioId) ?? null : null);
   if (!servicio) {
     const num = /(?:^|[\s,;])(\d{1,2})(?=$|[\s,;.)])/.exec(resto);
-    if (num && Number(num[1]) >= 1 && Number(num[1]) <= servicios.length) { servicio = servicios[Number(num[1]) - 1]; resto = resto.replace(num[0], " "); }
+    const listaNum = sel.opcionesServicio?.length ? (sel.opcionesServicio.map((id) => todosServicios.find((x) => x.id === id)).filter(Boolean) as typeof servicios) : servicios;
+    if (num && Number(num[1]) >= 1 && Number(num[1]) <= listaNum.length) { servicio = listaNum[Number(num[1]) - 1]; resto = resto.replace(num[0], " "); }
     else {
       const porNombre = todosServicios.filter((s) => normalizar(texto).includes(normalizar(s.nombre)));
       if (porNombre.length === 1) { servicio = porNombre[0]; resto = resto.replace(new RegExp(porNombre[0].nombre.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"), " "); }
@@ -239,17 +243,37 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       }
     }
   }
+  // Escribió el servicio con sus palabras en otro orden ("corte más barba" = "Corte + Barba simple"): se compara por palabras sueltas.
+  let ambiguos: typeof servicios | null = null;
+  if (!servicio) {
+    const STOP = new Set(["de", "con", "y", "mas", "el", "la", "un", "una", "los", "las", "quiero", "para", "por", "favor", "mi", "me"]);
+    const toks = (x: string) => normalizar(x).split(/[^a-zñ0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w));
+    const vocab = Array.from(new Set(todosServicios.flatMap((x) => toks(x.nombre))));
+    const mt = Array.from(new Set(toks(resto).filter((w) => vocab.some((v) => palabraCalza(w, v)))));
+    const otras = toks(resto).filter((w) => !mt.includes(w)).length;
+    if (mt.length >= 2 || (mt.length === 1 && otras === 0)) {
+      const cand = todosServicios.filter((x) => { const st = toks(x.nombre); return mt.every((m) => st.some((v) => palabraCalza(m, v))); });
+      // Si uno solo tiene EXACTAMENTE esas palabras ("corte y cejas" = "Corte + Cejas", no "Corte + Barba + Cejas"), ese gana.
+      const exacto = cand.filter((x) => toks(x.nombre).length === mt.length);
+      const unico = cand.length === 1 ? cand[0] : exacto.length === 1 ? exacto[0] : null;
+      if (unico) { servicio = unico; for (const m of mt) resto = resto.replace(new RegExp(`\\b${m}\\b`, "gi"), " "); resto = resto.replace(/\b(m[aá]s|y|con)\b/gi, " ").replace(/\+/g, " "); }
+      else if (cand.length > 1 && cand.length <= 8) ambiguos = cand;
+    }
+  }
   const pareceEnlace = /:\/\/|www\.|[A-Za-z0-9]\.[A-Za-z]{2,}/.test(resto);
   const limpio = pareceEnlace ? "" : resto.replace(/[,;:.()#/_+@\d]+/g, " ").replace(/\s+/g, " ").trim();
   const palabras = limpio.split(" ").filter(Boolean);
   const nombreOk = /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ'’\- ]{4,60}$/.test(limpio) && palabras.length >= 2 && palabras.length <= 6 && palabras.every((w) => /[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]/.test(w));
   // Los datos se van juntando de a uno: lo nuevo se suma a lo que ya se había dado, y se pide solo lo que falta.
   const nombreNuevo = nombreOk ? mayusculas(limpio) : null;
-  const nombre = nombreNuevo ?? sel.cliente ?? null;
+  const nombre = sel.cliente ?? nombreNuevo ?? null; // el nombre ya dado no se pisa con otra frase (p. ej. el nombre de un servicio)
   const correo = correoNuevo ?? sel.correo ?? null;
   if (!nombre || !correo || !servicio) {
-    const progreso = (!!nombreNuevo && nombreNuevo !== sel.cliente) || (!!correoNuevo && correoNuevo !== sel.correo) || (!!servicio && servicio.id !== sel.servicioId);
-    return await siguientePaso({ ...sel, ...(nombre ? { cliente: nombre } : {}), ...(correo ? { correo } : {}), ...(servicio?.id ? { servicioId: servicio.id } : {}) }, progreso, servicios, deps);
+    const progreso = (!sel.cliente && !!nombreNuevo) || (!!correoNuevo && correoNuevo !== sel.correo) || (!!servicio && servicio.id !== sel.servicioId);
+    const base: Seleccion = { ...sel, ...(nombre ? { cliente: nombre } : {}), ...(correo ? { correo } : {}), ...(servicio?.id ? { servicioId: servicio.id } : {}) };
+    if (servicio) delete base.opcionesServicio;
+    if (!servicio && ambiguos) return await siguientePaso({ ...base, opcionesServicio: ambiguos.map((x) => x.id!).filter(Boolean) }, true, ambiguos, deps, "Hay más de uno parecido, ¿cuál de estos?");
+    return await siguientePaso(base, progreso, sel.opcionesServicio?.length ? (sel.opcionesServicio.map((id) => todosServicios.find((x) => x.id === id)).filter(Boolean) as typeof servicios) : servicios, deps);
   }
   const r = await deps.crearReserva({ profesionalId: sel.id, fecha: sel.fecha, hora: sel.hora, servicioId: servicio.id!, nombre, correo, telefono });
   await deps.borrarEstado();
@@ -279,7 +303,7 @@ function pedirDatos(profesional: string, dia: string, hora: string, servicios: A
 }
 
 /** Pide solo lo que falta, de a uno: nombre, luego correo, luego servicio (con lista para tocar). Los datos ya dados quedan en la memoria de la reserva. */
-async function siguientePaso(sel: Seleccion, progreso: boolean, servicios: Array<{ nombre: string; precio: number | null }>, deps: DependenciasReserva): Promise<RespuestaReserva> {
+async function siguientePaso(sel: Seleccion, progreso: boolean, servicios: Array<{ nombre: string; precio: number | null }>, deps: DependenciasReserva, encabezado?: string): Promise<RespuestaReserva> {
   const intentos = progreso ? sel.intentos : sel.intentos + 1;
   if (intentos >= MAX_INTENTOS_DATOS) {
     await deps.borrarEstado();
@@ -290,5 +314,5 @@ async function siguientePaso(sel: Seleccion, progreso: boolean, servicios: Array
   if (!sel.cliente) return { texto: progreso ? "Me falta tu nombre completo. ¿Cómo te llamas? (nombre y apellido)" : "No alcancé a entender tu nombre. ¿Me lo escribes completo? (nombre y apellido)" };
   if (!sel.correo) return { texto: `Gracias, ${primer}. ¿Cuál es tu correo? Ahí te llega el detalle de tu hora.` };
   const filas = servicios.slice(0, 8);
-  return { texto: `Último paso, ${primer}: ¿qué servicio quieres?\n${filas.map((s, i) => `${i + 1}. ${s.nombre}${typeof s.precio === "number" ? ` ($${moneda.format(s.precio)})` : ""}`).join("\n")}\n\nToca una opción o escríbeme el número.`, lista: listaServicios(filas) };
+  return { texto: `${encabezado ?? `Último paso, ${primer}: ¿qué servicio quieres?`}\n${filas.map((s, i) => `${i + 1}. ${s.nombre}${typeof s.precio === "number" ? ` ($${moneda.format(s.precio)})` : ""}`).join("\n")}\n\nToca una opción o escríbeme el número.`, lista: listaServicios(filas) };
 }

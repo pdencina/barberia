@@ -189,7 +189,7 @@ export function crearManejadoresWebhook(config: {
                     const datosNegocio = await deps.datosDelNegocio(n.tenantId);
                     datosMenu = datosNegocio;
                     // Tocar un botón es una decisión nueva: se deja atrás cualquier reserva a medias.
-                    if (esBoton && chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
+                    if (esBoton && chat && !/^r[1-8]$/.test(String(textoRecibido ?? ""))) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
                     // 0) "menú", "volver" o un saludo suelto: se sale de cualquier reserva en curso y se empieza de cero.
                     let reiniciado = false;
                     if (deps.conMenu && tipo === "desconocido" && (esVolver(text) || esSoloSaludo(text))) {
