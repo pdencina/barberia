@@ -1,6 +1,7 @@
 "use client";
 
 import { peakOverlap } from "@/lib/capacity";
+import { patchCita } from "@/lib/patch-cita";
 import { useState, useEffect, useRef, Suspense } from "react";
 import ApptDeepLink from "./appt-deeplink";
 import { useRouter } from "next/navigation";
@@ -337,11 +338,8 @@ export default function CalendarioPage() {
     let motivo: MotivoElegido | false = false;
     if (isCancel) { motivo = await pedirMotivoCancelacion(); if (motivo === false) return; }
     try {
-      const res = await fetch(`/api/appointments/${selectedApptId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status, ...(isCancel && motivo ? camposMotivo(motivo) : {}) }),
-      });
+      const res = await patchCita(selectedApptId, { status, ...(isCancel && motivo ? camposMotivo(motivo) : {}) });
+      if (!res) return;
       // Don't lie with a success toast when the server rejected the change (this was the
       // bug: it said "Estado actualizado" but nothing saved, so reopening showed the old
       // status). Surface the real error instead.
@@ -1209,11 +1207,9 @@ export default function CalendarioPage() {
   const updateListStatus = async (id: string, status: string) => {
     let motivo: MotivoElegido | false = false;
     if (status === "cancelled") { motivo = await pedirMotivoCancelacion(); if (motivo === false) return; }
-    await fetch(`/api/appointments/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status, ...(status === "cancelled" && motivo ? camposMotivo(motivo) : {}) }),
-    });
+    const res = await patchCita(id, { status, ...(status === "cancelled" && motivo ? camposMotivo(motivo) : {}) });
+    if (!res) return;
+    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.error || "No se pudo actualizar el estado", "error"); return; }
     showToast("Estado actualizado", "success");
     fetchAppointments();
   };

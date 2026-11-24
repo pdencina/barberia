@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { patchCita } from "@/lib/patch-cita";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { useTenant } from "@/lib/tenant-context";
@@ -135,11 +136,9 @@ export default function MiAgendaPage() {
   };
 
   const updateStatus = async (id: string, status: string) => {
-    await fetch(`/api/appointments/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status }),
-    });
+    const res = await patchCita(id, { status });
+    if (!res) return;
+    if (!res.ok) { const e = await res.json().catch(() => ({})); showToast(e.error || "No se pudo actualizar el estado", "error"); return; }
     showToast("Estado actualizado", "success");
     fetchData();
   };

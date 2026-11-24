@@ -89,13 +89,14 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
       type: "income", status: "completed", subtotal, discount, total,
       payment_method: medio, client_id: clientId, barber_id: barberId, coupon_id: null, tenant_id: tenantId,
       created_by: barberId, origin: "totem",
+      ...(citaIds[0] ? { appointment_id: citaIds[0] } : {}),
       ...(barberProfile?.branch_id ? { branch_id: barberProfile.branch_id } : {}),
       ...(abono > 0 ? { prepaid_amount: abono } : {}),
       ...(propina > 0 ? { tip_amount: propina } : {}),
     };
     let { data: tx, error } = await supabase.from("transactions").insert(txRow).select().single();
-    if (error && /origin|created_by|prepaid_amount|branch_id/i.test(error.message)) {
-      const { origin: _o, created_by: _c, prepaid_amount: _p, branch_id: _b, ...legacy } = txRow;
+    if (error && /origin|created_by|prepaid_amount|branch_id|appointment_id/i.test(error.message)) {
+      const { origin: _o, created_by: _c, prepaid_amount: _p, branch_id: _b, appointment_id: _a, ...legacy } = txRow;
       ({ data: tx, error } = await supabase.from("transactions").insert(legacy).select().single());
     }
     if (error || !tx) throw new Error(error?.message || "No se pudo registrar la venta");

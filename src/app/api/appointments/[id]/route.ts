@@ -1,4 +1,5 @@
 import { apptNoticeUrl, apptDayLabel } from "@/lib/appt-link";
+import { citaTieneCobro } from "@/lib/venta-segura";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { notify } from "@/lib/notify";
@@ -16,7 +17,7 @@ export async function PATCH(
   if (!session.userId) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   const supabase = createAdminSupabase();
   const { data: before } = await supabase.from("appointments")
-    .select("tenant_id, barber_id, status, date, start_time, client:clients(name), services:appointment_services(service_id)").eq("id", params.id).maybeSingle();
+    .select("tenant_id, client_id, barber_id, status, date, start_time, client:clients(name), services:appointment_services(service_id)").eq("id", params.id).maybeSingle();
   if (!before) return NextResponse.json({ error: "Cita no encontrada" }, { status: 404 });
   if (session.role !== "super_admin" && (before as any).tenant_id !== session.tenantId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
@@ -32,6 +33,13 @@ export async function PATCH(
     if (!puedeMarcarNoLlego(inicio, aHoraPared(new Date()))) {
       return NextResponse.json({ error: "Todavía no es la hora de esta cita: no se puede marcar «No llegó» antes de que empiece. Si el cliente avisó que no viene, cancélala con el motivo." }, { status: 400 });
     }
+  }
+  // Una cita no se completa «en el aire»: tiene que haber un cobro registrado (o la persona confirma que fue sin cobro). Evita citas completadas sin plata.
+  if (body.status === "completed" && (before as any).status !== "completed" && body.sinCobro !== true) {
+    try {
+      const ok = await citaTieneCobro(supabase, { id: params.id, client_id: (before as any).client_id, date: (before as any).date, tenant_id: (before as any).tenant_id });
+      if (!ok) return NextResponse.json({ code: "sin_cobro", error: "Esta cita no tiene ningún cobro registrado." }, { status: 409 });
+    } catch (e) { console.error("[sin-cobro] error ignorado:", e); }
   }
   // Si cambia de profesional, el nuevo debe ser del mismo negocio.
   if (body.barber_id && body.barber_id !== (before as any).barber_id && session.role !== "super_admin") {
