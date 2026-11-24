@@ -48,6 +48,10 @@ function captureAdParams() {
     const sp = new URLSearchParams(window.location.search);
     const found: Record<string, string> = {};
     for (const k of AD_PARAMS) { const v = sp.get(k); if (v) found[k] = v.slice(0, 200); }
+    // Links del agente de WhatsApp: re-booking.cl/<negocio>/whatsapp y re-booking.cl/<negocio>/<profesional>-whatsapp.
+    // Cuentan como origen «whatsapp» (para medir cuántos reservan con la autoatención) sin ensuciar el link con parámetros.
+    const partes = window.location.pathname.split("/").filter(Boolean);
+    if (!found.utm_source && partes.length === 2 && (partes[1] === "whatsapp" || partes[1].endsWith("-whatsapp"))) { found.utm_source = "whatsapp"; found.utm_medium = "agente"; }
     if (!Object.keys(found).length) return; // sin parametros nuevos: se conserva lo ya guardado en esta visita
     found.landing = window.location.pathname.slice(0, 120);
     window.sessionStorage.setItem(AD_STORAGE_KEY, JSON.stringify(found));
@@ -147,7 +151,9 @@ export default function BookingPage() {
     const pathParts = window.location.pathname.split("/").filter(Boolean);
     // /<negocio> (1 parte) o /<negocio>/<profesional> (2 partes); /booking?tenant=… sigue funcionando.
     const pathTenant = (pathParts.length === 1 || pathParts.length === 2) && pathParts[0] !== "booking" ? decodeURIComponent(pathParts[0]) : null;
-    const pathProf = pathTenant && pathParts.length === 2 ? decodeURIComponent(pathParts[1]) : null;
+    // «/<negocio>/whatsapp» no es un profesional (muestra el equipo); «/<profesional>-whatsapp» es ese profesional.
+    const pathProfRaw = pathTenant && pathParts.length === 2 ? decodeURIComponent(pathParts[1]) : null;
+    const pathProf = pathProfRaw === "whatsapp" ? null : pathProfRaw;
     const tenantSlug = urlParams.get("tenant") || urlParams.get("branch") || pathTenant;
     if (tenantSlug) setTenantSlugState(tenantSlug);
     const barberSlug = urlParams.get("profesional") || urlParams.get("barber");
@@ -216,8 +222,11 @@ export default function BookingPage() {
       if (!barberIdParam && data.length > 0) {
         let match: any = null;
         if (profSlugParam) {
+          const sinWa = profSlugParam.replace(/-whatsapp$/, "");
           match = data.find((b: any) => b.booking_slug === profSlugParam) ||
-                  data.find((b: any) => nameToSlug(b.name) === profSlugParam);
+                  data.find((b: any) => nameToSlug(b.name) === profSlugParam) ||
+                  data.find((b: any) => b.booking_slug === sinWa) ||
+                  data.find((b: any) => nameToSlug(b.name) === sinWa);
         }
         if (!match && barberSlug) {
           match = data.find((b: any) => nameToSlug(b.name) === barberSlug);

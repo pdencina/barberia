@@ -158,7 +158,7 @@ async function main(){
   ["¡Quiero agendar!","Puedes solicitar tu hora aquí: https://sintetico.invalid/b/negocio"],
  ]){
   await caso("P-control-positivo",()=>sinLogs(()=>{const r=responderFaq(entrada,datos());assert.equal(r.tipo,"respuesta");if(r.tipo==="respuesta")assert.equal(r.texto,esperado);privado(entrada,r);}));
-  await caso("W-control-positivo",()=>sinLogs(async()=>{const f=fixture(),r=await f.post(entrada);assert.deepEqual(f.enviados,[{tenant:"A",texto:esperado}]);assert.equal(f.avisos.length,0);privado(entrada,[r,f.enviados,f.persistido]);}));
+  await caso("W-control-positivo",()=>sinLogs(async()=>{const f=fixture(),r=await f.post(entrada);assert.deepEqual(f.enviados,[{tenant:"A",texto:esperado.replace("/b/negocio","/b/negocio/whatsapp")}]);assert.equal(f.avisos.length,0);privado(entrada,[r,f.enviados,f.persistido]);}));
  }
  console.log(`OK ${numeroCaso} casos F1 (${hostiles.length} entradas hostiles en FAQ y webhook); hallazgos F1-01 a F1-04 corregidos y reactivados. Sin red/base/envíos reales. Texto del cliente ausente de salidas persistibles y logs.`);
 }
