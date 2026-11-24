@@ -129,6 +129,22 @@ async function pruebasDisponibilidad(){
       check("piloto: sin teléfono válido se usa el texto de siempre",mu.sent[0]==="Te contactará una persona."); }
     mu=await (async()=>{const x=armar(undefined);await enviar(x.f,"hola");return x.f;})();
     check("menu: apagado, un saludo se deriva como antes",mu.sent[0]==="Te contactará una persona."&&mu.notices.length===1);
+    { // ya en el paso de datos: "¿qué barberos más tienen a esa hora?" sigue hablando del mismo día y la misma hora (no "hoy")
+      const llamadas:Array<[string,string,number]>=[];
+      const w=armar(async(id,fecha,dur)=>{llamadas.push([id,fecha,dur]);return {slots:[`${fecha}T17:00:00`,`${fecha}T18:00:00`],cerrado:false,fueraDeVentana:false};});
+      const memoria=new Map<string,any>();
+      (w.f.deps as any).chat={
+        leerEstado:async(t:string,c:string)=>memoria.get(t+c)??null,guardarEstado:async(t:string,c:string,e:any)=>{memoria.set(t+c,e);},borrarEstado:async(t:string,c:string)=>{memoria.delete(t+c);},
+        reservasFuturas:async()=>0,crearReserva:async()=>({ok:false,motivo:"otro"}),contar:async()=>{},
+      };
+      const fechaElegida="2026-12-23";
+      // El tenant/contacto del estado se arma con una primera consulta para obtener la clave real; luego se reemplaza por un estado de datos.
+      await enviar(w.f,"matias tiene hora hoy");
+      for(const k of Array.from(memoria.keys())) memoria.set(k,{etapa:"datos",datos:{id:"pm",nombre:"Matías Soto",duracionMin:45,fecha:fechaElegida,hora:"17:00",intentos:0}});
+      llamadas.length=0;
+      await enviar(w.f,"Que barberos mas tienen a esa hora?");
+      check("datos: la pregunta 'a esa hora' usa el día y la hora ya hablados",llamadas.length>0&&llamadas.every(l=>l[1]===fechaElegida)&&/17:00/.test(w.f.sent[1]??"")&&!/hoy/.test(w.f.sent[1]??""));
+    }
     { // seguimiento: tras una oferta, "en la tarde" se entiende con el mismo profesional y la misma fecha
       const horas=["10:00","10:45","11:30","12:15","13:00","13:45","14:30","15:15","16:00","17:30"];
       const w=armar(async(_id,fecha)=>({slots:horas.map(h=>`${fecha}T${h}:00`),cerrado:false,fueraDeVentana:false}));

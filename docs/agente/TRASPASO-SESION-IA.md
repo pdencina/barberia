@@ -157,3 +157,11 @@ Guion: `docs/agente/simulacion/guion-chileno.json` (114 conversaciones, 325 mens
 
 ## 15. Memoria de tema de la IA (19 nov. 2026)
 La IA ya no recibe cada mensaje "en frío": el adaptador guarda en `agent_chat_state` (etapa `tema`, migración `docs/agente/sql/014_tema_conversacion.sql`, **aplicada en pruebas y producción**) los **números de las líneas del contexto** usadas en la última respuesta de la IA (nunca texto del cliente) y se los pasa al modelo como "TEMA ANTERIOR" en el siguiente mensaje (`mensajeConTema` en `ia-respuesta.ts`; lectura/escritura en `src/lib/agente/tema.ts`). Así "¿y con barba?", "¿cuánto dura?" o "¿y el abono se devuelve?" se entienden. Vigencia 30 min; si hay una reserva en curso el tema se agrega a sus datos sin pisarla; `leerEstado` ignora las filas `tema` para no confundirlas con una reserva. Si la memoria falla, la IA responde como antes. Límite: solo recuerda lo que respondió la IA, no las respuestas del modo Clásico.
+
+## 16. Conversación más fluida (23 nov 2026, tras la primera prueba real en el número piloto)
+Nico probó el agente encendido en producción y vio 4 fallas; se corrigieron juntas (rama `claude/agente-conversacion-fluida`):
+1. **Perdía el día/hora al estar en el paso de datos** ("¿qué barberos más tienen a esa hora?" respondía "hoy"). Ahora el webhook hereda `fecha` y `hora` también de la etapa `datos` y reemplaza "esa hora" por la hora hablada.
+2. **Ya no elige barbero por el cliente.** Si una hora la tienen varios, se pregunta con quién (texto numerado + lista para tocar `r1..r8`; el estado guarda `horaPendiente`). "Con cualquiera" sí toma el primero. "Busco cerca de las 5" es una búsqueda (la responde la disponibilidad).
+3. **"¿Quién atiende el miércoles?"** lista a cada profesional con sus primeras 3 horas (`disponibilidad.ts`).
+4. **Datos de a uno:** nombre → correo → servicio (lista para tocar). Se sigue aceptando todo junto. **Privacidad:** `agent_chat_state.datos` ahora guarda `cliente` y `correo` mientras dura la reserva (VIGENCIA_MIN = 30 min) y se borra al confirmar, cancelar, derivar o vencer. Pendiente de revisar con el abogado (Ley 21.719) si se quiere dejar así.
+Webhook: `ListaReserva` (rc.lista) se envía con `responderLista` usando el texto como cuerpo; si falla, va el texto numerado.

@@ -233,5 +233,14 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     const t = await texto("matias tiene hora hoy MARCADOR_PRIVADO", { "m|2026-11-03": ["15:00"] });
     assert.ok(t !== null && !t.includes("MARCADOR") && !t.toLowerCase().includes("matias tiene"));
   });
+  await caso("'¿Quién atiende el miércoles?' lista a cada profesional con sus horas (no un resumen vago)", async () => {
+    const a = { "m|2026-11-04": ["10:00", "10:45", "11:30", "12:15"], "c|2026-11-04": ["10:00", "17:00"], "d|2026-11-04": ["10:45"], "v|2026-11-04": ["15:00", "16:00"] };
+    for (const msg of ["para el miercoles quien atiende?", "que barberos tienen el miercoles", "quienes atienden mañana"]) {
+      const r = await responderDisponibilidad(msg, datos(), deps(a));
+      assert.equal(r.tipo, "respuesta", msg); if (r.tipo !== "respuesta") continue;
+      assert.ok(r.texto.includes("atienden:") && r.texto.includes("• *Matías Soto*: 10:00 · 10:45 · 11:30") && r.texto.includes("• *Camila Rojas*: 10:00 · 17:00") && r.texto.includes("• *Valentina Paredes*: 15:00 · 16:00"), `${msg} :: ${r.texto}`);
+      assert.ok(!r.texto.includes(" y más") && r.oferta && r.oferta.opciones.length === 4, msg);
+    }
+  });
   console.log(`OK ${casos} casos de disponibilidad; reloj fijo y agenda simulada; sin red, base ni llaves.`);
 })();
