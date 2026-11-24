@@ -8,7 +8,7 @@ import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMen
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
 import { responderDisponibilidad, ahoraChile, type DependenciasDisponibilidad } from "./disponibilidad";
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
-import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, type OperacionesConsulta } from "./consultas";
+import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
 import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
 import { fetchAllRows } from "../accounting";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
@@ -49,7 +49,7 @@ export interface DependenciasWebhook {
   consultas?: {
     operaciones: (n: NegocioWebhook) => OperacionesConsulta;
     /** true = quedó registrada y el dueño fue avisado. false = no se pudo (sin migración, sin ventana de 24 h...): se deriva como antes. */
-    abrir: (n: NegocioWebhook, contactHash: string, telefono: string, pregunta: string) => Promise<boolean>;
+    abrir: (n: NegocioWebhook, contactHash: string, telefono: string, pregunta: string, medio?: { tipo: "image" | "document"; id: string }) => Promise<boolean>;
   };
   // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
   ia?: (tenantId: string, texto: string, datos: DatosFaq | null, contactHash?: string) => Promise<string | null>;
@@ -351,6 +351,11 @@ export function crearManejadoresWebhook(config: {
                   }
                   // Los números del menú no deben leerse como elección de una oferta anterior: se empieza de cero.
                   if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria: nada que borrar */ } }
+                } else if (deps.consultas && !entradaTexto && entry.memoria.leerMedio() && await (async () => {
+                  // Imagen o documento (comprobante de abono, fotos de referencia): se le reenvía al dueño, que la revisa y responde.
+                  try { return await deps.consultas!.abrir(n,p.remitenteHash,para,"imagen",entry.memoria.leerMedio()!); } catch { return false; }
+                })()) {
+                  await responder(TEXTO_IMAGEN_CLIENTE); await contar("derivadas_persona");
                 } else if (deps.derivarAlTelefono && !entradaTexto && p.tipo !== "button" && p.tipo !== "interactive") {
                   // Foto, audio, documento...: no se leen. Se le dice qué hacer (o se ignora si es una reacción o un sticker).
                   const dn = datosMenu ?? (deps.datosDelNegocio ? await deps.datosDelNegocio(n.tenantId).catch(() => null) : null);

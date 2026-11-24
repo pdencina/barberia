@@ -13,7 +13,7 @@ export const MAX_PREGUNTA = 500;
 export const ORDEN_SABER_CHAT = 1000; // las preguntas guardadas desde el chat llevan este orden (así se listan y se pueden olvidar)
 export const TEXTO_AL_CLIENTE = "Déjame confirmarlo con el equipo y te respondo por aquí en un momento 🙌";
 
-export interface Consulta { id: string; numero: number; telefono: string; pregunta: string; notas: string | null }
+export interface Consulta { id: string; numero: number; telefono: string; pregunta: string; notas: string | null; tipo?: "pregunta" | "imagen" }
 export interface SaberGuardado { id: string; titulo: string }
 export interface OperacionesConsulta {
   /** Por número, o por el id del mensaje de aviso que el dueño citó. Solo consultas abiertas. */
@@ -31,9 +31,16 @@ export interface OperacionesConsulta {
   saberBorrar: (id: string) => Promise<void>;
 }
 
+export const TEXTO_IMAGEN_CLIENTE = "Recibí tu imagen 🙌 Una persona del equipo la revisa y te responde por aquí en un momento.";
+export const TEXTO_ABONO_OK = "¡Listo, recibimos tu abono! ✅ Para dejar tu trabajo bien planificado, envíame por aquí 2 fotos de referencia de lo que quieres hacerte y fotos de tu cabello actual. Con eso te confirmamos tu día y hora.";
+export function avisoDeImagen(numero: number, otra = false): string {
+  return `📎 *Consulta #${numero}*${otra ? " (otra imagen del mismo cliente)" : ""}: un cliente envió esta imagen. ¿Es el comprobante del abono o fotos de referencia?\n\nSi llegó el abono, escribe *${numero}: confirmado* y le pido las fotos. Para otra respuesta: *${numero}: tu instrucción*. Para cerrar: *${numero}: listo*.`;
+}
+const CONFIRMADO = /^(?:confirmado|confirmada|llego|abono ok|abono recibido|recibido|ok abono)$/;
+
 const limpiar = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
 const CON_NUMERO = /^#?(\d{1,9})\s*[:.)\-]\s*([\s\S]+)$/;
-const DESCARTAR = /^(?:descartar|ignorar|no responder|nada|cerrar)$/;
+const DESCARTAR = /^(?:descartar|ignorar|no responder|nada|cerrar|listo|terminado)$/;
 
 export function avisoDeConsulta(c: { numero: number; pregunta: string }): string {
   return `❓ *Consulta #${c.numero}*\nUn cliente preguntó:\n«${limpiar(c.pregunta)}»\n\nRespóndeme citando este mensaje, o escribe *${c.numero}: tu instrucción* (por ejemplo: «${c.numero}: dile que sí, sin costo»). Si no quieres responderla: *${c.numero}: descartar*.`;
@@ -118,7 +125,13 @@ export async function manejarConsultaAdmin(texto: string, contextId: string | un
   if (!c && contextId) { const q = await ops.buscar({ wamid: contextId }); if (q) { c = q; instruccion = original; } }
   if (!c || !instruccion) return null;
 
-  if (DESCARTAR.test(normalizar(instruccion))) { await ops.cerrar(c.id); return `Listo, cerré la consulta #${c.numero} sin responder (el cliente no recibe nada más).`; }
+  if (DESCARTAR.test(normalizar(instruccion))) { await ops.cerrar(c.id); return `Listo, cerré la consulta #${c.numero} (el cliente no recibe nada más).`; }
+
+  // Abono confirmado: se le piden las fotos al cliente. La consulta queda abierta para reenviarte las fotos que mande; se cierra con "N: listo".
+  if (CONFIRMADO.test(normalizar(instruccion))) {
+    if (!(await ops.enviarAlCliente(c, TEXTO_ABONO_OK))) return `No pude enviarlo: WhatsApp solo deja responder dentro de las 24 horas desde el último mensaje del cliente. La consulta #${c.numero} sigue abierta.`;
+    return `✅ Confirmé el abono a la consulta #${c.numero} y le pedí las fotos de referencia y de su cabello. Las que mande te las reenvío con este mismo número. Cuando termines: *${c.numero}: listo*.`;
+  }
 
   // Respuesta textual: se envía tal cual, sin IA (no se guarda: no hay cómo clasificarla).
   const textual = /^(?:enviar|textual)\s*:\s*([\s\S]+)$/i.exec(instruccion);
@@ -142,6 +155,8 @@ export async function manejarConsultaAdmin(texto: string, contextId: string | un
   if (!(await ops.enviarAlCliente(c, r.respuesta))) return `No pude enviar la respuesta: WhatsApp solo deja responder dentro de las 24 horas desde el último mensaje del cliente. La consulta #${c.numero} sigue abierta.`;
   await ops.cerrar(c.id);
   let guardado = false;
+  // Lo respondido a una imagen (comprobante, fotos) es del caso de ese cliente: no se guarda como respuesta general.
+  if (c.tipo === "imagen") return `✅ Respondí la consulta #${c.numero}:\n«${r.respuesta}»\n\nNo la guardé para próximas veces (era sobre una imagen).`;
   try { guardado = await ops.guardarSaber({ titulo: r.titulo, claves: r.claves, respuesta: r.respuesta }); } catch { guardado = false; }
   return `✅ Respondí la consulta #${c.numero}:\n«${r.respuesta}»\n\n${guardado ? `📚 La guardé para la próxima vez (tema: ${r.titulo}). Si no quieres que quede: escribe *saber* y luego *olvidar N*.` : "No pude guardarla para la próxima vez (la respuesta sí se envió)."}`;
 }

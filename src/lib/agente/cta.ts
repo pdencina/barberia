@@ -8,11 +8,15 @@ export const TEXTO_CTA = "¿Quieres agendar? Reserva aquí:";
 
 export const DEL_CURSO = /\b(curso|cursos|malla|temario|clases|alumnos?|certificad\w*|academia)\b/i;
 
+/** Trabajos químicos: se reservan con un abono por transferencia, no desde el enlace de reservas; ahí no se ofrece "Reserva aquí". */
+export const DE_QUIMICOS = /\b(visos|mechas|color global|rizos?(?: permanentes?)?|ondulaci[oó]n(?:es)?(?: permanentes?)?|trabajos? qu[ií]micos?)\b/i;
+
 export function conLlamadaAReservar(texto: string, linkReserva: string | null | undefined, consulta?: string): string {
   // Si se habla del curso, ofrecer "agendar una hora" no calza: se ofrece volver al menú.
   if (DEL_CURSO.test(texto) || (typeof consulta === "string" && DEL_CURSO.test(consulta))) {
     return /(^|[^a-záéíóúñ])men[uú]([^a-záéíóúñ]|$)/i.test(texto) ? texto : `${texto}\n\n${AVISO_VOLVER}`;
   }
+  if (DE_QUIMICOS.test(texto) || (typeof consulta === "string" && DE_QUIMICOS.test(consulta))) return texto;
   const link = typeof linkReserva === "string" ? linkReserva.trim() : "";
   if (!link || !/^https:\/\/\S+$/.test(link) || !datoSeguro(link)) return texto;
   if (texto.includes(link) || /cancel/i.test(texto) || /^te contactar[aá] una persona/i.test(texto.trim())) return texto;

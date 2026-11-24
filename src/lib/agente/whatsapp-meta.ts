@@ -115,10 +115,13 @@ export interface MensajeEntrantePersistible {
 }
 const textos = new WeakMap<TextoEntranteEnMemoria, string | null>();
 const remitentes = new WeakMap<TextoEntranteEnMemoria, string | null>();
+const medios = new WeakMap<TextoEntranteEnMemoria, { tipo: "image" | "document"; id: string } | null>();
 // Sin propiedades propias: JSON, spread e inspección no exponen el texto.
 // leerTexto() es una salida explícita solo para clasificación; nunca persistirla.
 export class TextoEntranteEnMemoria {
-  constructor(texto: string | null, remitente: string | null = null) { textos.set(this, texto); remitentes.set(this, remitente); Object.freeze(this); }
+  constructor(texto: string | null, remitente: string | null = null, medio: { tipo: "image" | "document"; id: string } | null = null) { textos.set(this, texto); remitentes.set(this, remitente); medios.set(this, medio); Object.freeze(this); }
+  /** Imagen o documento que envió el cliente (id de Meta, para reenviarlo al dueño). Nunca se persiste. */
+  leerMedio(): { tipo: "image" | "document"; id: string } | null { return medios.get(this) ?? null; }
   leerTexto(): string | null { return textos.get(this) ?? null; }
   leerRemitente(): string | null { return remitentes.get(this) ?? null; }
   toJSON(): undefined { return undefined; }
@@ -170,7 +173,8 @@ export function extraerMensajesEntrantes(payload: unknown, contexto: ContextoHas
             persistible: Object.freeze({ id, tipo, phone_number_id: phoneId, remitenteHash,
               ...(identificador(contextId) ? { context_id: contextId } : {}),
               ...(tipoRespuesta ? { tipo_respuesta: tipoRespuesta } : {}) }),
-            memoria: new TextoEntranteEnMemoria(typeof texto === "string" && texto.length <= LIMITE_TEXTO_EN_MEMORIA ? texto : null, remitente),
+            memoria: new TextoEntranteEnMemoria(typeof texto === "string" && texto.length <= LIMITE_TEXTO_EN_MEMORIA ? texto : null, remitente,
+              (tipo === "image" || tipo === "document") && identificador(campo(campo(mensaje, tipo), "id")) ? { tipo, id: campo(campo(mensaje, tipo), "id") as string } : null),
           }));
         }
       }
@@ -189,6 +193,20 @@ export async function enviarTexto(args: { para: string; texto: string }, deps: D
     return enviarPeticionMeta(`https://graph.facebook.com/${deps.version}/${deps.phone_number_id}/messages`, {
       method: "POST", redirect: "error", headers: { Authorization: `Bearer ${deps.token}`, "Content-Type": "application/json" },
       body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: "text", text: { body: args.texto } }),
+    }, deps);
+  } catch { return { estado: "fallido" }; }
+}
+
+/** Reenvía una imagen o documento ya subido a Meta (por su id) con un texto de acompañamiento. */
+export async function enviarMedioPorId(args: { para: string; tipo: "image" | "document"; id: string; caption?: string }, deps: DependenciasWhatsAppMeta): Promise<ResultadoEnvioPlantilla> {
+  try {
+    if (!deps || typeof deps.fetch !== "function" || typeof deps.token !== "string" || !deps.token.trim() || /[\r\n]/.test(deps.token)
+      || !/^v[0-9]+\.[0-9]+$/.test(deps.version) || !numero(deps.phone_number_id) || !args || !numero(args.para)
+      || (args.tipo !== "image" && args.tipo !== "document") || !identificador(args.id)
+      || (args.caption !== undefined && (typeof args.caption !== "string" || args.caption.length > 1024))) return { estado: "fallido" };
+    return enviarPeticionMeta(`https://graph.facebook.com/${deps.version}/${deps.phone_number_id}/messages`, {
+      method: "POST", redirect: "error", headers: { Authorization: `Bearer ${deps.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: args.tipo, [args.tipo]: { id: args.id, ...(args.caption ? { caption: args.caption } : {}) } }),
     }, deps);
   } catch { return { estado: "fallido" }; }
 }

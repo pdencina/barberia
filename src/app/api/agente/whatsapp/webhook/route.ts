@@ -2,7 +2,7 @@ import { crearRepositorioDatosNegocio } from "@/lib/agente/datos-negocio";
 // Se reutiliza la MISMA función que calcula las horas de la reserva web (en el servidor, solo lectura): una sola regla.
 import { GET as disponibilidadPublica } from "@/app/api/public/availability/route";
 import { crearManejadoresWebhook, crearRepositorioWebhook, accionesDesdeBase } from "@/lib/agente/whatsapp-webhook";
-import { enviarTexto, enviarArchivo, enviarLista } from "@/lib/agente/whatsapp-meta";
+import { enviarTexto, enviarArchivo, enviarLista, enviarMedioPorId } from "@/lib/agente/whatsapp-meta";
 import { archivosPedidos } from "@/lib/agente/archivos";
 import { leerTema, guardarTema } from "@/lib/agente/tema";
 import { readFileSync } from "node:fs";
@@ -13,7 +13,7 @@ import { formatPhoneCL } from "@/lib/phone";
 import { responderConIA, TOPE_IA_POR_DEFECTO, MODELO_IA } from "@/lib/agente/ia-respuesta";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getResendClient } from "@/lib/resend-client";
-import { avisoDeConsulta, sistemaRedactor, ORDEN_SABER_CHAT, MAX_PREGUNTA } from "@/lib/agente/consultas";
+import { avisoDeConsulta, avisoDeImagen, sistemaRedactor, ORDEN_SABER_CHAT, MAX_PREGUNTA } from "@/lib/agente/consultas";
 import { resolverRemitente } from "@/lib/agente/informe-diario-email";
 
 import { fetchAllRows } from "@/lib/accounting";
@@ -127,7 +127,7 @@ const handlers = () => crearManejadoresWebhook({
       // Consultas difíciles (migración 016): el agente se las pasa al dueño por WhatsApp, redacta la respuesta con su instrucción y la guarda.
       consultas: (() => {
         const meta = (n: { phoneNumberId: string }) => ({ token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "", phone_number_id: n.phoneNumberId, fetch: (url: any, options: any) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }) });
-        const columnas = "id,numero,telefono,pregunta,notas";
+        const columnas = "id,numero,telefono,pregunta,notas,tipo";
         const llamarIA = async (sistema: string, usuario: string) => {
           const llave = process.env.ANTHROPIC_API_KEY;
           if (!llave) return null;
@@ -175,7 +175,7 @@ const handlers = () => crearManejadoresWebhook({
               saberBorrar: async (id: string) => { await db.from("agent_faq_custom").delete().eq("tenant_id", tenantId).eq("id", id).eq("orden", ORDEN_SABER_CHAT); },
             };
           },
-          abrir: async (n: any, contactHash: string, telefono: string, pregunta: string) => {
+          abrir: async (n: any, contactHash: string, telefono: string, pregunta: string, medio?: { tipo: "image" | "document"; id: string }) => {
             const tenantId = n.tenantId as string, tel = String(telefono).replace(/\D/g, "");
             const texto = pregunta.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_PREGUNTA);
             if (!texto || !/^[0-9]{8,15}$/.test(tel)) return false;
@@ -184,12 +184,19 @@ const handlers = () => crearManejadoresWebhook({
             await db.from("agent_consultas").delete().eq("tenant_id", tenantId).lt("created_at", new Date(Date.now() - 48 * 3600000).toISOString()); // limpieza
             const previa = await db.from("agent_consultas").select("id,numero,pregunta").eq("tenant_id", tenantId).eq("contact_hash", contactHash).limit(1).maybeSingle();
             if (previa.error) return false;
-            if (previa.data) { await db.from("agent_consultas").update({ pregunta: `${previa.data.pregunta} / ${texto}`.slice(0, MAX_PREGUNTA), updated_at: new Date().toISOString() }).eq("id", previa.data.id); return true; } // ya se le avisó al dueño
+            if (previa.data) {
+              // Ya se le avisó al dueño. Una imagen nueva se le reenvía igual (con el mismo número); un texto nuevo se suma a la pregunta.
+              if (medio) { const e2 = await enviarMedioPorId({ para: String(admin.data.telefono), tipo: medio.tipo, id: medio.id, caption: avisoDeImagen(Number(previa.data.numero), true) }, meta(n)); return e2.estado === "aceptado"; }
+              await db.from("agent_consultas").update({ pregunta: `${previa.data.pregunta} / ${texto}`.slice(0, MAX_PREGUNTA), updated_at: new Date().toISOString() }).eq("id", previa.data.id);
+              return true;
+            }
             const abiertas = await db.from("agent_consultas").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
             if (abiertas.error || (abiertas.count ?? 0) >= 10) return false; // tope: no inundar al dueño
-            const ins = await db.from("agent_consultas").insert({ tenant_id: tenantId, contact_hash: contactHash, telefono: tel, pregunta: texto }).select("id,numero").single();
+            const ins = await db.from("agent_consultas").insert({ tenant_id: tenantId, contact_hash: contactHash, telefono: tel, pregunta: medio ? "📎 Imagen del cliente" : texto, ...(medio ? { tipo: "imagen" } : {}) }).select("id,numero").single();
             if (ins.error || !ins.data) return false;
-            const env = await enviarTexto({ para: String(admin.data.telefono), texto: avisoDeConsulta({ numero: Number(ins.data.numero), pregunta: texto }) }, meta(n));
+            const env = medio
+              ? await enviarMedioPorId({ para: String(admin.data.telefono), tipo: medio.tipo, id: medio.id, caption: avisoDeImagen(Number(ins.data.numero)) }, meta(n))
+              : await enviarTexto({ para: String(admin.data.telefono), texto: avisoDeConsulta({ numero: Number(ins.data.numero), pregunta: texto }) }, meta(n));
             if (env.estado !== "aceptado") { await db.from("agent_consultas").delete().eq("id", ins.data.id); return false; } // sin ventana de 24 h: se deriva como antes
             await db.from("agent_consultas").update({ aviso_wamid: env.id }).eq("id", ins.data.id);
             return true;

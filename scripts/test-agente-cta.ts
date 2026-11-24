@@ -11,3 +11,7 @@ for (const sin of [null, undefined, "", "   ", "http://inseguro.invalid/x", "jav
   assert.equal(conLlamadaAReservar("Respuesta.", sin as any), "Respuesta.", `sin enlace válido: ${String(sin)}`);
 }
 console.log("OK cta: invitación a reservar solo con enlace https válido, sin repetir ni en cancelaciones ni en traspasos.");
+// Trabajos químicos: se reservan con abono por transferencia, no con el enlace de reservas.
+assert.equal(conLlamadaAReservar("Sí, hacemos visos. Cuestan $85.000.", L), "Sí, hacemos visos. Cuestan $85.000.", "visos: sin enlace de reservar");
+assert.equal(conLlamadaAReservar("El valor es desde $100.000.", L, "cuanto cuesta el color global"), "El valor es desde $100.000.", "color global en la consulta: sin enlace");
+assert.equal(conLlamadaAReservar("Sí, atendemos los domingos.", L), `Sí, atendemos los domingos.\n\n${TEXTO_CTA}\n${L}`, "lo demás sigue igual");
