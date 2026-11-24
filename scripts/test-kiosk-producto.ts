@@ -13,12 +13,12 @@ const ok = (c: boolean, m: string) => { console.log((c ? "OK    " : "FALLA ") + 
 
 (async () => {
   const { data: barber } = await sb.from("profiles").select("id").eq("tenant_id", tenantId).eq("role", "barber").limit(1).single();
-  const { data: prod } = await sb.from("products").insert({ tenant_id: tenantId, name: "Producto Prueba Tótem", price: 4000, stock: 5, active: true, product_type: "sale" }).select("id").single();
+  const { data: prod } = await sb.from("products").insert({ tenant_id: tenantId, name: "Producto Prueba Tótem", price: 4000, stock: 5, active: true, product_type: "sale", category: "Cosméticos" }).select("id").single();
   const kps: string[] = [];
   try {
     // carrito: precio y stock salen del servidor
     const c1 = await armarCompraProductos(sb, tenantId, { productos: [{ id: prod.id, cantidad: 2, price: 1 }], barberId: barber.id });
-    ok(c1.ok && c1.total === 8000 && c1.vendedor.id === barber.id, "carrito: total con el precio del servidor (el precio del navegador se ignora) y vendedor elegido");
+    ok(c1.ok && c1.total === 8000 && c1.vendedor?.id === barber.id, "carrito: total con el precio del servidor (el precio del navegador se ignora) y vendedor elegido");
     const c2 = await armarCompraProductos(sb, tenantId, { productos: [{ id: prod.id, cantidad: 9 }], barberId: barber.id });
     ok(!c2.ok, "carrito: más unidades que el stock se rechaza");
     const c3 = await armarCompraProductos(sb, tenantId, { productos: [{ id: prod.id, cantidad: 1 }] });
@@ -27,6 +27,20 @@ const ok = (c: boolean, m: string) => { console.log((c ? "OK    " : "FALLA ") + 
     ok(!c4.ok && (c4 as any).pedirProfesional === true, "código sin cita hoy: pide elegir quién te atendió");
     const c5 = await armarCompraProductos(sb, tenantId, { productos: [{ id: prod.id, cantidad: 1 }], barberId: "00000000-0000-0000-0000-000000000000" });
     ok(!c5.ok, "profesional inexistente se rechaza");
+
+    // consumibles (no cosméticos): son del estudio, no piden profesional
+    const { data: beb } = await sb.from("products").insert({ tenant_id: tenantId, name: "Bebida Prueba Tótem", price: 1500, stock: 5, active: true, product_type: "sale", category: "Bebidas" }).select("id").single();
+    try {
+      const cb = await armarCompraProductos(sb, tenantId, { productos: [{ id: beb.id, cantidad: 2 }] });
+      ok(cb.ok && cb.vendedor === null && cb.total === 3000, "bebidas: no piden profesional (compra del estudio)");
+      const { data: kpb } = await sb.from("kiosk_payments").insert({ tenant_id: tenantId, kind: "producto", items: [{ product_id: beb.id, name: "Bebida Prueba Tótem", price: 1500, quantity: 2, cosmetico: false }], amount: 3000, method: "terminal", provider: "mercadopago" }).select("id").single();
+      kps.push(kpb.id);
+      await sb.from("tenants").update({ kiosk_auto_sale: true }).eq("id", tenantId);
+      await confirmarPagoTotem(sb, { id: kpb.id, tenant_id: tenantId, appointment_id: null, kind: "producto", barber_id: null, client_id: null }, 3000, "ref-beb", "con tarjeta en la máquina", "debit_card");
+      const { data: fb } = await sb.from("kiosk_payments").select("transaction_id").eq("id", kpb.id).single();
+      const { data: txb } = fb?.transaction_id ? await sb.from("transactions").select("total, barber_id, created_by").eq("id", fb.transaction_id).single() : { data: null as any };
+      ok(!!txb && Number(txb.total) === 3000 && txb.barber_id === null, "venta de bebidas registrada del estudio, sin profesional");
+    } finally { await sb.from("products").delete().eq("id", beb.id); }
 
     // pago aprobado -> venta con ítems de producto, stock rebajado, a nombre del vendedor, una sola vez
     const { data: kp } = await sb.from("kiosk_payments").insert({ tenant_id: tenantId, kind: "producto", barber_id: barber.id, items: [{ product_id: prod.id, name: "Producto Prueba Tótem", price: 4000, quantity: 2 }], amount: 8000, method: "terminal", provider: "mercadopago" }).select("id").single();

@@ -9,12 +9,12 @@ import { isCosmeticCategory } from "@/lib/product-commission";
 export interface ItemCompra { product_id: string; name: string; price: number; quantity: number; cosmetico: boolean }
 
 // Profesional cuya máquina/cuenta recibe el cobro de una compra de productos: el vendedor solo si TODO es cosmético; si no, el negocio (null).
-export function barberDeCobroProductos(items: Array<{ cosmetico?: boolean }> | null | undefined, vendedorId: string): string | null {
+export function barberDeCobroProductos(items: Array<{ cosmetico?: boolean }> | null | undefined, vendedorId: string | null): string | null {
   const lista = Array.isArray(items) ? items : [];
-  return lista.length > 0 && lista.every((i) => i.cosmetico === true) ? vendedorId : null;
+  return vendedorId && lista.length > 0 && lista.every((i) => i.cosmetico === true) ? vendedorId : null;
 }
 export type CompraArmada =
-  | { ok: true; vendedor: { id: string; name: string }; clienteId: string | null; items: ItemCompra[]; total: number }
+  | { ok: true; vendedor: { id: string; name: string } | null; clienteId: string | null; items: ItemCompra[]; total: number }
   | { ok: false; error: string; pedirProfesional?: boolean; status: number };
 
 // Carrito validado contra la base: productos del negocio, activos, a la venta, con stock y precio del servidor (nunca el del navegador).
@@ -50,6 +50,18 @@ export async function armarCompraProductos(
   const carrito = await armarItemsProductos(supabase, tenantId, o.productos);
   if (!carrito.ok) return carrito;
   const { items, total } = carrito;
+
+  // Solo consumibles (bebidas, energéticas…): la compra es del ESTUDIO, no se pide ni se asocia profesional. Si el cliente escribió su código,
+  // solo se anota quién compró.
+  if (!items.some((i) => i.cosmetico)) {
+    let clienteId: string | null = null;
+    const c = normalizarCodigo(o.code);
+    if (c.length === 5) {
+      const { data: cli } = await supabase.from("clients").select("id").eq("tenant_id", tenantId).eq("checkin_code", c).limit(1).maybeSingle();
+      clienteId = (cli as any)?.id || null;
+    }
+    return { ok: true, vendedor: null, clienteId, items, total };
+  }
 
   // Quién vende: 1) el profesional de la cita de hoy del cliente (por su código); 2) el que el cliente elige.
   const code = normalizarCodigo(o.code);

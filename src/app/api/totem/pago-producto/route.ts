@@ -22,11 +22,11 @@ export async function POST(req: NextRequest) {
   const compra = await armarCompraProductos(supabase, t.id, { productos: body.productos, code: body.code, barberId: body.barberId });
   if (!compra.ok) return NextResponse.json({ error: compra.error, pedirProfesional: !!compra.pedirProfesional }, { status: compra.status });
 
-  const fila = { ...(moduloDe(req) > 0 ? { module: moduloDe(req) } : {}), tenant_id: t.id, kind: "producto", barber_id: compra.vendedor.id, client_id: compra.clienteId, items: compra.items, amount: compra.total };
+  const fila = { ...(moduloDe(req) > 0 ? { module: moduloDe(req) } : {}), tenant_id: t.id, kind: "producto", barber_id: compra.vendedor?.id || null, client_id: compra.clienteId, items: compra.items, amount: compra.total };
 
   if (medio === "terminal") {
     // Bebidas/consumibles nunca van a la máquina del profesional: solo un carrito 100% cosmético usa la suya.
-    const term = await resolverTerminal(supabase, t.id, barberDeCobroProductos(compra.items, compra.vendedor.id));
+    const term = await resolverTerminal(supabase, t.id, barberDeCobroProductos(compra.items, compra.vendedor?.id || null));
     if (!term) return NextResponse.json({ error: "Esa máquina de tarjetas no está conectada. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
     const hace3 = new Date(Date.now() - 3 * 60_000).toISOString();
     // Solo cuenta el cobro pendiente de OTRO módulo con la misma máquina física; uno del mismo módulo es de alguien que ya se fue.
@@ -48,11 +48,11 @@ export async function POST(req: NextRequest) {
     if (term.personal && term.barberId) {
       await notify({ tenantId: t.id, kind: "kiosk_payment", userIds: [term.barberId], professionalId: term.barberId, title: "Cobro de productos enviado a tu máquina", body: `Un cliente va a pagar $${compra.total.toLocaleString("es-CL")} en productos con tarjeta en tu máquina (desde el tótem).`, url: "/dashboard/mi-agenda" }).catch(() => {});
     }
-    return NextResponse.json({ ok: true, id: kpId, monto: compra.total, abono: 0, proveedor: term.proveedor, profesional: term.personal ? compra.vendedor.name : null, vendedor: compra.vendedor.name });
+    return NextResponse.json({ ok: true, id: kpId, monto: compra.total, abono: 0, proveedor: term.proveedor, profesional: term.personal ? compra.vendedor?.name || null : null, vendedor: compra.vendedor?.name || null });
   }
 
   // QR de Mercado Pago: a la cuenta del profesional (si es de arriendo y tiene la suya) o a la del negocio.
-  const token = (await tokensMercadoPago(supabase, t.id, barberDeCobroProductos(compra.items, compra.vendedor.id)))[0] || null;
+  const token = (await tokensMercadoPago(supabase, t.id, barberDeCobroProductos(compra.items, compra.vendedor?.id || null)))[0] || null;
   if (!token) return NextResponse.json({ error: "Mercado Pago no está conectado para esta venta. Elige pagar en caja y avisamos al equipo." }, { status: 400 });
   const ins: any = await supabase.from("kiosk_payments").insert({ ...fila, method: "qr" }).select("id").single();
   if (ins.error || !ins.data) return NextResponse.json({ error: "No pudimos crear el pago. Avisa a quien te atiende." }, { status: 500 });
@@ -80,5 +80,5 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "No pudimos crear el link de pago. Avisa a quien te atiende." }, { status: 502 });
   }
   await supabase.from("kiosk_payments").update({ mp_preference_id: String(pref.id || "") }).eq("id", kpId);
-  return NextResponse.json({ ok: true, id: kpId, url: pref.init_point, monto: compra.total, abono: 0, vendedor: compra.vendedor.name });
+  return NextResponse.json({ ok: true, id: kpId, url: pref.init_point, monto: compra.total, abono: 0, vendedor: compra.vendedor?.name || null });
 }
