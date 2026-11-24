@@ -6,7 +6,8 @@ import { DEL_CURSO } from "./cta";
 import { enlacesPedidos } from "./archivos";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
-import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
+import { responderDisponibilidad, ahoraChile, type DependenciasDisponibilidad } from "./disponibilidad";
+import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
 import { fetchAllRows } from "../accounting";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
@@ -35,6 +36,13 @@ export interface DependenciasWebhook {
   // Horas libres de un profesional (misma regla que la reserva web). Sin esto no se atiende la consulta de disponibilidad.
   horasLibres?: DependenciasDisponibilidad["horasLibres"];
   negocioInactivo?: (tenantId: string) => Promise<boolean>;
+  /** Número administrador: desde ahí el dueño pide reportes y deja avisos (ver admin.ts). Sin esto, nadie es administrador. */
+  admin?: {
+    esAdmin: (tenantId: string, telefono: string) => Promise<boolean>;
+    operaciones: (tenantId: string) => OperacionesAdmin;
+    /** Textos de los avisos vigentes que se muestran a los clientes que preguntan por horarios u horas. */
+    avisosVigentes: (tenantId: string, hoy: string) => Promise<string[]>;
+  };
   // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
   ia?: (tenantId: string, texto: string, datos: DatosFaq | null, contactHash?: string) => Promise<string | null>;
   // true: las respuestas informativas (reglas e IA) terminan con "¿Quieres agendar? Reserva aquí: <link>". Apagado si no se indica.
@@ -136,6 +144,18 @@ export function crearManejadoresWebhook(config: {
               }
               await deps.responder(n,para,body);
             };
+            // Número administrador: nunca se trata como cliente. Solo texto; todo lo que dice pasa por manejarAdmin (reporte, avisos, confirmación).
+            if (deps.admin && typeof text === "string" && (p.tipo === "text" || esBoton)) {
+              let esAdmin = false;
+              try { esAdmin = await deps.admin.esAdmin(n.tenantId,para); } catch { /* sin tabla o falla: se atiende como cliente */ }
+              if (esAdmin) {
+                let respuestaAdmin: string;
+                try { respuestaAdmin = await manejarAdmin(text,deps.admin.operaciones(n.tenantId),deps.ahora()); }
+                catch { respuestaAdmin = "No pude hacerlo ahora (falta aplicar la migración 015 o hubo un error). Inténtalo de nuevo en un momento."; }
+                await responder(respuestaAdmin);
+                await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++; continue;
+              }
+            }
             if (tipo === "no_quiero_mensajes") {
               await deps.repo.guardarBaja(n.tenantId,p.remitenteHash);
               await responder("Tu solicitud de baja quedó registrada.",true);
@@ -269,6 +289,10 @@ export function crearManejadoresWebhook(config: {
                       }
                     }
                   }
+                }
+                if (respuestaFaq !== null && deps.admin && !derivarChat && !esTextoMenu(respuestaFaq) && !esTextoCurso(respuestaFaq) && pideHorario(consulta)) {
+                  // Avisos del dueño (p. ej. "el viernes 27 cerramos a las 13:00") en las respuestas sobre horarios u horas.
+                  try { respuestaFaq = conAvisos(respuestaFaq, await deps.admin.avisosVigentes(n.tenantId, ahoraChile(deps.ahora()).fecha)); } catch { /* sin avisos: la respuesta sale igual */ }
                 }
                 if (respuestaFaq !== null) {
                   // Opciones para tocar (profesional o servicio): se envían como lista con el texto de cuerpo; si falla, va el texto.

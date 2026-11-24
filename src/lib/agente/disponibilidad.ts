@@ -53,7 +53,7 @@ export function textoDeFecha(f: string, hoy: string): string {
 interface Consulta { fecha: string; fechaExplicita: boolean; hora: number | null; franja: Franja | null; profesionales: Perfil[]; relativo: "despues" | "antes" | null; rango?: { d: number; h: number; puntos: boolean } }
 interface Perfil { id: string; nombre: string; link: string; duracionMin: number }
 
-function interpretarFecha(t: string, hoy: string): { fecha: string; explicita: boolean; resto: string } | "invalida" {
+export function interpretarFecha(t: string, hoy: string): { fecha: string; explicita: boolean; resto: string } | "invalida" {
   let resto = t;
   if (/\bpasado mañana\b/.test(resto)) return { fecha: sumar(hoy, 2), explicita: true, resto: resto.replace(/\bpasado mañana\b/, " ") };
   if (/\bmañana\b/.test(resto)) return { fecha: sumar(hoy, 1), explicita: true, resto: resto.replace(/\bmañana\b/, " ") };

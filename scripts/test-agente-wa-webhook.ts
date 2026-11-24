@@ -304,8 +304,50 @@ async function pruebasFaq(){
     check("FAQ desconocida conserva traspaso privado",f.sent[0]==="Te contactará una persona."&&f.notices.length===1&&![response,JSON.stringify(f.events),...f.sent].some(out=>out.includes(text)));
   }
 }
+async function pruebasAdmin(){
+  const enviar=async(f:ReturnType<typeof fixture>,text:string)=>{await f.handlers.POST(request(payload({context:undefined,text:{body:text}})));};
+  const armar=(esAdmin:boolean)=>{
+    const f=fixture();conectarFaq(f);
+    const avisos:Array<{id:string;texto:string;hasta:string;estado:string}>=[];let consultasAdmin=0;
+    (f.deps as any).admin={
+      esAdmin:async()=>{consultasAdmin++;return esAdmin;},
+      operaciones:()=>({
+        pendiente:async()=>{const p=avisos.find(a=>a.estado==="pendiente");return p?{id:p.id,texto:p.texto,hasta:p.hasta}:null;},
+        guardarPendiente:async(texto:string,hasta:string)=>{avisos.push({id:`a${avisos.length+1}`,texto,hasta,estado:"pendiente"});},
+        confirmar:async(id:string)=>{const a=avisos.find(x=>x.id===id);if(a)a.estado="activo";},
+        descartarPendientes:async()=>{},activos:async()=>avisos.filter(a=>a.estado==="activo"),borrar:async()=>{},
+        reporte:async()=>({reservas_cerradas:3}),
+      }),
+      avisosVigentes:async()=>avisos.filter(a=>a.estado==="activo").map(a=>a.texto),
+    };
+    return {f,avisos,consultas:()=>consultasAdmin};
+  };
+  { // el administrador no se atiende como cliente: reporte, instrucción y confirmación
+    const x=armar(true);
+    await enviar(x.f,"reporte");
+    check("admin: el reporte sale solo cuando lo pide",x.f.sent[0].startsWith("📊 Reporte")&&x.f.sent[0].includes("Reservas cerradas por el chat: 3")&&x.f.notices.length===0);
+    await enviar(x.f,"El viernes 27 cerramos a las 13:00");
+    check("admin: una instrucción pide confirmación y no se guarda aún",x.f.sent[1].includes("¿Lo guardo?")&&x.avisos[0]?.estado==="pendiente");
+    await enviar(x.f,"si");
+    check("admin: con sí queda guardada",x.f.sent[2].startsWith("Guardado ✅")&&x.avisos[0].estado==="activo"&&x.f.notices.length===0);
+  }
+  { // un cliente (no administrador) que pregunta por horario ve los avisos vigentes
+    const x=armar(false);
+    x.avisos.push({id:"a1",texto:"El viernes 27 cerramos a las 13:00",hasta:"2099-01-01",estado:"activo"});
+    await enviar(x.f,"A qué hora cierran?");
+    check("admin: el cliente ve el aviso en respuestas de horario",x.f.sent[0].includes("📌 Aviso: El viernes 27 cerramos a las 13:00"));
+    await enviar(x.f,"cuanto cuesta un corte");
+    check("admin: el aviso no se agrega a otras respuestas",!x.f.sent[1]?.includes("📌"));
+  }
+  { // si la tabla falta, esAdmin falla y se atiende como cliente
+    const x=armar(false);(x.f.deps as any).admin.esAdmin=async()=>{throw new Error("sin tabla");};
+    await enviar(x.f,"A qué hora cierran?");
+    check("admin: sin migración 015 se atiende como siempre",x.f.sent.length===1&&!x.f.sent[0].includes("modo administrador"));
+  }
+}
 async function main(){
   await pruebasFaq();
+  await pruebasAdmin();
   await pruebasDisponibilidad();
   let f=fixture();
   check("GET challenge",await(await f.handlers.GET(new Request("https://test.invalid/?hub.mode=subscribe&hub.verify_token=verify_synthetic&hub.challenge=123"))).text()==="123");
