@@ -76,7 +76,7 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
   });
   await caso("Sin profesional ni hora: hay disponibilidad con", async () => {
     const t = await texto("tienen hora para mañana", { "c|2026-11-04": ["10:00", "11:00"] });
-    assert.equal(t, `Hay disponibilidad mañana (miércoles 4 de noviembre):\n• *Camila Rojas*: 10:00 · 11:00\n\n¿Quieres que te agende? Dime con quién y a qué hora (por ejemplo: «Matías a las 19:00») y te pido tus datos.\nO reserva tú aquí: ${GENERAL}`);
+    assert.equal(t, `Mañana (miércoles 4 de noviembre) tienen horas disponibles:\n• *Camila Rojas*\n\nLa primera hora libre es a las *10:00*.\n¿Con quién te agendo? Dime el nombre (y la hora si ya tienes una en mente) y te muestro sus horas.\n\nO reserva tú aquí: ${GENERAL}`);
   });
   await caso("Sin profesional: nadie ese día, busca los próximos días", async () => {
     const t = await texto("tienen hora hoy a las 3", { "d|2026-11-05": ["15:00"] });
@@ -161,9 +161,9 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
   await caso("Muchos profesionales con horas: resume en vez de listar horas", async () => {
     const ag: Agenda = { "m|2026-11-03": ["15:00", "16:00"], "c|2026-11-03": ["15:00"], "d|2026-11-03": ["17:00"], "v|2026-11-03": ["18:00"] };
     const t = await texto("tienen hora hoy", ag);
-    assert.equal(t, `Estas son las próximas horas hoy:\n• *15:00* con *Matías Soto*, *Camila Rojas*\n• *17:00* con *Diego Fuentes*\n• *18:00* con *Valentina Paredes*\n\nDime cuál te sirve (por ejemplo «la de las 15:00»), o con quién prefieres, o qué horario buscas.\n\nO reserva tú aquí: ${GENERAL}`);
+    assert.equal(t, `Hoy tienen horas disponibles:\n• *Matías Soto*\n• *Camila Rojas*\n• *Diego Fuentes*\n• *Valentina Paredes*\n\nLa primera hora libre es a las *15:00*.\n¿Con quién te agendo? Dime el nombre (y la hora si ya tienes una en mente) y te muestro sus horas.\n\nO reserva tú aquí: ${GENERAL}`);
     const pocos = await texto("tienen hora hoy", { "m|2026-11-03": ["15:00", "16:00"], "c|2026-11-03": ["15:00"] });
-    assert.ok(pocos !== null && pocos.startsWith("Hay disponibilidad hoy:\n• *Matías Soto*: 15:00 · 16:00\n• *Camila Rojas*: 15:00"), "con 3 o menos profesionales se listan");
+    assert.ok(pocos !== null && pocos.startsWith("Hoy tienen horas disponibles:\n• *Matías Soto*\n• *Camila Rojas*\n\nLa primera hora libre es a las *15:00*."), "solo nombres, sin listar horarios");
   });
   await caso("Hora ambigua: 'a las 6' o '06:00' se entiende de la tarde y se le avisa; con am/pm o franja no", async () => {
     const ag = { "m|2026-11-03": ["18:00", "19:00"] };
@@ -233,14 +233,27 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     const t = await texto("matias tiene hora hoy MARCADOR_PRIVADO", { "m|2026-11-03": ["15:00"] });
     assert.ok(t !== null && !t.includes("MARCADOR") && !t.toLowerCase().includes("matias tiene"));
   });
-  await caso("'¿Quién atiende el miércoles?' lista a cada profesional con sus horas (no un resumen vago)", async () => {
+  await caso("'¿Quién atiende?' y 'hoy' dicen solo quiénes tienen horas (sin listar horarios); quien está cerrado o sin horas no aparece", async () => {
     const a = { "m|2026-11-04": ["10:00", "10:45", "11:30", "12:15"], "c|2026-11-04": ["10:00", "17:00"], "d|2026-11-04": ["10:45"], "v|2026-11-04": ["15:00", "16:00"] };
     for (const msg of ["para el miercoles quien atiende?", "que barberos tienen el miercoles", "quienes atienden mañana"]) {
       const r = await responderDisponibilidad(msg, datos(), deps(a));
       assert.equal(r.tipo, "respuesta", msg); if (r.tipo !== "respuesta") continue;
-      assert.ok(r.texto.includes("atienden:") && r.texto.includes("• *Matías Soto*: 10:00 · 10:45 · 11:30") && r.texto.includes("• *Camila Rojas*: 10:00 · 17:00") && r.texto.includes("• *Valentina Paredes*: 15:00 · 16:00"), `${msg} :: ${r.texto}`);
-      assert.ok(!r.texto.includes(" y más") && r.oferta && r.oferta.opciones.length === 4, msg);
+      assert.ok(r.texto.includes("tienen horas disponibles:") && r.texto.includes("• *Matías Soto*\n• *Camila Rojas*\n• *Diego Fuentes*\n• *Valentina Paredes*") && !/\d\d:\d\d ·/.test(r.texto) && r.texto.includes("primera hora libre es a las *10:00*"), `${msg} :: ${r.texto}`);
+      assert.ok(r.oferta && r.oferta.opciones.length === 4, msg);
     }
+    // Matías cerrado todo el día (bloqueo manual) y Diego sin horas: no aparecen.
+    const b = await responderDisponibilidad("tienen hora mañana", datos(), deps({ "c|2026-11-04": ["10:00"], "v|2026-11-04": ["15:00"] }, { cerrado: ["m|2026-11-04"] }));
+    assert.ok(b.tipo === "respuesta" && b.texto.includes("• *Camila Rojas*\n• *Valentina Paredes*") && !b.texto.includes("Matías") && !b.texto.includes("Diego"));
+  });
+  await caso("Solo el nombre de un profesional ('felipe', 'con Camila Rojas') muestra las horas de esa persona", async () => {
+    const a = { "c|2026-11-03": ["15:00", "16:30"] };
+    for (const msg of ["camila", "con camila", "Camila Rojas", "camila rojas"]) {
+      const r = await responderDisponibilidad(msg, datos(), deps(a));
+      assert.ok(r.tipo === "respuesta" && r.texto.includes("*Camila Rojas*") && r.texto.includes("15:00") && r.texto.includes("16:30"), msg);
+    }
+    // Un nombre dentro de otra frase o que no es de nadie no se toma.
+    assert.equal((await responderDisponibilidad("hola camila como estas", datos(), deps(a))).tipo, "sin_consulta");
+    assert.equal((await responderDisponibilidad("juan", datos(), deps(a))).tipo, "sin_consulta");
   });
   console.log(`OK ${casos} casos de disponibilidad; reloj fijo y agenda simulada; sin red, base ni llaves.`);
 })();
