@@ -387,8 +387,31 @@ async function pruebasManicure(){
     check("manicure: después, 'tienen hora hoy' vuelve a ser barbería (disponibilidad), sin enlaces de manicure",!x.f.sent[x.f.sent.length-1].includes("looky-estudio")&&/disponib|tiene|tienen/i.test(x.f.sent[x.f.sent.length-1]));
   }
 }
+async function pruebasBotonesReserva(){
+  // Tocar una opción de la reserva (lista de servicios o de profesionales, ids r1..r8) NO borra la reserva en curso (bug visto en el video del 24-nov).
+  const f=fixture(),data=conectarFaq(f);(f.deps as any).conMenu=true;
+  data.tables.profiles=[{id:"pm",tenant_id:"tenantA",name:"Matías Soto",booking_slug:"matias-soto",active:true,role:"barber",also_attends_clients:false,slot_duration:45}];
+  const memoria=new Map<string,any>();
+  (f.deps as any).chat={
+    leerEstado:async(t:string,c:string)=>memoria.get(t+c)??null,guardarEstado:async(t:string,c:string,e:any)=>{memoria.set(t+c,e);},borrarEstado:async(t:string,c:string)=>{memoria.delete(t+c);},
+    reservasFuturas:async()=>0,crearReserva:async()=>({ok:true,citaId:"x"}),contar:async()=>{},
+  };
+  f.deps.horasLibres=(async(_id:string,fecha:string)=>({slots:[`${fecha}T15:00:00`],cerrado:false,fueraDeVentana:false})) as any;
+  await f.handlers.POST(request(payload({context:undefined,text:{body:"matias tiene hora hoy"}})));
+  await f.handlers.POST(request(payload({context:undefined,text:{body:"si"}})));
+  check("botones reserva: hay una reserva en curso (datos)",Array.from(memoria.values())[0]?.etapa==="datos");
+  const k=Array.from(memoria.keys())[0];
+  memoria.set(k,{etapa:"datos",datos:{...Array.from(memoria.values())[0].datos,cliente:"Juan Pérez",correo:"j@correo.cl"}});
+  await f.handlers.POST(request(payload({context:undefined,type:"interactive",text:undefined,interactive:{type:"list_reply",list_reply:{id:"r1",title:"Corte"}}})));
+  check("botones reserva: tocar r1 sigue con la reserva (no 'No entendí lo que me escribes')",!f.sent.some(t=>t.includes("No entendí"))&&f.sent.length>=1);
+  // Un botón del menú (m1) sí es una decisión nueva: borra la reserva en curso.
+  memoria.set(k,{etapa:"datos",datos:{id:"pm",nombre:"Matías Soto",duracionMin:45,fecha:"2026-11-03",hora:"15:00",intentos:0}});
+  await f.handlers.POST(request(payload({context:undefined,type:"interactive",text:undefined,interactive:{type:"list_reply",list_reply:{id:"m2",title:"Información del curso"}}})));
+  check("botones reserva: un botón del menú sí deja atrás la reserva",!memoria.has(k)||memoria.get(k)?.etapa!=="datos");
+}
 async function main(){
   await pruebasFaq();
+  await pruebasBotonesReserva();
   await pruebasManicure();
   await pruebasAdmin();
   await pruebasDisponibilidad();

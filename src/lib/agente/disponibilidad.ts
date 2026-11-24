@@ -2,6 +2,7 @@
 // Determinista y de SOLO LECTURA: no guarda nada ni pide datos personales. Las horas libres las calcula la misma función que
 // usa la reserva web (inyectada), para no tener dos reglas distintas. Nunca repite el texto del cliente en la respuesta.
 import { normalizar, mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fija";
+import { palabraCalza } from "./nombres";
 
 export interface HorasLibres { slots: string[]; cerrado: boolean; fueraDeVentana: boolean }
 export interface DependenciasDisponibilidad {
@@ -130,7 +131,7 @@ const sinTildes = (s: string) => s.normalize("NFD").replace(/([aeiou])[̀-ͯ]+/g
 function profesionalesMencionados(t: string, perfiles: Perfil[]): Perfil[] {
   const palabras = Array.from(new Set(t.split(/[^a-zñ0-9]+/).filter((w) => w.length >= 3)));
   // Gana quien calza con más palabras del nombre ("dylan perez" es Dylan Perez, no Enzo Perez, aunque compartan el apellido).
-  const puntaje = (p: Perfil) => sinTildes(p.nombre).split(" ").filter((x) => x.length >= 3).filter((tok) => palabras.some((w) => w === tok || (w.length >= 4 && tok.startsWith(w)))).length;
+  const puntaje = (p: Perfil) => sinTildes(p.nombre).split(" ").filter((x) => x.length >= 3).filter((tok) => palabras.some((w) => palabraCalza(w, tok))).length;
   const pts = perfiles.map(puntaje), max = Math.max(0, ...pts);
   const coinciden = max > 0 ? perfiles.filter((_, i) => pts[i] === max) : [];
   return coinciden.length > 0 && coinciden.length <= 3 ? coinciden : [];
@@ -197,7 +198,7 @@ async function responderDisponibilidadBase(texto: unknown, datos: DatosFaq | nul
     const sinCon = sinTildes(t).replace(/^(?:con|para|quiero con|quiero hora con|hora con|agendame con|agendame|me agendas con)\s+/, "").trim();
     const ws = sinCon.split(/\s+/).filter(Boolean);
     if (ws.length >= 1 && ws.length <= 3) {
-      const dueños = perfiles.filter((p) => { const toks = sinTildes(p.nombre).split(" ").filter((x) => x.length >= 3); return ws.every((w) => toks.some((tok) => w === tok || (w.length >= 4 && tok.startsWith(w)))); });
+      const dueños = perfiles.filter((p) => { const toks = sinTildes(p.nombre).split(" ").filter((x) => x.length >= 3); return ws.every((w) => toks.some((tok) => palabraCalza(w, tok))); });
       if (dueños.length === 1) t = `${sinTildes(dueños[0].nombre)} tiene hora`;
     }
   }

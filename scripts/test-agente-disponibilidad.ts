@@ -272,5 +272,17 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     const r3 = await responderDisponibilidad("perez tiene hora hoy", d, deps(a));
     assert.ok(r3.tipo === "respuesta" && r3.texto.includes("Enzo") && r3.texto.includes("Dylan"), "solo el apellido compartido: entran los dos");
   });
+  await caso("Ortografía: 'dilan', 'filipe' y 'bastián' se entienden", async () => {
+    const d = datos({ profesionales: [
+      { id: "e", nombre: "Enzo Perez", link: "https://sintetico.invalid/negocio/enzo-perez" },
+      { id: "dy", nombre: "Dylan Perez", link: "https://sintetico.invalid/negocio/dylan-perez" },
+      { id: "f", nombre: "Felipe Meza", link: "https://sintetico.invalid/negocio/felipe-meza" },
+    ] });
+    const a = { "e|2026-11-03": ["18:00"], "dy|2026-11-03": ["18:00"], "f|2026-11-03": ["18:00"] };
+    for (const [msg, quien] of [["reservame dilan a las 6", "Dylan"], ["dilan perez tiene hora hoy", "Dylan"], ["filipe a las 6", "Felipe"], ["tiene hora felipe meza", "Felipe"]] as const) {
+      const r = await responderDisponibilidad(msg, d, deps(a));
+      assert.ok(r.tipo === "respuesta" && r.texto.includes(`*${quien}`) && !r.texto.includes("Enzo"), `${msg} :: ${r.tipo === "respuesta" ? r.texto : "sin consulta"}`);
+    }
+  });
   console.log(`OK ${casos} casos de disponibilidad; reloj fijo y agenda simulada; sin red, base ni llaves.`);
 })();
