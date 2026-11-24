@@ -10,16 +10,19 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
   const supabase = createAdminSupabase();
 
   // Get appointment with relations
-  const { data: appt } = await supabase
+  // checkin_code = código del cliente (el mismo del tótem); si la migración aún no está aplicada se pide sin él.
+  const armar = (conCodigo: boolean) => supabase
     .from("appointments")
     .select(`
       id, client_id, tenant_id, date, start_time, end_time, status, notes, created_at,
-      client:clients(id, name, email, phone, loyalty_points, created_at),
+      client:clients(id, name, email, phone, loyalty_points, created_at${conCodigo ? ", checkin_code" : ""}),
       barber:profiles(id, name, avatar_url),
       services:appointment_services(price, service:services(id, name, duration))
     `)
     .eq("id", params.id)
     .single();
+  let { data: appt } = await armar(true);
+  if (!appt) ({ data: appt } = await armar(false));
 
   if (!appt || (role !== "super_admin" && (appt as any).tenant_id !== tenantId)) return NextResponse.json({ error: "Not found" }, { status: 404 });
 

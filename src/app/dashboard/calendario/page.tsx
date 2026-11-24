@@ -2543,6 +2543,10 @@ export default function CalendarioPage() {
                         <div>
                           <div className="flex items-center gap-2">
                             <p className="text-sm font-medium text-brand-dark">{apptDetails.client.name}</p>
+                            {apptDetails.client.checkin_code && (
+                              <button type="button" title="Código del cliente (toca para copiar)" onClick={() => { try { navigator.clipboard?.writeText(apptDetails.client.checkin_code); showToast("Código copiado", "success"); } catch { /* sin portapapeles */ } }}
+                                className="rounded-md border border-brand-blue/30 bg-brand-blue/5 px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-wider text-brand-blue">{apptDetails.client.checkin_code}</button>
+                            )}
                             {apptDetails.isNewClient && (
                               <span className="rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white">Cliente nuevo</span>
                             )}
