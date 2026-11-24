@@ -165,3 +165,9 @@ Nico probó el agente encendido en producción y vio 4 fallas; se corrigieron ju
 3. **"¿Quién atiende el miércoles?"** lista a cada profesional con sus primeras 3 horas (`disponibilidad.ts`).
 4. **Datos de a uno:** nombre → correo → servicio (lista para tocar). Se sigue aceptando todo junto. **Privacidad:** `agent_chat_state.datos` ahora guarda `cliente` y `correo` mientras dura la reserva (VIGENCIA_MIN = 30 min) y se borra al confirmar, cancelar, derivar o vencer. Pendiente de revisar con el abogado (Ley 21.719) si se quiere dejar así.
 Webhook: `ListaReserva` (rc.lista) se envía con `responderLista` usando el texto como cuerpo; si falla, va el texto numerado.
+
+## 17. Número administrador y avisos (24 nov 2026)
+- Migración **015** (`docs/agente/sql/015_admin_avisos.sql`): `agent_admin_contacts` (números del dueño, solo dígitos) y `agent_avisos` (instrucciones confirmadas). **Aplicada en pruebas y producción**; en producción está registrado +56 9 8493 9625 como administrador de Estudio Levels.
+- Seguridad: SOLO el número registrado puede usar los comandos (se compara con el remitente que firma Meta; a cualquier otra persona esas palabras no le hacen nada ni se le menciona el modo administrador). El administrador, por lo demás, conversa como un cliente normal: solo `ayuda`, `reporte [hoy|mes]`, `aviso: ...` (o `instrucción:`), `avisos`, `borrar N` y las confirmaciones `guardar` / `descartar` (solo si hay una pendiente) lo activan; todo lo demás devuelve `null` y sigue el flujo de cliente.
+- Un aviso **solo informa**: se agrega ("📌 Aviso: ...") a respuestas sobre horario/horas/disponibilidad. No bloquea la agenda real. Dura hasta la fecha que diga la frase o 14 días; máximo 10 vigentes.
+- Código: `src/lib/agente/admin.ts`, bloque `deps.admin` en `whatsapp-webhook.ts` y adaptador en la ruta del webhook; pruebas `scripts/test-agente-admin.ts` y casos "admin:" en `test-agente-wa-webhook.ts`.

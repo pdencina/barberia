@@ -144,16 +144,16 @@ export function crearManejadoresWebhook(config: {
               }
               await deps.responder(n,para,body);
             };
-            // Número administrador: nunca se trata como cliente. Solo texto; todo lo que dice pasa por manejarAdmin (reporte, avisos, confirmación).
+            // Número administrador (solo el registrado): sus comandos claros (ayuda, reporte, aviso:, avisos, borrar, guardar) los atiende manejarAdmin; lo demás se responde como a cualquier cliente.
             if (deps.admin && typeof text === "string" && (p.tipo === "text" || esBoton)) {
               let esAdmin = false;
               try { esAdmin = await deps.admin.esAdmin(n.tenantId,para); } catch { /* sin tabla o falla: se atiende como cliente */ }
               if (esAdmin) {
-                let respuestaAdmin: string;
+                let respuestaAdmin: string | null;
                 try { respuestaAdmin = await manejarAdmin(text,deps.admin.operaciones(n.tenantId),deps.ahora()); }
-                catch { respuestaAdmin = "No pude hacerlo ahora (falta aplicar la migración 015 o hubo un error). Inténtalo de nuevo en un momento."; }
-                await responder(respuestaAdmin);
-                await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++; continue;
+                catch { respuestaAdmin = null; /* sin tabla o falla: se atiende como cliente */ }
+                // null = no es un comando de administrador: el mensaje sigue el camino normal de cualquier cliente.
+                if (respuestaAdmin !== null) { await responder(respuestaAdmin); await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++; continue; }
               }
             }
             if (tipo === "no_quiero_mensajes") {
