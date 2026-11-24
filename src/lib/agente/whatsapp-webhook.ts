@@ -5,7 +5,7 @@ import { esTextoMenu, listaDeMenu, textoDerivacionTelefono, pideHumano, pideCamb
 import { DEL_CURSO } from "./cta";
 import { enlacesPedidos } from "./archivos";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
-import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion } from "./reserva-chat";
+import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
 import { responderDisponibilidad, type DependenciasDisponibilidad } from "./disponibilidad";
 import { fetchAllRows } from "../accounting";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
@@ -153,6 +153,7 @@ export function crearManejadoresWebhook(config: {
               } else {
                 let respuestaFaq: string | null = null;
                 let derivarChat = false;
+                let listaChat: ListaReserva | null = null;
                 let datosMenu: DatosFaq | null = null;
                 let desdeMenu = false;
                 let consulta: string = typeof text === "string" ? text : "";
@@ -189,7 +190,7 @@ export function crearManejadoresWebhook(config: {
                           crearReserva: (a) => chat.crearReserva(n.tenantId,a),
                           contar,
                         });
-                        if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; }
+                        if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; listaChat = rc.lista ?? null; }
                       } catch { /* memoria o agenda no disponible: se sigue como antes */ }
                     }
                     if (respuestaFaq === null && tipo === "desconocido" && deps.conMenu) {
@@ -227,7 +228,10 @@ export function crearManejadoresWebhook(config: {
                           // Si ya se le ofreció algo, el seguimiento ("¿y Valentina a las 10:15?") hereda esa fecha y responde más corto.
                           let previo: EstadoChat | null = null;
                           if (chat) { try { previo = await chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()); } catch { /* sin memoria: respuesta normal */ } }
-                          const fechaOferta = previo?.etapa === "oferta" ? previo.datos.opciones[0]?.fecha : undefined;
+                          // Si ya estaba en el paso de datos, se sigue hablando de ese día y esa hora ("¿qué barberos más tienen a esa hora?").
+                          const fechaOferta = previo?.etapa === "oferta" ? previo.datos.opciones[0]?.fecha : previo?.etapa === "datos" ? previo.datos.fecha : undefined;
+                          const horaContexto = previo?.etapa === "datos" ? previo.datos.hora : previo?.etapa === "oferta" ? (previo.datos.horaPendiente ?? previo.datos.horaExacta ?? undefined) : undefined;
+                          if (horaContexto && /\b(esa|misma|esta) hora\b/i.test(consulta)) consulta = consulta.replace(/\b(a )?(esa|misma|esta) hora\b/i, `a las ${horaContexto}`);
                           const unica = previo?.etapa === "oferta" && previo.datos.opciones.length === 1 ? previo.datos.opciones[0] : undefined;
                           const d = await conTiempoMaximo(responderDisponibilidad(consulta,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres,...(fechaOferta ? { fechaPorDefecto: fechaOferta } : {}),...(unica ? { profesionalPorDefecto: unica.id, horasOfrecidas: unica.horas } : {})}),6000);
                           if (d.tipo === "respuesta") {
@@ -267,7 +271,12 @@ export function crearManejadoresWebhook(config: {
                   }
                 }
                 if (respuestaFaq !== null) {
-                  await responder(respuestaFaq);
+                  // Opciones para tocar (profesional o servicio): se envían como lista con el texto de cuerpo; si falla, va el texto.
+                  let comoLista = false;
+                  if (listaChat && deps.responderLista && !derivarChat) {
+                    try { if (await habilitado(false)) { const r: any = await deps.responderLista(n,para,{ ...listaChat, cuerpo: respuestaFaq }); comoLista = !!(r && r.estado === "aceptado"); } } catch { /* se envía el texto */ }
+                  }
+                  if (!comoLista) await responder(respuestaFaq);
                   if (deps.archivos && !derivarChat && entradaTexto) {
                     try { for (const a of deps.archivos.pedidos(typeof text === "string" ? text : "", datosMenu?.negocio.linkReserva)) await deps.archivos.enviar(n,para,a); } catch { /* el texto ya salió; el archivo es un extra */ }
                   }

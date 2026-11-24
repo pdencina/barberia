@@ -34,10 +34,10 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
 
 (async () => {
   await caso("Sin memoria no interviene", async () => { const x = await r("quiero la de las 15:15", null); assert.equal(x.res, null); });
-  await caso("Elige una hora ofrecida y se le piden los datos con la lista de servicios", async () => {
+  await caso("Elige una hora ofrecida y se le pide primero el nombre (de a un dato)", async () => {
     const x = await r("quiero la de las 15:15", OFERTA_DIEGO);
     assert.ok(x.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *15:15*."));
-    assert.ok(x.res!.texto.includes("1. Corte de cabello ($12.000)") && x.res!.texto.includes("2. Corte + barba ($18.000)"));
+    assert.ok(x.res!.texto.includes("¿cuál es tu nombre completo?") && !x.res!.texto.includes("Corte de cabello"), "pide el nombre primero, sin lista larga");
     assert.deepEqual(x.e.estado, { etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
     assert.deepEqual(x.e.contados, ["reservas_iniciadas"]);
   });
@@ -57,14 +57,27 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     assert.ok(x.res!.texto.startsWith("Esa hora no está entre las que te ofrecí.") && x.res!.texto.includes("• *Diego Fuentes* hoy: 15:15 · 16:00 · 16:45"));
     assert.equal(x.e.estado?.etapa, "oferta");
   });
-  await caso("Hora que tienen varios: se asigna el primero y se avisa de los otros (un paso menos para cerrar)", async () => {
+  await caso("Hora que tienen varios: NO se elige por el cliente; se le muestran para tocar uno", async () => {
     const x = await r("la de las 4", OFERTA_VARIOS);
-    assert.ok(x.res!.texto.startsWith("A las 16:00 tengo a varios; te dejo con *") && x.res!.texto.includes("Si prefieres con ") && x.res!.texto.includes("Para confirmarla envíame"));
-    assert.equal((x.e.estado as any).etapa, "datos");
+    assert.ok(x.res!.texto.startsWith("A las 16:00 hoy tengo con:\n1. Diego Fuentes\n2. Camila Rojas\n3. Matías Soto") && x.res!.texto.includes("¿Con quién te la dejo?"));
+    assert.equal(x.res!.lista?.filas.length, 3); assert.deepEqual(x.res!.lista?.filas.map((f) => f.id), ["r1", "r2", "r3"]);
+    assert.equal((x.e.estado as any).etapa, "oferta"); assert.equal((x.e.estado as any).datos.horaPendiente, "16:00"); assert.equal(x.e.creadas.length, 0);
+    // Toca la opción 2 (llega como "2"): queda con Camila y se pide el nombre.
+    const y = await r("2", x.e.estado);
+    assert.ok(y.res!.texto.startsWith("Perfecto. Te dejo la hora con *Camila Rojas* hoy a las *16:00*.") && (y.e.estado as any).etapa === "datos");
+    // Escribe el nombre en vez de tocar.
+    const z = await r("con camila", x.e.estado); assert.ok(z.res!.texto.startsWith("Perfecto. Te dejo la hora con *Camila Rojas*"));
+    // "con cualquiera": ahí sí se toma el primero.
+    const w = await r("con cualquiera", x.e.estado); assert.ok(w.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes*"));
+    // Un número fuera de rango vuelve a mostrar la lista.
+    const v = await r("9", x.e.estado); assert.ok(v.res!.texto.startsWith("Elige un número del 1 al 3") && v.res!.lista);
   });
-  await caso("Un 'sí' con varias opciones y hora consultada: se asigna el primero; sin hora, se muestran las más cercanas", async () => {
+  await caso("'Busco cerca de las 5' es una búsqueda: no elige nada (la responde la disponibilidad)", async () => {
+    const x = await r("busco cerca de las 4", OFERTA_VARIOS); assert.equal(x.res, null); assert.equal(x.e.estado?.etapa, "oferta");
+  });
+  await caso("Un 'sí' con varias opciones y hora consultada: pregunta con quién; sin hora, se muestran las más cercanas", async () => {
     const x = await r("si", { etapa: "oferta", datos: { horaExacta: "16:00", opciones: (OFERTA_VARIOS as any).datos.opciones } } as EstadoChat);
-    assert.ok(x.res!.texto.includes("Perfecto. Te dejo la hora con") && (x.e.estado as any).etapa === "datos");
+    assert.ok(x.res!.texto.includes("tengo con:") && x.res!.lista && (x.e.estado as any).etapa === "oferta");
     const y = await r("dale", { etapa: "oferta", datos: { horaExacta: null, opciones: (OFERTA_VARIOS as any).datos.opciones } } as EstadoChat);
     assert.ok(y.res!.texto.startsWith("¡Dale! Elige una y te pido tus datos:") && /• \*\d\d:\d\d\* con /.test(y.res!.texto));
   });
@@ -134,27 +147,34 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     const x = await r("Juan Pérez juan@correo.cl", DATOS_ETAPA, {}, d);
     assert.equal(x.e.creadas[0].servicioId, "s1");
     const y = await r("la de las 4", OFERTA_DIEGO, {}, d);
-    assert.ok(!y.res!.texto.includes("el servicio:") && y.res!.texto.includes("por ejemplo") && !y.res!.texto.includes(", 1"));
+    assert.ok(y.res!.texto.startsWith("Perfecto.") && !y.res!.texto.includes("servicio"));
   });
-  await caso("Falta algo: pide solo lo que falta, sin guardar datos a medias, y cuenta intentos", async () => {
-    const x = await r("juan@correo.cl", DATOS_ETAPA);
-    assert.ok(x.res!.texto.startsWith("Me falta tu nombre completo y el servicio (el número de la lista).") && x.res!.texto.includes("Juan Pérez, juan@correo.cl, 1"));
-    assert.equal((x.e.estado as any).datos.intentos, 1); assert.equal(x.e.creadas.length, 0);
-    assert.ok(!JSON.stringify(x.e.estado).includes("juan@"));
-    const y = await r("Juan Pérez, 1", DATOS_ETAPA); assert.ok(y.res!.texto.includes("Me falta tu correo."));
-    const z = await r("juan@correo.cl, 1", DATOS_ETAPA); assert.ok(z.res!.texto.includes("Me falta tu nombre completo."));
-    const w = await r("Juan juan@correo.cl 1", DATOS_ETAPA); assert.ok(w.res!.texto.includes("Me falta tu nombre completo."), "nombre de una palabra");
+  await caso("Datos de a uno: nombre, luego correo, luego servicio con lista; recuerda lo ya dado y no cuenta como fallo", async () => {
+    const a = await r("Juan Pérez", DATOS_ETAPA);
+    assert.equal(a.res!.texto, "Gracias, Juan. ¿Cuál es tu correo? Ahí te llega el detalle de tu hora.");
+    assert.equal((a.e.estado as any).datos.cliente, "Juan Pérez"); assert.equal((a.e.estado as any).datos.intentos, 0); assert.equal(a.e.creadas.length, 0);
+    const b = await r("juan@correo.cl", a.e.estado);
+    assert.ok(b.res!.texto.startsWith("Último paso, Juan: ¿qué servicio quieres?") && b.res!.texto.includes("2. Corte + barba ($18.000)"));
+    assert.equal(b.res!.lista?.filas.length, 3); assert.equal(b.res!.lista?.filas[1].description, "$18.000"); assert.equal(b.e.creadas.length, 0);
+    const c = await r("2", b.e.estado); // tocar la opción 2 llega como "2"
+    assert.deepEqual(c.e.creadas, [{ profesionalId: "d", fecha: "2026-11-03", hora: "15:15", servicioId: "s2", nombre: "Juan Pérez", correo: "juan@correo.cl", telefono: TEL }]);
+    assert.equal(c.e.estado, null, "al terminar se borran los datos guardados");
+    // Mensajes parciales en otro orden.
+    const d = await r("juan@correo.cl", DATOS_ETAPA);
+    assert.ok(d.res!.texto.startsWith("Me falta tu nombre completo.") && (d.e.estado as any).datos.correo === "juan@correo.cl" && (d.e.estado as any).datos.intentos === 0);
+    const e = await r("Juan Pérez, 1", DATOS_ETAPA); assert.ok(e.res!.texto.startsWith("Gracias, Juan. ¿Cuál es tu correo?") && (e.e.estado as any).datos.servicioId === "s1");
+    const f = await r("Juan juan@correo.cl 1", DATOS_ETAPA); assert.ok(f.res!.texto.includes("Me falta tu nombre completo."), "nombre de una palabra");
   });
   await caso("Tras 4 intentos fallidos deriva a una persona", async () => {
     const a = armar(DATOS_ETAPA);
-    const r1 = await manejarReservaChat("hola", TEL, datos(), a.deps); assert.equal(r1!.derivar, undefined);
-    const r2 = await manejarReservaChat("hola otra vez", TEL, datos(), a.deps); assert.equal(r2!.derivar, undefined);
-    const r3 = await manejarReservaChat("quizás", TEL, datos(), a.deps); assert.equal(r3!.derivar, undefined);
-    const r4 = await manejarReservaChat("tal vez", TEL, datos(), a.deps); assert.equal(r4!.derivar, true);
+    const r1 = await manejarReservaChat("123", TEL, datos(), a.deps); assert.equal(r1!.derivar, undefined);
+    const r2 = await manejarReservaChat("456", TEL, datos(), a.deps); assert.equal(r2!.derivar, undefined);
+    const r3 = await manejarReservaChat("789", TEL, datos(), a.deps); assert.equal(r3!.derivar, undefined);
+    const r4 = await manejarReservaChat("000", TEL, datos(), a.deps); assert.equal(r4!.derivar, true);
     assert.equal(a.e.estado, null);
     // Un "sí" o "ok" no es un intento fallido: se le recuerda qué falta.
     const b = armar(DATOS_ETAPA);
-    for (let i = 0; i < 5; i++) { const x = await manejarReservaChat("si", TEL, datos(), b.deps); assert.ok(x!.texto.includes("me falta tu nombre completo, tu correo y el servicio") && x!.derivar === undefined); }
+    for (let i = 0; i < 5; i++) { const x = await manejarReservaChat("si", TEL, datos(), b.deps); assert.ok(x!.texto.includes("nombre completo") && x!.derivar === undefined); }
     assert.ok(b.e.estado !== null);
   });
   await caso("Datos peligrosos no se aceptan (HTML, enlaces)", async () => {
@@ -223,7 +243,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     const x = await r("Juan Pérez, juan@correo.cl, corte de cabello", ETAPA_M, {}, d);
     assert.equal(x.e.creadas.length, 1, "el servicio escrito con palabras alcanza");
     const y = await r("corte + barba simple", ETAPA_M, {}, d);
-    assert.ok(y.res!.texto.includes("Anoté *Corte + Barba simple*") && (y.e.estado as any).datos.servicioId === "s4" && y.e.creadas.length === 0, "guarda el servicio (no es dato personal) y pide lo demás");
+    assert.ok(y.res!.texto.includes("nombre completo") && (y.e.estado as any).datos.servicioId === "s4" && y.e.creadas.length === 0, "guarda el servicio y pide lo demás");
   });
   console.log("OK cierre rápido");
 })();

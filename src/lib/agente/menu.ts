@@ -106,6 +106,7 @@ export function listaDeCurso(titulo: string = TITULO_CURSO) { return { cuerpo: t
 
 const CONSULTA_BOTON: Record<string, string> = {
   m1: "1", m2: "2", m3: "3", m4: "4",
+  r1: "1", r2: "2", r3: "3", r4: "4", r5: "5", r6: "6", r7: "7", r8: "8", // opciones de la reserva por chat (profesional o servicio)
   c_malla: "quiero la malla del curso de barbería", c_valor: "cuánto cuesta el curso de barbería y cómo reservo mi cupo",
   c_fechas: "cuándo comienza el curso de barbería y en qué horario son las clases", c_video: "quiero el video explicativo del curso de barbería",
   c_otras: "4", c_menu: "menú",

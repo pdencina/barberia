@@ -1,7 +1,7 @@
 // Consulta de disponibilidad por WhatsApp: "¿Matías tiene hora a las 3?", "¿qué horas tienen mañana?".
 // Determinista y de SOLO LECTURA: no guarda nada ni pide datos personales. Las horas libres las calcula la misma función que
 // usa la reserva web (inyectada), para no tener dos reglas distintas. Nunca repite el texto del cliente en la respuesta.
-import { mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fija";
+import { normalizar, mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fija";
 
 export interface HorasLibres { slots: string[]; cerrado: boolean; fueraDeVentana: boolean }
 export interface DependenciasDisponibilidad {
@@ -308,6 +308,13 @@ async function responderDisponibilidadBase(texto: unknown, datos: DatosFaq | nul
   if (hh !== null) {
     const exactos = con.filter((x) => x.horas.includes(hh));
     if (exactos.length) return { tipo: "respuesta", texto: bloque(`A las *${hh}* ${dia(q.fecha)} tienen disponible:\n${exactos.slice(0, 5).map((x) => `• ${nombreNegrita(x.p.nombre)}`).join("\n")}`, cierre), oferta: { horaExacta: hh, opciones: exactos.slice(0, 5).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
+  }
+  // "¿Quién atiende el miércoles?" / "¿qué barberos tienen?": se lista a cada profesional con sus primeras horas, para elegir tocando o escribiendo.
+  const pideQuien = /\b(quien|quienes|que barberos|que profesionales|cuales barberos|cuales profesionales|que peluqueros)\b/.test(normalizar(t));
+  if (con.length && pideQuien) {
+    const lista = con.slice(0, 8).map((x) => `• ${nombreNegrita(x.p.nombre.trim().split(" ").slice(0, 2).join(" "))}: ${x.horas.slice(0, 3).join(" · ")}`).join("\n");
+    const resumen = `${hh !== null ? `A las *${hh}* ${dia(q.fecha)}` : mayus(dia(q.fecha))} atienden:\n${lista}${con.length > 8 ? `\n· y ${con.length - 8} más` : ""}\n\nDime con quién y a qué hora (por ejemplo «${con[0].p.nombre.trim().split(" ")[0]} a las ${con[0].horas[0]}») y te pido tus datos.`;
+    return { tipo: "respuesta", texto: bloque(resumen, conNota(`O reserva tú aquí: ${general}`)), oferta: { horaExacta: hh !== null && con.some((x) => x.horas.includes(hh)) ? hh : null, opciones: con.slice(0, 10).map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: q.fecha, horas: x.horas.slice(0, MAX_HORAS_OFRECIDAS) })) } };
   }
   if (con.length && hh === null && con.length > MAX_PROFESIONALES_LISTA) {
     // Muchos profesionales con horas: se muestran las 3 primeras horas (cada una con alguien distinto) para poder elegir al tiro.
