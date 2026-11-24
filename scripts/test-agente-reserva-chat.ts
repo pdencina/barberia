@@ -211,6 +211,22 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   console.log("OK nombre solo");
 })();
 (async () => {
+  // Dos profesionales con el mismo apellido: "con dylan perez" es Dylan, no Enzo (bug visto en la prueba real del 24-nov).
+  const hom: EstadoChat = { etapa: "oferta", datos: { horaExacta: null, opciones: [
+    { id: "e", nombre: "Enzo Perez", duracionMin: 45, fecha: "2026-11-03", horas: ["13:15", "15:00"] },
+    { id: "dy", nombre: "Dylan Perez", duracionMin: 45, fecha: "2026-11-03", horas: ["14:00", "15:00", "16:30"] },
+    { id: "f", nombre: "Felipe Meza", duracionMin: 45, fecha: "2026-11-03", horas: ["13:15"] } ] } };
+  const x1 = await manejarReservaChat("con dylan perez", TEL, datos(), armar(hom).deps);
+  assert.ok(x1!.texto.startsWith("Con *Dylan Perez* hoy tengo: 14:00 · 15:00 · 16:30"), x1!.texto);
+  const x2 = await manejarReservaChat("con enzo perez", TEL, datos(), armar(hom).deps);
+  assert.ok(x2!.texto.startsWith("Con *Enzo Perez* hoy tengo: 13:15 · 15:00"), x2!.texto);
+  const x3 = await manejarReservaChat("dylan a las 3", TEL, datos(), armar(hom).deps);
+  assert.ok(x3!.texto.startsWith("Perfecto. Te dejo la hora con *Dylan Perez* hoy a las *15:00*."), x3!.texto);
+  const x4 = await manejarReservaChat("la de las 3 con dylan perez", TEL, datos(), armar(hom).deps);
+  assert.ok(x4!.texto.startsWith("Perfecto. Te dejo la hora con *Dylan Perez* hoy a las *15:00*."), x4!.texto);
+  console.log("OK mismo apellido");
+})();
+(async () => {
   const a = armar({ etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
   assert.equal(await manejarReservaChat("tienen hora hoy a las 5:30?", TEL, datos(), a.deps), null);
   assert.equal(a.e.estado?.etapa, "datos");

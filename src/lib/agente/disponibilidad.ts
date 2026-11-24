@@ -129,7 +129,10 @@ const sinTildes = (s: string) => s.normalize("NFD").replace(/([aeiou])[̀-ͯ]+/g
 
 function profesionalesMencionados(t: string, perfiles: Perfil[]): Perfil[] {
   const palabras = Array.from(new Set(t.split(/[^a-zñ0-9]+/).filter((w) => w.length >= 3)));
-  const coinciden = perfiles.filter((p) => sinTildes(p.nombre).split(" ").filter((x) => x.length >= 3).some((tok) => palabras.some((w) => w === tok || (w.length >= 4 && tok.startsWith(w)))));
+  // Gana quien calza con más palabras del nombre ("dylan perez" es Dylan Perez, no Enzo Perez, aunque compartan el apellido).
+  const puntaje = (p: Perfil) => sinTildes(p.nombre).split(" ").filter((x) => x.length >= 3).filter((tok) => palabras.some((w) => w === tok || (w.length >= 4 && tok.startsWith(w)))).length;
+  const pts = perfiles.map(puntaje), max = Math.max(0, ...pts);
+  const coinciden = max > 0 ? perfiles.filter((_, i) => pts[i] === max) : [];
   return coinciden.length > 0 && coinciden.length <= 3 ? coinciden : [];
 }
 

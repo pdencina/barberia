@@ -255,5 +255,18 @@ const M = "https://sintetico.invalid/negocio/matias-soto";
     assert.equal((await responderDisponibilidad("hola camila como estas", datos(), deps(a))).tipo, "sin_consulta");
     assert.equal((await responderDisponibilidad("juan", datos(), deps(a))).tipo, "sin_consulta");
   });
+  await caso("Mismo apellido: 'dylan perez' es Dylan, no Enzo; solo 'perez' deja ambos", async () => {
+    const d = datos({ profesionales: [
+      { id: "e", nombre: "Enzo Perez", link: "https://sintetico.invalid/negocio/enzo-perez" },
+      { id: "dy", nombre: "Dylan Perez", link: "https://sintetico.invalid/negocio/dylan-perez" },
+    ] });
+    const a = { "e|2026-11-03": ["13:15"], "dy|2026-11-03": ["14:00", "15:00"] };
+    const r1 = await responderDisponibilidad("dylan perez tiene hora hoy", d, deps(a));
+    assert.ok(r1.tipo === "respuesta" && r1.texto.includes("*Dylan Perez*") && !r1.texto.includes("Enzo"), r1.tipo === "respuesta" ? r1.texto : "");
+    const r2 = await responderDisponibilidad("dylan perez", d, deps(a));
+    assert.ok(r2.tipo === "respuesta" && r2.texto.includes("*Dylan Perez*") && !r2.texto.includes("Enzo"), "nombre y apellido sueltos");
+    const r3 = await responderDisponibilidad("perez tiene hora hoy", d, deps(a));
+    assert.ok(r3.tipo === "respuesta" && r3.texto.includes("Enzo") && r3.texto.includes("Dylan"), "solo el apellido compartido: entran los dos");
+  });
   console.log(`OK ${casos} casos de disponibilidad; reloj fijo y agenda simulada; sin red, base ni llaves.`);
 })();
