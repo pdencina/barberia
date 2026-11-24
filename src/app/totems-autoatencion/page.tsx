@@ -8,7 +8,7 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "info" | "contacto" | "gracias";
+type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "otro" | "info" | "contacto" | "gracias";
 interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null; cosmetico?: boolean }
 interface Info { modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
@@ -128,6 +128,9 @@ function Totem() {
   const [svcSel, setSvcSel] = useState<string[]>([]);
   // Antes de pagar se ofrece un producto para el cabello (solo cosméticos): una sola vez por atención.
   const [upsellHecho, setUpsellHecho] = useState(false);
+  // Otra persona (otro cliente, otro código) que paga en el mismo cobro; cada una queda con su propia venta.
+  const [otros, setOtros] = useState<{ code: string; cliente: string; citas: Cita[] }[]>([]);
+  const [codigoOtro, setCodigoOtro] = useState("");
   const [extra, setExtra] = useState<Record<string, number>>({});
   const pendienteRef = useRef<((pr: { id: string; cantidad: number }[]) => void) | null>(null);
   const [vinculo, setVinculo] = useState<{ token: string; url: string; code?: string; nombre?: string } | null>(null); // «Ver mi código»: QR → correo en el celular
@@ -138,7 +141,7 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita"); setUpsellHecho(false); setExtra({}); pendienteRef.current = null;
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita"); setUpsellHecho(false); setOtros([]); setCodigoOtro(""); setExtra({}); pendienteRef.current = null;
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
@@ -271,6 +274,21 @@ function Totem() {
     if (fn) fn(pr);
   };
 
+  // Agregar a otra persona al mismo pago: se escribe SU código; solo entran sus citas de hoy con el mismo profesional.
+  const agregarOtraPersona = async () => {
+    if (codigoOtro.length !== 5) return;
+    if (codigoOtro === code || otros.some((o) => o.code === codigoOtro)) { setMsg("Ese código ya está en el pago."); return; }
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("buscar", { code: codigoOtro });
+    setCargando(false);
+    if (!ok) { setMsg(d.error || "No pudimos buscar esa cita"); return; }
+    const barber = citas[0]?.barberId;
+    const validas: Cita[] = (d.citas || []).filter((x: Cita) => x.barberId && x.barberId === barber && (x.saldo || 0) > 0);
+    if (!validas.length) { setMsg(`Esa persona no tiene una cita para pagar hoy con ${citas[0]?.profesional || "el mismo profesional"}.`); return; }
+    setOtros((l) => [...l, { code: codigoOtro, cliente: validas[0].cliente, citas: validas }]);
+    setCodigoOtro(""); setMsg(""); setPantalla("cita");
+  };
+
   const abrirServicios = async (c: Cita) => {
     setCargando(true); setMsg("");
     const { ok, d } = await post("cita-servicios", { appointmentId: c.id, code });
@@ -289,18 +307,18 @@ function Totem() {
     setCargando(false);
   };
 
-  const crearPagoQr = async (c: Cita, ids?: string[], productos?: { id: string; cantidad: number }[]) => {
+  const crearPagoQr = async (c: Cita, ids?: string[], productos?: { id: string; cantidad: number }[], otrosPay?: { code: string; appointmentIds: string[] }[]) => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("pago-qr", { appointmentId: c.id, appointmentIds: ids, code, productos });
+    const { ok, d } = await post("pago-qr", { appointmentId: c.id, appointmentIds: ids, code, productos, otros: otrosPay });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos crear el pago"); return; }
     setPagoQr({ id: d.id, url: d.url, monto: d.monto, abono: d.abono });
     setPantalla("pagoqr");
   };
 
-  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito", ids?: string[], productos?: { id: string; cantidad: number }[]) => {
+  const crearPagoTerminal = async (c: Cita, tarjeta: "debito" | "credito", ids?: string[], productos?: { id: string; cantidad: number }[], otrosPay?: { code: string; appointmentIds: string[] }[]) => {
     setCargando(true); setMsg("");
-    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, appointmentIds: ids, code, tarjeta, productos });
+    const { ok, d } = await post("pago-terminal", { appointmentId: c.id, appointmentIds: ids, code, tarjeta, productos, otros: otrosPay });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos enviar el cobro a la máquina"); return; }
     setPagoTerm({ id: d.id, monto: d.monto, abono: d.abono, profesional: d.profesional || null });
@@ -548,26 +566,44 @@ function Totem() {
           {volver}
           <h2 className="tt-display mb-6 text-6xl font-semibold">{citas.length > 1 ? "Encontramos estas citas" : "Esta es tu cita"}</h2>
           {msg && <p className={`mb-6 ${aviso}`}>{msg}</p>}
-          {/* Varias citas con el mismo profesional: se pueden pagar todas juntas, de una vez. */}
-          {modo === "pagar" && citas.length > 1 && citas.every((x) => x.barberId && x.barberId === citas[0].barberId && (x.saldo || 0) > 0) && (info.pagoTerminal || info.pagoQr) && (
-            <div className={`${caja} mb-5 grid items-center gap-x-12 gap-y-6 border-white/30 p-8 md:grid-cols-[1fr_1.2fr]`}>
-              <div>
-                <p className="tt-mono mb-2 text-lg uppercase tracking-[0.16em] text-white/50">Paga todo junto</p>
-                <p className="tt-display text-7xl font-semibold">{plata(citas.reduce((s, x) => s + (x.saldo || 0), 0))}</p>
-                <p className="mt-3 text-2xl text-white/70">{citas.map((x) => x.servicio).join(" + ")}</p>
-                <p className="mt-1 text-xl text-white/55">con {citas[0].profesional || "tu profesional"}</p>
-              </div>
-              <div className="space-y-4">
-                {info.pagoTerminal && (info.tarjetaElige ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>
-                    <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "credito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>
+          {/* Varias citas con el mismo profesional (o varias personas que pagan juntas): un solo cobro. Cada persona queda con su propia venta. */}
+          {modo === "pagar" && (info.pagoTerminal || info.pagoQr) && (() => {
+            const mismoPro = citas.every((x) => x.barberId && x.barberId === citas[0].barberId && (x.saldo || 0) > 0);
+            const juntas = (citas.length > 1 && mismoPro) || (otros.length > 0 && citas.some((x) => x.barberId === citas[0].barberId && (x.saldo || 0) > 0));
+            const principales = mismoPro ? citas : citas.filter((x) => x.barberId === citas[0].barberId && (x.saldo || 0) > 0);
+            const ids = principales.map((x) => x.id);
+            const otrosPay = otros.map((o) => ({ code: o.code, appointmentIds: o.citas.map((x) => x.id) }));
+            const todas = [...principales, ...otros.flatMap((o) => o.citas)];
+            return (
+              <>
+                {juntas && (
+                  <div className={`${caja} mb-5 grid items-center gap-x-12 gap-y-6 border-white/30 p-8 md:grid-cols-[1fr_1.2fr]`}>
+                    <div>
+                      <p className="tt-mono mb-2 text-lg uppercase tracking-[0.16em] text-white/50">{otros.length > 0 ? "Pagan juntos" : "Paga todo junto"}</p>
+                      <p className="tt-display text-7xl font-semibold">{plata(todas.reduce((s, x) => s + (x.saldo || 0), 0))}</p>
+                      {otros.length > 0
+                        ? <ul className="mt-3 space-y-1 text-2xl text-white/70">{[{ cliente: principales[0]?.cliente, citas: principales }, ...otros].map((g, i) => <li key={i}>{g.cliente}: {g.citas.map((x) => x.servicio).join(" + ")} · {plata(g.citas.reduce((s, x) => s + (x.saldo || 0), 0))}</li>)}</ul>
+                        : <p className="mt-3 text-2xl text-white/70">{principales.map((x) => x.servicio).join(" + ")}</p>}
+                      <p className="mt-1 text-xl text-white/55">con {citas[0].profesional || "tu profesional"}{otros.length > 0 ? " · cada persona queda con su propia boleta y venta" : ""}</p>
+                      {otros.length > 0 && <button className="tt-mono mt-4 rounded-xl border border-white/15 px-5 py-3 text-base uppercase tracking-[0.12em] text-white/70" onClick={() => setOtros([])}>Quitar a la otra persona</button>}
+                    </div>
+                    <div className="space-y-4">
+                      {info.pagoTerminal && (info.tarjetaElige ? (
+                        <div className="grid grid-cols-2 gap-4">
+                          <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", ids, pr, otrosPay))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>
+                          <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "credito", ids, pr, otrosPay))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>
+                        </div>
+                      ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", ids, pr, otrosPay))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
+                      {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(citas[0], ids, pr, otrosPay))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
+                    </div>
                   </div>
-                ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", citas.map((x) => x.id), pr))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
-                {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(citas[0], citas.map((x) => x.id), pr))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
-              </div>
-            </div>
-          )}
+                )}
+                {otros.length === 0 && citas.some((x) => x.barberId && (x.saldo || 0) > 0) && (
+                  <button className={`${secundario} mb-5`} onClick={() => { setMsg(""); setCodigoOtro(""); setPantalla("otro"); }}>Pagar junto con otra persona (otro código)</button>
+                )}
+              </>
+            );
+          })()}
           <div className="space-y-5">
             {citas.map((c) => (
               <div key={c.id} className={`${caja} grid items-center gap-x-12 gap-y-6 p-8 md:grid-cols-[1fr_1.2fr]`}>
@@ -601,6 +637,26 @@ function Totem() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {pantalla === "otro" && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => { setMsg(""); setPantalla("cita"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Volver a mi cita</button>
+          <div className="grid flex-1 items-center gap-x-16 gap-y-8 md:grid-cols-2">
+            <div>
+              <h2 className="tt-display mb-3 text-6xl font-semibold">Código de la otra persona</h2>
+              <p className="mb-8 text-2xl text-white/65">Escribe el código de la persona que paga junto contigo. Hacen un solo cobro, pero cada una queda con su propia venta y su propia boleta.</p>
+              <div className="mb-8 flex gap-4">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex h-28 w-24 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] text-6xl font-semibold">{codigoOtro[i] || ""}</div>
+                ))}
+              </div>
+              {msg && <p className={`mb-6 ${aviso}`}>{msg}</p>}
+              <button className={principal} disabled={codigoOtro.length !== 5 || cargando} onClick={agregarOtraPersona}>{cargando ? "Buscando…" : "Agregar al pago"}</button>
+            </div>
+            <Teclado onTecla={(k) => { setMsg(""); setCodigoOtro((c) => (c.length < 5 ? c + k : c)); }} onBorrar={() => setCodigoOtro((c) => c.slice(0, -1))} />
           </div>
         </section>
       )}

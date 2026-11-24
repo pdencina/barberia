@@ -1,7 +1,10 @@
 // Registra el pago hecho en el tótem como una VENTA NORMAL (misma tabla y mismos datos que el Punto de Venta), para que aparezca en la
 // billetera del profesional, el dashboard, el cierre, la caja, los puntos y la boleta, sin que nadie la ingrese a mano.
 // Es una copia acotada de /api/pos/checkout (esa ruta pide sesión del equipo y no se tocó). Es IDEMPOTENTE: un pago solo genera una venta.
+// Si un mismo cobro pagó las citas de VARIOS clientes (dos personas que pagan juntas), cada cliente queda con su propia venta
+// (su ficha, sus puntos, su boleta y su comprobante); el cobro es uno solo.
 import { buscarAbonosDisponibles, marcarAbonosAplicados } from "@/lib/abonos-disponibles";
+import { saldoCita } from "@/lib/totem-pago";
 
 export type MedioPago = "debit_card" | "credit_card" | "transfer";
 
@@ -15,7 +18,22 @@ export function medioDePago(tipoMp?: string | null, tarjeta?: string | null): Me
   return "debit_card";
 }
 
+// Reparte lo cobrado y la propina entre los clientes de un cobro compartido. El primer grupo recibe el resto (sin perder un peso por redondeo).
+export function repartirCobro(montos: number[], cobrado: number, propina: number): Array<{ total: number; propina: number }> {
+  if (montos.length <= 1) return [{ total: cobrado, propina }];
+  const otros = montos.slice(1).map((m) => Math.max(0, Math.round(m)));
+  const totalesOtros = otros.map((m) => m);
+  const primero = Math.max(0, cobrado - totalesOtros.reduce((s, m) => s + m, 0));
+  const totales = [primero, ...totalesOtros];
+  const suma = totales.reduce((s, m) => s + m, 0) || 1;
+  const propinasOtros = totales.slice(1).map((m) => Math.round((propina * m) / suma));
+  const propinaPrimero = Math.max(0, propina - propinasOtros.reduce((s, p) => s + p, 0));
+  return totales.map((t, i) => ({ total: t, propina: i === 0 ? propinaPrimero : propinasOtros[i - 1] }));
+}
+
 export type ResultadoVenta = { ok: true; transactionId: string; yaExistia?: boolean } | { ok: false; error: string };
+
+type Grupo = { clientId: string | null; citaIds: string[] };
 
 export async function registrarVentaTotem(supabase: any, kioskPaymentId: string): Promise<ResultadoVenta> {
   // 1) Tomar el pago. Solo uno puede «reclamarlo»: si otro ya está registrando o ya terminó, no se duplica la venta.
@@ -40,79 +58,107 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
   try {
     const tenantId: string = kp0.tenant_id;
     const esProducto = kp0.kind === "producto";
-    let cita: any = null;
-    let citaIds: string[] = [];
     let barberId: string | null;
-    let clientId: string | null;
-    let items: Array<{ service_id: string | null; product_id?: string | null; name: string; price: number; quantity?: number }>;
+    let grupos: Grupo[];
     if (esProducto) {
       // Venta de productos: el vendedor y el carrito se guardaron al crear el cobro (precios del servidor).
       // Solo consumibles (bebidas…): la venta es del estudio y no lleva profesional. Con algún cosmético sí hace falta quién vendió.
       barberId = kp0.barber_id || null;
-      clientId = kp0.client_id || null;
       if (!barberId && (Array.isArray(kp0.items) ? kp0.items : []).some((i: any) => i.cosmetico)) throw new Error("Falta el profesional que vendió");
-      items = (Array.isArray(kp0.items) ? kp0.items : []).map((i: any) => ({ service_id: null, product_id: i.product_id, name: i.name, price: Math.round(Number(i.price) || 0), quantity: Math.max(1, Number(i.quantity) || 1) }));
-      if (items.length === 0) throw new Error("La compra no tiene productos");
+      if ((Array.isArray(kp0.items) ? kp0.items : []).length === 0) throw new Error("La compra no tiene productos");
+      grupos = [{ clientId: kp0.client_id || null, citaIds: [] }];
     } else {
-      const { data: c } = await supabase.from("appointments").select("id, client_id, barber_id, tenant_id").eq("id", kp0.appointment_id).maybeSingle();
-      if (!c || c.tenant_id !== tenantId) throw new Error("Cita no encontrada");
-      cita = c;
-      barberId = cita.barber_id;
-      clientId = cita.client_id || null;
-      // Servicios de la cita (y de las otras citas pagadas juntas) con el precio guardado al reservar.
-      citaIds = [cita.id, ...(Array.isArray(kp0.appointment_ids) ? kp0.appointment_ids : [])];
-      const { data: filas } = await supabase.from("appointment_services").select("service_id, price, services(name)").in("appointment_id", citaIds);
-      items = (filas || []).map((f: any) => ({ service_id: f.service_id, name: f.services?.name || "Servicio", price: Math.round(Number(f.price) || 0) }));
-      if (items.length === 0) throw new Error("La cita no tiene servicios");
-      // Productos (cosméticos) que el cliente agregó antes de pagar: van en la misma venta, con los precios guardados al crear el cobro.
-      for (const p of Array.isArray(kp0.items) ? kp0.items : []) {
-        items.push({ service_id: null, product_id: p.product_id, name: p.name, price: Math.round(Number(p.price) || 0), quantity: Math.max(1, Number(p.quantity) || 1) });
+      const ids = [kp0.appointment_id, ...(Array.isArray(kp0.appointment_ids) ? kp0.appointment_ids : [])].filter(Boolean) as string[];
+      const { data: filas } = await supabase.from("appointments").select("id, client_id, barber_id, tenant_id").in("id", ids);
+      const porId = new Map<string, any>((filas || []).map((c: any) => [c.id, c]));
+      const principal = porId.get(kp0.appointment_id);
+      if (!principal || principal.tenant_id !== tenantId) throw new Error("Cita no encontrada");
+      barberId = principal.barber_id;
+      // Una venta por cliente: las citas del mismo cliente van juntas; la del cliente principal va primero.
+      grupos = [];
+      for (const id of ids) {
+        const c = porId.get(id);
+        if (!c || c.tenant_id !== tenantId) throw new Error("Cita no encontrada");
+        const g = grupos.find((x) => x.clientId === (c.client_id || null));
+        if (g) g.citaIds.push(id); else grupos.push({ clientId: c.client_id || null, citaIds: [id] });
       }
     }
 
-    // Totales como en el POS: total = lo cobrado por el servicio (SIN la propina); el descuento es lo que ya estaba pagado (abono) o cualquier diferencia.
-    // La propina que el cliente agregó en la máquina va aparte, en tip_amount, 100% al profesional (como en el POS).
-    const propina = Math.max(0, Math.round(Number(kp0.tip_amount) || 0));
-    const total = Math.round(Number(kp0.amount) || 0);
-    const subtotal = items.reduce((s: number, i: any) => s + i.price * (i.quantity || 1), 0);
-    const discount = Math.max(0, subtotal - total);
-    // Abonos ya pagados de cada cita incluida.
-    const abonosUsados: Awaited<ReturnType<typeof buscarAbonosDisponibles>> = [];
-    for (const cid of citaIds) {
-      const disp = await buscarAbonosDisponibles(supabase, { tenantId, clientId, appointmentId: cid });
-      abonosUsados.push(...disp.filter((x) => x.citaId === cid));
+    // Cuánto corresponde a cada cliente. Con un solo cliente es todo lo cobrado (como siempre).
+    const propinaTotal = Math.max(0, Math.round(Number(kp0.tip_amount) || 0));
+    const cobrado = Math.round(Number(kp0.amount) || 0);
+    let montos: number[] = [cobrado];
+    if (grupos.length > 1) {
+      montos = [cobrado];
+      for (const g of grupos.slice(1)) {
+        let m = 0;
+        for (const cid of g.citaIds) m += (await saldoCita(supabase, cid))?.saldo || 0;
+        montos.push(m);
+      }
     }
-    const abono = Math.min(discount, abonosUsados.reduce((s, x) => s + x.monto, 0));
-    const medio = medioDePago(kp0.payment_type, kp0.card_type);
+    const reparto = repartirCobro(montos, cobrado, propinaTotal);
 
     const { data: barberProfile } = barberId ? await supabase.from("profiles").select("name, branch_id").eq("id", barberId).maybeSingle() : { data: null as any };
-    const txRow: Record<string, any> = {
-      type: "income", status: "completed", subtotal, discount, total,
-      payment_method: medio, client_id: clientId, barber_id: barberId, coupon_id: null, tenant_id: tenantId,
-      created_by: barberId, origin: "totem",
-      ...(citaIds[0] ? { appointment_id: citaIds[0] } : {}),
-      ...(barberProfile?.branch_id ? { branch_id: barberProfile.branch_id } : {}),
-      ...(abono > 0 ? { prepaid_amount: abono } : {}),
-      ...(propina > 0 ? { tip_amount: propina } : {}),
-    };
-    let { data: tx, error } = await supabase.from("transactions").insert(txRow).select().single();
-    if (error && /origin|created_by|prepaid_amount|branch_id|appointment_id/i.test(error.message)) {
-      const { origin: _o, created_by: _c, prepaid_amount: _p, branch_id: _b, appointment_id: _a, ...legacy } = txRow;
-      ({ data: tx, error } = await supabase.from("transactions").insert(legacy).select().single());
-    }
-    if (error || !tx) throw new Error(error?.message || "No se pudo registrar la venta");
+    const medio = medioDePago(kp0.payment_type, kp0.card_type);
 
-    // Guardar el vínculo de inmediato: si algo falla después, el pago ya no puede generar otra venta.
-    await supabase.from("kiosk_payments").update({ transaction_id: tx.id }).eq("id", kioskPaymentId);
+    // Crea la venta de UN cliente (sus citas, o el carrito de productos) y hace todo lo que hace el POS al cobrar.
+    const crearVenta = async (g: Grupo, total: number, propina: number, primero: boolean): Promise<string> => {
+      const clientId = g.clientId;
+      const citaIds = g.citaIds;
+      let items: Array<{ service_id: string | null; product_id?: string | null; name: string; price: number; quantity?: number }>;
+      if (esProducto) {
+        items = (Array.isArray(kp0.items) ? kp0.items : []).map((i: any) => ({ service_id: null, product_id: i.product_id, name: i.name, price: Math.round(Number(i.price) || 0), quantity: Math.max(1, Number(i.quantity) || 1) }));
+      } else {
+        // Servicios de las citas del cliente con el precio guardado al reservar.
+        const { data: filas } = await supabase.from("appointment_services").select("service_id, price, services(name)").in("appointment_id", citaIds);
+        items = (filas || []).map((f: any) => ({ service_id: f.service_id, name: f.services?.name || "Servicio", price: Math.round(Number(f.price) || 0) }));
+        if (items.length === 0) throw new Error("La cita no tiene servicios");
+        // Productos (cosméticos) que el cliente agregó antes de pagar: van en la venta del cliente principal, con los precios guardados al crear el cobro.
+        if (primero) {
+          for (const p of Array.isArray(kp0.items) ? kp0.items : []) {
+            items.push({ service_id: null, product_id: p.product_id, name: p.name, price: Math.round(Number(p.price) || 0), quantity: Math.max(1, Number(p.quantity) || 1) });
+          }
+        }
+      }
 
-    if (abonosUsados.length && abono > 0) await marcarAbonosAplicados(supabase, abonosUsados.map((x) => x.paymentId), tx.id);
+      // Totales como en el POS: total = lo cobrado por el servicio (SIN la propina); el descuento es lo que ya estaba pagado (abono) o cualquier diferencia.
+      // La propina que el cliente agregó en la máquina va aparte, en tip_amount, 100% al profesional (como en el POS).
+      const subtotal = items.reduce((s: number, i: any) => s + i.price * (i.quantity || 1), 0);
+      const discount = Math.max(0, subtotal - total);
+      // Abonos ya pagados de cada cita incluida.
+      const abonosUsados: Awaited<ReturnType<typeof buscarAbonosDisponibles>> = [];
+      for (const cid of citaIds) {
+        const disp = await buscarAbonosDisponibles(supabase, { tenantId, clientId, appointmentId: cid });
+        abonosUsados.push(...disp.filter((x) => x.citaId === cid));
+      }
+      const abono = Math.min(discount, abonosUsados.reduce((s, x) => s + x.monto, 0));
 
-    await supabase.from("transaction_items").insert(items.map((i: any) => ({
-      transaction_id: tx.id, service_id: i.service_id, product_id: i.product_id || null, description: i.name, quantity: i.quantity || 1, unit_price: i.price, total: i.price * (i.quantity || 1),
-    })));
+      const txRow: Record<string, any> = {
+        type: "income", status: "completed", subtotal, discount, total,
+        payment_method: medio, client_id: clientId, barber_id: barberId, coupon_id: null, tenant_id: tenantId,
+        created_by: barberId, origin: "totem",
+        ...(citaIds[0] ? { appointment_id: citaIds[0] } : {}),
+        ...(barberProfile?.branch_id ? { branch_id: barberProfile.branch_id } : {}),
+        ...(abono > 0 ? { prepaid_amount: abono } : {}),
+        ...(propina > 0 ? { tip_amount: propina } : {}),
+      };
+      let { data: tx, error } = await supabase.from("transactions").insert(txRow).select().single();
+      if (error && /origin|created_by|prepaid_amount|branch_id|appointment_id/i.test(error.message)) {
+        const { origin: _o, created_by: _c, prepaid_amount: _p, branch_id: _b, appointment_id: _a, ...legacy } = txRow;
+        ({ data: tx, error } = await supabase.from("transactions").insert(legacy).select().single());
+      }
+      if (error || !tx) throw new Error(error?.message || "No se pudo registrar la venta");
 
-    // Productos: baja el stock y deja el movimiento, igual que el POS.
-    {
+      // Guardar el vínculo de inmediato: si algo falla después, el pago ya no puede generar otra venta.
+      if (primero) await supabase.from("kiosk_payments").update({ transaction_id: tx.id }).eq("id", kioskPaymentId);
+
+      if (abonosUsados.length && abono > 0) await marcarAbonosAplicados(supabase, abonosUsados.map((x) => x.paymentId), tx.id);
+
+      await supabase.from("transaction_items").insert(items.map((i: any) => ({
+        transaction_id: tx.id, service_id: i.service_id, product_id: i.product_id || null, description: i.name, quantity: i.quantity || 1, unit_price: i.price, total: i.price * (i.quantity || 1),
+      })));
+
+      // Productos: baja el stock y deja el movimiento, igual que el POS.
       for (const i of items.filter((x: any) => x.product_id)) {
         try {
           const { data: pr } = await supabase.from("products").select("stock").eq("id", i.product_id).eq("tenant_id", tenantId).maybeSingle();
@@ -122,61 +168,76 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
           }
         } catch (e) { console.error("Tótem: error bajando stock:", e); }
       }
-    }
 
-    const { data: cli } = clientId ? await supabase.from("clients").select("name, email, loyalty_points").eq("id", clientId).maybeSingle() : { data: null as any };
-    await supabase.from("audit_log").insert({
-      action: "transaction_create", entity_type: "transaction", entity_id: tx.id,
-      description: `Venta $${total.toLocaleString("es-CL")} — ${items.map((i: any) => i.name).join(", ")}${cli?.name ? ` — ${cli.name}` : ""} (${medio}, tótem)`,
-      user_id: barberId, user_name: barberProfile?.name || "",
-      metadata: { total, subtotal, discount, abono, propina, paymentMethod: medio, clientId, items: items.length, origen: "totem", kioskPaymentId },
-    }).then(() => {}, () => {});
+      const { data: cli } = clientId ? await supabase.from("clients").select("name, email, loyalty_points").eq("id", clientId).maybeSingle() : { data: null as any };
+      await supabase.from("audit_log").insert({
+        action: "transaction_create", entity_type: "transaction", entity_id: tx.id,
+        description: `Venta $${total.toLocaleString("es-CL")} — ${items.map((i: any) => i.name).join(", ")}${cli?.name ? ` — ${cli.name}` : ""} (${medio}, tótem)`,
+        user_id: barberId, user_name: barberProfile?.name || "",
+        metadata: { total, subtotal, discount, abono, propina, paymentMethod: medio, clientId, items: items.length, origen: "totem", kioskPaymentId, cobroCompartido: grupos.length > 1 },
+      }).then(() => {}, () => {});
 
-    // Puntos de fidelidad (misma regla que el POS).
-    if (clientId && total > 0) {
+      // Puntos de fidelidad (misma regla que el POS).
+      if (clientId && total > 0) {
+        try {
+          const { data: config } = await supabase.from("loyalty_config").select("points_per_clp").eq("active", true).eq("tenant_id", tenantId).maybeSingle();
+          const ganados = Math.floor(total / (config?.points_per_clp || 1000));
+          if (ganados > 0) {
+            await supabase.from("loyalty_points").insert({ client_id: clientId, points: ganados, reason: "purchase", transaction_id: tx.id });
+            await supabase.from("clients").update({ loyalty_points: (cli?.loyalty_points || 0) + ganados }).eq("id", clientId);
+          }
+        } catch (e) { console.error("Tótem: error sumando puntos:", e); }
+      }
+
+      // Boleta electrónica automática (solo si el negocio la dejó encendida) y comprobante por correo, como en el POS.
+      let boleta: { folio: number; pdfUrl: string | null; pdfBase64: string | null } | null = null;
       try {
-        const { data: config } = await supabase.from("loyalty_config").select("points_per_clp").eq("active", true).eq("tenant_id", tenantId).maybeSingle();
-        const ganados = Math.floor(total / (config?.points_per_clp || 1000));
-        if (ganados > 0) {
-          await supabase.from("loyalty_points").insert({ client_id: clientId, points: ganados, reason: "purchase", transaction_id: tx.id });
-          await supabase.from("clients").update({ loyalty_points: (cli?.loyalty_points || 0) + ganados }).eq("id", clientId);
-        }
-      } catch (e) { console.error("Tótem: error sumando puntos:", e); }
-    }
+        const { emitForTransaction } = await import("@/lib/sii-emit");
+        const r = await emitForTransaction(supabase, tenantId, tx.id, { onlyAuto: true, ...(barberId ? { barberId } : {}) });
+        if (r.ok && r.folio) boleta = { folio: r.folio, pdfUrl: r.pdfUrl || null, pdfBase64: r.pdfBase64 || null };
+      } catch (e) { console.error("Tótem: error emitiendo boleta:", e); }
 
-    // Boleta electrónica automática (solo si el negocio la dejó encendida) y comprobante por correo, como en el POS.
-    let boleta: { folio: number; pdfUrl: string | null; pdfBase64: string | null } | null = null;
-    try {
-      const { emitForTransaction } = await import("@/lib/sii-emit");
-      const r = await emitForTransaction(supabase, tenantId, tx.id, { onlyAuto: true, ...(barberId ? { barberId } : {}) });
-      if (r.ok && r.folio) boleta = { folio: r.folio, pdfUrl: r.pdfUrl || null, pdfBase64: r.pdfBase64 || null };
-    } catch (e) { console.error("Tótem: error emitiendo boleta:", e); }
+      let correoEnviado = false;
+      if (clientId && cli?.email) {
+        try {
+          const { sendReceipt } = await import("@/lib/resend");
+          const { cargarEnlacesBoleta } = await import("@/lib/receipt-thanks");
+          const enl = await cargarEnlacesBoleta(supabase, tenantId, tx.id);
+          await sendReceipt({
+            to: cli.email, clientName: cli.name || "Cliente", transactionId: tx.id,
+            items: items.map((i: any) => ({ description: i.name, quantity: i.quantity || 1, unitPrice: i.price, total: i.price * (i.quantity || 1) })),
+            subtotal, discount, total, paymentMethod: medio, date: new Date(), barberName: barberProfile?.name || (barberId ? "Tu profesional" : "Estudio"),
+            businessLogoUrl: enl.logoUrl, businessName: enl.name,
+            boletaFolio: boleta?.folio ?? null, boletaPdfUrl: boleta?.pdfUrl ?? null, boletaPdfBase64: boleta?.pdfBase64 ?? null, links: enl.links,
+          });
+          correoEnviado = true;
+          await supabase.from("transactions").update({ receipt_sent: true, receipt_email: cli.email }).eq("id", tx.id);
+        } catch (e) { console.error("Tótem: error enviando comprobante:", e); }
+      }
 
-    let correoEnviado = false;
-    if (clientId && cli?.email) {
+      // Al cobrar, las citas del cliente quedan completadas (igual que en el POS).
+      if (citaIds.length) try {
+        await supabase.from("appointments").update({ status: "completed", ...(correoEnviado ? { post_service_sent: true } : {}) }).in("id", citaIds).in("status", ["scheduled", "confirmed", "in_progress"]);
+      } catch (e) { console.error("Tótem: error completando la cita:", e); }
+
+      return tx.id as string;
+    };
+
+    // Primero el cliente principal (si falla, el pago queda para reintentar); luego los demás clientes del mismo cobro, cada uno con su venta.
+    const primeraId = await crearVenta(grupos[0], reparto[0].total, reparto[0].propina, true);
+    const fallas: string[] = [];
+    for (let k = 1; k < grupos.length; k++) {
       try {
-        const { sendReceipt } = await import("@/lib/resend");
-        const { cargarEnlacesBoleta } = await import("@/lib/receipt-thanks");
-        const enl = await cargarEnlacesBoleta(supabase, tenantId, tx.id);
-        await sendReceipt({
-          to: cli.email, clientName: cli.name || "Cliente", transactionId: tx.id,
-          items: items.map((i: any) => ({ description: i.name, quantity: i.quantity || 1, unitPrice: i.price, total: i.price * (i.quantity || 1) })),
-          subtotal, discount, total, paymentMethod: medio, date: new Date(), barberName: barberProfile?.name || (barberId ? "Tu profesional" : "Estudio"),
-          businessLogoUrl: enl.logoUrl, businessName: enl.name,
-          boletaFolio: boleta?.folio ?? null, boletaPdfUrl: boleta?.pdfUrl ?? null, boletaPdfBase64: boleta?.pdfBase64 ?? null, links: enl.links,
-        });
-        correoEnviado = true;
-        await supabase.from("transactions").update({ receipt_sent: true, receipt_email: cli.email }).eq("id", tx.id);
-      } catch (e) { console.error("Tótem: error enviando comprobante:", e); }
+        // Reintento seguro: si ya existe la venta de esa cita en el tótem, no se repite.
+        const { data: ya } = await supabase.from("transactions").select("id").eq("tenant_id", tenantId).eq("origin", "totem").eq("appointment_id", grupos[k].citaIds[0]).limit(1).maybeSingle();
+        if (!ya) await crearVenta(grupos[k], reparto[k].total, reparto[k].propina, false);
+      } catch (e: any) {
+        fallas.push(`la venta de la cita ${grupos[k].citaIds[0]}: ${String(e?.message || e).slice(0, 120)}`);
+        console.error("Tótem: no se pudo registrar una venta del cobro compartido:", e);
+      }
     }
-
-    // Al cobrar, la cita queda completada (igual que en el POS).
-    if (cita) try {
-      await supabase.from("appointments").update({ status: "completed", ...(correoEnviado ? { post_service_sent: true } : {}) }).in("id", citaIds).in("status", ["scheduled", "confirmed", "in_progress"]);
-    } catch (e) { console.error("Tótem: error completando la cita:", e); }
-
-    await supabase.from("kiosk_payments").update({ sale_status: "done", sale_error: null }).eq("id", kioskPaymentId);
-    return { ok: true, transactionId: tx.id };
+    await supabase.from("kiosk_payments").update({ sale_status: "done", sale_error: fallas.length ? `Cobro compartido: falta registrar ${fallas.join("; ")}` : null }).eq("id", kioskPaymentId);
+    return { ok: true, transactionId: primeraId };
   } catch (e: any) {
     const error = String(e?.message || e).slice(0, 300);
     await supabase.from("kiosk_payments").update({ sale_status: "error", sale_error: error }).eq("id", kioskPaymentId).is("transaction_id", null);
