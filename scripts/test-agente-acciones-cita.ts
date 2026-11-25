@@ -49,15 +49,15 @@ async function main() {
   for (const accion of [confirmarCitaPropia, cancelarCitaPropia]) await test("cita pasada rechazada", async () => {
     const e = escenario({ start_time: "2026-10-27T08:00:00Z" }); assert.equal((await accion(contexto, e.deps)).motivo, "fuera_de_plazo");
   });
-  await test("menos de dos horas incluso por un milisegundo", async () => {
-    const e = escenario({ start_time: "2026-10-27T11:00:00Z" }, "2026-10-27T12:00:00.001Z");
+  await test("menos de tres horas incluso por un milisegundo", async () => {
+    const e = escenario({ start_time: "2026-10-27T12:00:00Z" }, "2026-10-27T12:00:00.001Z");
     assert.equal((await cancelarCitaPropia(contexto, e.deps)).motivo, "fuera_de_plazo"); assert.equal(e.cambios, 0);
   });
-  await test("exactamente dos horas y aviso idéntico al público", async () => {
-    const e = escenario({ start_time: "2026-10-27T11:00:00Z", status: "confirmed" });
+  await test("exactamente tres horas y aviso idéntico al público", async () => {
+    const e = escenario({ start_time: "2026-10-27T12:00:00Z", status: "confirmed" });
     assert.deepEqual(await cancelarCitaPropia(contexto, e.deps), { motivo: "ok" });
     assert.equal(e.avisos.length, 1); assert.equal(e.avisos[0].title, "😕 Se canceló una cita");
-    assert.equal(e.avisos[0].body, "Cliente de prueba canceló su hora del mar, 27 oct a las 11:00. El espacio quedó libre.");
+    assert.equal(e.avisos[0].body, "Cliente de prueba canceló su hora del mar, 27 oct a las 12:00. El espacio quedó libre.");
     assert.deepEqual(e.avisos[0].roles, ["admin", "receptionist"]);
   });
   await test("dos cancelaciones simultáneas producen una transición y aviso", async () => {
@@ -73,9 +73,9 @@ async function main() {
     assert.equal((await cancelarCitaPropia(contexto, e.deps)).motivo, "ya_estaba"); assert.equal(e.avisos.length, 1);
   });
   for (const [ahora, start_time, date] of [
-    ["2026-07-15T13:00:00Z", "2026-07-15T11:00:00Z", "2026-07-15"], // invierno: 09:00 Chile
-    ["2026-09-06T04:00:00Z", "2026-09-06T03:00:00Z", "2026-09-06"], // salto verano: 01:00 Chile
-    ["2026-10-28T02:30:00Z", "2026-10-28T01:30:00Z", "2026-10-28"], // 23:30 del día anterior
+    ["2026-07-15T13:00:00Z", "2026-07-15T12:00:00Z", "2026-07-15"], // invierno: 09:00 Chile, 3 h
+    ["2026-09-06T04:00:00Z", "2026-09-06T04:00:00Z", "2026-09-06"], // salto verano: 01:00 Chile, 3 h
+    ["2026-10-28T02:30:00Z", "2026-10-28T02:30:00Z", "2026-10-28"], // 23:30 del día anterior, 3 h
   ]) await test(`corte de pared Chile ${date}`, async () => {
     const e = escenario({ start_time, date }, ahora); assert.equal((await cancelarCitaPropia(contexto, e.deps)).motivo, "ok");
   });

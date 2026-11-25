@@ -1,4 +1,4 @@
-export type RespuestaCliente = "confirmar" | "cancelar" | "no_quiero_mensajes" | "desconocido";
+export type RespuestaCliente = "confirmar" | "cancelar" | "modificar" | "no_quiero_mensajes" | "desconocido";
 
 // HECHO del contrato local: no devuelve texto ni contexto de identidad/cita.
 // Solo clasifica; nunca autoriza, escribe, registra ni envía. No se conecta a rutas.
@@ -11,6 +11,10 @@ const CONFIRMAR = new Set([
 const CANCELAR = new Set([
   "cancelo", "cancelar", "cancelo mi cita", "cancelo la cita", "quiero cancelar mi cita",
   "quiero cancelar la cita", "necesito cancelar mi cita", "deseo cancelar mi cita",
+]);
+const MODIFICAR = new Set([
+  "modificar mi cita", "modificar la cita", "modificar cita", "quiero modificar mi cita", "necesito modificar mi cita",
+  "cambiar mi cita", "quiero cambiar mi cita", "necesito cambiar mi cita", "reprogramar mi cita", "quiero reprogramar mi cita",
 ]);
 const BAJA = new Set([
   "baja", "stop", "darme de baja", "quiero darme de baja", "no quiero mensajes",
@@ -45,5 +49,6 @@ export function clasificarRespuestaCliente(texto: unknown): RespuestaCliente {
   if (BAJA.has(normalizado)) return "no_quiero_mensajes";
   if (CONFIRMAR.has(normalizado)) return "confirmar";
   if (CANCELAR.has(normalizado)) return "cancelar";
+  if (MODIFICAR.has(normalizado)) return "modificar";
   return "desconocido";
 }

@@ -14,6 +14,9 @@ import { responderConIA, TOPE_IA_POR_DEFECTO, MODELO_IA } from "@/lib/agente/ia-
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getResendClient } from "@/lib/resend-client";
 import { avisoDeConsulta, avisoDeImagen, sistemaRedactor, ORDEN_SABER_CHAT, MAX_PREGUNTA } from "@/lib/agente/consultas";
+import { crearRepositorioAccionesCita, HORAS_MIN_CANCELAR } from "@/lib/agente/acciones-cita";
+import { anticipacionCita } from "@/lib/agente/recordatorios-whatsapp";
+import { textoDeFecha } from "@/lib/agente/disponibilidad";
 import { resolverRemitente } from "@/lib/agente/informe-diario-email";
 
 import { fetchAllRows } from "@/lib/accounting";
@@ -28,6 +31,20 @@ const handlers = () => crearManejadoresWebhook({
     return {
       repo: crearRepositorioWebhook(db, process.env.AGENTE_CONTACT_HASH_SALT!), ahora: Date.now,
       accion: accionesDesdeBase(db),
+      // Botón «Modificar mi cita»: solo con más de 3 h por delante. Anota qué cita se reemplaza y le pide al cliente qué día y hora prefiere.
+      modificarCita: async ({ tenantId, clienteId, referenciaRecordatorio, contactHash }) => {
+        const cita: any = await crearRepositorioAccionesCita(db).desdeRecordatorio({ tenantId, clienteId, referenciaRecordatorio });
+        if (!cita || !["scheduled", "confirmed"].includes(String(cita.status))) return { texto: "No encuentro una cita vigente para modificar. Escríbenos y te ayudamos." };
+        if (anticipacionCita(String(cita.start_time), Date.now()) <= HORAS_MIN_CANCELAR * 3600000) {
+          return { texto: "Ya no es posible modificar tu cita por este medio, porque faltan menos de 3 horas. Si no podrás asistir, avísanos por este chat; de lo contrario se marcará como inasistencia según nuestras políticas." };
+        }
+        const up = await db.from("agent_reprogramaciones").upsert({ tenant_id: tenantId, contact_hash: contactHash, appointment_id: cita.id, created_at: new Date().toISOString(), expires_at: new Date(Date.now() + 30 * 60000).toISOString() }, { onConflict: "tenant_id,contact_hash" });
+        if (up.error) throw new Error("reprogramacion");
+        await db.from("agent_chat_state").delete().eq("tenant_id", tenantId).eq("contact_hash", contactHash);
+        const prof = cita.barber_id ? await db.from("profiles").select("name").eq("id", cita.barber_id).maybeSingle() : null;
+        const hhmm = String(cita.start_time).slice(11, 16);
+        return { texto: `Claro, te ayudo a cambiar tu hora 🙌\nHoy la tienes ${prof?.data?.name ? `con *${prof.data.name}* ` : ""}${textoDeFecha(String(cita.date).slice(0, 10), ahoraChile(Date.now()).fecha)} a las *${hhmm}*.\n\nDime qué día y hora prefieres (por ejemplo: «mañana a las 5» o «el viernes en la tarde») y con quién, y te busco horas disponibles. Apenas quede la nueva, cancelo la anterior.` };
+      },
       datosDelNegocio: crearRepositorioDatosNegocio(db).datosDelNegocio,
       horasLibres: async (profesionalId, fecha, duracionMin) => {
         const res = await disponibilidadPublica(new Request(`https://interno.invalid/api/public/availability?barberId=${encodeURIComponent(profesionalId)}&date=${fecha}&duration=${duracionMin}`) as any);
@@ -48,6 +65,29 @@ const handlers = () => crearManejadoresWebhook({
           if (r.error) throw new Error("Memoria no disponible");
         },
         borrarEstado: async (tenantId, contactHash) => { await db.from("agent_chat_state").delete().eq("tenant_id", tenantId).eq("contact_hash", contactHash); },
+        // Cambio de cita en curso: datos ya conocidos del cliente (sin pedírselos otra vez) y cierre cancelando la cita anterior.
+        precargado: async (tenantId, contactHash, ahora) => {
+          const r = await db.from("agent_reprogramaciones").select("appointment_id,expires_at").eq("tenant_id", tenantId).eq("contact_hash", contactHash).maybeSingle();
+          if (r.error || !r.data || new Date(r.data.expires_at).getTime() <= ahora) return null;
+          const a = await db.from("appointments").select("id,client:clients!client_id(name,email),services:appointment_services(service_id)").eq("tenant_id", tenantId).eq("id", r.data.appointment_id).maybeSingle();
+          const cl: any = Array.isArray((a.data as any)?.client) ? (a.data as any).client[0] : (a.data as any)?.client;
+          const sv = ((a.data as any)?.services ?? [])[0]?.service_id;
+          if (!cl?.name || !cl?.email || !sv) return null;
+          return { cliente: String(cl.name), correo: String(cl.email), servicioId: String(sv) };
+        },
+        alReprogramar: async (tenantId, contactHash, citaNuevaId, ahora) => {
+          const r = await db.from("agent_reprogramaciones").select("appointment_id").eq("tenant_id", tenantId).eq("contact_hash", contactHash).maybeSingle();
+          if (r.error || !r.data || String(r.data.appointment_id) === citaNuevaId) return;
+          const c = await db.from("appointments").update({ status: "cancelled" }).eq("tenant_id", tenantId).eq("id", r.data.appointment_id).in("status", ["scheduled", "confirmed"]).select("id,date,start_time,barber_id,client:clients!client_id(name)").maybeSingle();
+          await db.from("agent_reprogramaciones").delete().eq("tenant_id", tenantId).eq("contact_hash", contactHash);
+          if (c.data) {
+            try {
+              const { notify } = await import("@/lib/notify"); const { apptNoticeUrl } = await import("@/lib/appt-link");
+              const cl: any = Array.isArray((c.data as any).client) ? (c.data as any).client[0] : (c.data as any).client;
+              await notify({ tenantId, kind: "appointment_changed", professionalId: (c.data as any).barber_id || null, userIds: (c.data as any).barber_id ? [(c.data as any).barber_id] : [], roles: ["admin", "receptionist"], title: "🔁 Cambio de hora", body: `${cl?.name || "Un cliente"} cambió su hora (la del ${String((c.data as any).date).slice(0, 10)} a las ${String((c.data as any).start_time).slice(11, 16)} quedó libre).`, url: apptNoticeUrl(String((c.data as any).id), String((c.data as any).date).slice(0, 10)) });
+            } catch { /* el cambio ya se hizo */ }
+          }
+        },
         reservasFuturas: async (tenantId, telefono, ahora) => {
           const largo = formatPhoneCL(telefono), corto = largo.replace(/^\+56/, "");
           const cl = await db.from("clients").select("id").eq("tenant_id", tenantId).in("phone", Array.from(new Set([largo, largo.replace("+", ""), corto, telefono]))).limit(20);

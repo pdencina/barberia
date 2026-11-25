@@ -60,6 +60,28 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     const x = await r("con camila", { etapa: "oferta", datos: { horaExacta: null, horaPendiente: "17:00", opciones: op } } as EstadoChat);
     assert.ok(x.res!.texto.includes("*Camila Rojas* no tiene a las 17:00") && x.e.creadas.length === 0, x.res!.texto);
   });
+  await caso("Modificar mi cita: al elegir la hora nueva se agenda de inmediato con los datos de la cita anterior y se cancela la anterior", async () => {
+    const a = armar(OFERTA_DIEGO); const cancelada: string[] = [];
+    (a.deps as any).precargado = async () => ({ cliente: "Amaro Pérez", correo: "amaro@correo.cl", servicioId: "s1" });
+    (a.deps as any).alReprogramar = async (id: string) => { cancelada.push(id); };
+    const res = await manejarReservaChat("quiero la de las 15:15", TEL, datos(), a.deps);
+    assert.ok(res!.texto.startsWith("¡Listo, Amaro! Cambié tu hora:") && res!.texto.includes("Tu hora anterior quedó cancelada"), res!.texto);
+    assert.equal(a.e.creadas.length, 1); assert.equal(a.e.creadas[0].nombre, "Amaro Pérez"); assert.equal(a.e.creadas[0].correo, "amaro@correo.cl"); assert.equal(a.e.creadas[0].servicioId, "s1");
+    assert.deepEqual(cancelada, ["cita-1"]); assert.equal(a.e.estado, null);
+  });
+  await caso("Modificar mi cita: no corre el tope de horas agendadas (la nueva reemplaza a la anterior)", async () => {
+    const a = armar(OFERTA_DIEGO, { futuras: 3 });
+    (a.deps as any).precargado = async () => ({ cliente: "Amaro Pérez", correo: "amaro@correo.cl", servicioId: "s1" });
+    const res = await manejarReservaChat("quiero la de las 15:15", TEL, datos(), a.deps);
+    assert.ok(res!.texto.startsWith("¡Listo, Amaro!"), res!.texto); assert.equal(a.e.creadas.length, 1);
+  });
+  await caso("Modificar mi cita: si la hora se ocupó, no cancela la anterior", async () => {
+    const a = armar(OFERTA_DIEGO, { resultado: { ok: false, motivo: "ocupada" } }); let canceladas = 0;
+    (a.deps as any).precargado = async () => ({ cliente: "Amaro Pérez", correo: "amaro@correo.cl", servicioId: "s1" });
+    (a.deps as any).alReprogramar = async () => { canceladas++; };
+    const res = await manejarReservaChat("quiero la de las 15:15", TEL, datos(), a.deps);
+    assert.ok(res!.texto.startsWith("Esa hora se acaba de ocupar"), res!.texto); assert.equal(canceladas, 0);
+  });
   await caso("Sin memoria no interviene", async () => { const x = await r("quiero la de las 15:15", null); assert.equal(x.res, null); });
   await caso("Elige una hora ofrecida y se le pide primero el nombre (de a un dato)", async () => {
     const x = await r("quiero la de las 15:15", OFERTA_DIEGO);

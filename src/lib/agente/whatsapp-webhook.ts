@@ -66,9 +66,14 @@ export interface DependenciasWebhook {
     borrarEstado: (tenantId: string, contactHash: string) => Promise<void>;
     reservasFuturas: (tenantId: string, telefono: string, ahora: number) => Promise<number>;
     detalleFuturas?: (tenantId: string, telefono: string, ahora: number) => Promise<Array<{ profesional: string; fecha: string; hora: string }>>;
+    /** Cambio de cita en curso (botón «Modificar mi cita»): datos ya conocidos del cliente, y cierre cancelando la cita anterior. */
+    precargado?: (tenantId: string, contactHash: string, ahora: number) => Promise<{ cliente: string; correo: string; servicioId: string } | null>;
+    alReprogramar?: (tenantId: string, contactHash: string, citaNuevaId: string, ahora: number) => Promise<void>;
     crearReserva: (tenantId: string, a: { profesionalId: string; fecha: string; hora: string; servicioId: string; nombre: string; correo: string; telefono: string }) => Promise<ResultadoCreacion>;
     contar: (tenantId: string, campo: CampoIndicador, ahora: number) => Promise<void>;
   };
+  /** Botón «Modificar mi cita»: valida el plazo (más de 3 h), anota qué cita se reemplaza y devuelve qué decirle al cliente. */
+  modificarCita?: (c: { tenantId: string; clienteId: string; referenciaRecordatorio: string; contactHash: string }) => Promise<{ texto: string }>;
   accion: (tipo: "confirmar" | "cancelar", c: { tenantId: string; clienteId: string; referenciaRecordatorio: string }) => Promise<ResultadoAccionCita>;
   responder: (negocio: NegocioWebhook, para: string, texto: string) => Promise<unknown>;
   // Archivos (malla del curso, folletos): se envían después del texto cuando el cliente los pide. Opcional.
@@ -176,6 +181,15 @@ export function crearManejadoresWebhook(config: {
             } else {
               let res: ResultadoAccionCita | null = null;
               // NUNCA extraer appointmentId ni referencia del texto, botón o payload de interacción.
+              if (tipo === "modificar" && deps.modificarCita && p.context_id) {
+                // Botón «Modificar mi cita» de la confirmación: el asistente ayuda a elegir otra hora y reemplaza la anterior.
+                const refM = await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash);
+                if (refM) {
+                  let m: { texto: string } | null = null;
+                  try { m = await deps.modificarCita({tenantId:n.tenantId,clienteId:refM.clienteId,referenciaRecordatorio:refM.registroId,contactHash:p.remitenteHash}); } catch { m = null; }
+                  if (m) { totals.acciones++; await responder(m.texto); await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++; continue; }
+                }
+              }
               if (tipo === "confirmar" || tipo === "cancelar") {
                 const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
                   : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
@@ -184,6 +198,10 @@ export function crearManejadoresWebhook(config: {
               if (res && (res.motivo === "ok" || res.motivo === "ya_estaba")) {
                 totals.acciones++;
                 await responder(tipo === "confirmar" ? "Tu cita está confirmada." : "Tu cita está cancelada.");
+              } else if (res && res.motivo === "fuera_de_plazo" && tipo === "cancelar") {
+                // Faltan menos de 3 horas (o ya pasó): ya no se puede cancelar desde aquí.
+                totals.acciones++;
+                await responder("Ya no es posible cancelar tu cita por este medio, porque faltan menos de 3 horas. Si no podrás asistir, avísanos por este chat; de lo contrario se marcará como inasistencia según nuestras políticas.");
               } else {
                 let respuestaFaq: string | null = null;
                 let derivarChat = false;
@@ -232,6 +250,8 @@ export function crearManejadoresWebhook(config: {
                           ...(chat.detalleFuturas ? { detalleFuturas: (tel: string) => chat.detalleFuturas!(n.tenantId,tel,deps.ahora()) } : {}),
                           crearReserva: (a) => chat.crearReserva(n.tenantId,a),
                           contar,
+                          ...(chat.precargado ? { precargado: () => chat.precargado!(n.tenantId,p.remitenteHash,deps.ahora()) } : {}),
+                          ...(chat.alReprogramar ? { alReprogramar: (id: string) => chat.alReprogramar!(n.tenantId,p.remitenteHash,id,deps.ahora()) } : {}),
                         });
                         if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; listaChat = rc.lista ?? null; }
                       } catch { /* memoria o agenda no disponible: se sigue como antes */ }
@@ -295,6 +315,8 @@ export function crearManejadoresWebhook(config: {
                           ...(chat.detalleFuturas ? { detalleFuturas: (tel: string) => chat.detalleFuturas!(n.tenantId,tel,deps.ahora()) } : {}),
                                     crearReserva: (a) => chat.crearReserva(n.tenantId,a),
                                     contar,
+                                    ...(chat.precargado ? { precargado: () => chat.precargado!(n.tenantId,p.remitenteHash,deps.ahora()) } : {}),
+                                    ...(chat.alReprogramar ? { alReprogramar: (id: string) => chat.alReprogramar!(n.tenantId,p.remitenteHash,id,deps.ahora()) } : {}),
                                   });
                                   if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; }
                                 } catch { /* se deja la respuesta de disponibilidad */ }

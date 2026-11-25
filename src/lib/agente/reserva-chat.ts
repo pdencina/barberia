@@ -27,6 +27,10 @@ export interface DependenciasReserva {
   detalleFuturas?: (telefono: string) => Promise<Array<{ profesional: string; fecha: string; hora: string }>>;
   crearReserva: (a: { profesionalId: string; fecha: string; hora: string; servicioId: string; nombre: string; correo: string; telefono: string }) => Promise<ResultadoCreacion>;
   contar: (campo: CampoIndicador) => Promise<void>;
+  /** Si el cliente está cambiando su cita ("Modificar mi cita"): sus datos ya conocidos, para agendar la nueva sin pedírselos otra vez. */
+  precargado?: () => Promise<{ cliente: string; correo: string; servicioId: string } | null>;
+  /** Se llama con la cita nueva ya creada: cancela la anterior. */
+  alReprogramar?: (citaNuevaId: string) => Promise<void>;
 }
 /** Lista de WhatsApp para elegir tocando (los ids r1..r8 se traducen a "1".."8"). */
 export interface ListaReserva { cuerpo: string; boton: string; filas: Array<{ id: string; title: string; description?: string }> }
@@ -109,6 +113,23 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
 
   // Pasa a pedir nombre, correo y servicio para la hora ya elegida.
   const empezarDatos = async (e: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string }, nota?: string): Promise<RespuestaReserva> => {
+    // Cambio de hora: ya se conocen nombre, correo y servicio de la cita anterior; se agenda de inmediato y se cancela la anterior.
+    let pre: Awaited<ReturnType<NonNullable<DependenciasReserva["precargado"]>>> = null;
+    try { pre = deps.precargado ? await deps.precargado() : null; } catch { pre = null; }
+    if (pre) {
+      const sv = serviciosElegibles(datos, e.nombre).find((x) => x.id === pre!.servicioId);
+      if (sv) {
+        const r = await deps.crearReserva({ profesionalId: e.id, fecha: e.fecha, hora: e.hora, servicioId: sv.id!, nombre: pre.cliente, correo: pre.correo, telefono });
+        await deps.borrarEstado();
+        if (r.ok) {
+          await deps.contar("reservas_cerradas");
+          try { await deps.alReprogramar?.(r.citaId); } catch { /* la nueva ya quedó: la anterior la ve una persona */ }
+          return { texto: `¡Listo, ${pre.cliente.split(" ")[0]}! Cambié tu hora:\n\n• *${e.nombre}*\n• ${textoDeFecha(e.fecha, hoy)} a las *${e.hora}*\n• ${sv.nombre}\n\nTu hora anterior quedó cancelada. ¡Te esperamos!` };
+        }
+        if (r.motivo === "ocupada") return { texto: "Esa hora se acaba de ocupar. Escríbeme y te muestro otras, por ejemplo: «tienen hora mañana»." };
+        return { texto: "No pude cambiar tu hora. Una persona te ayudará por aquí en breve.", derivar: true };
+      }
+    }
     const servicios = serviciosParaListar(datos, e.nombre);
     if (servicios.length === 0) { await deps.borrarEstado(); return { texto: "Para dejar tu hora necesito que una persona te ayude con los detalles.", derivar: true }; }
     await deps.guardarEstado({ etapa: "datos", datos: { id: e.id, nombre: e.nombre, duracionMin: e.duracionMin, fecha: e.fecha, hora: e.hora, intentos: 0 } });
@@ -218,6 +239,10 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       return { texto: `A las ${elegidas[0].hora} ${textoDeFecha(elegidas[0].fecha, hoy)} tengo con:\n${elegidas.slice(0, 8).map((x, i) => `${i + 1}. ${x.nombre}`).join("\n")}\n\n¿Con quién te la dejo? Toca una opción o escríbeme el nombre.`, lista: listaProfesionales(elegidas) };
     }
     const e = elegidas[0];
+    // Cambiando su cita: no corre el tope de horas agendadas (la nueva reemplaza a la anterior).
+    let cambiando = false;
+    try { cambiando = !!(deps.precargado && await deps.precargado()); } catch { cambiando = false; }
+    if (cambiando) return await empezarDatos(e);
     const futuras = await deps.reservasFuturas(telefono);
     if (futuras >= MAX_RESERVAS_TOTAL) {
       await deps.borrarEstado();

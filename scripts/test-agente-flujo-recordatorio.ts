@@ -38,8 +38,8 @@ function fixture(two=false){
 }
 async function main(){
  for(const [button,state]of [["Confirmar","confirmed"],["Cancelar","cancelled"]]){const f=fixture();await f.send();check("plantilla real con fetch simulado",f.templates.length===1&&f.templates[0].type==="template");const p=f.inbound(button,"A","duplicate",true);await f.receive(p);check("transición correcta",f.rows[0].status===state);check("acuse emitido",f.acks.length===1);await f.receive(p);check("evento repetido no vuelve a actuar/enviar",f.count().transitions===1&&f.acks.length===1);}
- let f=fixture();await f.send();f.clock(Date.UTC(2026,9,28,11));await f.receive(f.inbound("Cancelar","A",undefined,true));check("corte 2h impide cancelar a 1h",f.rows[0].status==="scheduled"&&!f.acks.includes("Tu cita está cancelada."));
- f=fixture();await f.send();f.clock(Date.UTC(2026,9,28,10));await f.receive(f.inbound("Cancelar","A",undefined,true));check("exactamente 2h permite cancelar",f.rows[0].status==="cancelled");
+ let f=fixture();await f.send();f.clock(Date.UTC(2026,9,28,10));await f.receive(f.inbound("Cancelar","A",undefined,true));check("corte 3h impide cancelar a 2h",f.rows[0].status==="scheduled"&&!f.acks.includes("Tu cita está cancelada."));
+ f=fixture();await f.send();f.clock(Date.UTC(2026,9,28,9));await f.receive(f.inbound("Cancelar","A",undefined,true));check("exactamente 3h permite cancelar",f.rows[0].status==="cancelled");
  f=fixture();await f.send();await f.receive(f.inbound("baja"));check("baja registrada",f.optouts.size===1);await f.receive(f.inbound("Confirmar","A",undefined,true));check("baja bloquea confirmación y nuevo contacto",f.rows[0].status==="scheduled"&&f.acks.length===1);
  f=fixture();await f.send();await f.receive(f.inbound("quizás sí"));check("ambiguo deriva sin modificar",f.rows[0].status==="scheduled"&&f.acks[0]==="Te contactará una persona."&&f.count().notifications===1);
  f=fixture(true);await f.send();check("dos negocios envían aislados",f.templates.length===2);await f.receive(f.inbound("baja","A"));await f.receive(f.inbound("Confirmar","B",undefined,true));check("baja A no afecta B",f.rows[0].status==="scheduled"&&f.rows[1].status==="confirmed");

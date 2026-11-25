@@ -3,6 +3,8 @@ import { apptDayLabel, apptNoticeUrl } from "../appt-link";
 import { obtenerFechaHoraInforme } from "./calendario-informe";
 import type { NotifyInput } from "../notify";
 
+/** Se puede cancelar o modificar hasta 3 horas antes de la cita. */
+export const HORAS_MIN_CANCELAR = 3;
 export const PROPOSITO_RECORDATORIO_CITA = "recordatorio-cita-v1";
 export type MotivoAccionCita = "ok" | "ya_estaba" | "fuera_de_plazo" | "estado_no_permitido" | "no_encontrada";
 export interface ResultadoAccionCita { motivo: MotivoAccionCita }
@@ -60,7 +62,7 @@ async function ejecutar(contexto: ContextoAccionCita, deps: DependenciasAcciones
   if (!Number.isFinite(restante) || restante <= 0) return resultado("fuera_de_plazo");
   if (cita.status === destino) return resultado("ya_estaba");
   if (cita.status !== "scheduled" && !(destino === "cancelled" && cita.status === "confirmed")) return resultado("estado_no_permitido");
-  if (destino === "cancelled" && restante < 2 * 60 * 60 * 1000) return resultado("fuera_de_plazo");
+  if (destino === "cancelled" && restante < HORAS_MIN_CANCELAR * 60 * 60 * 1000) return resultado("fuera_de_plazo");
   if (!await deps.repo.transicionar(cita, destino)) {
     const actual = await deps.repo.desdeRecordatorio(contexto);
     return resultado(propia(actual, contexto) && actual.id === cita.id && actual.status === destino ? "ya_estaba" : "estado_no_permitido");
