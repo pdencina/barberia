@@ -135,7 +135,7 @@ const sections: NavSection[] = [
       { name: "Proveedores", href: "/dashboard/proveedores", icon: Truck, minRole: "admin", basicLocked: true },
       { name: "Sucursales", href: "/dashboard/sucursales", icon: MapPin, minRole: "admin", cap: "sucursales" },
       { name: "Terminal POS", href: "/dashboard/terminal-pos", icon: CreditCard, minRole: "admin", feature: "pos", basicLocked: true },
-      { name: "Mensajes de WhatsApp", href: "/dashboard/mi-negocio/mensajes", icon: MessageCircle, minRole: "admin" },
+      { name: "Conversaciones de WhatsApp", href: "/dashboard/whatsapp-chats", icon: MessageCircle, minRole: "admin", cap: "agenteWhatsapp", hideIfNoCap: true },
       { name: "Precios", href: "/dashboard/precios", icon: Tag, minRole: "super_admin" },
       { name: "Galería", href: "/dashboard/galeria", icon: Image, minRole: "admin" },
       { name: "Pagos", href: "/dashboard/pagos", icon: CreditCard, minRole: "admin", basicLocked: true, cap: "cobrosOnline" },
