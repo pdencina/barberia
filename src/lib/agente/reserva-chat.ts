@@ -19,7 +19,7 @@ export type CampoIndicador = "respuestas_automaticas" | "consultas_disponibilida
 /** Lo que el cliente ya fue entregando de a uno (nombre y correo) se guarda solo mientras dura la reserva (VIGENCIA_MIN) y se borra al terminar. */
 export interface Seleccion { id: string; nombre: string; duracionMin: number; fecha: string; hora: string; intentos: number; /** Servicio ya elegido (no es un dato personal): se conserva entre mensajes. */ servicioId?: string; cliente?: string; correo?: string; /** Servicios ya acotados ("corte más barba" calza con varios): el número elegido se lee contra esta lista. */ opcionesServicio?: string[] }
 export type EstadoChat = { etapa: "oferta"; datos: Oferta & { horaPendiente?: string; extraPendiente?: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string } } } | { etapa: "datos"; datos: Seleccion };
-export type ResultadoCreacion = { ok: true; citaId: string } | { ok: false; motivo: "ocupada" | "suspendido" | "otro" | "no_cabe" };
+export type ResultadoCreacion = { ok: true; citaId: string; /** Código de reserva del cliente (el que se muestra en el calendario y sirve para el check-in) */ codigo?: string | null } | { ok: false; motivo: "ocupada" | "suspendido" | "otro" | "no_cabe" };
 export interface DependenciasReserva {
   ahora: () => number;
   leerEstado: () => Promise<EstadoChat | null>;
@@ -130,7 +130,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
         if (r.ok) {
           await deps.contar("reservas_cerradas");
           try { await deps.alReprogramar?.(r.citaId); } catch { /* la nueva ya quedó: la anterior la ve una persona */ }
-          return { texto: `¡Listo, ${pre.cliente.split(" ")[0]}! Cambié tu hora:\n\n• *${e.nombre}*\n• ${textoDeFecha(e.fecha, hoy)} a las *${e.hora}*\n• ${sv.nombre}\n\nTu hora anterior quedó cancelada. ¡Te esperamos!` };
+          return { texto: `¡Listo, ${pre.cliente.split(" ")[0]}! Cambié tu hora:\n\n• *${e.nombre}*\n• ${textoDeFecha(e.fecha, hoy)} a las *${e.hora}*\n• ${sv.nombre}${lineaCodigo(r.codigo)}\n\nTu hora anterior quedó cancelada. Recomendamos llegar unos minutos antes. ¡Te esperamos!` };
         }
         if (r.motivo === "ocupada") return { texto: "Esa hora se acaba de ocupar. Escríbeme y te muestro otras, por ejemplo: «tienen hora mañana»." };
         return { texto: "No pude cambiar tu hora. Una persona te ayudará por aquí en breve.", derivar: true };
@@ -341,7 +341,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   await deps.borrarEstado();
   if (r.ok) {
     await deps.contar("reservas_cerradas");
-    return { texto: `¡Listo, ${nombre.split(" ")[0]}! Tu hora quedó agendada:\n\n• *${sel.nombre}*\n• ${textoDeFecha(sel.fecha, hoy)} a las *${sel.hora}*\n• ${servicio.nombre}\n\nTe enviamos el detalle a tu correo. Si necesitas cambiarla, escríbenos por aquí.` };
+    return { texto: `¡Listo, ${nombre.split(" ")[0]}! Tu hora quedó agendada:\n\n• *${sel.nombre}*\n• ${textoDeFecha(sel.fecha, hoy)} a las *${sel.hora}*\n• ${servicio.nombre}${lineaCodigo(r.codigo)}\n\nRecomendamos llegar unos minutos antes. Te enviamos el detalle a tu correo. Si necesitas cambiarla, escríbenos por aquí.` };
   }
   if (r.motivo === "ocupada") return { texto: "Esa hora se acaba de ocupar. Escríbeme y te muestro otras, por ejemplo: «tienen hora mañana»." };
   if (r.motivo === "no_cabe") return { texto: `Con *${servicio.nombre}* esa hora no alcanza: el servicio dura más de lo que le queda a *${sel.nombre}* ese día. Escríbeme «tienen hora para ${servicio.nombre.split(/[\s/]/)[0].toLowerCase()}» y te muestro las horas en que sí cabe.` };
@@ -361,6 +361,8 @@ function ejemplo(servicios: Array<{ nombre: string }>): string {
   const ej = servicios.length > 1 ? "Envíamelo todo junto en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl, 1" : "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl";
   return `${ej}\n\nEscribe *menú* para volver al inicio.`;
 }
+/** "\n\n*Tu código de reserva es: XFD4D*" (vacío si el cliente aún no tiene código). */
+const lineaCodigo = (c?: string | null) => (typeof c === "string" && /^[A-Za-z0-9]{3,12}$/.test(c.trim()) ? `\n\n*Tu código de reserva es: ${c.trim().toUpperCase()}*` : "");
 function pedirDatos(profesional: string, dia: string, hora: string, servicios: Array<{ nombre: string; precio: number | null }>, servicioElegido?: string): string {
   return `Perfecto. Te dejo la hora con *${profesional}* ${dia} a las *${hora}*${servicioElegido ? ` para *${servicioElegido}*` : ""}.\n\nPara confirmarla, ¿cuál es tu nombre completo?\n(Si prefieres, mándame todo junto: nombre, correo${servicios.length > 1 ? " y servicio" : ""}.)\n\nEscribe *menú* para volver al inicio.`;
 }

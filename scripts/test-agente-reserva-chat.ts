@@ -181,7 +181,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   await caso("Datos completos: crea la reserva con el celular de WhatsApp y confirma", async () => {
     const x = await r("Juan Pérez, juan@correo.cl, 1", DATOS_ETAPA);
     assert.deepEqual(x.e.creadas, [{ profesionalId: "d", fecha: "2026-11-03", hora: "15:15", servicioId: "s1", nombre: "Juan Pérez", correo: "juan@correo.cl", telefono: TEL }]);
-    assert.equal(x.res!.texto, "¡Listo, Juan! Tu hora quedó agendada:\n\n• *Diego Fuentes*\n• hoy a las *15:15*\n• Corte de cabello\n\nTe enviamos el detalle a tu correo. Si necesitas cambiarla, escríbenos por aquí.");
+    assert.equal(x.res!.texto, "¡Listo, Juan! Tu hora quedó agendada:\n\n• *Diego Fuentes*\n• hoy a las *15:15*\n• Corte de cabello\n\nRecomendamos llegar unos minutos antes. Te enviamos el detalle a tu correo. Si necesitas cambiarla, escríbenos por aquí.");
     assert.equal(x.e.estado, null); assert.deepEqual(x.e.contados, ["reservas_cerradas"]);
   });
   await caso("Distintas formas de enviar los datos", async () => {

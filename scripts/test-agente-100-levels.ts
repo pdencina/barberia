@@ -35,7 +35,7 @@ const SEMANA: Record<string, ReturnType<typeof H>> = {
   [P.bastian]: H([[0, false, "10:00", "20:00"], [1, false, "10:00", "20:00"], [2, true, "10:00", "20:00"], [3, true, "10:00", "20:00"], [4, true, "10:00", "20:00"], [5, true, "10:00", "20:00"], [6, true, "09:00", "17:00"]]),
 };
 const VAC: Record<string, { desde: string; hasta: string }[]> = { [P.gabriel]: [{ desde: "2027-02-22", hasta: "2027-03-11" }] };
-const NEGOCIO = { id: "T1", name: "Estudio Levels", slug: "estudiolevels", address: "Juan de Dios malebran 1889, Puente alto", phone: "+56984939625" };
+const NEGOCIO = { id: "T1", name: "Estudio Levels", slug: "estudiolevels", address: "Juan de Dios malebran 1889, Puente alto", phone: null as any };
 const HORAS = [[1, "10:00", "20:00"], [2, "10:00", "20:00"], [3, "10:00", "20:00"], [4, "10:00", "20:00"], [5, "10:00", "20:00"], [6, "09:00", "17:00"], [0, "12:00", "18:00"]] as const;
 
 // ---- simulador ----
@@ -87,7 +87,7 @@ function crear() {
   };
   deps.chat = {
     leerEstado: async (t: string, c: string) => memoria.get(t + c) ?? null, guardarEstado: async (t: string, c: string, e: any) => { memoria.set(t + c, e); }, borrarEstado: async (t: string, c: string) => { memoria.delete(t + c); },
-    reservasFuturas: async () => citas.length, detalleFuturas: async () => [], crearReserva: async (_t: string, a: any) => { const dur = SERV.find((x) => x[0] === a.servicioId)?.[3] ?? 45; const libres = (await deps.horasLibres(a.profesionalId, a.fecha, dur)).slots.map((x: string) => x.slice(11, 16)); if (!libres.includes(a.hora)) return { ok: false, motivo: "no_cabe" }; citas.push({ servicio: a.servicioId, nombre: nombre(a.profesionalId), fecha: a.fecha, hora: a.hora }); return { ok: true, citaId: "c" + citas.length }; }, contar: async () => {},
+    reservasFuturas: async () => citas.length, detalleFuturas: async () => [], crearReserva: async (_t: string, a: any) => { const dur = SERV.find((x) => x[0] === a.servicioId)?.[3] ?? 45; const libres = (await deps.horasLibres(a.profesionalId, a.fecha, dur)).slots.map((x: string) => x.slice(11, 16)); if (!libres.includes(a.hora)) return { ok: false, motivo: "no_cabe" }; citas.push({ servicio: a.servicioId, nombre: nombre(a.profesionalId), fecha: a.fecha, hora: a.hora }); return { ok: true, citaId: "c" + citas.length, codigo: "XFD4D" }; }, contar: async () => {},
   };
   deps.conMenu = true; deps.conCta = true; deps.derivarAlTelefono = true;
   deps.ia = async () => null; // la IA no responde en el simulador: lo que le llegue se marca
@@ -174,7 +174,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     ["quiero reservar rizos", [/Rizos\/Ondulación permanentes/, /3 horas/, /Javier/], [/2[0-3]:\d\d/, /Enzo/, /\brizo\b/i]],
     ["javier", [/Javier García/, /19:00/], [/2[0-3]:\d\d/]],
     ["19:00", [/para \*Rizos\/Ondulación permanentes\*/, /nombre completo/i], [/qué servicio/i]],
-    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Rizos\/Ondulación permanentes/], [/Visos/, /qué servicio/i, /Último paso/]],
+    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Rizos\/Ondulación permanentes/, /Tu código de reserva es: XFD4D/, /llegar unos minutos antes/], [/Visos/, /qué servicio/i, /Último paso/]],
   ] },
   { titulo: "Pidió rizos al final con la hora de un servicio corto (error: agendó Visos 21:15 a 00:15)", casos: [
     ["javier tiene hora hoy?", [/Javier García/]],
@@ -185,7 +185,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     ["quiero reservar visos", [/Visos/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Dylan/, /\brizo\b/i]],
     ["javier", [/Javier García/]],
     ["19:00", [/para \*Visos\*/]],
-    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Visos/], [/Rizos/]],
+    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Visos/, /código de reserva es: XFD4D/], [/Rizos/]],
   ] },
   { titulo: "Color global", casos: [["quiero agendar color global", [/Color Global/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Enzo/]]] },
   { titulo: "Rizos sin 'quiero': pregunta directa", casos: [["tienen hora para rizos?", [/3 horas/, /Gabriel|Javier|Dylan/], [/Enzo/, /Pablo/]]] },
@@ -233,11 +233,11 @@ const conv: { titulo: string; casos: Caso[] }[] = [
   { titulo: "Barba precio", casos: [["cuanto cuesta arreglo de barba?", [/15\.000/]]] },
   { titulo: "Color precio", casos: [["cuanto cuesta el color global?", [/100\.000/]]] },
   { titulo: "Servicios lista", casos: [["que servicios tienen?", [/Corte/i]]] },
-  { titulo: "Teléfono", casos: [["cual es el telefono?", [/984939625|98493 9625|9 8493 9625/]]] },
+  { titulo: "Teléfono", casos: [["cual es el telefono?", [/aquí mismo/i], [/984939625|98493 9625/]]] },
   { titulo: "Link reserva", casos: [["me das el link para reservar?", [/re-booking\.cl/]]] },
   { titulo: "Cancelar", casos: [["quiero cancelar mi hora", [], [NO_ENTENDI]]] },
   { titulo: "Cambiar", casos: [["quiero cambiar mi hora", [], [NO_ENTENDI]]] },
-  { titulo: "Humano", casos: [["quiero hablar con una persona", [/984939625|persona/i]]] },
+  { titulo: "Humano", casos: [["quiero hablar con una persona", [/equipo/i], [/984939625|98493 9625/]]] },
   { titulo: "Nicolás tarde (no atiende)", casos: [["nicolas tiene hora en la tarde?", [/Nicolás Levels/]]] },
   { titulo: "Pablo mañana tarde", casos: [["pablo atiende en la tarde?", [/Sí/, /Pablo/]]] },
   { titulo: "Quién atiende domingo", casos: [["quien atiende el domingo?", [/domingo/i]]] },
@@ -251,7 +251,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     for (const [msg, debe, nodebe] of c.casos) {
       const r = await s.enviar(msg);
       const faltan = debe.filter((d) => !(typeof d === "string" ? r.includes(d) : d.test(r)));
-      const sobran = (nodebe ?? []).filter((d) => (typeof d === "string" ? r.includes(d) : d.test(r)));
+      const sobran = [...(nodebe ?? []), /984939625|98493 9625|9 8493 9625/].filter((d) => (typeof d === "string" ? r.includes(d) : d.test(r)));
       const bien = faltan.length === 0 && sobran.length === 0;
       if (bien) ok++; else { mal++; fallas.push(`✗ [${c.titulo}] «${msg}»\n    faltan: ${faltan.join(" | ") || "-"}  sobran: ${sobran.join(" | ") || "-"}\n    ↳ ${r.replace(/\n+/g, " / ").slice(0, 300)}`); }
       if (process.env.VER) console.log(`${bien ? "✓" : "✗"} «${msg}»\n    ↳ ${r.replace(/\n+/g, " / ").slice(0, 400)}`);

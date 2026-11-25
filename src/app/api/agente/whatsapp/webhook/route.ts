@@ -121,7 +121,14 @@ const handlers = () => crearManejadoresWebhook({
           if (res.ok && j.success && j.appointmentId) {
             // Origen para los indicadores de fin de mes (solo esta cita, del mismo negocio).
             await db.from("appointments").update({ source: "whatsapp_agente" }).eq("id", j.appointmentId).eq("tenant_id", tenantId);
-            return { ok: true, citaId: j.appointmentId };
+            // Código de reserva del cliente (el mismo que se ve en el calendario): va en el mensaje de confirmación.
+            let codigo: string | null = null;
+            try {
+              const ap = await db.from("appointments").select("client:clients!client_id(checkin_code)").eq("id", j.appointmentId).eq("tenant_id", tenantId).maybeSingle();
+              const cl: any = Array.isArray((ap.data as any)?.client) ? (ap.data as any).client[0] : (ap.data as any)?.client;
+              if (typeof cl?.checkin_code === "string") codigo = cl.checkin_code;
+            } catch { codigo = null; }
+            return { ok: true, citaId: j.appointmentId, codigo };
           }
           if (res.status === 409) return { ok: false, motivo: "ocupada" };
           if (res.status === 403) return { ok: false, motivo: "suspendido" };
