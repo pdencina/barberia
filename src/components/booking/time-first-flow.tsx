@@ -19,6 +19,9 @@ const hhmm = (slot: string) => slot.slice(11, 16);
 // Nombre de una sección de servicios para mostrarlo: sin el punto final que a veces queda al escribirlo ("Salón." -> "Salón").
 const nombreCategoria = (c: string | null | undefined) => (String(c || "").trim().replace(/[.\s]+$/, "") || "Otros servicios");
 
+// La sección general del negocio (la que usan todos los profesionales) se muestra como «Todos los profesionales»; las demás, con su nombre (Gabriel, Nicolás…).
+const etiquetaCategoria = (c: string) => (/^(salon|salón|general|otros servicios)$/i.test(c.trim()) ? "Todos los profesionales" : c);
+
 export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, onPick, agruparPorCategoria = false, kiosko = false }: { tenantSlug: string; closedWeekdays: number[]; windowDays?: number | null; onPick: (p: TimePick) => void; agruparPorCategoria?: boolean; kiosko?: boolean }) {
   const [phase, setPhase] = useState<"services" | "time" | "pro">("services");
   const [services, setServices] = useState<Svc[]>([]);
@@ -117,7 +120,16 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
     return orden.map((k) => ({ nombre: k, ...cuenta.get(k)! }));
   }, [services]);
   const usaSecciones = agruparPorCategoria && secciones.length > 1;
-  const serviciosVisibles = usaSecciones && categoria ? services.filter((s) => nombreCategoria(s.category) === categoria) : services;
+  // Vista normal «Por horario»: pestañas arriba (Todos los profesionales, Gabriel, Nicolás…) con los servicios de la sección elegida; no es una pantalla aparte.
+  const usaPestanas = !agruparPorCategoria && secciones.length > 1;
+  useEffect(() => { if (usaPestanas && categoria === null) setCategoria(secciones[0].nombre); }, [usaPestanas, categoria, secciones]);
+  const serviciosVisibles = (usaSecciones || usaPestanas) && categoria ? services.filter((s) => nombreCategoria(s.category) === categoria) : services;
+  // Elegir un servicio lleva directo a las horas (se puede sumar otro desde allí).
+  const tocarServicio = (id: string) => {
+    const next = selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id];
+    setSelected(next);
+    if (!agruparPorCategoria && next.length > 0) setPhase("time"); // el tótem sigue eligiendo varios y pulsa «Continuar»
+  };
 
   // ── Fase 0 (solo con secciones): elegir la sección ──
   if (phase === "services" && usaSecciones && categoria === null && !loadingServices) {
@@ -150,24 +162,35 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
         {usaSecciones && categoria && (
           <button onClick={() => { setSelected([]); setCategoria(null); }} className="mb-4 flex items-center gap-1 text-sm text-brand-gray hover:text-brand-blue"><ChevronLeft className="h-4 w-4" /> Secciones</button>
         )}
-        <h2 className="text-2xl font-bold mb-2">{usaSecciones && categoria ? categoria : "¿Qué servicio necesitas?"}</h2>
-        <p className="text-brand-gray mb-6">Selecciona uno o más servicios</p>
+        <h2 className="text-lg font-bold mb-2">{usaSecciones && categoria ? categoria : "¿Qué servicio necesitas?"}</h2>
+        {usaPestanas && (
+          <div className="mb-3 flex gap-1.5 overflow-x-auto pb-1 [scrollbar-width:none]" role="tablist" aria-label="Secciones de servicios">
+            {secciones.map((c) => {
+              const on = categoria === c.nombre;
+              return (
+                <button key={c.nombre} role="tab" aria-selected={on} onClick={() => setCategoria(c.nombre)}
+                  className={`shrink-0 whitespace-nowrap rounded-full border px-3.5 py-1.5 text-xs font-semibold transition ${on ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 text-brand-gray hover:border-brand-blue/50"}`}>
+                  {etiquetaCategoria(c.nombre)}
+                </button>
+              );
+            })}
+          </div>
+        )}
         {loadingServices ? <p className="text-sm text-brand-gray">Cargando…</p> : services.length === 0 ? (
           <p className="text-sm text-brand-gray">Este negocio aún no tiene servicios disponibles.</p>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-1.5">
             {serviciosVisibles.map((s) => {
               const on = selected.includes(s.id);
               return (
-                <button key={s.id} onClick={() => setSelected((p) => (on ? p.filter((x) => x !== s.id) : [...p, s.id]))}
-                  className={`w-full rounded-2xl border p-4 text-left transition ${on ? "border-brand-blue bg-brand-blue/5 ring-4 ring-brand-blue/10" : "border-gray-200 bg-white hover:border-brand-blue/40"}`}>
-                  <div className="flex items-start justify-between gap-3">
+                <button key={s.id} onClick={() => tocarServicio(s.id)}
+                  className={`w-full rounded-xl border px-3.5 py-2.5 text-left transition ${on ? "border-brand-blue bg-brand-blue/5 ring-2 ring-brand-blue/15" : "border-gray-200 bg-white hover:border-brand-blue/40"}`}>
+                  <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="font-semibold">{s.name}</p>
-                      {s.description && <p className="mt-0.5 text-xs text-brand-gray line-clamp-2">{s.description}</p>}
-                      <p className="mt-1 flex items-center gap-1 text-xs text-brand-gray"><Clock className="h-3.5 w-3.5" /> {s.duration} min</p>
+                      <p className="truncate text-sm font-semibold">{s.name}</p>
+                      <p className="flex items-center gap-1 text-[11px] text-brand-gray"><Clock className="h-3 w-3" /> {s.duration} min</p>
                     </div>
-                    <p className="flex-shrink-0 font-bold">{formatCurrency(s.price)}</p>
+                    <p className="flex-shrink-0 text-sm font-bold">{formatCurrency(s.price)}</p>
                   </div>
                 </button>
               );
@@ -178,7 +201,7 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
           <div className="fixed inset-x-0 bottom-0 z-10 border-t border-gray-100 bg-white/95 p-4 backdrop-blur">
             <div className="mx-auto flex max-w-2xl items-center justify-between gap-3">
               <div className="text-sm"><p className="font-bold">{formatCurrency(totalBase)}</p><p className="text-xs text-brand-gray">{selected.length} servicio(s) · {totalMin} min</p></div>
-              <button onClick={() => setPhase("time")} className="shrink-0 rounded-xl bg-brand-blue px-8 py-3 font-bold text-white hover:brightness-110">Continuar</button>
+              <button onClick={() => setPhase("time")} className="shrink-0 rounded-xl bg-brand-blue px-8 py-3 font-bold text-white hover:brightness-110">{agruparPorCategoria ? "Continuar" : "Ver horas"}</button>
             </div>
           </div>
         )}
@@ -219,9 +242,12 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
   // ── Fase 2: día y hora ──
   return (
     <div>
-      <button onClick={() => setPhase("services")} className="mb-4 flex items-center gap-1 text-sm text-brand-gray hover:text-brand-blue">← Servicios</button>
-      <h2 className="text-2xl font-bold mb-1">Selecciona fecha y hora</h2>
-      <p className="mb-5 text-sm text-brand-gray">{chosenServices.map((s) => s.name).join(" + ")} · {totalMin} min</p>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <button onClick={() => setPhase("services")} className="flex items-center gap-1 text-sm text-brand-gray hover:text-brand-blue">← Cambiar servicio</button>
+        <button onClick={() => setPhase("services")} className="rounded-full border border-gray-200 px-3 py-1 text-xs font-semibold text-brand-gray hover:border-brand-blue/50">+ Agregar otro</button>
+      </div>
+      <h2 className="text-lg font-bold mb-0.5">Elige fecha y hora</h2>
+      <p className="mb-3 text-xs text-brand-gray">{chosenServices.map((s) => s.name).join(" + ")} · {totalMin} min · {formatCurrency(totalBase)}</p>
 
       <div className="mb-3 flex items-center justify-between">
         <div className="flex gap-4">
