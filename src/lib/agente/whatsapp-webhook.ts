@@ -6,6 +6,7 @@ import { DEL_CURSO } from "./cta";
 import { enlacesPedidos } from "./archivos";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
+import { responderPrecioServicio } from "./precio-servicio";
 import { responderServicioProfesional, type ServiciosPorProfesional } from "./servicio-profesional";
 import { responderHorarioProfesional, type HorariosProfesionales } from "./horario-profesional";
 import { responderDisponibilidad, ahoraChile, sumar, textoDeFecha, type DependenciasDisponibilidad } from "./disponibilidad";
@@ -313,6 +314,11 @@ export function crearManejadoresWebhook(config: {
                           if (r) { respuestaFaq = r; await contar("respuestas_automaticas"); }
                         }
                       } catch { /* sin ese dato se sigue con el flujo de siempre */ }
+                    }
+                    // 1b-2) Precio o duración de un servicio, con el catálogo real (sin confundirse por nombres repetidos).
+                    if (respuestaFaq === null && tipo === "desconocido" && entradaTexto && !esBoton && datosNegocio) {
+                      const r = responderPrecioServicio(consulta,datosNegocio);
+                      if (r) { respuestaFaq = r; await contar("respuestas_automaticas"); }
                     }
                     // 1c) Horario de trabajo de un profesional ("¿Nicolás atiende en las mañanas?"): días y horas reales + su próxima hora libre.
                     if (respuestaFaq === null && tipo === "desconocido" && deps.horariosProfesionales && entradaTexto && !esBoton && datosNegocio) {

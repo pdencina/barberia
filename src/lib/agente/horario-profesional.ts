@@ -10,6 +10,7 @@ const fechaLinda = (f: string) => `${Number(f.slice(8, 10))} de ${MESES[Number(f
 
 const sin = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+const PLURAL = ["domingos", "lunes", "martes", "miércoles", "jueves", "viernes", "sábados"];
 const CLAVE: Record<string, number> = { domingo: 0, domingos: 0, lunes: 1, martes: 2, miercoles: 3, jueves: 4, viernes: 5, sabado: 6, sabados: 6 };
 const mins = (h: string) => Number(h.slice(0, 2)) * 60 + Number(h.slice(3, 5));
 const hh = (h: string) => h.slice(0, 5);
@@ -47,7 +48,7 @@ export function responderHorarioProfesional(texto: string, datos: DatosFaq | nul
     const nombre = `*${p.nombre}*`;
     const dias = [1, 2, 3, 4, 5, 6, 0].filter((d) => !tr.some((x) => x.dia === d && x.trabaja));
     const vac = (info.vacaciones[p.id as string] ?? []).filter((v) => v.hasta >= hoy).sort((a, b) => a.desde.localeCompare(b.desde)).slice(0, 3);
-    const partes = [dias.length === 0 ? `${nombre} trabaja todos los días de la semana.` : `${nombre} no trabaja los ${dias.map((d) => DIAS[d]).join(", ").replace(/, ([^,]*)$/, " y $1")}.`];
+    const partes = [dias.length === 0 ? `${nombre} trabaja todos los días de la semana.` : `${nombre} no trabaja los ${dias.map((d) => PLURAL[d]).join(", ").replace(/, ([^,]*)$/, " y $1")}.`];
     partes.push(vac.length ? `Vacaciones próximas:\n${vac.map((v) => `• del ${fechaLinda(v.desde)} al ${fechaLinda(v.hasta)}`).join("\n")}` : "No tiene vacaciones agendadas.");
     const cola = proxima?.(p.id as string); if (cola) partes.push(cola);
     return partes.join("\n\n");
