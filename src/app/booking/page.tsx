@@ -92,6 +92,8 @@ export default function BookingPage() {
   const [selectedSlot, setSelectedSlot] = useState("");
   const [clientName, setClientName] = useState("");
   const [clientEmail, setClientEmail] = useState("");
+  const [clientCode, setClientCode] = useState("");
+  const [codeMsg, setCodeMsg] = useState<"" | "ok" | "no">("");
   const [marketingConsent, setMarketingConsent] = useState(false); // casilla sin marcar por defecto
   const [clientPhone, setClientPhone] = useState("");
   const [notes, setNotes] = useState("");
@@ -1010,6 +1012,35 @@ export default function BookingPage() {
             </div>
 
             <div className="space-y-4">
+              {businessInfo?.id && (
+                <div>
+                  <label className="text-sm text-brand-gray mb-1 block">Código de reserva (opcional)</label>
+                  <input
+                    type="text"
+                    value={clientCode}
+                    maxLength={5}
+                    autoCapitalize="characters"
+                    onChange={async (e) => {
+                      const v = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 5);
+                      setClientCode(v); setCodeMsg("");
+                      if (v.length === 5) {
+                        try {
+                          const res = await fetch(`/api/public/client-lookup?code=${encodeURIComponent(v)}&tenantId=${encodeURIComponent(businessInfo.id || "")}`);
+                          const data = await res.json();
+                          if (data.found) {
+                            setClientName(data.client.name || ""); setClientPhone(data.client.phone || ""); if (data.client.email) setClientEmail(data.client.email);
+                            setClientFound(true); setCodeMsg("ok");
+                          } else setCodeMsg("no");
+                        } catch { setCodeMsg("no"); }
+                      }
+                    }}
+                    placeholder="Si ya agendaste antes, escribe tu código (ej. XFD4D)"
+                    className="w-full rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-3 font-mono uppercase tracking-widest text-brand-dark placeholder:font-sans placeholder:normal-case placeholder:tracking-normal placeholder:text-brand-gray focus:border-brand-blue focus:ring-2 focus:ring-brand-blue"
+                  />
+                  {codeMsg === "ok" && <p className="text-xs text-green-400 mt-1">Código válido. Datos prellenados.</p>}
+                  {codeMsg === "no" && <p className="text-xs text-red-400 mt-1">No encontramos ese código. Revísalo o completa tus datos abajo.</p>}
+                </div>
+              )}
               <div>
                 <label className="text-sm text-brand-gray mb-1 block">Email *</label>
                 <input
