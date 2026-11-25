@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
-import { isAppTheme } from "@/lib/themes";
+import { resolverTemaCliente } from "@/lib/client-theme";
 
 // GET: información pública del negocio por slug (página de reservas).
 // Se selecciona "*" y se devuelve solo una lista blanca de campos, así funciona aunque la
@@ -24,7 +24,7 @@ function toPublic(t: any) {
     booking_show_profile_direct: !!t.booking_show_profile_direct,
     // Pixel propio del negocio (migracion 150). Solo el ID numerico, que es publico por naturaleza.
     // Colores del sistema para la página de reservas, solo si el negocio lo activó (migración 151).
-    color_theme: t.client_theme_enabled && isAppTheme(t.theme) ? t.theme : null,
+    color_theme: resolverTemaCliente(t),
     meta_pixel_id: /^\d{8,20}$/.test(String(t.meta_pixel_id || "")) ? String(t.meta_pixel_id) : null,
   };
 }
