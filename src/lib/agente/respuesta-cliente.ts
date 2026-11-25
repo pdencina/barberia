@@ -6,6 +6,9 @@ export type RespuestaCliente = "confirmar" | "cancelar" | "modificar" | "no_quie
 // "sí", "ok", emojis y preguntas sin contexto no son confirmación ni cancelación inequívocas.
 const CONFIRMAR = new Set([
   "confirmo", "confirmar", "confirmo mi cita", "confirmo la cita", "confirmo asistencia",
+  // Respuestas escritas a mano a la confirmación (solo valen si el cliente recibió una confirmación reciente; si no, el mensaje sigue el camino normal).
+  "hora confirmada", "cita confirmada", "confirmada", "confirmado", "ok confirmo", "ok confirmado", "confirmo gracias", "listo confirmo", "gracias confirmo",
+  "si voy", "si asistire", "asistire", "ahi estare", "estare ahi", "ahi nos vemos", "si asistiremos", "confirmamos", "ok gracias", "listo gracias", "ok perfecto", "perfecto gracias",
   "confirmo mi asistencia", "quiero confirmar mi cita", "si confirmo", "si confirmo mi cita",
 ]);
 const CANCELAR = new Set([

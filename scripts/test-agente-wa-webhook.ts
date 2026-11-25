@@ -262,7 +262,8 @@ async function pruebasFaq(){
     f=fixture();const data=conectarFaq(f);
     if(!context)f.deps.repo.referenciaAlternativa=async()=>({registroId:"r",clienteId:"c"});
     await f.handlers.POST(request(payload({context,text:{body:preguntas[1]}})));
-    check("recordatorio vinculado excluye FAQ",f.sent[0]==="Te contactará una persona."&&f.notices.length===1&&data.queries.length===0);
+    if(context)check("respuesta citada al recordatorio excluye FAQ",f.sent[0]==="Te contactará una persona."&&f.notices.length===1&&data.queries.length===0);
+    else check("mensaje suelto tras recibir un recordatorio SÍ sigue el camino normal del agente (FAQ)",f.sent[0]?.startsWith("Dirección:")&&f.notices.length===0);
   }
   f=fixture();conectarFaq(f);f.deps.repo.referenciaAlternativa=async()=>{throw Error("no buscar alternativa");};
   await f.handlers.POST(request(payload({context:{id:"ajeno"},text:{body:preguntas[1]}})));
@@ -499,6 +500,12 @@ async function main(){
   check("otro negocio tiene su propio límite",f.notices.length===3);
   f=fixture();f.deps.repo.referenciaAlternativa=async()=>({registroId:"internal-delivery",clienteId:"clientA"});
   await f.handlers.POST(request(payload({context:undefined})));check("sin contexto usa alternativa verificada",f.actions.length===1);
+  for(const frase of ["Hora confirmada","ok confirmo","Si voy","cita confirmada","Ok gracias"]){
+    f=fixture();f.deps.repo.referenciaAlternativa=async()=>({registroId:"internal-delivery",clienteId:"clientA"});
+    await f.handlers.POST(request(payload({context:undefined,text:{body:frase}})));check(`«${frase}» escrito a mano confirma la cita`,f.actions.length===1&&(f.actions[0] as any)[0]==="confirmar"&&f.sent[0]==="Tu cita está confirmada.");
+  }
+  f=fixture();f.deps.repo.referenciaAlternativa=async()=>({registroId:"internal-delivery",clienteId:"clientA"});
+  await f.handlers.POST(request(payload({context:undefined,text:{body:"hola quiero reservar una hora"}})));check("una conversación nueva no se toma por confirmación",f.actions.length===0);
   f=fixture();f.deps.repo.referenciaAlternativa=async()=>{throw Error("no fallback de contexto explícito");};
   await f.handlers.POST(request(payload({context:{id:"forjado"}})));check("contexto explícito inválido no busca alternativa",f.notices.length===1);
   for(const context of [undefined,{id:"forjado"}]){

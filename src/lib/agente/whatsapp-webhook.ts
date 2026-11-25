@@ -190,9 +190,10 @@ export function crearManejadoresWebhook(config: {
             } else {
               let res: ResultadoAccionCita | null = null;
               // NUNCA extraer appointmentId ni referencia del texto, botón o payload de interacción.
-              if (tipo === "modificar" && deps.modificarCita && p.context_id) {
-                // Botón «Modificar mi cita» de la confirmación: el asistente ayuda a elegir otra hora y reemplaza la anterior.
-                const refM = await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash);
+              if (tipo === "modificar" && deps.modificarCita) {
+                // Botón «Modificar mi cita» de la confirmación (o escrito a mano): el asistente ayuda a elegir otra hora y reemplaza la anterior.
+                const refM = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
+                  : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                 if (refM) {
                   let m: { texto: string } | null = null;
                   try { m = await deps.modificarCita({tenantId:n.tenantId,clienteId:refM.clienteId,referenciaRecordatorio:refM.registroId,contactHash:p.remitenteHash}); } catch { m = null; }
@@ -222,8 +223,9 @@ export function crearManejadoresWebhook(config: {
                 const contar = async (c: CampoIndicador) => { if (chat) { try { await chat.contar(n.tenantId,c,deps.ahora()); } catch { /* indicador: no debe romper la respuesta */ } } };
                 const entradaTexto = p.tipo === "text" || esBoton; // los botones del menú llegan como su texto equivalente
                 if (entradaTexto && typeof text === "string" && deps.datosDelNegocio && (tipo === "desconocido" || chat)) {
-                  const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash)
-                    : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
+                  // Solo una respuesta CITADA al recordatorio lo vincula. Un mensaje suelto ("hola", "tienen hora hoy", "Pablo a las 5") sigue el camino normal del agente:
+                  // antes, durante 48 h después de recibir la confirmación, todo lo que escribía el cliente se trataba como respuesta al recordatorio y el agente dejaba de entenderlo.
+                  const ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash) : null;
                   if (!ref) {
                     // Solo datos comerciales del tenant verificado; el texto vive únicamente en memoria.
                     const datosNegocio = await deps.datosDelNegocio(n.tenantId);
