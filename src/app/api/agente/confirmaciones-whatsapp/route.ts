@@ -1,4 +1,6 @@
-import { variablesPlantillaConfirmacion, PLANTILLA_CONFIRMACION_BOTONES, PLANTILLA_CITA_AVISO, IDIOMA_PLANTILLAS_CONFIRMACION, BOTONES_CONFIRMACION } from "@/lib/agente/plantilla-recordatorio";
+import { registrarChat, purgarChats } from "@/lib/agente/chats";
+import { hashContactoWhatsApp } from "@/lib/agente/whatsapp-meta";
+import { textoPlantillaConfirmacion, variablesPlantillaConfirmacion, PLANTILLA_CONFIRMACION_BOTONES, PLANTILLA_CITA_AVISO, IDIOMA_PLANTILLAS_CONFIRMACION, BOTONES_CONFIRMACION } from "@/lib/agente/plantilla-recordatorio";
 import { getClientColorTheme } from "@/lib/client-theme";
 import { crearManejadorRecordatorios, crearRepositorioRecordatorios } from "@/lib/agente/recordatorios-whatsapp";
 import { crearAutorizadorInformeProgramado } from "@/lib/agente/informe-programado";
@@ -42,16 +44,22 @@ export const GET = crearManejadorRecordatorios({
       },
       enviarWhatsApp: async (negocio, cita, para, opciones) => {
         const conBotones = opciones?.conBotones !== false;
-        return enviarPlantilla({
+        const variables = variablesPlantillaConfirmacion(cita, await nombreNegocio(cita.tenant_id));
+        const r = await enviarPlantilla({
           para, plantilla: conBotones ? PLANTILLA_CONFIRMACION_BOTONES : PLANTILLA_CITA_AVISO,
           idioma: IDIOMA_PLANTILLAS_CONFIRMACION,
-          variables: variablesPlantillaConfirmacion(cita, await nombreNegocio(cita.tenant_id)),
+          variables,
           ...(conBotones ? { botones: BOTONES_CONFIRMACION } : {}),
         }, {
           token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "",
           phone_number_id: negocio.phoneNumberId,
           fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
         });
+        if (r.estado === "aceptado") {
+          await registrarChat(db, { tenantId: cita.tenant_id, contactHash: hashContactoWhatsApp(process.env.AGENTE_CONTACT_HASH_SALT ?? "", cita.tenant_id, para), telefono: para, direccion: "saliente", tipo: "plantilla", texto: textoPlantillaConfirmacion(conBotones, variables) });
+          if (Math.random() < 0.05) await purgarChats(db);
+        }
+        return r;
       },
       enviarCorreo: async cita => {
         if (!cita.client?.email) return { estado: "fallido" };
