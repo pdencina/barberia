@@ -108,7 +108,7 @@ export default function BookingPage() {
   // true = el cliente llego directo a un profesional (link personal o negocio con uno solo).
   const [directEntry, setDirectEntry] = useState(false);
   const [expandedService, setExpandedService] = useState<string | null>(null);
-  // "Salir" solo se muestra si hay una sesion abierta (el personal del negocio); un cliente no lo necesita.
+  // «Volver al sistema» solo se muestra si hay una sesion abierta (el personal del negocio); un cliente no lo necesita. No cierra la sesión.
   const [hasSession, setHasSession] = useState(false);
   useEffect(() => {
     import("@/lib/supabase/client").then(({ createClient }) => createClient().auth.getUser())
@@ -547,13 +547,16 @@ export default function BookingPage() {
             </div>
           )}
           {hasSession && (
-            <button onClick={async () => {
-              const { createClient } = await import("@/lib/supabase/client");
-              const supabase = createClient();
-              await supabase.auth.signOut();
-              window.location.href = "/login";
+            // El personal que abre su página pública NO cierra sesión: vuelve al sistema, a donde estaba (la sesión sigue abierta).
+            <button onClick={() => {
+              try {
+                const ref = document.referrer ? new URL(document.referrer) : null;
+                if (ref && ref.origin === window.location.origin && ref.pathname.startsWith("/dashboard")) { window.location.href = ref.pathname + ref.search; return; }
+              } catch { /* sin referrer */ }
+              if (window.history.length > 1) { window.history.back(); return; }
+              window.location.href = "/dashboard";
             }} className="rounded px-2 py-1 text-xs text-brand-gray transition-colors hover:text-brand-dark">
-              Salir
+              Volver al sistema
             </button>
           )}
         </div>
