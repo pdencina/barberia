@@ -6,6 +6,7 @@ import { clearAppCache } from "@/lib/swr-cache";
 import { useState, useEffect } from "react";
 import { MyTabBarCard } from "@/components/settings/tab-bar-cards";
 import { InformeDiarioCard } from "@/components/settings/informe-diario-card";
+import { arriendoPuedeEditarHoy, MENSAJE_HORARIO_BLOQUEADO } from "@/lib/horario-arriendo";
 import { BarberScheduleEditor } from "@/components/barber-schedule-editor";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
@@ -291,8 +292,8 @@ export default function MiPerfilPage() {
 
       {tab === "horario" && user?.role === "barber" && (data as any)?.work_mode === "rental" && user?.id && (
         <div className="space-y-2">
-          <p className="text-xs text-brand-gray">Tú decides qué días atiendes y en qué horario, incluidos los lunes y domingos. Los clientes verán solo estas horas para reservar contigo.</p>
-          <BarberScheduleEditor barberId={user.id} showToast={showToast} />
+          <p className="text-xs text-brand-gray">Puedes cambiar tus días libres y tu horario solo los domingos y lunes, y el cambio vale para toda la semana (por ejemplo, pasar el martes al miércoles). Los clientes reservan solo en estas horas.</p>
+          <BarberScheduleEditor barberId={user.id} showToast={showToast} bloqueado={arriendoPuedeEditarHoy() ? undefined : MENSAJE_HORARIO_BLOQUEADO} />
         </div>
       )}
 

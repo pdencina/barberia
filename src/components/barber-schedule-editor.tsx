@@ -24,7 +24,8 @@ const toMin = (t: string) => { const m = /^(\d{1,2}):(\d{2})/.exec(t || ""); ret
 
 const timeCls = "min-w-0 rounded-lg border border-gray-200 bg-white px-2 py-1.5 text-sm tabular-nums text-brand-dark outline-none focus:border-brand-blue";
 
-export function BarberScheduleEditor({ barberId, showToast }: { barberId: string; showToast: (msg: string, type?: "success" | "error" | "info") => void }) {
+// `bloqueado`: texto que explica por qué hoy no se puede editar (se ve el horario, pero sin tocarlo ni guardar).
+export function BarberScheduleEditor({ barberId, showToast, bloqueado }: { barberId: string; showToast: (msg: string, type?: "success" | "error" | "info") => void; bloqueado?: string }) {
   const { tenant } = useTenant();
   const [schedule, setSchedule] = useState<ScheduleDay[]>([]);
   const [breaks, setBreaks] = useState<Record<number, BreakItem[]>>({});
@@ -101,7 +102,8 @@ export function BarberScheduleEditor({ barberId, showToast }: { barberId: string
   const byDow = new Map(schedule.map((d) => [d.day_of_week, d]));
 
   return (
-    <div className="space-y-2.5">
+    <fieldset disabled={!!bloqueado} className="m-0 min-w-0 space-y-2.5 border-0 p-0">
+      {bloqueado && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">{bloqueado}</p>}
       <p className="rounded-xl bg-brand-blue/5 px-3 py-2 text-xs text-brand-gray">
         Este es el horario con el que tus clientes pueden reservar. Revisa las horas de cada día: <b>lo que dejes abierto aquí aparece como disponible en tu link de reserva</b>, aunque el «Horario del negocio» de Configuración sea más corto.
       </p>
@@ -173,13 +175,15 @@ export function BarberScheduleEditor({ barberId, showToast }: { barberId: string
           </div>
         );
       })}
-      <button
-        onClick={save}
-        disabled={saving}
-        className="mt-1 rounded-xl bg-brand-blue px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
-      >
-        {saving ? "Guardando..." : "Guardar horario"}
-      </button>
-    </div>
+      {!bloqueado && (
+        <button
+          onClick={save}
+          disabled={saving}
+          className="mt-1 rounded-xl bg-brand-blue px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {saving ? "Guardando..." : "Guardar horario"}
+        </button>
+      )}
+    </fieldset>
   );
 }

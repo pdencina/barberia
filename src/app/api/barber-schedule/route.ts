@@ -9,11 +9,13 @@ async function puedeEditarHorario(barberId: string, escribir: boolean): Promise<
   if (role === "barber") {
     if (userId !== barberId) return false;
     if (!escribir) return true;
+    if (!arriendoPuedeEditarHoy()) return false;
     const { data } = await createAdminSupabase().from("profiles").select("work_mode").eq("id", barberId).single();
     return data?.work_mode === "rental";
   }
   return canAccessBarber(barberId);
 }
+import { arriendoPuedeEditarHoy, MENSAJE_HORARIO_BLOQUEADO } from "@/lib/horario-arriendo";
 import { loadBreaks, breaksForDay } from "@/lib/breaks";
 import { horarioInicial } from "@/lib/horario-inicial";
 
@@ -57,7 +59,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "barberId and schedule required" }, { status: 400 });
   }
   if (!(await puedeEditarHorario(barberId, true))) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+    const { role } = await getCurrentUserRoleAndTenant();
+    return NextResponse.json({ error: role === "barber" && !arriendoPuedeEditarHoy() ? MENSAJE_HORARIO_BLOQUEADO : "No autorizado" }, { status: 403 });
   }
 
   // Breaks de cada dia (varios, con nombre y cupos). Se normalizan; si no llega `breaks` se usa el break unico.
