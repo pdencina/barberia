@@ -28,6 +28,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ success: true, clientThemeEnabled: body.clientThemeEnabled });
   }
 
+  // Diseño propio para los clientes (migración 177): un tema concreto, o null = el mismo del sistema.
+  if ("clientTheme" in (body || {})) {
+    if (body.clientTheme !== null && !isAppTheme(body.clientTheme)) return NextResponse.json({ error: "Tema inválido" }, { status: 400 });
+    const { tenantId: tid, denied: den } = await resolveTenantForRequest(body.tenantId);
+    if (den) return NextResponse.json({ error: "No autorizado para ese negocio" }, { status: 403 });
+    if (!tid || tid === "ALL") return NextResponse.json({ error: "No se pudo determinar el negocio" }, { status: 400 });
+    const { error: e3 } = await createAdminSupabase().from("tenants").update({ client_theme: body.clientTheme, client_theme_enabled: true }).eq("id", tid);
+    if (e3) return NextResponse.json({ error: e3.code === "42703" ? "Falta aplicar la migración 177." : "No se pudo guardar" }, { status: e3.code === "42703" ? 503 : 500 });
+    return NextResponse.json({ success: true, clientTheme: body.clientTheme });
+  }
+
   if (!isAppTheme(body?.theme)) return NextResponse.json({ error: "Tema inválido" }, { status: 400 });
   const theme = body.theme;
 
