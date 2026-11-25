@@ -1,0 +1,17 @@
+import { responderHorarioProfesional } from "../src/lib/agente/horario-profesional";
+let fallas = 0;
+const ok = (n: string, c: boolean, extra = "") => { if (!c) { fallas++; console.log("FALLA", n, extra); } else console.log("OK", n); };
+const datos: any = { negocio: {}, horario: [], servicios: [], profesionales: [{ id: "n", nombre: "Nicolás Levels", link: "x" }, { id: "p", nombre: "Pablo Yañez", link: "x" }] };
+const sem = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dia: d, trabaja: d !== 0, desde: "07:00", hasta: d === 6 ? "09:00" : "10:00" }));
+const tarde = [0, 1, 2, 3, 4, 5, 6].map((d) => ({ dia: d, trabaja: d !== 0, desde: "10:00", hasta: "20:00" }));
+const h = { n: sem, p: tarde };
+const r = (t: string, prox?: string) => responderHorarioProfesional(t, datos, h, () => prox ?? null);
+let x = r("Nicolás atiende en las mañanas ahora?", "Mañana tiene horas libres: 07:30."); ok("manana si", !!x && x.startsWith("Sí") && x.includes("lunes a viernes de 07:00 a 10:00") && x.includes("07:30"), x ?? "");
+x = r("Nicolás atiende en las tardes?"); ok("tarde no", !!x && x.startsWith("No"), x ?? "");
+x = r("pablo atiende en la mañana?"); ok("pablo manana (desde las 10)", !!x && x.startsWith("Sí"), x ?? "");
+x = r("que dias trabaja nicolas?"); ok("dias", !!x && x.includes("sábado"), x ?? "");
+x = r("nicolas atiende los domingos?"); ok("domingo no", !!x && x.includes("no atiende los domingos"), x ?? "");
+ok("hora concreta no aplica", r("nicolas tiene hora el sabado?") === null);
+ok("sin pro no aplica", r("atienden en las mañanas?") === null);
+console.log(fallas ? `fallas=${fallas}` : "OK horario-profesional");
+process.exit(fallas ? 1 : 0);

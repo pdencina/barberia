@@ -7,7 +7,8 @@ import { enlacesPedidos } from "./archivos";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
 import { responderServicioProfesional, type ServiciosPorProfesional } from "./servicio-profesional";
-import { responderDisponibilidad, ahoraChile, type DependenciasDisponibilidad } from "./disponibilidad";
+import { responderHorarioProfesional, type HorariosProfesionales } from "./horario-profesional";
+import { responderDisponibilidad, ahoraChile, sumar, textoDeFecha, type DependenciasDisponibilidad } from "./disponibilidad";
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
 import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
 import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
@@ -55,6 +56,8 @@ export interface DependenciasWebhook {
   };
   /** Qué servicios hace cada profesional (Profesionales > Servicios). Sin esto no se responde "¿quién hace rizos?". */
   serviciosPorProfesional?: (tenantId: string, ids: string[]) => Promise<ServiciosPorProfesional>;
+  /** Horario de trabajo de cada profesional (Profesionales > Horario). Sin esto no se responde "¿Nicolás atiende en las mañanas?". */
+  horariosProfesionales?: (tenantId: string, ids: string[]) => Promise<HorariosProfesionales>;
   /** Registro de conversaciones para que el dueño las revise (solo si el negocio lo encendió). Mejor esfuerzo: nunca debe romper la atención. */
   registrarChat?: (r: RegistroChat) => Promise<void>;
   /** true = el dueño le escribió a mano a este contacto hace poco: el agente no responde "No entendí"; lo que no sepa se lo pasa al dueño. */
@@ -307,6 +310,33 @@ export function crearManejadoresWebhook(config: {
                         const ids = (datosNegocio.profesionales ?? []).map((x) => x.id).filter((x): x is string => !!x);
                         if (ids.length > 0) {
                           const r = responderServicioProfesional(consulta,datosNegocio,await deps.serviciosPorProfesional(n.tenantId,ids));
+                          if (r) { respuestaFaq = r; await contar("respuestas_automaticas"); }
+                        }
+                      } catch { /* sin ese dato se sigue con el flujo de siempre */ }
+                    }
+                    // 1c) Horario de trabajo de un profesional ("¿Nicolás atiende en las mañanas?"): días y horas reales + su próxima hora libre.
+                    if (respuestaFaq === null && tipo === "desconocido" && deps.horariosProfesionales && entradaTexto && !esBoton && datosNegocio) {
+                      try {
+                        const ids = (datosNegocio.profesionales ?? []).map((x) => x.id).filter((x): x is string => !!x);
+                        if (ids.length > 0) {
+                          const hor = await deps.horariosProfesionales(n.tenantId,ids);
+                          // Se resuelve la próxima hora libre solo del profesional nombrado (hasta 7 días), antes de redactar.
+                          let proxima: Record<string,string> = {};
+                          const previa = responderHorarioProfesional(consulta,datosNegocio,hor);
+                          if (previa && deps.horasLibres) {
+                            const nom = (datosNegocio.profesionales ?? []).find((x) => x.id && previa.includes(`*${x.nombre}*`));
+                            if (nom?.id) {
+                              const ah = ahoraChile(deps.ahora());
+                              for (let i = 0; i < 7; i++) {
+                                const f = sumar(ah.fecha,i);
+                                const r = await conTiempoMaximo(deps.horasLibres(nom.id,f,nom.duracionMin ?? 45),4000);
+                                const hs = r.slots.map((x) => x.slice(11,16)).filter((x) => i > 0 || Number(x.slice(0,2)) * 60 + Number(x.slice(3,5)) > ah.minutos);
+                                if (!r.cerrado && hs.length > 0) { proxima[nom.id] = `${i === 0 ? "Hoy" : i === 1 ? "Mañana" : textoDeFecha(f,ah.fecha).replace(/^el /,"El ")} tiene horas libres: ${hs.slice(0,3).join(" · ")}.`; break; }
+                              }
+                              if (!proxima[nom.id]) proxima[nom.id] = "En los próximos 7 días no le veo horas libres.";
+                            }
+                          }
+                          const r = responderHorarioProfesional(consulta,datosNegocio,hor,(id) => proxima[id] ?? null);
                           if (r) { respuestaFaq = r; await contar("respuestas_automaticas"); }
                         }
                       } catch { /* sin ese dato se sigue con el flujo de siempre */ }

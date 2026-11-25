@@ -174,6 +174,13 @@ const handlers = () => crearManejadoresWebhook({
         for (const x of (r.data ?? []) as any[]) { const a = m[x.barber_id]; if (a === null) m[x.barber_id] = [String(x.service_id)]; else if (a) a.push(String(x.service_id)); }
         return m;
       },
+      horariosProfesionales: async (tenantId, ids) => {
+        const r = await db.from("barber_schedule").select("barber_id,day_of_week,is_working,start_time,end_time").in("barber_id", ids);
+        if (r.error) throw new Error("sin horarios");
+        const m: Record<string, any[]> = {};
+        for (const x of (r.data ?? []) as any[]) (m[x.barber_id] ??= []).push({ dia: Number(x.day_of_week), trabaja: x.is_working === true, desde: String(x.start_time ?? "00:00").slice(0, 5), hasta: String(x.end_time ?? "00:00").slice(0, 5) });
+        return m;
+      },
       conversacionHumana: async (n, contactHash) => {
         const r = await db.from("agent_chats").select("id").eq("tenant_id", n.tenantId).eq("contact_hash", contactHash).eq("direccion", "saliente").like("texto", "[manual] %").gte("created_at", new Date(Date.now() - 12 * 3600000).toISOString()).limit(1);
         return !r.error && (r.data?.length ?? 0) > 0;
