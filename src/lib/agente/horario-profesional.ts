@@ -38,7 +38,7 @@ export function responderHorarioProfesional(texto: string, datos: DatosFaq | nul
   const nombrados = pros.filter((p) => sin(p.nombre).split(/\s+/).filter((w) => w.length >= 3).some((w) => palabras.includes(w)));
   if (nombrados.length !== 1) return null; // ninguno o ambiguo: no se adivina
   const horaDeDia = /\b(a que hora|hasta que hora|desde que hora|que horarios?|horarios?|turno|que dias|dias trabaja|dias atiende|cuando atiende|cuando trabaja|fines? de semana)\b/.test(t);
-  const verbo = /\b(atiende|atienden|trabaja|trabajan|esta|estan|llega|entra|sale|cierra|abre)\b/.test(t);
+  const verbo = /\b(atiende|atienden|trabaja|trabajan|corta|cortan|cortando|viene|vienen|esta|estan|llega|entra|sale|cierra|abre)\b/.test(t);
   const franja = /\b(?:en|por|de) la (manana|tarde|noche)s?\b|\b(mananas|tardes|noches)\b/.exec(t);
   const diaN = palabras.map((w) => CLAVE[w]).find((d) => d !== undefined);
   const libres = /\b(dias? libres?|dia libre|libra|libran|descansa|descansan|dias? de descanso|no trabaja|no atiende|vacaciones|de vacaciones)\b/.test(t);

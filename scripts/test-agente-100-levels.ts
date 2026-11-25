@@ -55,7 +55,7 @@ function crear() {
     business_hours: HORAS.map((h, i) => ({ id: `h${i}`, tenant_id: "T1", day_of_week: h[0], is_closed: false, open_time: h[1], close_time: h[2] })),
     services: SERV.map((s) => ({ id: s[0], tenant_id: "T1", name: s[1], price: s[2], duration: s[3], active: true })),
     barber_service_assignments: Object.entries(ASIG).flatMap(([b, ss]) => ss.map((x) => ({ barber_id: b, service_id: x }))),
-    branches: [], profiles: PROS.map((p) => ({ id: p[0], tenant_id: "T1", name: p[1], booking_slug: p[2], active: true, role: "barber", also_attends_clients: false, slot_duration: p[3] })), agent_faq_custom: [],
+    branches: [], profiles: PROS.map((p) => ({ id: p[0], tenant_id: "T1", name: p[1], booking_slug: p[2], active: true, role: "barber", also_attends_clients: false, slot_duration: p[3] })), agent_faq_custom: [{ id: "abono", tenant_id: "T1", activo: true, orden: 1, claves: ["reservar visos", "reservar rizos", "reservar color global", "reservar ondulacion", "abono rizos"], respuesta: "Para reservar un trabajo químico se abona $15.000 por transferencia (datos de prueba)." }],
   };
   const db = { from(table: string) {
     const filters: [string, any][] = []; let single = false, from = 0, to = 999;
@@ -89,6 +89,7 @@ function crear() {
     leerEstado: async (t: string, c: string) => memoria.get(t + c) ?? null, guardarEstado: async (t: string, c: string, e: any) => { memoria.set(t + c, e); }, borrarEstado: async (t: string, c: string) => { memoria.delete(t + c); },
     reservasFuturas: async () => citas.length, detalleFuturas: async () => [], crearReserva: async (_t: string, a: any) => { const dur = SERV.find((x) => x[0] === a.servicioId)?.[3] ?? 45; const libres = (await deps.horasLibres(a.profesionalId, a.fecha, dur)).slots.map((x: string) => x.slice(11, 16)); if (!libres.includes(a.hora)) return { ok: false, motivo: "no_cabe" }; citas.push({ servicio: a.servicioId, nombre: nombre(a.profesionalId), fecha: a.fecha, hora: a.hora }); return { ok: true, citaId: "c" + citas.length, codigo: "XFD4D" }; }, contar: async () => {},
   };
+  deps.buscarCitas = async (_t: string, id: any) => ("correo" in id ? id.correo === "alexis@gmail.com" : id.codigo === "UJ6N4") ? { nombre: "Alexis Villegas", codigo: "UJ6N4", citas: [{ profesional: "Nicolás Levels", fecha: "2026-11-26", hora: "08:30", servicio: "Corte de cabello" }] } : null;
   deps.conMenu = true; deps.conCta = true; deps.derivarAlTelefono = true;
   deps.ia = async () => null; // la IA no responde en el simulador: lo que le llegue se marca
   deps.responderLista = async (_n: any, _p: any, l: any) => { sent.push(`[LISTA] ${l.cuerpo.replace(/\n+/g, " / ")}  {${l.filas.map((f: any) => f.title).join(" | ")}}`); return { estado: "aceptado" }; };
@@ -170,22 +171,25 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     ["quiero reservar risos con enzo", [/no hace/], [/hoy tengo/]],
     ["a las 17:15", [], [/Te dejo la hora con Enzo/]],
   ] },
-  { titulo: "Rizos con Javier de punta a punta (errores: horas 20:30/21:15 para 3 h, 'rizo', y volvía a pedir el servicio)", casos: [
+  { titulo: "Rizos con Javier: se reserva con abono, no se agenda solo", casos: [
     ["quiero reservar rizos", [/Rizos\/Ondulación permanentes/, /3 horas/, /Javier/], [/2[0-3]:\d\d/, /Enzo/, /\brizo\b/i]],
     ["javier", [/Javier García/, /19:00/], [/2[0-3]:\d\d/]],
-    ["19:00", [/para \*Rizos\/Ondulación permanentes\*/, /nombre completo/i], [/qué servicio/i]],
-    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Rizos\/Ondulación permanentes/, /Tu código de reserva es: XFD4D/, /llegar unos minutos antes/], [/Visos/, /qué servicio/i, /Último paso/]],
+    ["19:00", [/se reserva con abono/, /15\.000/, /todavía no está agendada/, /comprobante/], [/¿cuál es tu nombre/i, /¡Listo/, /código de reserva/i]],
   ] },
   { titulo: "Pidió rizos al final con la hora de un servicio corto (error: agendó Visos 21:15 a 00:15)", casos: [
     ["javier tiene hora hoy?", [/Javier García/]],
     ["21:15", [/nombre completo/i]],
-    ["nicolas perez, nico@gmail.com, rizos", [/no alcanza/i], [/¡Listo/, /Visos/, /Último paso/]],
+    ["nicolas perez, nico@gmail.com, rizos", [/abono/i], [/¡Listo/, /Visos/, /Último paso/]],
   ] },
-  { titulo: "Visos no se confunde con rizos", casos: [
+  { titulo: "Visos no se confunde con rizos y pide abono", casos: [
     ["quiero reservar visos", [/Visos/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Dylan/, /\brizo\b/i]],
     ["javier", [/Javier García/]],
-    ["19:00", [/para \*Visos\*/]],
-    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Visos/, /código de reserva es: XFD4D/], [/Rizos/]],
+    ["19:00", [/\*Visos\* con \*Javier García\*/, /abono/], [/Rizos/, /¡Listo/]],
+  ] },
+  { titulo: "Un corte NO pide abono y trae código", casos: [
+    ["javier tiene hora hoy?", [/Javier García/]],
+    ["19:00", [/nombre completo/i], [/abono/i]],
+    ["nicolas perez, nico@gmail.com, corte de cabello", [/¡Listo/, /Tu código de reserva es: XFD4D/, /llegar unos minutos antes/], [/abono/i]],
   ] },
   { titulo: "Color global", casos: [["quiero agendar color global", [/Color Global/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Enzo/]]] },
   { titulo: "Rizos sin 'quiero': pregunta directa", casos: [["tienen hora para rizos?", [/3 horas/, /Gabriel|Javier|Dylan/], [/Enzo/, /Pablo/]]] },
@@ -195,6 +199,22 @@ const conv: { titulo: string; casos: Caso[] }[] = [
   { titulo: "Javier 7 de la tarde", casos: [["javier tiene hora hoy a las 7 de la tarde?", [/19:00/]]] },
   { titulo: "Rizos 7 tarde sin hoy", casos: [["tienen hora para rizos a las 7 de la tarde?", [/19:00/]]] },
   { titulo: "Javier a las 7", casos: [["javier tiene hora hoy a las 7?", [/Javier/]]] },
+  { titulo: "¿Quedó mi hora? (error: respondía el link de agendar)", casos: [
+    ["Hola, quisiera saber si se agendó mi cita para mañana a las 8:30 con Nicolás", [/correo/, /código de reserva/], [/20:30/, /Deseas agendar/, /re-booking/]],
+    ["alexis@gmail.com", [/Alexis/, /Nicolás Levels/, /08:30/, /UJ6N4/], [/Deseas agendar/]],
+  ] },
+  { titulo: "Ya agendé (frase real)", casos: [["Pero yo ya agende y quisiera saber si se agendó bien la hora", [/correo/, /código/], [/Deseas agendar/]], ["UJ6N4", [/08:30/, /Nicolás Levels/]]] },
+  { titulo: "No me llegó el correo", casos: [["no me llegó el correo de confirmación", [/correo/, /código/]], ["codigo UJ6N4", [/08:30/, /spam/]]] },
+  { titulo: "No me llegó el whatsapp", casos: [["no me ha llegado el whatsapp de confirmación", [/código de reserva/]]] },
+  { titulo: "Correo sin hora", casos: [["quiero revisar mi reserva", [/correo/]], ["otro@gmail.com", [/No encuentro/]]] },
+  { titulo: "Nombre de 5 letras no es código", casos: [["dylan", [/Dylan Perez/], [/No encuentro/]]] },
+  { titulo: "Pedir hora no es consultar la suya", casos: [["quiero agendar una hora", [], [/código de reserva \(/]], ["nicolas tiene hora mañana?", [/Nicolás Levels/], [/Envíame el/]]] },
+  { titulo: "Correo durante la reserva no se toma como consulta", casos: [["javier tiene hora hoy?", [/Javier/]], ["19:00", [/nombre/i]], ["nicolas perez", [/correo/i]], ["alexis@gmail.com", [], [/08:30/]]] },
+  { titulo: "¿Pablo corta los martes? (error: ofrecía el miércoles siguiente en vez de mañana)", casos: [
+    ["Pablo corta los dias martes?", [/Pablo Yañez\* no atiende los martes/, /Mañana tiene horas|Hoy tiene horas/], [/2 de diciembre/]],
+  ] },
+  { titulo: "Pablo el martes: la más próxima es antes", casos: [["pablo tiene hora el martes?", [/no atiende el martes 1/i, /hora más próxima es (hoy|mañana)/i]]] },
+  { titulo: "Enzo viene los lunes", casos: [["enzo viene los lunes?", [/no atiende los lunes/]]] },
   { titulo: "Primera pregunta sin 'hola' (no todos parten con hola)", casos: [
     ["que horario tienen?", [/lunes a viernes de 10:00 a 20:00/i]],
   ] },

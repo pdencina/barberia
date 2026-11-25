@@ -199,6 +199,23 @@ const handlers = () => crearManejadoresWebhook({
         if (!v.error) for (const x of (v.data ?? []) as any[]) (vacaciones[x.barber_id] ??= []).push({ desde: String(x.start_date).slice(0, 10), hasta: String(x.end_date).slice(0, 10) });
         return { semana, vacaciones };
       },
+      // Citas próximas por correo o código de reserva, siempre dentro del negocio.
+      buscarCitas: async (tenantId, id) => {
+        let q = db.from("clients").select("id,name,checkin_code").eq("tenant_id", tenantId);
+        q = "correo" in id ? q.ilike("email", id.correo.replace(/[\\%_]/g, "\\$&")) : q.eq("checkin_code", id.codigo);
+        const cl = await q.limit(10);
+        if (cl.error) throw new Error("Clientes no disponibles");
+        if (!cl.data?.length) return null;
+        const hoy = ahoraChile(Date.now()).fecha;
+        const ap = await db.from("appointments").select("client_id,date,start_time,status,barber:profiles!barber_id(name),services:appointment_services(service:services(name))")
+          .eq("tenant_id", tenantId).in("client_id", (cl.data as any[]).map((c) => c.id)).gte("date", hoy).in("status", ["scheduled", "confirmed"]).order("start_time", { ascending: true }).limit(5);
+        if (ap.error) throw new Error("Agenda no disponible");
+        const filas = (ap.data ?? []) as any[];
+        const dueño: any = (cl.data as any[]).find((c) => c.id === filas[0]?.client_id) ?? (cl.data as any[])[0];
+        const uno = (x: any) => (Array.isArray(x) ? x[0] : x);
+        return { nombre: String(dueño.name ?? ""), codigo: typeof dueño.checkin_code === "string" ? dueño.checkin_code : null,
+          citas: filas.map((a) => ({ profesional: String(uno(a.barber)?.name ?? "Tu profesional"), fecha: String(a.date).slice(0, 10), hora: String(a.start_time).slice(11, 16), servicio: (a.services ?? []).map((s: any) => String(uno(s.service)?.name ?? "").trim()).filter(Boolean).join(", ") })) };
+      },
       conversacionHumana: async (n, contactHash) => {
         const r = await db.from("agent_chats").select("id").eq("tenant_id", n.tenantId).eq("contact_hash", contactHash).eq("direccion", "saliente").like("texto", "[manual] %").gte("created_at", new Date(Date.now() - 12 * 3600000).toISOString()).limit(1);
         return !r.error && (r.data?.length ?? 0) > 0;
