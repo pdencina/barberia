@@ -11,6 +11,7 @@ import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./a
 import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
 import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
 import { fetchAllRows } from "../accounting";
+import { tipoEntrante, textoEntrante, type RegistroChat } from "./chats";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
 import { verificarFirmaWebhook } from "./webhook-firma";
@@ -51,6 +52,8 @@ export interface DependenciasWebhook {
     /** true = quedó registrada y el dueño fue avisado. false = no se pudo (sin migración, sin ventana de 24 h...): se deriva como antes. */
     abrir: (n: NegocioWebhook, contactHash: string, telefono: string, pregunta: string, medio?: { tipo: "image" | "document"; id: string }) => Promise<boolean>;
   };
+  /** Registro de conversaciones para que el dueño las revise (solo si el negocio lo encendió). Mejor esfuerzo: nunca debe romper la atención. */
+  registrarChat?: (r: RegistroChat) => Promise<void>;
   // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
   ia?: (tenantId: string, texto: string, datos: DatosFaq | null, contactHash?: string) => Promise<string | null>;
   // true: las respuestas informativas (reglas e IA) terminan con "¿Quieres agendar? Reserva aquí: <link>". Apagado si no se indica.
@@ -142,6 +145,11 @@ export function crearManejadoresWebhook(config: {
             const current = await deps.repo.negocio(n.phoneNumberId);
             if (!current?.enabled || current.tenantId !== n.tenantId) { await deps.repo.terminar(n.tenantId,key,"procesado"); totals.omitidos++; continue; }
             const tipo = clasificarRespuestaCliente(text);
+            const guardar = async (direccion: "entrante" | "saliente", tipoMsg: RegistroChat["tipo"], texto: string) => {
+              if (!deps.registrarChat) return;
+              try { await deps.registrarChat({ tenantId: n.tenantId, contactHash: p.remitenteHash, telefono: para, direccion, tipo: tipoMsg, texto }); } catch { /* el registro es un extra */ }
+            };
+            await guardar("entrante", tipoEntrante(p.tipo, esBoton), textoEntrante(p.tipo, typeof text === "string" ? text : null));
             // Negocio inactivo o suspendido: no se responde ni se avisa. Solo se conserva una baja pedida por el cliente.
             if (deps.negocioInactivo && await deps.negocioInactivo(n.tenantId)) {
               if (tipo === "no_quiero_mensajes") await deps.repo.guardarBaja(n.tenantId,p.remitenteHash);
@@ -155,9 +163,10 @@ export function crearManejadoresWebhook(config: {
             const responder = async (body: string, acuseBaja = false) => {
               if (!(await habilitado(acuseBaja))) return;
               if (deps.responderLista && (esTextoMenu(body) || esTextoCurso(body) || esTextoManicure(body))) {
-                try { const r: any = await deps.responderLista(n,para,esTextoCurso(body) ? listaDeCurso() : esTextoManicure(body) ? listaDeManicure() : listaDeMenu(body)); if (r && r.estado === "aceptado") return; } catch { /* se envía el menú de texto */ }
+                try { const r: any = await deps.responderLista(n,para,esTextoCurso(body) ? listaDeCurso() : esTextoManicure(body) ? listaDeManicure() : listaDeMenu(body)); if (r && r.estado === "aceptado") { await guardar("saliente","lista",body); return; } } catch { /* se envía el menú de texto */ }
               }
               await deps.responder(n,para,body);
+              await guardar("saliente","texto",body);
             };
             // Número administrador (solo el registrado): sus comandos claros (ayuda, reporte, aviso:, avisos, borrar, guardar) los atiende manejarAdmin; lo demás se responde como a cualquier cliente.
             if (deps.admin && typeof text === "string" && (p.tipo === "text" || esBoton)) {
@@ -348,7 +357,7 @@ export function crearManejadoresWebhook(config: {
                   }
                   if (!comoLista) await responder(respuestaFaq);
                   if (deps.archivos && !derivarChat && entradaTexto) {
-                    try { for (const a of deps.archivos.pedidos(typeof text === "string" ? text : "", datosMenu?.negocio.linkReserva)) await deps.archivos.enviar(n,para,a); } catch { /* el texto ya salió; el archivo es un extra */ }
+                    try { for (const a of deps.archivos.pedidos(typeof text === "string" ? text : "", datosMenu?.negocio.linkReserva)) { await deps.archivos.enviar(n,para,a); await guardar("saliente","archivo",`[archivo enviado: ${String((a as any)?.nombre ?? "documento")}]`); } } catch { /* el texto ya salió; el archivo es un extra */ }
                   }
                   // Tras una respuesta del curso, la lista de lo que suele querer ver el cliente: camino directo, sin preguntas abiertas.
                   if (deps.responderLista && !derivarChat && p.tipo !== "button" && !esTextoCurso(respuestaFaq) && (DEL_CURSO.test(respuestaFaq) || DEL_CURSO.test(consulta)) && !esTextoMenu(respuestaFaq)) {

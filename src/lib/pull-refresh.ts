@@ -6,7 +6,7 @@ const SECTIONS = new Set([
   "reportes", "finanzas", "caja", "comisiones", "arriendo", "honorarios", "remuneraciones", "mi-billetera",
   "mi-billetera/personal", "facturas", "boletas", "pagos", "abonos", "resenas", "ocupacion", "demanda",
   "origen-de-reservas", "fidelidad", "cupones", "retencion", "retencion/campanas", "avisos", "recordatorios",
-  "whatsapp", "whatsapp-indicadores", "galeria", "mi-negocio", "mi-negocio/mensajes",
+  "whatsapp", "whatsapp-indicadores", "whatsapp-chats", "galeria", "mi-negocio", "mi-negocio/mensajes",
   "superadmin/tenants", "superadmin/audit", "superadmin/sesiones", "superadmin/reuniones",
 ]);
 export function canPullRefresh(path: string): boolean {

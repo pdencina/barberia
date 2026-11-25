@@ -17,6 +17,7 @@ import { avisoDeConsulta, avisoDeImagen, sistemaRedactor, ORDEN_SABER_CHAT, MAX_
 import { crearRepositorioAccionesCita, HORAS_MIN_CANCELAR } from "@/lib/agente/acciones-cita";
 import { anticipacionCita } from "@/lib/agente/recordatorios-whatsapp";
 import { textoDeFecha } from "@/lib/agente/disponibilidad";
+import { registrarChat, purgarChats } from "@/lib/agente/chats";
 import { resolverRemitente } from "@/lib/agente/informe-diario-email";
 
 import { fetchAllRows } from "@/lib/accounting";
@@ -164,6 +165,7 @@ const handlers = () => crearManejadoresWebhook({
         },
       },
       derivarAlTelefono: true,
+      registrarChat: async (r) => { await registrarChat(db, r); if (Math.random() < 0.01) await purgarChats(db); },
       // Consultas difíciles (migración 016): el agente se las pasa al dueño por WhatsApp, redacta la respuesta con su instrucción y la guarda.
       consultas: (() => {
         const meta = (n: { phoneNumberId: string }) => ({ token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "", phone_number_id: n.phoneNumberId, fetch: (url: any, options: any) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }) });
