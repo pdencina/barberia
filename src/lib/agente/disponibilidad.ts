@@ -164,7 +164,7 @@ function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = f
   const hora = rango ? rango.d : interpretarHora(f.resto, franja);
   if (hora === "invalida") return null;
   const mencionados = profesionalesMencionados(t, perfiles);
-  const generica = PRIMER_DISPONIBLE.test(t) || /\b(tienen|tiene|hay|quedan|queda|alguna|algun)\b.*\b(hora|horas|cupo|cupos|espacio|espacios)\b|\b(hora|horas|cupo|cupos)\b.*\b(disponible|disponibles)\b/.test(t);
+  const generica = PRIMER_DISPONIBLE.test(t) || /\b(tienen|tiene|hay|quedan|queda|alguna|algun)\b.*\b(hora|horas|cupo|cupos|espacio|espacios)\b|\b(hora|horas|cupo|cupos)\b.*\b(disponible|disponibles)\b|\b(primera|primer|proxima|proximo|siguiente|mas cercana|mas pronta)\b.*\b(hora|cupo)\b/.test(t);
   const rel = /\bm[aá]s (tarde|temprano)\b/.exec(t);
   const relativo: "despues" | "antes" | null = rel ? (rel[1] === "tarde" ? "despues" : "antes") : null;
   // Con una oferta reciente, un horario suelto ("en la tarde", "a las 4", "más tarde") se entiende como seguimiento.

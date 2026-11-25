@@ -7,8 +7,8 @@ export type ServiciosPorProfesional = Record<string, string[] | null>;
 
 const sin = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 // Mismo sonido: "risos" = "rizos", "bisos" = "visos".
-const sonido = (s: string) => sin(s).replace(/z/g, "s").replace(/c(?=[ei])/g, "s").replace(/v/g, "b").replace(/qu(?=[ei])/g, "k");
-const palabras = (s: string) => sonido(s).split(/[^a-zñ0-9]+/).filter(Boolean);
+export const sonido = (s: string) => sin(s).replace(/z/g, "s").replace(/c(?=[ei])/g, "s").replace(/v/g, "b").replace(/qu(?=[ei])/g, "k");
+export const palabras = (s: string) => sonido(s).split(/[^a-zñ0-9]+/).filter(Boolean);
 const COMUNES = new Set(["corte", "cortes", "barba", "cabello", "pelo", "simple", "lavado", "diseno", "solo", "arreglo", "ritual", "panos", "calientes", "cejas", "tijeras", "servicio", "con", "para", "del", "los", "las", "una", "uno"]);
 
 function tokensDe(nombre: string, ajenos: Set<string>): string[] {
@@ -28,9 +28,11 @@ export function responderServicioProfesional(texto: string, datos: DatosFaq | nu
   if (hallados.length === 0) return null;
   // Si nombró varios servicios distintos no se adivina.
   const claves = new Set(hallados.map((s) => tokensDe(s.nombre, ajenos).sort().join("|")));
-  const s = hallados[0];
-  if (hallados.length > 1 && claves.size > 1 && hallados.some((x) => x.nombre !== s.nombre) && new Set(hallados.map((x) => x.nombre)).size > 3) return null;
-  const hacen = (p: (typeof pros)[number]) => { const l = mapa[p.id as string]; return l === undefined ? false : l === null ? true : l.includes(s.id as string); };
+  if (claves.size > 3) return null;
+  // Varios servicios con la misma palabra ("Permanente de rizos" y "Rizos/Ondulación permanentes"): lo hace quien haga cualquiera de ellos.
+  const hacenAlguno = (p: (typeof pros)[number]) => { const l = mapa[p.id as string]; return l === undefined ? false : l === null ? true : hallados.some((h) => l.includes(h.id as string)); };
+  const s = hallados.find((h) => pros.some((p) => { const l = mapa[p.id as string]; return Array.isArray(l) && l.includes(h.id as string); })) ?? hallados[0];
+  const hacen = hacenAlguno;
   const quienes = pros.filter(hacen);
   const t = sin(texto);
   const nombrados = pros.filter((p) => { const ws = palabras(p.nombre).filter((w) => w.length >= 3); return ws.some((w) => msg.some((m) => m === w)); });
