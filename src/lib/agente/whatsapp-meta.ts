@@ -263,8 +263,12 @@ export async function enviarArchivo(args: { para: string; archivo: ArchivoSalien
 
 // Usa el criterio Chile existente; cero troncal como cron/reminders/whatsapp:70-71.
 export function normalizarTelefonoWhatsApp(raw: unknown): string | null {
-  if (typeof raw !== "string" || !raw.trim() || !/^[+\d\s()\-]+$/.test(raw)) return null;
-  let cleaned = raw.replace(/[\s()\-]/g, "");
+  if (typeof raw !== "string") return null;
+  // Los teléfonos pegados desde la agenda del celular traen marcas invisibles de dirección de texto (U+202A..U+202E, U+200B..U+200F, U+2060..U+206F, U+FEFF):
+  // se quitan; el resto de los caracteres sigue validándose igual de estricto.
+  const limpio = raw.replace(/[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]/g, "");
+  if (!limpio.trim() || !/^[+\d\s()\-]+$/.test(limpio)) return null;
+  let cleaned = limpio.replace(/[\s()\-]/g, "");
   if (!cleaned.startsWith("+")) cleaned = cleaned.replace(/^0/, "");
   if (!/\d/.test(cleaned)) return null;
   const canonical = formatPhoneCL(cleaned).replace(/^\+/, "");
