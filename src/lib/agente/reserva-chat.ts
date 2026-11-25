@@ -5,6 +5,9 @@
 import { normalizar, mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fija";
 import { ahoraChile, textoDeFecha, type Oferta } from "./disponibilidad";
 import { palabraCalza } from "./nombres";
+import { sonido } from "./servicio-profesional";
+// Para nombres de servicio no vale el parecido por distancia ("rizos" ≠ "visos"): solo igual, mismo sonido o prefijo de 4+ letras.
+const servCalza = (w: string, tok: string) => { const a = sonido(w), b = sonido(tok); return a === b || (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a))); };
 
 export const VIGENCIA_MIN = 30;
 export const MAX_RESERVAS_FUTURAS = 2; // desde aquí se pregunta si quiere otra de todas formas
@@ -16,7 +19,7 @@ export type CampoIndicador = "respuestas_automaticas" | "consultas_disponibilida
 /** Lo que el cliente ya fue entregando de a uno (nombre y correo) se guarda solo mientras dura la reserva (VIGENCIA_MIN) y se borra al terminar. */
 export interface Seleccion { id: string; nombre: string; duracionMin: number; fecha: string; hora: string; intentos: number; /** Servicio ya elegido (no es un dato personal): se conserva entre mensajes. */ servicioId?: string; cliente?: string; correo?: string; /** Servicios ya acotados ("corte más barba" calza con varios): el número elegido se lee contra esta lista. */ opcionesServicio?: string[] }
 export type EstadoChat = { etapa: "oferta"; datos: Oferta & { horaPendiente?: string; extraPendiente?: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string } } } | { etapa: "datos"; datos: Seleccion };
-export type ResultadoCreacion = { ok: true; citaId: string } | { ok: false; motivo: "ocupada" | "suspendido" | "otro" };
+export type ResultadoCreacion = { ok: true; citaId: string } | { ok: false; motivo: "ocupada" | "suspendido" | "otro" | "no_cabe" };
 export interface DependenciasReserva {
   ahora: () => number;
   leerEstado: () => Promise<EstadoChat | null>;
@@ -91,8 +94,11 @@ export function serviciosElegibles(datos: DatosFaq | null, profesional: string):
   const propio = normalizar(profesional), otros = new Set<string>();
   for (const p of datos?.profesionales ?? []) for (const w of normalizar(p.nombre).split(" ")) if (w.length >= 4 && !propio.includes(w)) otros.add(w);
   const vistos = new Set<string>(); const salida: Array<{ id?: string; nombre: string; precio: number | null }> = [];
+  // Profesionales > Servicios: solo lo que ese profesional hace (sin nada marcado, hace todo).
+  const hace = (datos?.profesionales ?? []).find((p) => normalizar(p.nombre) === propio)?.serviciosIds;
   for (const sv of datos?.servicios ?? []) {
     if (!sv || typeof sv.id !== "string" || !datoSeguro(sv.nombre)) continue;
+    if (Array.isArray(hace) && !hace.includes(sv.id)) continue;
     const n = normalizar(sv.nombre);
     if (n.split(" ").some((w) => otros.has(w)) || /asesoria/.test(n)) continue;
     const k = `${n}|${sv.precio ?? ""}`; if (vistos.has(k)) continue; vistos.add(k);
@@ -130,11 +136,15 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
         return { texto: "No pude cambiar tu hora. Una persona te ayudará por aquí en breve.", derivar: true };
       }
     }
-    const servicios = serviciosParaListar(datos, e.nombre);
+    let servicios = serviciosParaListar(datos, e.nombre);
     if (servicios.length === 0) { await deps.borrarEstado(); return { texto: "Para dejar tu hora necesito que una persona te ayude con los detalles.", derivar: true }; }
-    await deps.guardarEstado({ etapa: "datos", datos: { id: e.id, nombre: e.nombre, duracionMin: e.duracionMin, fecha: e.fecha, hora: e.hora, intentos: 0 } });
+    // Si el cliente ya dijo qué servicio quería ("rizos"), se conserva: no se le vuelve a preguntar.
+    const pedido = estado.etapa === "oferta" ? estado.datos.servicioId : undefined;
+    const elegido = pedido ? serviciosElegibles(datos, e.nombre).find((x) => x.id === pedido) : undefined;
+    if (elegido) servicios = [elegido];
+    await deps.guardarEstado({ etapa: "datos", datos: { id: e.id, nombre: e.nombre, duracionMin: e.duracionMin, fecha: e.fecha, hora: e.hora, intentos: 0, ...(elegido?.id ? { servicioId: elegido.id } : {}) } });
     await deps.contar("reservas_iniciadas");
-    return { texto: `${nota ? nota + "\n\n" : ""}${pedirDatos(e.nombre, textoDeFecha(e.fecha, hoy), e.hora, servicios)}` };
+    return { texto: `${nota ? nota + "\n\n" : ""}${pedirDatos(e.nombre, textoDeFecha(e.fecha, hoy), e.hora, servicios, elegido?.nombre)}` };
   };
 
   // "no", "no gracias", "mejor no" cancelan; "no sé cuál elegir" o "no tengo correo" son dudas y NO deben cancelar la reserva.
@@ -159,6 +169,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     const admitido = mensajeAdmitido(texto);
     if (!admitido || PARECE_CONSULTA.test(t)) return null; // otra pregunta (o mensaje no admitido): sigue el camino normal
     const op = estado.datos.opciones;
+    // Nombra a un profesional que no está entre los ofrecidos ("quiero reservar rizos con Enzo"): no es elegir una de las horas, lo resuelve el resto del agente.
+    if ((datos?.profesionales ?? []).some((p) => !op.some((o) => o.id === p.id) && nombreMencionado(t, p.nombre))) return null;
     const q = horaMencionada(t);
     let elegidas: Array<{ id: string; nombre: string; duracionMin: number; fecha: string; hora: string }> = [];
     // "Busco cerca de las 5" es una búsqueda, no una elección: la responde la consulta de disponibilidad (con las horas más cercanas).
@@ -175,7 +187,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       const sin = nombradoSinEsaHora(t, op, (h) => coincideHora(h, q));
       if (sin) {
         // "con Pablo a las 5" y Pablo no tiene esa hora: se dice, y se queda solo con él para que elija otra de las suyas.
-        await deps.guardarEstado({ etapa: "oferta", datos: { horaExacta: sin.horas.length === 1 ? sin.horas[0] : null, opciones: [sin] } });
+        await deps.guardarEstado({ etapa: "oferta", datos: { ...(estado.datos.servicioId ? { servicioId: estado.datos.servicioId } : {}), horaExacta: sin.horas.length === 1 ? sin.horas[0] : null, opciones: [sin] } });
         const horaTxt = op.flatMap((o) => o.horas).find((h) => coincideHora(h, q)) ?? `${q.h}:${String(q.m).padStart(2, "0")}`;
         return { texto: `*${sin.nombre}* no tiene a las ${horaTxt} ${textoDeFecha(sin.fecha, hoy)}. Con él tengo: ${sin.horas.slice(0, 6).join(" · ")}.\n\nEscríbeme la que prefieras, por ejemplo: «la de las ${sin.horas[0]}», o dime con quién más.` };
       }
@@ -183,7 +195,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     } else if (estado.datos.horaPendiente) {
       const sinPend = nombradoSinEsaHora(t, op, (h) => h === estado.datos.horaPendiente);
       if (sinPend) {
-        await deps.guardarEstado({ etapa: "oferta", datos: { horaExacta: sinPend.horas.length === 1 ? sinPend.horas[0] : null, opciones: [sinPend] } });
+        await deps.guardarEstado({ etapa: "oferta", datos: { ...(estado.datos.servicioId ? { servicioId: estado.datos.servicioId } : {}), horaExacta: sinPend.horas.length === 1 ? sinPend.horas[0] : null, opciones: [sinPend] } });
         return { texto: `*${sinPend.nombre}* no tiene a las ${estado.datos.horaPendiente} ${textoDeFecha(sinPend.fecha, hoy)}. Con él tengo: ${sinPend.horas.slice(0, 6).join(" · ")}.\n\nEscríbeme la que prefieras, o dime con quién más.` };
       }
       // Dijo una hora que tienen varios profesionales y se le preguntó con quién: ahora basta el nombre.
@@ -205,7 +217,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       if (elegidas.length === 0) {
         const o = quien[0];
         // Se queda solo con esa persona: así un "sí" o "la de las 19:00" ya sabe a quién se refiere.
-        await deps.guardarEstado({ etapa: "oferta", datos: { horaExacta: o.horas.length === 1 ? o.horas[0] : null, opciones: [o] } });
+        await deps.guardarEstado({ etapa: "oferta", datos: { ...(estado.datos.servicioId ? { servicioId: estado.datos.servicioId } : {}), horaExacta: o.horas.length === 1 ? o.horas[0] : null, opciones: [o] } });
         if (o.horas.length === 1) return { texto: `Con *${o.nombre}* ${textoDeFecha(o.fecha, hoy)} tengo *${o.horas[0]}*.\n\n¿Te la agendo? Responde *sí* y te pido tus datos.` };
         return { texto: `Con *${o.nombre}* ${textoDeFecha(o.fecha, hoy)} tengo: ${o.horas.slice(0, 6).join(" · ")}.\n\nEscríbeme la hora que prefieras, por ejemplo: «la de las ${o.horas[0]}».` };
       }
@@ -295,10 +307,10 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   const toks = (x: string) => normalizar(x).split(/[^a-zñ0-9]+/).filter((w) => w.length >= 3 && !STOP.has(w));
   const vocab = Array.from(new Set(todosServicios.flatMap((x) => toks(x.nombre))));
   if (!servicio) {
-    const mt = Array.from(new Set(toks(resto).filter((w) => vocab.some((v) => palabraCalza(w, v)))));
+    const mt = Array.from(new Set(toks(resto).filter((w) => vocab.some((v) => servCalza(w, v)))));
     const otras = toks(resto).filter((w) => !mt.includes(w)).length;
-    if (mt.length >= 2 || (mt.length === 1 && (otras === 0 || mt[0] === "corte"))) { // "corte" a secas se entiende aunque venga con el nombre
-      const cand = todosServicios.filter((x) => { const st = toks(x.nombre); return mt.every((m) => st.some((v) => palabraCalza(m, v))); });
+    if (mt.length >= 2 || (mt.length === 1 && (otras === 0 || mt[0] === "corte" || todosServicios.filter((x) => toks(x.nombre).some((v) => servCalza(mt[0], v))).length === 1))) { // "corte" a secas se entiende aunque venga con el nombre
+      const cand = todosServicios.filter((x) => { const st = toks(x.nombre); return mt.every((m) => st.some((v) => servCalza(m, v))); });
       // Si uno solo tiene EXACTAMENTE esas palabras ("corte y cejas" = "Corte + Cejas", no "Corte + Barba + Cejas"), ese gana.
       const exacto = cand.filter((x) => toks(x.nombre).length === mt.length);
       // "corte" a secas es el corte básico ("Corte de cabello" / "Corte"): no hace falta preguntar entre todos los que empiezan con corte.
@@ -332,6 +344,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     return { texto: `¡Listo, ${nombre.split(" ")[0]}! Tu hora quedó agendada:\n\n• *${sel.nombre}*\n• ${textoDeFecha(sel.fecha, hoy)} a las *${sel.hora}*\n• ${servicio.nombre}\n\nTe enviamos el detalle a tu correo. Si necesitas cambiarla, escríbenos por aquí.` };
   }
   if (r.motivo === "ocupada") return { texto: "Esa hora se acaba de ocupar. Escríbeme y te muestro otras, por ejemplo: «tienen hora mañana»." };
+  if (r.motivo === "no_cabe") return { texto: `Con *${servicio.nombre}* esa hora no alcanza: el servicio dura más de lo que le queda a *${sel.nombre}* ese día. Escríbeme «tienen hora para ${servicio.nombre.split(/[\s/]/)[0].toLowerCase()}» y te muestro las horas en que sí cabe.` };
   return { texto: "No pude dejar tu hora. Una persona te ayudará por aquí en breve.", derivar: true };
 }
 
@@ -348,8 +361,8 @@ function ejemplo(servicios: Array<{ nombre: string }>): string {
   const ej = servicios.length > 1 ? "Envíamelo todo junto en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl, 1" : "Envíamelo todo en un solo mensaje, por ejemplo:\nJuan Pérez, juan@correo.cl";
   return `${ej}\n\nEscribe *menú* para volver al inicio.`;
 }
-function pedirDatos(profesional: string, dia: string, hora: string, servicios: Array<{ nombre: string; precio: number | null }>): string {
-  return `Perfecto. Te dejo la hora con *${profesional}* ${dia} a las *${hora}*.\n\nPara confirmarla, ¿cuál es tu nombre completo?\n(Si prefieres, mándame todo junto: nombre, correo${servicios.length > 1 ? " y servicio" : ""}.)\n\nEscribe *menú* para volver al inicio.`;
+function pedirDatos(profesional: string, dia: string, hora: string, servicios: Array<{ nombre: string; precio: number | null }>, servicioElegido?: string): string {
+  return `Perfecto. Te dejo la hora con *${profesional}* ${dia} a las *${hora}*${servicioElegido ? ` para *${servicioElegido}*` : ""}.\n\nPara confirmarla, ¿cuál es tu nombre completo?\n(Si prefieres, mándame todo junto: nombre, correo${servicios.length > 1 ? " y servicio" : ""}.)\n\nEscribe *menú* para volver al inicio.`;
 }
 
 /** Pide solo lo que falta, de a uno: nombre, luego correo, luego servicio (con lista para tocar). Los datos ya dados quedan en la memoria de la reserva. */

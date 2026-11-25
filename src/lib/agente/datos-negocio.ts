@@ -101,7 +101,7 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
       const origen=new URL(linkReserva).origin;
       const perfiles=await filas("profiles",tenantId,"id,tenant_id,name,booking_slug,active,role,also_attends_clients,slot_duration");
       if(!perfiles.some(r=>r.tenant_id!==tenantId)){
-       const lista:{id:string;nombre:string;link:string;duracionMin:number|null}[]=[];
+       const lista:{id:string;nombre:string;link:string;duracionMin:number|null;serviciosIds?:string[]|null}[]=[];
        for(const r of perfiles){
         const reservable=r.active===true&&(r.role==="barber"||((r.role==="admin"||r.role==="super_admin")&&r.also_attends_clients===true));
         const nombre=texto(r.name),corto=texto(r.booking_slug);
@@ -110,6 +110,15 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
         // Tiempo base del profesional (slot_duration) para calcular los huecos de la consulta de disponibilidad.
         lista.push({id,nombre,link:`${origen}/${slug}/${corto}-whatsapp`,duracionMin:Number.isInteger(r.slot_duration)&&r.slot_duration>=5&&r.slot_duration<=240?r.slot_duration:null});
        }
+       // Servicios que hace cada profesional (sin ninguno marcado = hace todos). Si la tabla falta, se asume que todos hacen todo.
+       try{
+        const as=await db.from("barber_service_assignments").select("barber_id,service_id").in("barber_id",lista.map(x=>x.id));
+        if(!as.error&&Array.isArray(as.data)){
+         const m=new Map<string,string[]>();
+         for(const x of as.data as any[])if(x&&typeof x.barber_id==="string"&&typeof x.service_id==="string"){const a=m.get(x.barber_id)??[];a.push(x.service_id);m.set(x.barber_id,a);}
+         for(const x of lista)x.serviciosIds=m.get(x.id)??null;
+        }
+       }catch{/* sin asignaciones: todos hacen todo */}
        profesionales=lista;
       }
      }

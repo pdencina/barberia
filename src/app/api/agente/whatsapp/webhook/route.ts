@@ -108,6 +108,13 @@ const handlers = () => crearManejadoresWebhook({
           return (ap.data ?? []).map((a: any) => ({ profesional: String(a.barber?.name ?? "Tu profesional"), fecha: String(a.date), hora: String(a.start_time).slice(11, 16) }));
         },
         crearReserva: async (tenantId, a) => {
+          // El servicio debe caber en el horario del profesional (un servicio de 3 horas no puede empezar a las 21:15 si cierra a las 22:00).
+          const svc = await db.from("services").select("duration").eq("id", a.servicioId).eq("tenant_id", tenantId).maybeSingle();
+          const dur = Number(svc.data?.duration);
+          if (Number.isInteger(dur) && dur > 0) {
+            const disp = await disponibilidadPublica(new Request(`https://interno.invalid/api/public/availability?barberId=${encodeURIComponent(a.profesionalId)}&date=${a.fecha}&duration=${dur}`) as any);
+            if (disp.ok) { const dj: any = await disp.json().catch(() => null); if (Array.isArray(dj?.slots) && !dj.slots.some((x: string) => String(x).slice(11, 16) === a.hora)) return { ok: false, motivo: "no_cabe" }; }
+          }
           const res = await reservaPublica(new Request("https://interno.invalid/api/public/book", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({
             serviceIds: [a.servicioId], barberId: a.profesionalId, date: a.fecha, startTime: `${a.fecha}T${a.hora}:00`, clientName: a.nombre, clientEmail: a.correo, clientPhone: formatPhoneCL(a.telefono) }) }) as any);
           const j: any = await res.json().catch(() => ({}));

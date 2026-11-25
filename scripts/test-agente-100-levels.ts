@@ -17,7 +17,7 @@ const SERV: [string, string, number, number][] = [
 ];
 const COMUN = ["s-dis", "s-cbc", "s-lav", "s-cc", "s-arr", "s-corte", "s-bs", "s-cbp", "s-tij", "s-ritual"];
 const ASIG: Record<string, string[]> = {
-  [P.enzo]: COMUN, [P.felipe]: COMUN, [P.vicente]: COMUN, [P.javier]: COMUN, [P.pablo]: COMUN, [P.bastian]: COMUN, [P.bleiner]: [...COMUN, "s-cej"],
+  [P.enzo]: COMUN, [P.felipe]: COMUN, [P.vicente]: COMUN, [P.javier]: [...COMUN, "s-rizos", "s-color", "s-visos"], [P.pablo]: COMUN, [P.bastian]: COMUN, [P.bleiner]: [...COMUN, "s-cej"],
   [P.dylan]: [...COMUN, "s-rizos"], [P.gabriel]: ["s-rizos", "s-cc", "s-arr", "s-corte", "s-bs", "s-lav"], [P.nico]: ["s-color", "s-visos", "s-clN", "s-corteN", "s-cbcN", "s-cejN", "s-ase", "s-cbp"],
 };
 // horario semanal por profesional: [dia, trabaja, desde, hasta] (dia 0 = domingo)
@@ -54,12 +54,13 @@ function crear() {
     tenants: [{ ...NEGOCIO, active: true }],
     business_hours: HORAS.map((h, i) => ({ id: `h${i}`, tenant_id: "T1", day_of_week: h[0], is_closed: false, open_time: h[1], close_time: h[2] })),
     services: SERV.map((s) => ({ id: s[0], tenant_id: "T1", name: s[1], price: s[2], duration: s[3], active: true })),
+    barber_service_assignments: Object.entries(ASIG).flatMap(([b, ss]) => ss.map((x) => ({ barber_id: b, service_id: x }))),
     branches: [], profiles: PROS.map((p) => ({ id: p[0], tenant_id: "T1", name: p[1], booking_slug: p[2], active: true, role: "barber", also_attends_clients: false, slot_duration: p[3] })), agent_faq_custom: [],
   };
   const db = { from(table: string) {
-    const filters: [string, unknown][] = []; let single = false, from = 0, to = 999;
-    const chain: any = { select: () => chain, eq: (k: string, v: unknown) => { filters.push([k, v]); return chain; }, order: () => chain, limit: () => chain, range: (a: number, b: number) => { from = a; to = b; return chain; }, maybeSingle: () => { single = true; return chain; },
-      then: (res: any) => { const rows = (tables[table] ?? []).filter((r) => filters.every(([k, v]) => r[k] === v)).slice(from, to + 1); res({ data: single ? rows[0] ?? null : rows, error: null }); } };
+    const filters: [string, any][] = []; let single = false, from = 0, to = 999;
+    const chain: any = { select: () => chain, in: (k: string, vals: unknown[]) => { filters.push([k, (x: unknown) => vals.includes(x)]); return chain; }, eq: (k: string, v: unknown) => { filters.push([k, v]); return chain; }, order: () => chain, limit: () => chain, range: (a: number, b: number) => { from = a; to = b; return chain; }, maybeSingle: () => { single = true; return chain; },
+      then: (res: any) => { const rows = (tables[table] ?? []).filter((r) => filters.every(([k, v]) => (typeof v === "function" ? (v as any)(r[k]) : r[k] === v))).slice(from, to + 1); res({ data: single ? rows[0] ?? null : rows, error: null }); } };
     return chain; } };
   const repoDatos = crearRepositorioDatosNegocio(db, { enlace: async () => `https://www.re-booking.cl/${NEGOCIO.slug}` });
   const deps: any = {
@@ -86,7 +87,7 @@ function crear() {
   };
   deps.chat = {
     leerEstado: async (t: string, c: string) => memoria.get(t + c) ?? null, guardarEstado: async (t: string, c: string, e: any) => { memoria.set(t + c, e); }, borrarEstado: async (t: string, c: string) => { memoria.delete(t + c); },
-    reservasFuturas: async () => citas.length, detalleFuturas: async () => [], crearReserva: async (_t: string, a: any) => { citas.push({ nombre: nombre(a.profesionalId), fecha: a.fecha, hora: a.hora }); return { ok: true, citaId: "c" + citas.length }; }, contar: async () => {},
+    reservasFuturas: async () => citas.length, detalleFuturas: async () => [], crearReserva: async (_t: string, a: any) => { const dur = SERV.find((x) => x[0] === a.servicioId)?.[3] ?? 45; const libres = (await deps.horasLibres(a.profesionalId, a.fecha, dur)).slots.map((x: string) => x.slice(11, 16)); if (!libres.includes(a.hora)) return { ok: false, motivo: "no_cabe" }; citas.push({ servicio: a.servicioId, nombre: nombre(a.profesionalId), fecha: a.fecha, hora: a.hora }); return { ok: true, citaId: "c" + citas.length }; }, contar: async () => {},
   };
   deps.conMenu = true; deps.conCta = true; deps.derivarAlTelefono = true;
   deps.ia = async () => null; // la IA no responde en el simulador: lo que le llegue se marca
@@ -94,7 +95,7 @@ function crear() {
   deps.serviciosPorProfesional = async (_t: string, ids: string[]) => Object.fromEntries(ids.map((i) => [i, ASIG[i] ?? null]));
   deps.horariosProfesionales = async (_t: string, ids: string[]) => ({ semana: Object.fromEntries(ids.map((i) => [i, SEMANA[i] ?? []])), vacaciones: Object.fromEntries(ids.map((i) => [i, VAC[i] ?? []])) });
   const h = crearManejadoresWebhook({ secretoFirma: secret, tokenVerificacion: "v", salHashes: salt, crearDependencias: () => deps });
-  return { async enviar(m: string) { const antes = sent.length; await h.POST(request(payload({ text: { body: m } }))); return sent.slice(antes).join("\n") || "(sin respuesta)"; } };
+  return { citas, async enviar(m: string) { const antes = sent.length; await h.POST(request(payload({ text: { body: m } }))); return sent.slice(antes).join("\n") || "(sin respuesta)"; } };
 }
 
 // ---- casos: [mensaje, debe incluir (regex), no debe incluir (regex)] agrupados en conversaciones (el estado se arrastra dentro de una conversación) ----
@@ -141,7 +142,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     ["quien hace visos?", [/Nicolás Levels/], [/Enzo/, /Gabriel/]],
     ["gabriel hace rizos?", [/Sí/, /Gabriel/]],
     ["dylan hace rizos?", [/Sí/, /Dylan/]],
-    ["quiero reservar risos", [/Gabriel/, /Dylan/], [/Enzo/, /Pablo/, /Dale! Elige una/]],
+    ["quiero reservar risos", [/Javier/, /Rizos/], [/Enzo/, /Pablo/, /Dale! Elige una/]],
     ["quiero reservar risos con enzo", [/Enzo Perez\*? no hace/, /Gabriel/], [/Con \*?Enzo Perez\*? hoy tengo/]],
     ["quien hace color?", [/Nicolás Levels/], [/Enzo/]],
     ["nicolas hace color global?", [/Sí/, /Nicolás/]],
@@ -169,6 +170,31 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     ["quiero reservar risos con enzo", [/no hace/], [/hoy tengo/]],
     ["a las 17:15", [], [/Te dejo la hora con Enzo/]],
   ] },
+  { titulo: "Rizos con Javier de punta a punta (errores: horas 20:30/21:15 para 3 h, 'rizo', y volvía a pedir el servicio)", casos: [
+    ["quiero reservar rizos", [/Rizos\/Ondulación permanentes/, /3 horas/, /Javier/], [/2[0-3]:\d\d/, /Enzo/, /\brizo\b/i]],
+    ["javier", [/Javier García/, /19:00/], [/2[0-3]:\d\d/]],
+    ["19:00", [/para \*Rizos\/Ondulación permanentes\*/, /nombre completo/i], [/qué servicio/i]],
+    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Rizos\/Ondulación permanentes/], [/Visos/, /qué servicio/i, /Último paso/]],
+  ] },
+  { titulo: "Pidió rizos al final con la hora de un servicio corto (error: agendó Visos 21:15 a 00:15)", casos: [
+    ["javier tiene hora hoy?", [/Javier García/]],
+    ["21:15", [/nombre completo/i]],
+    ["nicolas perez, nico@gmail.com, rizos", [/no alcanza/i], [/¡Listo/, /Visos/, /Último paso/]],
+  ] },
+  { titulo: "Visos no se confunde con rizos", casos: [
+    ["quiero reservar visos", [/Visos/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Dylan/, /\brizo\b/i]],
+    ["javier", [/Javier García/]],
+    ["19:00", [/para \*Visos\*/]],
+    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Visos/], [/Rizos/]],
+  ] },
+  { titulo: "Color global", casos: [["quiero agendar color global", [/Color Global/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Enzo/]]] },
+  { titulo: "Rizos sin 'quiero': pregunta directa", casos: [["tienen hora para rizos?", [/3 horas/, /Gabriel|Javier|Dylan/], [/Enzo/, /Pablo/]]] },
+  { titulo: "Rizos hoy a las 7 de la tarde", casos: [["rizos hoy a las 7 de la tarde", [/19:00/], [/2[0-3]:\d\d/]]] },
+  { titulo: "Rizos hoy 19:00", casos: [["rizos hoy a las 19:00", [/19:00/], [/2[0-3]:\d\d/]]] },
+  { titulo: "Rizos a las 8 de la noche (no cabe)", casos: [["rizos hoy a las 8 de la noche", [/no/i], [/Listo/]]] },
+  { titulo: "Javier 7 de la tarde", casos: [["javier tiene hora hoy a las 7 de la tarde?", [/19:00/]]] },
+  { titulo: "Rizos 7 tarde sin hoy", casos: [["tienen hora para rizos a las 7 de la tarde?", [/19:00/]]] },
+  { titulo: "Javier a las 7", casos: [["javier tiene hora hoy a las 7?", [/Javier/]]] },
   { titulo: "Primera pregunta sin 'hola' (no todos parten con hola)", casos: [
     ["que horario tienen?", [/lunes a viernes de 10:00 a 20:00/i]],
   ] },

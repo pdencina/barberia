@@ -14,11 +14,13 @@ export interface DependenciasDisponibilidad {
   profesionalPorDefecto?: string;
   /** Horas que ya se le dieron: "más tarde" / "más temprano" se miden contra ellas. */
   horasOfrecidas?: string[];
+  /** Servicio pedido ("rizos"): solo ofrece a quienes lo hacen y calcula los huecos con SU duración (3 horas), no con el tiempo base. */
+  servicio?: { id: string; nombre: string; duracionMin: number };
 }
 // Lo que se le ofreció al cliente, para que su siguiente mensaje ("quiero la de las 15:15") se entienda sin que nadie intervenga.
 // No guarda texto del cliente: solo profesional, fecha y horas libres ofrecidas.
 export interface OpcionOfrecida { id: string; nombre: string; duracionMin: number; fecha: string; horas: string[] }
-export interface Oferta { horaExacta: string | null; opciones: OpcionOfrecida[] }
+export interface Oferta { horaExacta: string | null; opciones: OpcionOfrecida[]; /** Servicio que pidió el cliente (se conserva hasta el cierre: no se le vuelve a preguntar). */ servicioId?: string }
 export type ResultadoDisponibilidad = { tipo: "respuesta"; texto: string; oferta?: Oferta } | { tipo: "sin_consulta" };
 
 export const MAX_HORAS_OFRECIDAS = 40;
@@ -170,7 +172,8 @@ function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = f
   // Con una oferta reciente, un horario suelto ("en la tarde", "a las 4", "más tarde") se entiende como seguimiento.
   const pide = PRIMER_DISPONIBLE.test(t) || (mencionados.length > 0 && hora !== null) || (PALABRA_HORA.test(t) && (mencionados.length > 0 || f.explicita || hora !== null || franja !== null || generica)) || (seguimiento && (franja !== null || hora !== null || relativo !== null || (f.explicita && t.split(" ").length <= 6)));
   if (!pide) return null;
-  return { fecha: f.fecha, fechaExplicita: f.explicita, hora, franja, profesionales: mencionados, relativo, ...(rango ? { rango } : {}) };
+  // Con una hora concreta ("a las 7 de la tarde") la franja solo sirve para saber si es am o pm: no se usa para filtrar (las 19:00 caen en "noche").
+  return { fecha: f.fecha, fechaExplicita: f.explicita, hora, franja: hora !== null && !rango ? null : franja, profesionales: mencionados, relativo, ...(rango ? { rango } : {}) };
 }
 
 // ---------- redacción (pensada para leerse bien en WhatsApp: nombres en negrita, una idea por línea, link en su propia línea)
@@ -196,7 +199,13 @@ async function responderDisponibilidadBase(texto: unknown, datos: DatosFaq | nul
   // En un seguimiento, la pregunta "¿Más tarde no tienen?" lleva un "no" que el filtro rechaza: se lee sin él.
   if (!t && deps.fechaPorDefecto && typeof texto === "string" && /\?\s*$/.test(texto.trim())) t = mensajeAdmitido(texto.replace(/\bno\b/gi, " "));
   if (!t) return SIN;
-  const perfiles = perfilesDe(datos);
+  let perfiles = perfilesDe(datos);
+  // Servicio pedido: solo quienes lo hacen, con la duración del servicio (un servicio de 3 horas no puede empezar a las 21:15 si cierra a las 22:00).
+  if (deps.servicio) {
+    const sv = deps.servicio;
+    const hacen = new Map((datos?.profesionales ?? []).map((p) => [p.id, p.serviciosIds] as const));
+    perfiles = perfiles.filter((p) => { const l = hacen.get(p.id); return !Array.isArray(l) || l.includes(sv.id); }).map((p) => ({ ...p, duracionMin: sv.duracionMin }));
+  }
   if (perfiles.length === 0) return SIN;
   // Solo el nombre de un profesional ("felipe meza", "con Matías"): se entiende como "¿tiene horas?" y se le muestran las suyas.
   {
@@ -365,5 +374,6 @@ export async function responderDisponibilidad(texto: unknown, datos: DatosFaq | 
   const r = await responderDisponibilidadBase(texto, datos, deps);
   if (r.tipo !== "respuesta") return r;
   const nota = notaHoraAmbigua(texto);
-  return nota ? { ...r, texto: `${nota}\n\n${r.texto}` } : r;
+  const conServicio = deps.servicio && r.oferta ? { ...r, oferta: { ...r.oferta, servicioId: deps.servicio.id } } : r;
+  return nota ? { ...conServicio, texto: `${nota}\n\n${conServicio.texto}` } : conServicio;
 }

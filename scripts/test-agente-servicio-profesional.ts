@@ -12,7 +12,7 @@ let x = r("quien hace rizos?"); ok("quien hace rizos", !!x && x.includes("Pablo"
 x = r("enzo hace rizos?"); ok("enzo no hace", !!x && /Enzo Perez\* no hace/.test(x), x ?? "");
 x = r("quiero reservar risos con enzo"); ok("reservar con enzo", !!x && /no hace/.test(x), x ?? "");
 x = r("pablo hace rizos?"); ok("pablo si", !!x && x.startsWith("Sí"), x ?? "");
-x = r("quiero reservar risos"); ok("reservar sin pro", !!x && x.includes("Pablo") && !x.includes("Enzo"), x ?? "");
+x = r("quiero reservar risos"); ok("reservar sin pro: lo resuelve la disponibilidad con el servicio", x === null, x ?? "");
 ok("corte no aplica", r("quiero un corte de cabello con enzo") === null);
 ok("hola no aplica", r("hola") === null);
 ok("precio no aplica", r("cuanto cuestan los visos?") === null, String(r("cuanto cuestan los visos?")));

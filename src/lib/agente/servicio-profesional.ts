@@ -58,6 +58,26 @@ export function responderServicioProfesional(texto: string, datos: DatosFaq | nu
   if (quien || (hace && /\b(se hace|hacen|hace)\b/.test(t))) {
     return `${servicio} ${quienes.length === 1 ? "lo hace" : "lo hacen"}:\n${lista(quienes)}${quienes.length === pros.length ? "" : `\n\n${quienes.length === 1 ? "Los demás profesionales no lo hacen" : "Los demás no lo hacen"}.`}\n\n¿Con quién te gustaría agendar? Dime el nombre${nombresOk.length ? ` (por ejemplo ${nombresOk[0]})` : ""} y te muestro sus horas.`;
   }
-  if (reserva && quienes.length < pros.length) return `${servicio} ${quienes.length === 1 ? "lo hace" : "lo hacen"}:\n${lista(quienes)}\n\n¿Con quién te gustaría agendar? Dime el nombre y te muestro sus horas.`;
   return null;
+}
+
+/** Servicio que el cliente nombra ("rizos", "visos", "color"): el catálogo real, con su duración. Si varios comparten la palabra, el que alguien hace. null si no nombra ninguno. */
+export function servicioPedido(texto: string, datos: DatosFaq | null): { id: string; nombre: string; duracionMin: number } | null {
+  if (!datos || typeof texto !== "string" || texto.length > 300) return null;
+  const pros = (datos.profesionales ?? []).filter((p) => p.id);
+  const ajenos = new Set(pros.flatMap((p) => palabras(p.nombre)));
+  const msg = palabras(texto);
+  const hallados = (datos.servicios ?? []).filter((s) => s.id && typeof s.duracionMin === "number" && tokensDe(s.nombre, ajenos).some((t) => msg.some((m) => calza(m, t))));
+  const conAlguien = hallados.filter((h) => pros.some((p) => !Array.isArray(p.serviciosIds) || p.serviciosIds.includes(h.id as string)));
+  const s = conAlguien[0];
+  return s ? { id: s.id as string, nombre: s.nombre.trim(), duracionMin: s.duracionMin as number } : null;
+}
+
+/** "*Rizos/Ondulación permanentes* (3 horas) lo hacen: Javier, Gabriel y Dylan." — para anteponer a las horas disponibles. */
+export function introServicio(sv: { id: string; nombre: string; duracionMin: number }, datos: DatosFaq | null): string | null {
+  const quienes = (datos?.profesionales ?? []).filter((p) => p.id && (!Array.isArray(p.serviciosIds) || p.serviciosIds.includes(sv.id))).map((p) => p.nombre.trim().split(" ").slice(0, 2).join(" "));
+  if (quienes.length === 0) return null;
+  const m = sv.duracionMin, dur = m >= 60 ? `${Math.floor(m / 60)} ${Math.floor(m / 60) === 1 ? "hora" : "horas"}${m % 60 ? ` y ${m % 60} min` : ""}` : `${m} min`;
+  const lista = quienes.length <= 1 ? quienes.join("") : `${quienes.slice(0, -1).join(", ")} y ${quienes[quienes.length - 1]}`;
+  return `*${sv.nombre.trim()}* (${dur}) ${quienes.length === 1 ? "lo hace" : "lo hacen"} ${lista}.`;
 }
