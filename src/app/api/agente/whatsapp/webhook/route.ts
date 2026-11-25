@@ -177,9 +177,13 @@ const handlers = () => crearManejadoresWebhook({
       horariosProfesionales: async (tenantId, ids) => {
         const r = await db.from("barber_schedule").select("barber_id,day_of_week,is_working,start_time,end_time").in("barber_id", ids);
         if (r.error) throw new Error("sin horarios");
-        const m: Record<string, any[]> = {};
-        for (const x of (r.data ?? []) as any[]) (m[x.barber_id] ??= []).push({ dia: Number(x.day_of_week), trabaja: x.is_working === true, desde: String(x.start_time ?? "00:00").slice(0, 5), hasta: String(x.end_time ?? "00:00").slice(0, 5) });
-        return m;
+        const semana: Record<string, any[]> = {};
+        for (const x of (r.data ?? []) as any[]) (semana[x.barber_id] ??= []).push({ dia: Number(x.day_of_week), trabaja: x.is_working === true, desde: String(x.start_time ?? "00:00").slice(0, 5), hasta: String(x.end_time ?? "00:00").slice(0, 5) });
+        // Vacaciones (migración 095): si la tabla falta, simplemente no hay vacaciones que mostrar.
+        const v = await db.from("professional_vacations").select("barber_id,start_date,end_date").eq("tenant_id", tenantId).in("barber_id", ids).gte("end_date", new Date(Date.now() - 86400000).toISOString().slice(0, 10));
+        const vacaciones: Record<string, any[]> = {};
+        if (!v.error) for (const x of (v.data ?? []) as any[]) (vacaciones[x.barber_id] ??= []).push({ desde: String(x.start_date).slice(0, 10), hasta: String(x.end_date).slice(0, 10) });
+        return { semana, vacaciones };
       },
       conversacionHumana: async (n, contactHash) => {
         const r = await db.from("agent_chats").select("id").eq("tenant_id", n.tenantId).eq("contact_hash", contactHash).eq("direccion", "saliente").like("texto", "[manual] %").gte("created_at", new Date(Date.now() - 12 * 3600000).toISOString()).limit(1);

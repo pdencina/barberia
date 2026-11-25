@@ -3,7 +3,10 @@
 import type { DatosFaq } from "./faq-fija";
 
 export interface TramoDia { dia: number; trabaja: boolean; desde: string; hasta: string }
-export type HorariosProfesionales = Record<string, TramoDia[]>;
+export interface Vacacion { desde: string; hasta: string }
+export interface HorariosProfesionales { semana: Record<string, TramoDia[]>; vacaciones: Record<string, Vacacion[]> }
+const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+const fechaLinda = (f: string) => `${Number(f.slice(8, 10))} de ${MESES[Number(f.slice(5, 7)) - 1]}`;
 
 const sin = (s: string) => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -25,17 +28,30 @@ export function resumenSemana(tr: TramoDia[]): string {
   return grupos.map((g) => `${g.dias.length === 1 ? DIAS[g.dias[0]] : g.dias.length === 2 ? `${DIAS[g.dias[0]]} y ${DIAS[g.dias[1]]}` : `${DIAS[g.dias[0]]} a ${DIAS[g.dias[g.dias.length - 1]]}`} de ${g.desde} a ${g.hasta}`).join("\n• ");
 }
 
-export function responderHorarioProfesional(texto: string, datos: DatosFaq | null, horarios: HorariosProfesionales, proxima?: (proId: string) => string | null): string | null {
+export function responderHorarioProfesional(texto: string, datos: DatosFaq | null, info: HorariosProfesionales, hoy: string, proxima?: (proId: string) => string | null): string | null {
+  const horarios = info.semana;
   if (!datos || typeof texto !== "string" || texto.length > 200) return null;
   const t = sin(texto).replace(/[¿?¡!.,]/g, " ").replace(/\s+/g, " ").trim();
   const palabras = t.split(" ");
   const pros = (datos.profesionales ?? []).filter((p) => p.id);
   const nombrados = pros.filter((p) => sin(p.nombre).split(/\s+/).filter((w) => w.length >= 3).some((w) => palabras.includes(w)));
   if (nombrados.length !== 1) return null; // ninguno o ambiguo: no se adivina
-  const horaDeDia = /\b(a que hora|hasta que hora|desde que hora|que horario|horario|turno|que dias|dias trabaja|dias atiende|cuando atiende|cuando trabaja|fines? de semana)\b/.test(t);
+  const horaDeDia = /\b(a que hora|hasta que hora|desde que hora|que horarios?|horarios?|turno|que dias|dias trabaja|dias atiende|cuando atiende|cuando trabaja|fines? de semana)\b/.test(t);
   const verbo = /\b(atiende|atienden|trabaja|trabajan|esta|estan|llega|entra|sale|cierra|abre)\b/.test(t);
   const franja = /\b(?:en|por|de) la (manana|tarde|noche)s?\b|\b(mananas|tardes|noches)\b/.exec(t);
   const diaN = palabras.map((w) => CLAVE[w]).find((d) => d !== undefined);
+  const libres = /\b(dias? libres?|dia libre|libra|libran|descansa|descansan|dias? de descanso|no trabaja|no atiende|vacaciones|de vacaciones)\b/.test(t);
+  if (libres) {
+    const p = nombrados[0], tr = horarios[p.id as string];
+    if (!tr || tr.length === 0) return null;
+    const nombre = `*${p.nombre}*`;
+    const dias = [1, 2, 3, 4, 5, 6, 0].filter((d) => !tr.some((x) => x.dia === d && x.trabaja));
+    const vac = (info.vacaciones[p.id as string] ?? []).filter((v) => v.hasta >= hoy).sort((a, b) => a.desde.localeCompare(b.desde)).slice(0, 3);
+    const partes = [dias.length === 0 ? `${nombre} trabaja todos los días de la semana.` : `${nombre} libra los ${dias.map((d) => DIAS[d]).join(", ").replace(/, ([^,]*)$/, " y $1")}.`];
+    partes.push(vac.length ? `Vacaciones próximas:\n${vac.map((v) => `• del ${fechaLinda(v.desde)} al ${fechaLinda(v.hasta)}`).join("\n")}` : "No tiene vacaciones agendadas.");
+    const cola = proxima?.(p.id as string); if (cola) partes.push(cola);
+    return partes.join("\n\n");
+  }
   // Una consulta de horas libres concretas ("tiene hora el sábado", "a las 5") es de disponibilidad, no de horario.
   if (/\b(hora|horas|cupo|cupos|disponible|disponibles|agendar|agendame|reservar|reserva)\b/.test(t) && !/\b(a que hora|hasta que hora|desde que hora)\b/.test(t)) return null;
   if (!horaDeDia && !(verbo && (franja || diaN !== undefined))) return null;

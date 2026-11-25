@@ -322,7 +322,7 @@ export function crearManejadoresWebhook(config: {
                           const hor = await deps.horariosProfesionales(n.tenantId,ids);
                           // Se resuelve la próxima hora libre solo del profesional nombrado (hasta 7 días), antes de redactar.
                           let proxima: Record<string,string> = {};
-                          const previa = responderHorarioProfesional(consulta,datosNegocio,hor);
+                          const previa = responderHorarioProfesional(consulta,datosNegocio,hor,ahoraChile(deps.ahora()).fecha);
                           if (previa && deps.horasLibres) {
                             const nom = (datosNegocio.profesionales ?? []).find((x) => x.id && previa.includes(`*${x.nombre}*`));
                             if (nom?.id) {
@@ -336,7 +336,7 @@ export function crearManejadoresWebhook(config: {
                               if (!proxima[nom.id]) proxima[nom.id] = "En los próximos 7 días no le veo horas libres.";
                             }
                           }
-                          const r = responderHorarioProfesional(consulta,datosNegocio,hor,(id) => proxima[id] ?? null);
+                          const r = responderHorarioProfesional(consulta,datosNegocio,hor,ahoraChile(deps.ahora()).fecha,(id) => proxima[id] ?? null);
                           if (r) { respuestaFaq = r; await contar("respuestas_automaticas"); }
                         }
                       } catch { /* sin ese dato se sigue con el flujo de siempre */ }
