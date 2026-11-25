@@ -66,6 +66,15 @@ function readAdParams(): Record<string, string> | null {
   } catch { return null; }
 }
 
+// Aspecto del negocio (tema y color principal) recordado de la visita anterior: se aplica de inmediato, antes de que cargue la página,
+// para que no se vea un instante el blanco con turquesa de siempre. La primera vez (sin recuerdo) la página espera unos instantes a tener los datos.
+const LOOK_PREFIX = "rb_look_";
+function slugDeLaRuta(): string {
+  const partes = window.location.pathname.split("/").filter(Boolean);
+  return (new URLSearchParams(window.location.search).get("tenant") || (partes[0] && partes[0] !== "booking" ? decodeURIComponent(partes[0]) : "")).toLowerCase();
+}
+const SCRIPT_LOOK = `(function(){try{var q=new URLSearchParams(location.search),p=location.pathname.split("/").filter(Boolean),s=(q.get("tenant")||(p[0]&&p[0]!=="booking"?decodeURIComponent(p[0]):"")).toLowerCase();if(!s)return;var raw=localStorage.getItem("${LOOK_PREFIX}"+s);if(!raw)return;var l=JSON.parse(raw),r=document.documentElement;if(l.theme){r.classList.toggle("dark",!!l.dark);r.dataset.colorTheme=l.theme}if(l.vars){for(var k in l.vars)r.style.setProperty(k,l.vars[k])}}catch(e){}})();`;
+
 export default function BookingPage() {
   const [step, setStep] = useState<Step>("barber");
   const [services, setServices] = useState<Service[]>([]);
@@ -137,6 +146,23 @@ export default function BookingPage() {
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
     return () => { for (const k of Object.keys(vars)) root.style.removeProperty(k); };
   }, [acento, colorTheme]);
+  // Recuerda el aspecto de este negocio para la próxima visita (se aplica antes de pintar). Solo con los datos ya cargados.
+  useEffect(() => {
+    if (!businessInfo) return;
+    try {
+      const slug = slugDeLaRuta();
+      if (!slug) return;
+      const vars = esHexAcento(acento) ? variablesDeAcento(acento, isDarkTheme(colorTheme)) : null;
+      if (!isAppTheme(colorTheme) && !vars) {
+        // El negocio ya no tiene aspecto propio: se limpia lo que pudo aplicar el recuerdo anterior.
+        localStorage.removeItem(LOOK_PREFIX + slug);
+        clearColorTheme(document.documentElement);
+        for (const k of ["--brand-blue", "--brand-accent", "--primary", "--ring"]) document.documentElement.style.removeProperty(k);
+        return;
+      }
+      localStorage.setItem(LOOK_PREFIX + slug, JSON.stringify({ theme: isAppTheme(colorTheme) ? colorTheme : null, dark: isDarkTheme(colorTheme), vars }));
+    } catch { /* sin almacenamiento: solo se pierde el recuerdo */ }
+  }, [businessInfo, colorTheme, acento]);
   const preselectSlot = useRef<string>(""); // hora elegida en la vista por horario
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(30);
@@ -156,6 +182,12 @@ export default function BookingPage() {
   const [autoAssigned, setAutoAssigned] = useState(false);
   const [closedDaysLoaded, setClosedDaysLoaded] = useState(false);
   const [tenantSlugState, setTenantSlugState] = useState<string>("");
+  const [aspectoListo, setAspectoListo] = useState(false);
+  useEffect(() => {
+    try { if (!slugDeLaRuta() || localStorage.getItem(LOOK_PREFIX + slugDeLaRuta())) { setAspectoListo(true); return; } } catch { setAspectoListo(true); return; }
+    const id = setTimeout(() => setAspectoListo(true), 1800); // tope: si los datos tardan, se muestra igual
+    return () => clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     // Get tenant slug from URL params
@@ -185,6 +217,7 @@ export default function BookingPage() {
           else { const q = new URLSearchParams(window.location.search); q.set("tenant", data.movedTo); window.location.replace(`${window.location.pathname}?${q.toString()}`); }
           return;
         }
+        setAspectoListo(true);
         if (data.name) {
           setBusinessName(data.name); setBusinessInfo(data);
           if (data.suspended) setBusinessSuspended(true);
@@ -510,7 +543,8 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="relative isolate min-h-screen bg-brand-light text-brand-dark">
+    <div className="relative isolate min-h-screen bg-brand-light text-brand-dark" style={{ opacity: aspectoListo ? 1 : 0, transition: "opacity .18s ease" }}>
+      <script dangerouslySetInnerHTML={{ __html: SCRIPT_LOOK }} />
       {!kioskoQ && <FormasFlotantes />}
       {pixelDelNegocio && <MetaPixel pixelId={pixelDelNegocio} business={businessName || "Este negocio"} viewContent="Reserva online" />}
       {pago && (
