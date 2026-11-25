@@ -316,7 +316,14 @@ async function responderDisponibilidadBase(texto: unknown, datos: DatosFaq | nul
         const horas = horasQ(rr, f);
         if (horas.length) prox = { f, horas };
       }
-      if (prox) { siguiente = `Su próxima disponibilidad es ${dia(prox.f)}:\n${horasTxt(cercanos(prox.horas, q.hora, MAX_HORAS))}`; opciones.push({ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: prox.f, horas: prox.horas.slice(0, MAX_HORAS_OFRECIDAS) }); }
+      // "Su hora más próxima" es desde HOY: si antes del día preguntado ya tiene horas ("preguntó por el martes y mañana tiene"), esa va primero.
+      let antes: { f: string; horas: string[] } | null = null;
+      for (let f = ahora.fecha, i = 0; f < q.fecha && i < MAX_DIAS_ADELANTE && !antes; f = sumar(f, 1), i++) {
+        const horas = horasQ(await consultar(P, f), f);
+        if (horas.length) antes = { f, horas };
+      }
+      if (antes) { siguiente = `Su hora más próxima es ${dia(antes.f)}:\n${horasTxt(cercanos(antes.horas, q.hora, MAX_HORAS))}${prox ? `\n\nDespués de esa fecha vuelve a tener horas ${dia(prox.f)}.` : ""}`; opciones.push({ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: antes.f, horas: antes.horas.slice(0, MAX_HORAS_OFRECIDAS) }); }
+      else if (prox) { siguiente = `Su próxima disponibilidad es ${dia(prox.f)}:\n${horasTxt(cercanos(prox.horas, q.hora, MAX_HORAS))}`; opciones.push({ id: P.id, nombre: P.nombre, duracionMin: P.duracionMin, fecha: prox.f, horas: prox.horas.slice(0, MAX_HORAS_OFRECIDAS) }); }
       else if (r.cerrado) siguiente = "No tiene horas disponibles en los próximos días.";
       else cabecera = `${N} no tiene horas disponibles ${dia(q.fecha)} ni en los próximos días.`;
     }

@@ -7,6 +7,7 @@ import { enlacesPedidos } from "./archivos";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
 import { responderPrecioServicio } from "./precio-servicio";
+import { responderMiCita, type BuscarCitas } from "./mi-cita";
 import { servicioPedido, introServicio } from "./servicio-profesional";
 import { responderServicioProfesional, type ServiciosPorProfesional } from "./servicio-profesional";
 import { responderHorarioProfesional, type HorariosProfesionales } from "./horario-profesional";
@@ -60,6 +61,8 @@ export interface DependenciasWebhook {
   serviciosPorProfesional?: (tenantId: string, ids: string[]) => Promise<ServiciosPorProfesional>;
   /** Horario de trabajo de cada profesional (Profesionales > Horario). Sin esto no se responde "¿Nicolás atiende en las mañanas?". */
   horariosProfesionales?: (tenantId: string, ids: string[]) => Promise<HorariosProfesionales>;
+  /** Citas próximas de un cliente por su correo o código de reserva. Sin esto no se responde "¿quedó agendada mi hora?". */
+  buscarCitas?: (tenantId: string, id: Parameters<BuscarCitas>[0]) => ReturnType<BuscarCitas>;
   /** Registro de conversaciones para que el dueño las revise (solo si el negocio lo encendió). Mejor esfuerzo: nunca debe romper la atención. */
   registrarChat?: (r: RegistroChat) => Promise<void>;
   /** true = el dueño le escribió a mano a este contacto hace poco: el agente no responde "No entendí"; lo que no sepa se lo pasa al dueño. */
@@ -258,6 +261,21 @@ export function crearManejadoresWebhook(config: {
                         respuestaFaq = mani; reiniciado = true;
                         await contar("respuestas_automaticas");
                       }
+                    }
+                    // 0c) "¿Quedó agendada mi hora?" / "no me llegó el correo": pide correo o código y revisa la agenda. No interviene mientras entrega sus datos para reservar.
+                    if (!reiniciado && deps.buscarCitas && tipo === "desconocido" && entradaTexto && !esBoton) {
+                      try {
+                        const estadoCita = chat ? await chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()) : null;
+                        if (estadoCita?.etapa !== "datos") {
+                          const mc = await responderMiCita(text,ahoraChile(deps.ahora()).fecha,(id) => deps.buscarCitas!(n.tenantId,id));
+                          if (mc) {
+                            respuestaFaq = mc.texto; reiniciado = true;
+                            if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria */ } }
+                            if (mc.sinResultado && deps.consultas) { try { await deps.consultas.abrir(n,p.remitenteHash,para,`No encuentro su hora: ${text}`.slice(0,300)); } catch { /* el aviso es un extra */ } }
+                            await contar("respuestas_automaticas");
+                          }
+                        }
+                      } catch { /* agenda no disponible: sigue el flujo de siempre */ }
                     }
                     // 1) Conversación de reserva en curso (elegir hora, enviar datos).
                     if (chat && !reiniciado) {
