@@ -611,10 +611,16 @@ export default function BookingPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-4 sm:py-6">
+      <div className={`mx-auto px-4 py-4 sm:py-6 ${businessInfo?.name && step !== "confirmed" && !kioskoQ ? "max-w-2xl lg:max-w-6xl lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-10 lg:items-start" : "max-w-2xl"}`}>
 
         {/* Perfil del negocio (banner, logo, estrellas, dirección, cómo llegar…) */}
-        {showProfile && businessInfo && <BusinessProfile info={businessInfo} />}
+        {/* PC: el perfil del negocio queda fijo a la izquierda en todos los pasos y la reserva usa el ancho de la pantalla; celular: igual que antes */}
+        {businessInfo?.name && step !== "confirmed" && (showProfile || !kioskoQ) && (
+          <div className={`${showProfile ? "" : "hidden lg:block"} lg:sticky lg:top-20`}>
+            <BusinessProfile info={businessInfo} />
+          </div>
+        )}
+        <div className="min-w-0">
 
         {/* Botón pequeño para cambiar de vista (solo si el negocio eligió "ambas") */}
         {step === "barber" && timeViewAllowed && professionalViewAllowed && (
@@ -1191,6 +1197,7 @@ export default function BookingPage() {
             </button>
           </div>
         )}
+      </div>
       </div>
 
       {businessInfo?.id && <ResenasCarrusel tenantId={businessInfo.id} />}
