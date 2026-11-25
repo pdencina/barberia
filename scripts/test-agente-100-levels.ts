@@ -87,7 +87,7 @@ function crear() {
   };
   deps.chat = {
     leerEstado: async (t: string, c: string) => memoria.get(t + c) ?? null, guardarEstado: async (t: string, c: string, e: any) => { memoria.set(t + c, e); }, borrarEstado: async (t: string, c: string) => { memoria.delete(t + c); },
-    reservasFuturas: async () => citas.length, detalleFuturas: async () => [], crearReserva: async (_t: string, a: any) => { const dur = SERV.find((x) => x[0] === a.servicioId)?.[3] ?? 45; const libres = (await deps.horasLibres(a.profesionalId, a.fecha, dur)).slots.map((x: string) => x.slice(11, 16)); if (!libres.includes(a.hora)) return { ok: false, motivo: "no_cabe" }; citas.push({ servicio: a.servicioId, nombre: nombre(a.profesionalId), fecha: a.fecha, hora: a.hora }); return { ok: true, citaId: "c" + citas.length }; }, contar: async () => {},
+    reservasFuturas: async () => citas.length, detalleFuturas: async () => [], crearReserva: async (_t: string, a: any) => { const dur = SERV.find((x) => x[0] === a.servicioId)?.[3] ?? 45; const libres = (await deps.horasLibres(a.profesionalId, a.fecha, dur)).slots.map((x: string) => x.slice(11, 16)); if (!libres.includes(a.hora)) return { ok: false, motivo: "no_cabe" }; citas.push({ servicio: a.servicioId, nombre: nombre(a.profesionalId), fecha: a.fecha, hora: a.hora }); return { ok: true, citaId: "c" + citas.length, codigo: "XFD4D" }; }, contar: async () => {},
   };
   deps.conMenu = true; deps.conCta = true; deps.derivarAlTelefono = true;
   deps.ia = async () => null; // la IA no responde en el simulador: lo que le llegue se marca
@@ -174,7 +174,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     ["quiero reservar rizos", [/Rizos\/Ondulación permanentes/, /3 horas/, /Javier/], [/2[0-3]:\d\d/, /Enzo/, /\brizo\b/i]],
     ["javier", [/Javier García/, /19:00/], [/2[0-3]:\d\d/]],
     ["19:00", [/para \*Rizos\/Ondulación permanentes\*/, /nombre completo/i], [/qué servicio/i]],
-    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Rizos\/Ondulación permanentes/], [/Visos/, /qué servicio/i, /Último paso/]],
+    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Rizos\/Ondulación permanentes/, /Tu código de reserva es: XFD4D/, /llegar unos minutos antes/], [/Visos/, /qué servicio/i, /Último paso/]],
   ] },
   { titulo: "Pidió rizos al final con la hora de un servicio corto (error: agendó Visos 21:15 a 00:15)", casos: [
     ["javier tiene hora hoy?", [/Javier García/]],
@@ -185,7 +185,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     ["quiero reservar visos", [/Visos/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Dylan/, /\brizo\b/i]],
     ["javier", [/Javier García/]],
     ["19:00", [/para \*Visos\*/]],
-    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Visos/], [/Rizos/]],
+    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Visos/, /código de reserva es: XFD4D/], [/Rizos/]],
   ] },
   { titulo: "Color global", casos: [["quiero agendar color global", [/Color Global/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Enzo/]]] },
   { titulo: "Rizos sin 'quiero': pregunta directa", casos: [["tienen hora para rizos?", [/3 horas/, /Gabriel|Javier|Dylan/], [/Enzo/, /Pablo/]]] },
