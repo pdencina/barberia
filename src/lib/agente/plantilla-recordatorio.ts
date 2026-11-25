@@ -26,3 +26,10 @@ export function variablesPlantillaConfirmacion(c:CitaRecordatorio,negocio:string
  const parts=fechaLarga.formatToParts(d),part=(type:string)=>parts.find(p=>p.type===type)!.value;
  return [primerNombre(c.client?.name),negocio||"el negocio",c.services.map(s=>s.service?.name).filter(Boolean).join(", ")||"tu servicio",c.barber?.name||"tu profesional",`${part("weekday")}, ${part("day")} de ${part("month")}`,hora];
 }
+
+/** Texto que recibe el cliente con cada plantilla de confirmación (para el registro de chats; debe calzar con lo aprobado en Meta). */
+export function textoPlantillaConfirmacion(conBotones:boolean,v:readonly string[]):string{
+ return conBotones
+  ?`Hola ${v[0]}! Te escribimos desde ${v[1]} para confirmar tu hora de ${v[2]} con ${v[3]} el ${v[4]} a las ${v[5]}. ¿Nos confirmas si asistirás? ¡Gracias!\n[Botones: Sí, confirmo mi cita · No, deseo cancelar mi cita · Modificar mi cita]`
+  :`Hola ${v[0]}! Tu hora en ${v[1]} quedó agendada: ${v[2]} con ${v[3]} el ${v[4]} a las ${v[5]}. Te recomendamos llegar unos minutos antes. Si necesitas ayuda con tu hora, puedes escribirnos por este mismo chat. ¡Te esperamos!`;
+}
