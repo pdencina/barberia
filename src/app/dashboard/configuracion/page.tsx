@@ -773,7 +773,7 @@ export default function ConfiguracionPage() {
       )}
 
       {/* Herramientas avanzadas: juntas en un solo desplegable para no llenar la pantalla */}
-      {isAdmin && (totemDesbloqueado || puedeCfg("boletaSii") || puedeCfg("honorarios") || puedeCfg("publicidad") || puedeCfg("agenteWhatsapp")) && (
+      {isAdmin && (
       <details className="group rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white shadow-sm">
         <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2">
           <span><span className="block text-sm font-semibold text-brand-dark">Más herramientas</span><span className="block text-[11px] text-brand-gray">Tótem, boletas, publicidad y WhatsApp</span></span>
@@ -839,13 +839,13 @@ export default function ConfiguracionPage() {
           <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
         </a>
       )}
-      {/* Conversaciones del agente de WhatsApp */}
-      {isAdmin && puedeCfg("agenteWhatsapp") && (
-        <a href="/dashboard/whatsapp-chats" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
+      {/* Mensajes de WhatsApp (textos de confirmación, abono, bienvenida). Las conversaciones del agente están en el menú principal. */}
+      {isAdmin && (
+        <a href="/dashboard/mi-negocio/mensajes" className="flex items-center gap-2 rounded-xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white px-3 py-2 transition-colors hover:border-brand-blue/40">
           <div className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg bg-brand-blue/10 text-brand-blue"><Globe className="h-4 w-4" /></div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-brand-dark">Conversaciones de WhatsApp</p>
-            <p className="truncate text-[11px] text-brand-gray">Mira lo que escriben los clientes y cómo responde el agente</p>
+            <p className="text-sm font-semibold text-brand-dark">Mensajes de WhatsApp</p>
+            <p className="truncate text-[11px] text-brand-gray">Cambia el texto de la confirmación, abono, bienvenida e información</p>
           </div>
           <span className="text-xs font-semibold text-brand-blue">Abrir →</span>
         </a>
