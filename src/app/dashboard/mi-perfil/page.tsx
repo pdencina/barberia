@@ -6,6 +6,8 @@ import { clearAppCache } from "@/lib/swr-cache";
 import { useState, useEffect } from "react";
 import { MyTabBarCard } from "@/components/settings/tab-bar-cards";
 import { InformeDiarioCard } from "@/components/settings/informe-diario-card";
+import { arriendoPuedeEditarHoy, MENSAJE_HORARIO_BLOQUEADO } from "@/lib/horario-arriendo";
+import { BarberScheduleEditor } from "@/components/barber-schedule-editor";
 import { useAuth } from "@/lib/auth-context";
 import { useTenant } from "@/lib/tenant-context";
 import { planPermite } from "@/lib/plan-access";
@@ -28,7 +30,7 @@ export default function MiPerfilPage() {
   const [data, setData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [tab, setTab] = useState<"datos" | "apariencia" | "seguridad" | "informes">("datos");
+  const [tab, setTab] = useState<"datos" | "horario" | "apariencia" | "seguridad" | "informes">("datos");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savingTheme, setSavingTheme] = useState(false);
   const router = useRouter();
@@ -272,10 +274,11 @@ export default function MiPerfilPage() {
       <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1" role="tablist">
         {([
           { key: "datos", label: "Mis datos" },
+          ...(user?.role === "barber" && (data as any)?.work_mode === "rental" ? [{ key: "horario", label: "Mi horario" }] : []),
           { key: "apariencia", label: "Apariencia" },
           { key: "seguridad", label: "Seguridad y avisos" },
           ...(user?.role === "admin" && !lite ? [{ key: "informes", label: "Informes" }] : []),
-        ] as ReadonlyArray<{ key: "datos" | "apariencia" | "seguridad" | "informes"; label: string }>).map((t) => (
+        ] as ReadonlyArray<{ key: "datos" | "horario" | "apariencia" | "seguridad" | "informes"; label: string }>).map((t) => (
           <button key={t.key} role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
             className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all ${
               tab === t.key ? "bg-brand-blue text-white shadow-md shadow-brand-blue/25" : "border border-gray-200 bg-white text-gray-500 hover:border-brand-blue/40 hover:text-gray-800"
@@ -286,6 +289,13 @@ export default function MiPerfilPage() {
       </div>
 
       {tab === "informes" && user?.role === "admin" && !lite && <InformeDiarioCard />}
+
+      {tab === "horario" && user?.role === "barber" && (data as any)?.work_mode === "rental" && user?.id && (
+        <div className="space-y-2">
+          <p className="text-xs text-brand-gray">Puedes cambiar tus días libres y tu horario solo los domingos y lunes, y el cambio vale para toda la semana (por ejemplo, pasar el martes al miércoles). Los clientes reservan solo en estas horas.</p>
+          <BarberScheduleEditor barberId={user.id} showToast={showToast} bloqueado={arriendoPuedeEditarHoy() ? undefined : MENSAJE_HORARIO_BLOQUEADO} />
+        </div>
+      )}
 
       <div className={tab === "datos" ? "space-y-3 md:space-y-6" : "hidden"}>
       {/* Basic info */}
