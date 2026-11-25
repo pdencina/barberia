@@ -7,6 +7,7 @@ import { enlacesPedidos } from "./archivos";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
 import { responderPrecioServicio } from "./precio-servicio";
+import { servicioPedido, introServicio } from "./servicio-profesional";
 import { responderServicioProfesional, type ServiciosPorProfesional } from "./servicio-profesional";
 import { responderHorarioProfesional, type HorariosProfesionales } from "./horario-profesional";
 import { responderDisponibilidad, ahoraChile, sumar, textoDeFecha, type DependenciasDisponibilidad } from "./disponibilidad";
@@ -359,9 +360,16 @@ export function crearManejadoresWebhook(config: {
                           const horaContexto = previo?.etapa === "datos" ? previo.datos.hora : previo?.etapa === "oferta" ? (previo.datos.horaPendiente ?? previo.datos.horaExacta ?? undefined) : undefined;
                           if (horaContexto && /\b(esa|misma|esta) hora\b/i.test(consulta)) consulta = consulta.replace(/\b(a )?(esa|misma|esta) hora\b/i, `a las ${horaContexto}`);
                           const unica = previo?.etapa === "oferta" && previo.datos.opciones.length === 1 ? previo.datos.opciones[0] : undefined;
-                          const d = await conTiempoMaximo(responderDisponibilidad(consulta,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres,...(fechaOferta ? { fechaPorDefecto: fechaOferta } : {}),...(unica ? { profesionalPorDefecto: unica.id, horasOfrecidas: unica.horas } : {})}),6000);
+                          // Servicio pedido ("quiero reservar rizos"): solo quienes lo hacen y con su duración; se conserva hasta el cierre.
+                          const svTxt = servicioPedido(consulta,datosNegocio);
+                          const svId = svTxt?.id ?? (previo?.etapa === "oferta" ? previo.datos.servicioId : undefined);
+                          const sv = svId ? (datosNegocio?.servicios ?? []).find((x) => x.id === svId) : undefined;
+                          const consultaDisp = svTxt ? `${consulta} tienen horas` : consulta;
+                          const d = await conTiempoMaximo(responderDisponibilidad(consultaDisp,datosNegocio,{ahora:deps.ahora,horasLibres:deps.horasLibres,...(sv && typeof sv.duracionMin === "number" ? { servicio: { id: svId as string, nombre: sv.nombre, duracionMin: sv.duracionMin } } : {}),...(fechaOferta ? { fechaPorDefecto: fechaOferta } : {}),...(unica ? { profesionalPorDefecto: unica.id, horasOfrecidas: unica.horas } : {})}),6000);
                           if (d.tipo === "respuesta") {
-                            respuestaFaq = d.texto;
+                            // Pidió un servicio: se le dice quiénes lo hacen y cuánto dura, antes de las horas.
+                            const intro = svTxt && sv && typeof sv.duracionMin === "number" ? introServicio({ id: svId as string, nombre: sv.nombre, duracionMin: sv.duracionMin },datosNegocio) : null;
+                            respuestaFaq = intro ? `${intro}\n\n${d.texto}` : d.texto;
                             await contar("consultas_disponibilidad");
                             if (chat && d.oferta) {
                               try { await chat.guardarEstado(n.tenantId,p.remitenteHash,{ etapa: "oferta", datos: d.oferta },deps.ahora() + VIGENCIA_MIN * 60000); await contar("ofertas_horas"); } catch { /* sin memoria: igual se muestra la respuesta */ }

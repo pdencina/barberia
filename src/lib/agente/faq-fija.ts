@@ -6,7 +6,7 @@ export interface DatosFaq {
  sucursales?:{id:string;nombre:string|null;direccion:string|null;horario:DatosFaq["horario"]}[]|null;
  // Profesionales que se pueden reservar y su link personal (re-booking.cl/<negocio>/<profesional>); null = no disponible.
  // id y duracionMin (tiempo base del profesional) los usa la consulta de disponibilidad.
- profesionales?:{id?:string;nombre:string;link:string;duracionMin?:number|null}[]|null;
+ profesionales?:{id?:string;nombre:string;link:string;duracionMin?:number|null;/** ids de servicio que hace (Profesionales > Servicios); null/ausente = todos */serviciosIds?:string[]|null}[]|null;
  // Preguntas y respuestas que escribe el administrador (curso, políticas, cómo llegar...). Tienen prioridad sobre las reglas fijas.
  personalizadas?:{id:string;claves:string[];respuesta:string}[]|null;
 }
