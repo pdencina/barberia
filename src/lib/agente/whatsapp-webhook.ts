@@ -388,7 +388,15 @@ export function crearManejadoresWebhook(config: {
 export function crearRepositorioWebhook(db: any, sal: string): RepositorioWebhook {
   const check = (r: any) => { if (r.error) { if (["42P01","42703","42883","PGRST202","PGRST204","PGRST205"].includes(r.error.code)) throw new MigracionWebhookPendiente(); throw new Error("Operación de webhook no disponible"); } return r; };
   return {
-    async negocio(id) { const r=check(await db.from("agent_whatsapp_settings").select("tenant_id,phone_number_id,enabled").eq("phone_number_id",id).maybeSingle()).data; return r ? {tenantId:r.tenant_id,phoneNumberId:r.phone_number_id,enabled:r.enabled===true} : null; },
+    async negocio(id) {
+      const r=check(await db.from("agent_whatsapp_settings").select("tenant_id,phone_number_id,enabled").eq("phone_number_id",id).maybeSingle()).data;
+      if (r) return {tenantId:r.tenant_id,phoneNumberId:r.phone_number_id,enabled:r.enabled===true};
+      // Segundo número del mismo negocio (migración 018): atiende igual y responde desde el número que recibió el mensaje.
+      // Si la columna no existe todavía, simplemente no hay segundo número (no es una migración pendiente del webhook).
+      const q=await db.from("agent_whatsapp_settings").select("tenant_id,phone_number_id_2,enabled").eq("phone_number_id_2",id).maybeSingle();
+      if (q.error) { if (["42703","PGRST204","PGRST205"].includes(q.error.code)) return null; throw new Error("Operación de webhook no disponible"); }
+      return q.data ? {tenantId:q.data.tenant_id,phoneNumberId:q.data.phone_number_id_2,enabled:q.data.enabled===true} : null;
+    },
     async admitir(e) { return check(await db.rpc("agent_claim_whatsapp_event",{p_event_key:e.key,p_tenant_id:e.tenantId,p_contact_hash:e.contactHash,p_message_hash:e.messageHash,p_received_at:new Date(e.ahora).toISOString()})).data; },
     async terminar(tenant,key,status) { check(await db.from("agent_whatsapp_events").update({status}).eq("tenant_id",tenant).eq("event_key",key).eq("status","procesando")); },
     async baja(tenant,hash) { return !!check(await db.from("agent_contact_optouts").select("id").eq("tenant_id",tenant).eq("contact_hash",hash).maybeSingle()).data; },
