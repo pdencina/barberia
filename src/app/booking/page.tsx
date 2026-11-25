@@ -11,7 +11,9 @@ import { SuccessMark } from "@/components/ui/empty-state";
 import MetaPixel from "@/components/meta-pixel";
 import { track, eventId } from "@/lib/meta-pixel";
 import { textoPoliticaAbono } from "@/lib/deposit-policy";
-import { applyColorTheme, clearColorTheme, isAppTheme } from "@/lib/themes";
+import { applyColorTheme, clearColorTheme, isAppTheme, isDarkTheme } from "@/lib/themes";
+import { esHexAcento, variablesDeAcento } from "@/lib/accent";
+import { FormasFlotantes } from "@/components/booking/formas-flotantes";
 
 interface Service {
   id: string;
@@ -124,6 +126,17 @@ export default function BookingPage() {
     applyColorTheme(document.documentElement, colorTheme);
     return () => clearColorTheme(document.documentElement);
   }, [colorTheme]);
+  // Color principal del negocio (migración 178). vista_color: el administrador lo prueba antes de guardar (solo cambia la vista).
+  const vistaColor = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("vista_color") : null;
+  const acento = esHexAcento(vistaColor ? `#${vistaColor}` : null) ? `#${vistaColor}` : (businessInfo as any)?.accent_color;
+  useEffect(() => {
+    if (!esHexAcento(acento)) return;
+    const vars = variablesDeAcento(acento, isDarkTheme(colorTheme));
+    if (!vars) return;
+    const root = document.documentElement;
+    for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
+    return () => { for (const k of Object.keys(vars)) root.style.removeProperty(k); };
+  }, [acento, colorTheme]);
   const preselectSlot = useRef<string>(""); // hora elegida en la vista por horario
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(30);
@@ -497,7 +510,8 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-brand-light text-brand-dark">
+    <div className="relative isolate min-h-screen bg-brand-light text-brand-dark">
+      {!kioskoQ && <FormasFlotantes />}
       {pixelDelNegocio && <MetaPixel pixelId={pixelDelNegocio} business={businessName || "Este negocio"} viewContent="Reserva online" />}
       {pago && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 p-4">

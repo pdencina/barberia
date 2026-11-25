@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { resolverTemaCliente } from "@/lib/client-theme";
+import { esHexAcento } from "@/lib/accent";
 
 // GET: información pública del negocio por slug (página de reservas).
 // Se selecciona "*" y se devuelve solo una lista blanca de campos, así funciona aunque la
@@ -25,6 +26,8 @@ function toPublic(t: any) {
     // Pixel propio del negocio (migracion 150). Solo el ID numerico, que es publico por naturaleza.
     // Colores del sistema para la página de reservas, solo si el negocio lo activó (migración 151).
     color_theme: resolverTemaCliente(t),
+    // Color principal elegido por el negocio (migración 178).
+    accent_color: esHexAcento(t.client_accent) ? t.client_accent : null,
     meta_pixel_id: /^\d{8,20}$/.test(String(t.meta_pixel_id || "")) ? String(t.meta_pixel_id) : null,
   };
 }

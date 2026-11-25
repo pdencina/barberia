@@ -1,0 +1,10 @@
+import assert from "node:assert";
+import { hexAHsl, variablesDeAcento, esHexAcento, ACENTOS } from "../src/lib/accent";
+assert.ok(esHexAcento("#C62828") && !esHexAcento("C62828") && !esHexAcento("#FFF") && !esHexAcento(null));
+const rojo = hexAHsl("#C62828")!; assert.ok(rojo.h <= 2 || rojo.h >= 358, "rojo tiene tono ~0"); assert.ok(rojo.s > 60);
+const dor = hexAHsl("#B8860B")!; assert.ok(dor.h >= 38 && dor.h <= 46, "dorado ~43");
+const claro = variablesDeAcento("#FFD54F", false)!; assert.ok(parseInt(claro["--brand-blue"].split(" ")[2]) <= 46, "en fondo claro se oscurece para leer el texto blanco");
+const osc = variablesDeAcento("#1F2937", true)!; assert.ok(parseInt(osc["--brand-blue"].split(" ")[2]) >= 52, "en fondo oscuro se aclara");
+assert.equal(variablesDeAcento("rojo", false), null);
+for (const a of ACENTOS) assert.ok(esHexAcento(a.hex), a.label);
+console.log("ok accent");

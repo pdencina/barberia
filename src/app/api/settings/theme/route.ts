@@ -1,4 +1,5 @@
 import { isAppTheme } from "@/lib/themes";
+import { esHexAcento } from "@/lib/accent";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant, resolveTenantForRequest } from "@/lib/supabase/server";
 
@@ -26,6 +27,17 @@ export async function POST(req: NextRequest) {
     const { error: e2 } = await createAdminSupabase().from("tenants").update({ client_theme_enabled: body.clientThemeEnabled }).eq("id", tid);
     if (e2) return NextResponse.json({ error: e2.code === "42703" ? "Falta aplicar la migración 151." : "No se pudo guardar" }, { status: e2.code === "42703" ? 503 : 500 });
     return NextResponse.json({ success: true, clientThemeEnabled: body.clientThemeEnabled });
+  }
+
+  // Color principal de la página de reservas (migración 178): #RRGGBB, o null = el de siempre.
+  if ("clientAccent" in (body || {})) {
+    if (body.clientAccent !== null && !esHexAcento(body.clientAccent)) return NextResponse.json({ error: "Color inválido" }, { status: 400 });
+    const { tenantId: tid, denied: den } = await resolveTenantForRequest(body.tenantId);
+    if (den) return NextResponse.json({ error: "No autorizado para ese negocio" }, { status: 403 });
+    if (!tid || tid === "ALL") return NextResponse.json({ error: "No se pudo determinar el negocio" }, { status: 400 });
+    const { error: e4 } = await createAdminSupabase().from("tenants").update({ client_accent: body.clientAccent }).eq("id", tid);
+    if (e4) return NextResponse.json({ error: e4.code === "42703" ? "Falta aplicar la migración 178." : "No se pudo guardar" }, { status: e4.code === "42703" ? 503 : 500 });
+    return NextResponse.json({ success: true, clientAccent: body.clientAccent });
   }
 
   // Diseño propio para los clientes (migración 177): un tema concreto, o null = el mismo del sistema.

@@ -3,8 +3,9 @@ import { MAIL_PALETTES } from "@/lib/mail-theme";
 import { type AppTheme, THEMES } from "@/lib/themes";
 
 // Vista previa (solo dibujo) de cómo se ven la página de reservas y el correo de confirmación con el tema elegido.
-export function ClientThemePreview({ theme, businessName }: { theme: AppTheme; businessName: string }) {
-  const p = MAIL_PALETTES[theme];
+export function ClientThemePreview({ theme, businessName, accent }: { theme: AppTheme; businessName: string; accent?: string | null }) {
+  const base = MAIL_PALETTES[theme];
+  const p = accent ? { ...base, accent, onAccent: "#ffffff" } : base;
   const label = THEMES.find((t) => t.value === theme)?.label || "";
   const nombre = businessName || "Tu negocio";
   return (
