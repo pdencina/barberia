@@ -55,7 +55,7 @@ function crear() {
     business_hours: HORAS.map((h, i) => ({ id: `h${i}`, tenant_id: "T1", day_of_week: h[0], is_closed: false, open_time: h[1], close_time: h[2] })),
     services: SERV.map((s) => ({ id: s[0], tenant_id: "T1", name: s[1], price: s[2], duration: s[3], active: true })),
     barber_service_assignments: Object.entries(ASIG).flatMap(([b, ss]) => ss.map((x) => ({ barber_id: b, service_id: x }))),
-    branches: [], profiles: PROS.map((p) => ({ id: p[0], tenant_id: "T1", name: p[1], booking_slug: p[2], active: true, role: "barber", also_attends_clients: false, slot_duration: p[3] })), agent_faq_custom: [],
+    branches: [], profiles: PROS.map((p) => ({ id: p[0], tenant_id: "T1", name: p[1], booking_slug: p[2], active: true, role: "barber", also_attends_clients: false, slot_duration: p[3] })), agent_faq_custom: [{ id: "abono", tenant_id: "T1", activo: true, orden: 1, claves: ["reservar visos", "reservar rizos", "reservar color global", "reservar ondulacion", "abono rizos"], respuesta: "Para reservar un trabajo químico se abona $15.000 por transferencia (datos de prueba)." }],
   };
   const db = { from(table: string) {
     const filters: [string, any][] = []; let single = false, from = 0, to = 999;
@@ -170,22 +170,25 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     ["quiero reservar risos con enzo", [/no hace/], [/hoy tengo/]],
     ["a las 17:15", [], [/Te dejo la hora con Enzo/]],
   ] },
-  { titulo: "Rizos con Javier de punta a punta (errores: horas 20:30/21:15 para 3 h, 'rizo', y volvía a pedir el servicio)", casos: [
+  { titulo: "Rizos con Javier: se reserva con abono, no se agenda solo", casos: [
     ["quiero reservar rizos", [/Rizos\/Ondulación permanentes/, /3 horas/, /Javier/], [/2[0-3]:\d\d/, /Enzo/, /\brizo\b/i]],
     ["javier", [/Javier García/, /19:00/], [/2[0-3]:\d\d/]],
-    ["19:00", [/para \*Rizos\/Ondulación permanentes\*/, /nombre completo/i], [/qué servicio/i]],
-    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Rizos\/Ondulación permanentes/, /Tu código de reserva es: XFD4D/, /llegar unos minutos antes/], [/Visos/, /qué servicio/i, /Último paso/]],
+    ["19:00", [/se reserva con abono/, /15\.000/, /todavía no está agendada/, /comprobante/], [/¿cuál es tu nombre/i, /¡Listo/, /código de reserva/i]],
   ] },
   { titulo: "Pidió rizos al final con la hora de un servicio corto (error: agendó Visos 21:15 a 00:15)", casos: [
     ["javier tiene hora hoy?", [/Javier García/]],
     ["21:15", [/nombre completo/i]],
-    ["nicolas perez, nico@gmail.com, rizos", [/no alcanza/i], [/¡Listo/, /Visos/, /Último paso/]],
+    ["nicolas perez, nico@gmail.com, rizos", [/abono/i], [/¡Listo/, /Visos/, /Último paso/]],
   ] },
-  { titulo: "Visos no se confunde con rizos", casos: [
+  { titulo: "Visos no se confunde con rizos y pide abono", casos: [
     ["quiero reservar visos", [/Visos/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Dylan/, /\brizo\b/i]],
     ["javier", [/Javier García/]],
-    ["19:00", [/para \*Visos\*/]],
-    ["nicolas perez, nico@gmail.com", [/¡Listo/, /Visos/, /código de reserva es: XFD4D/], [/Rizos/]],
+    ["19:00", [/\*Visos\* con \*Javier García\*/, /abono/], [/Rizos/, /¡Listo/]],
+  ] },
+  { titulo: "Un corte NO pide abono y trae código", casos: [
+    ["javier tiene hora hoy?", [/Javier García/]],
+    ["19:00", [/nombre completo/i], [/abono/i]],
+    ["nicolas perez, nico@gmail.com, corte de cabello", [/¡Listo/, /Tu código de reserva es: XFD4D/, /llegar unos minutos antes/], [/abono/i]],
   ] },
   { titulo: "Color global", casos: [["quiero agendar color global", [/Color Global/, /3 horas/, /Nicolás/, /Javier/], [/Gabriel/, /Enzo/]]] },
   { titulo: "Rizos sin 'quiero': pregunta directa", casos: [["tienen hora para rizos?", [/3 horas/, /Gabriel|Javier|Dylan/], [/Enzo/, /Pablo/]]] },

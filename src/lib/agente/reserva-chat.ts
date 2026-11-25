@@ -6,6 +6,7 @@ import { normalizar, mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fi
 import { ahoraChile, textoDeFecha, type Oferta } from "./disponibilidad";
 import { palabraCalza } from "./nombres";
 import { sonido } from "./servicio-profesional";
+import { textoDeAbono } from "./abono";
 // Para nombres de servicio no vale el parecido por distancia ("rizos" ≠ "visos"): solo igual, mismo sonido o prefijo de 4+ letras.
 const servCalza = (w: string, tok: string) => { const a = sonido(w), b = sonido(tok); return a === b || (Math.min(a.length, b.length) >= 4 && (a.startsWith(b) || b.startsWith(a))); };
 
@@ -34,6 +35,8 @@ export interface DependenciasReserva {
   precargado?: () => Promise<{ cliente: string; correo: string; servicioId: string } | null>;
   /** Se llama con la cita nueva ya creada: cancela la anterior. */
   alReprogramar?: (citaNuevaId: string) => Promise<void>;
+  /** Avisa al equipo que hay una hora esperando abono (para que la agenden al recibir el comprobante). */
+  avisarAbono?: (resumen: string) => Promise<void>;
 }
 /** Lista de WhatsApp para elegir tocando (los ids r1..r8 se traducen a "1".."8"). */
 export interface ListaReserva { cuerpo: string; boton: string; filas: Array<{ id: string; title: string; description?: string }> }
@@ -117,6 +120,14 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
   const hoy = ahoraChile(deps.ahora()).fecha;
   const t = normalizar(texto).replace(/\s+/g, " ").trim();
 
+  // Servicio que se reserva con abono (rizos, visos, color...): no se agenda solo; se dan los datos y se avisa al equipo.
+  const pedirAbono = async (servicio: string, abono: string, profesional: string, fecha: string, hora: string): Promise<RespuestaReserva> => {
+    await deps.borrarEstado();
+    const cuando = `${textoDeFecha(fecha, hoy)} a las ${hora}`;
+    try { await deps.avisarAbono?.(`Hora esperando abono: ${servicio} con ${profesional}, ${cuando} (${fecha}).`); } catch { /* el aviso es un extra: el cliente igual recibe los datos */ }
+    return { texto: `*${servicio}* con *${profesional}* ${textoDeFecha(fecha, hoy)} a las *${hora}* se reserva con abono.\n\n${abono}\n\n*Tu hora todavía no está agendada.* Cuando transfieras, envía el comprobante por este chat con tu nombre completo: el equipo lo revisa y te confirma.` };
+  };
+
   // Pasa a pedir nombre, correo y servicio para la hora ya elegida.
   const empezarDatos = async (e: { id: string; nombre: string; duracionMin: number; fecha: string; hora: string }, nota?: string): Promise<RespuestaReserva> => {
     // Cambio de hora: ya se conocen nombre, correo y servicio de la cita anterior; se agenda de inmediato y se cancela la anterior.
@@ -142,6 +153,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     const pedido = estado.etapa === "oferta" ? estado.datos.servicioId : undefined;
     const elegido = pedido ? serviciosElegibles(datos, e.nombre).find((x) => x.id === pedido) : undefined;
     if (elegido) servicios = [elegido];
+    const abono = elegido ? textoDeAbono(elegido.nombre, datos) : null;
+    if (elegido && abono) return await pedirAbono(elegido.nombre, abono, e.nombre, e.fecha, e.hora);
     await deps.guardarEstado({ etapa: "datos", datos: { id: e.id, nombre: e.nombre, duracionMin: e.duracionMin, fecha: e.fecha, hora: e.hora, intentos: 0, ...(elegido?.id ? { servicioId: elegido.id } : {}) } });
     await deps.contar("reservas_iniciadas");
     return { texto: `${nota ? nota + "\n\n" : ""}${pedirDatos(e.nombre, textoDeFecha(e.fecha, hoy), e.hora, servicios, elegido?.nombre)}` };
@@ -337,6 +350,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     if (!servicio && ambiguos) return await siguientePaso({ ...base, opcionesServicio: ambiguos.map((x) => x.id!).filter(Boolean) }, true, ambiguos, deps, "Hay más de uno parecido, ¿cuál de estos?");
     return await siguientePaso(base, progreso, sel.opcionesServicio?.length ? (sel.opcionesServicio.map((id) => todosServicios.find((x) => x.id === id)).filter(Boolean) as typeof servicios) : servicios, deps);
   }
+  const abonoFinal = textoDeAbono(servicio.nombre, datos);
+  if (abonoFinal) return await pedirAbono(servicio.nombre, abonoFinal, sel.nombre, sel.fecha, sel.hora);
   const r = await deps.crearReserva({ profesionalId: sel.id, fecha: sel.fecha, hora: sel.hora, servicioId: servicio.id!, nombre, correo, telefono });
   await deps.borrarEstado();
   if (r.ok) {

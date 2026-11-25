@@ -273,6 +273,7 @@ export function crearManejadoresWebhook(config: {
                           contar,
                           ...(chat.precargado ? { precargado: () => chat.precargado!(n.tenantId,p.remitenteHash,deps.ahora()) } : {}),
                           ...(chat.alReprogramar ? { alReprogramar: (id: string) => chat.alReprogramar!(n.tenantId,p.remitenteHash,id,deps.ahora()) } : {}),
+                          ...(deps.consultas ? { avisarAbono: async (t: string) => { await deps.consultas!.abrir(n,p.remitenteHash,para,t); } } : {}),
                         });
                         if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; listaChat = rc.lista ?? null; }
                       } catch { /* memoria o agenda no disponible: se sigue como antes */ }
@@ -398,6 +399,7 @@ export function crearManejadoresWebhook(config: {
                                     contar,
                                     ...(chat.precargado ? { precargado: () => chat.precargado!(n.tenantId,p.remitenteHash,deps.ahora()) } : {}),
                                     ...(chat.alReprogramar ? { alReprogramar: (id: string) => chat.alReprogramar!(n.tenantId,p.remitenteHash,id,deps.ahora()) } : {}),
+                                    ...(deps.consultas ? { avisarAbono: async (t: string) => { await deps.consultas!.abrir(n,p.remitenteHash,para,t); } } : {}),
                                   });
                                   if (rc) { respuestaFaq = rc.texto; derivarChat = !!rc.derivar; }
                                 } catch { /* se deja la respuesta de disponibilidad */ }
