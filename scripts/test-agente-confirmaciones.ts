@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { crearManejadorRecordatorios, crearRepositorioRecordatorios, ventanaConfirmaciones, conBotonesSegunPlazo, anticipacionCita, type CitaRecordatorio, type DependenciasRecordatorios } from "../src/lib/agente/recordatorios-whatsapp";
 import { variablesPlantillaConfirmacion, BOTONES_CONFIRMACION, PLANTILLA_CONFIRMACION_BOTONES, PLANTILLA_CITA_AVISO } from "../src/lib/agente/plantilla-recordatorio";
-import { enviarPlantilla } from "../src/lib/agente/whatsapp-meta";
+import { enviarPlantilla, normalizarTelefonoWhatsApp } from "../src/lib/agente/whatsapp-meta";
 import { clasificarRespuestaCliente } from "../src/lib/agente/respuesta-cliente";
 import { cancelarCitaPropia, confirmarCitaPropia, type CitaAccion } from "../src/lib/agente/acciones-cita";
 
@@ -121,6 +121,15 @@ function armar(filas: CitaRecordatorio[], conInterruptor = true) {
     const act = await repo.actual(filas[0]); assert.equal(act!.reminder_sent, false);
     assert.equal(await repo.marcarRecordatorio(filas[0], AHORA), true);
     for (const l of llamadas) { assert.ok(!String(l.select ?? "").includes("reminder_sent"), "no pide la columna"); assert.ok(!l.filtros.includes("reminder_sent"), "no la filtra"); assert.ok(!l.update, "no escribe"); }
+  });
+  await caso("Teléfonos pegados desde el celular (con marcas invisibles) se aceptan; letras u otros símbolos siguen rechazados", () => {
+    assert.equal(normalizarTelefonoWhatsApp("\u202a+56 9 1234 0468\u202c"), "56912340468");
+    assert.equal(normalizarTelefonoWhatsApp("\u200e+56 9 1234 0468"), "56912340468");
+    assert.equal(normalizarTelefonoWhatsApp("+56 9 1234 0468"), "56912340468");
+    assert.equal(normalizarTelefonoWhatsApp("9 1234 0468"), "56912340468");
+    assert.equal(normalizarTelefonoWhatsApp("+56 9 1234 04x8"), null);
+    assert.equal(normalizarTelefonoWhatsApp("\u202a\u202c"), null);
+    assert.equal(normalizarTelefonoWhatsApp(null), null);
   });
   console.log(`OK ${casos} casos de confirmación por WhatsApp; sin red, base ni llaves.`);
 })().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });
