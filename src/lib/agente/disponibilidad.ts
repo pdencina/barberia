@@ -168,7 +168,7 @@ function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = f
   const rel = /\bm[aá]s (tarde|temprano)\b/.exec(t);
   const relativo: "despues" | "antes" | null = rel ? (rel[1] === "tarde" ? "despues" : "antes") : null;
   // Con una oferta reciente, un horario suelto ("en la tarde", "a las 4", "más tarde") se entiende como seguimiento.
-  const pide = PRIMER_DISPONIBLE.test(t) || (mencionados.length > 0 && hora !== null) || (PALABRA_HORA.test(t) && (mencionados.length > 0 || f.explicita || hora !== null || franja !== null || generica)) || (seguimiento && (franja !== null || hora !== null || relativo !== null));
+  const pide = PRIMER_DISPONIBLE.test(t) || (mencionados.length > 0 && hora !== null) || (PALABRA_HORA.test(t) && (mencionados.length > 0 || f.explicita || hora !== null || franja !== null || generica)) || (seguimiento && (franja !== null || hora !== null || relativo !== null || (f.explicita && t.split(" ").length <= 6)));
   if (!pide) return null;
   return { fecha: f.fecha, fechaExplicita: f.explicita, hora, franja, profesionales: mencionados, relativo, ...(rango ? { rango } : {}) };
 }

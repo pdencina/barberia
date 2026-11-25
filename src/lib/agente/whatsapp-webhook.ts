@@ -54,6 +54,8 @@ export interface DependenciasWebhook {
   };
   /** Registro de conversaciones para que el dueño las revise (solo si el negocio lo encendió). Mejor esfuerzo: nunca debe romper la atención. */
   registrarChat?: (r: RegistroChat) => Promise<void>;
+  /** true = el dueño le escribió a mano a este contacto hace poco: el agente no responde "No entendí"; lo que no sepa se lo pasa al dueño. */
+  conversacionHumana?: (n: NegocioWebhook, contactHash: string) => Promise<boolean>;
   // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
   ia?: (tenantId: string, texto: string, datos: DatosFaq | null, contactHash?: string) => Promise<string | null>;
   // true: las respuestas informativas (reglas e IA) terminan con "¿Quieres agendar? Reserva aquí: <link>". Apagado si no se indica.
@@ -375,8 +377,11 @@ export function crearManejadoresWebhook(config: {
                 } else if (deps.conMenu && tipo === "desconocido" && entradaTexto && typeof text === "string" && !desdeMenu && !esConsultaLarga(text)) {
                   // Una pregunta de verdad (con "?" y 3 palabras o más) que nada supo responder: se la consulta al dueño. Si no se puede, el menú de siempre.
                   let consultada = false;
-                  if (deps.consultas && esConsultable(text)) { try { consultada = await deps.consultas.abrir(n,p.remitenteHash,para,text); } catch { consultada = false; } }
+                  let humana = false;
+                  if (deps.conversacionHumana) { try { humana = await deps.conversacionHumana(n,p.remitenteHash); } catch { humana = false; } }
+                  if (deps.consultas && (humana || esConsultable(text))) { try { consultada = await deps.consultas.abrir(n,p.remitenteHash,para,text); } catch { consultada = false; } }
                   if (consultada) { await responder(TEXTO_AL_CLIENTE); await contar("derivadas_persona"); }
+                  else if (humana) { await contar("derivadas_persona"); } // el dueño ya está atendiendo a mano: no se le tira el menú
                   else {
                   // No entendido o solo saluda: opciones en vez de derivar (no se avisa al administrador).
                   await responder(textoMenu(datosMenu, esSaludo(text) ? "saludo" : "no_entendi"));

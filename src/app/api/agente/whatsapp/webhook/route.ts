@@ -166,6 +166,11 @@ const handlers = () => crearManejadoresWebhook({
       },
       derivarAlTelefono: true,
       registrarChat: async (r) => { await registrarChat(db, r); if (Math.random() < 0.01) await purgarChats(db); },
+      // El dueño le escribió a mano en las últimas 12 h (panel de conversaciones): el agente no tira el menú.
+      conversacionHumana: async (n, contactHash) => {
+        const r = await db.from("agent_chats").select("id").eq("tenant_id", n.tenantId).eq("contact_hash", contactHash).eq("direccion", "saliente").like("texto", "[manual] %").gte("created_at", new Date(Date.now() - 12 * 3600000).toISOString()).limit(1);
+        return !r.error && (r.data?.length ?? 0) > 0;
+      },
       // Consultas difíciles (migración 016): el agente se las pasa al dueño por WhatsApp, redacta la respuesta con su instrucción y la guarda.
       consultas: (() => {
         const meta = (n: { phoneNumberId: string }) => ({ token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "", phone_number_id: n.phoneNumberId, fetch: (url: any, options: any) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }) });
