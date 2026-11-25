@@ -228,6 +228,8 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     const conNombre = mejoresCoincidencias(t, elegidas);
     if (conNombre.length > 0) elegidas = conNombre;
     const resumen = () => op.slice(0, 4).map((o) => `• *${o.nombre}* ${textoDeFecha(o.fecha, hoy)}: ${o.horas.slice(0, 3).join(" · ")}`).join("\n");
+    // Pidió una hora concreta que no está entre las mostradas (solo se muestran algunas): se consulta la disponibilidad real en vez de decir que no existe.
+    if (elegidas.length === 0 && /\b(?:a la|a las)\s+\d|\b\d{1,2}:\d{2}\b/.test(t)) return null;
     if (elegidas.length === 0) return { texto: `Esa hora no está entre las que te ofrecí. Estas son las opciones:\n${resumen()}\n\nEscríbeme la hora que prefieras, por ejemplo: «la de las ${op[0].horas[0]}».` };
     if (elegidas.length > 1) {
       // Eligió solo la hora y hay varios profesionales: NO se elige por el cliente; se le muestran para que toque uno.
