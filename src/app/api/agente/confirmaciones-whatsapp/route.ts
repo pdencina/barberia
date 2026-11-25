@@ -29,7 +29,7 @@ export const GET = crearManejadorRecordatorios({
       nombres.set(tenantId, n); return n;
     };
     return {
-      repo: crearRepositorioRecordatorios(db), ahora: Date.now,
+      repo: crearRepositorioRecordatorios(db, { sinMarca: true }), ahora: Date.now,
       sal: process.env.AGENTE_CONTACT_HASH_SALT ?? "",
       tieneCuota: async (tenant, canal) => {
         if (canal === "whatsapp") { const c = await hayCreditos(tenant, "utility", db); if (c !== null) return c; }

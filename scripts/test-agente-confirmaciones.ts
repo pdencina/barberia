@@ -1,7 +1,7 @@
 // Confirmación de citas por WhatsApp: ventana de 8 h, botones según el plazo (3 h), solo pendientes y solo negocios con el interruptor. Sin red, base ni llaves.
 // Ejecutar: npx tsx scripts/test-agente-confirmaciones.ts
 import assert from "node:assert/strict";
-import { crearManejadorRecordatorios, ventanaConfirmaciones, conBotonesSegunPlazo, anticipacionCita, type CitaRecordatorio, type DependenciasRecordatorios } from "../src/lib/agente/recordatorios-whatsapp";
+import { crearManejadorRecordatorios, crearRepositorioRecordatorios, ventanaConfirmaciones, conBotonesSegunPlazo, anticipacionCita, type CitaRecordatorio, type DependenciasRecordatorios } from "../src/lib/agente/recordatorios-whatsapp";
 import { variablesPlantillaConfirmacion, BOTONES_CONFIRMACION, PLANTILLA_CONFIRMACION_BOTONES, PLANTILLA_CITA_AVISO } from "../src/lib/agente/plantilla-recordatorio";
 import { enviarPlantilla } from "../src/lib/agente/whatsapp-meta";
 import { clasificarRespuestaCliente } from "../src/lib/agente/respuesta-cliente";
@@ -103,6 +103,24 @@ function armar(filas: CitaRecordatorio[], conInterruptor = true) {
     const exacto = mk("19:00"); assert.equal((await cancelarCitaPropia(ctx, exacto.deps)).motivo, "ok", "3 h justas todavía sí");
     const ok = mk("19:05"); assert.equal((await cancelarCitaPropia(ctx, ok.deps)).motivo, "ok"); assert.equal(ok.cambios(), 1);
     const conf = mk("17:30"); assert.equal((await confirmarCitaPropia(ctx, conf.deps)).motivo, "ok", "confirmar sí se puede con menos de 3 h");
+  });
+  await caso("Sin la columna reminder_sent (producción): el repositorio no la pide ni la filtra ni la escribe", async () => {
+    const llamadas: any[] = [];
+    const fila = { id: "a1", tenant_id: "T", client_id: "c1", status: "scheduled", date: "2026-11-25", start_time: "2026-11-25T20:00:00.000Z", client: { id: "c1", tenant_id: "T", name: "X", email: null, phone: "+56911112222" }, barber: { name: "N" }, services: [] };
+    const db: any = { from(tabla: string) {
+      const l: any = { tabla, filtros: [] }; llamadas.push(l);
+      const q: any = {
+        select(c: string) { l.select = c; return q; }, eq(c: string, v: unknown) { l.filtros.push(c); return q; }, in() { return q; }, gte() { return q; }, lte() { return q; },
+        order() { return q; }, update() { l.update = true; return q; },
+        range: async () => ({ data: [fila], error: null }), maybeSingle: async () => ({ data: fila, error: null }),
+      }; return q;
+    } };
+    const repo = crearRepositorioRecordatorios(db, { sinMarca: true });
+    const filas = await repo.citas("T", { desde: "2026-11-25T16:00:00.000Z", hasta: "2026-11-26T00:00:00.000Z" });
+    assert.equal(filas[0].reminder_sent, false);
+    const act = await repo.actual(filas[0]); assert.equal(act!.reminder_sent, false);
+    assert.equal(await repo.marcarRecordatorio(filas[0], AHORA), true);
+    for (const l of llamadas) { assert.ok(!String(l.select ?? "").includes("reminder_sent"), "no pide la columna"); assert.ok(!l.filtros.includes("reminder_sent"), "no la filtra"); assert.ok(!l.update, "no escribe"); }
   });
   console.log(`OK ${casos} casos de confirmación por WhatsApp; sin red, base ni llaves.`);
 })().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

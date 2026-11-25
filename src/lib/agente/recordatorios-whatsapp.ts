@@ -174,9 +174,12 @@ export function crearManejadorRecordatorios(config:{
   };
 }
 
-export function crearRepositorioRecordatorios(db:any):RepositorioRecordatorios {
+/** sinMarca: no usa appointments.reminder_sent (que puede no existir): el «ya se avisó» lo da la tabla de entregas, una por cita. */
+export function crearRepositorioRecordatorios(db:any,opciones:{sinMarca?:boolean}={}):RepositorioRecordatorios {
+  const sinMarca=opciones.sinMarca===true;
   const table="agent_reminder_deliveries",purpose=PROPOSITO_RECORDATORIO_CITA;
-  const fields="id,tenant_id,client_id,status,date,start_time,reminder_sent,client:clients!client_id(id,tenant_id,name,email,phone),barber:profiles!barber_id(name),services:appointment_services(service:services(name))";
+  const fields=`id,tenant_id,client_id,status,date,start_time,${sinMarca?"":"reminder_sent,"}client:clients!client_id(id,tenant_id,name,email,phone),barber:profiles!barber_id(name),services:appointment_services(service:services(name))`;
+  const conMarca=(r:any):any=>sinMarca&&r?{...r,reminder_sent:false}:r;
   const ts=(ms:number)=>new Date(ms).toISOString(); // Solo instantes técnicos del registro.
   const check=(r:any)=>{if(r.error){if(["42P01","42703","PGRST204","PGRST205"].includes(r.error.code))throw new MigracionRecordatoriosPendiente();throw new Error("Recordatorios no disponibles");}return r;};
   const negocio=(r:any):NegocioRecordatorios=>({tenantId:r.tenant_id,phoneNumberId:r.phone_number_id,enabled:r.enabled===true});
@@ -189,13 +192,14 @@ export function crearRepositorioRecordatorios(db:any):RepositorioRecordatorios {
     async negocio(tenant){const r=check(await db.from("agent_whatsapp_settings").select("tenant_id,phone_number_id,enabled").eq("tenant_id",tenant).maybeSingle()).data;return r?negocio(r):null;},
     async citas(tenant,w){
       return fetchAllRows<CitaRecordatorio>(()=>{
-        const q=db.from("appointments").select(fields).eq("tenant_id",tenant).in("status",["scheduled","confirmed"])
-          .eq("reminder_sent",false).gte("start_time",w.desde).lte("start_time",w.hasta);
+        let q=db.from("appointments").select(fields).eq("tenant_id",tenant).in("status",["scheduled","confirmed"]);
+        if(!sinMarca)q=q.eq("reminder_sent",false);
+        q=q.gte("start_time",w.desde).lte("start_time",w.hasta);
         // Conserva códigos de migración ANTES de que fetchAllRows los convierta en Error genérico.
-        return {order:(column:string,options:unknown)=>({range:async(from:number,to:number)=>check(await q.order(column,options).range(from,to))})};
+        return {order:(column:string,options:unknown)=>({range:async(from:number,to:number)=>{const r=check(await q.order(column,options).range(from,to));return sinMarca&&Array.isArray(r.data)?{...r,data:r.data.map(conMarca)}:r;}})};
       });
     },
-    async actual(c){return check(await db.from("appointments").select(fields).eq("tenant_id",c.tenant_id).eq("id",c.id).maybeSingle()).data;},
+    async actual(c){return conMarca(check(await db.from("appointments").select(fields).eq("tenant_id",c.tenant_id).eq("id",c.id).maybeSingle()).data);},
     async baja(tenant,hash){return !!check(await db.from("agent_contact_optouts").select("id").eq("tenant_id",tenant).eq("contact_hash",hash).maybeSingle()).data;},
     async existe(c,channel){return !!check(await scope(c,channel).maybeSingle()).data;},
     async reclamar(c,channel,ahora){return check(await db.from(table).upsert({tenant_id:c.tenant_id,appointment_id:c.id,channel,purpose,status:"procesando",attempts:1,started_at:ts(ahora)},{onConflict:"appointment_id,channel,purpose",ignoreDuplicates:true}).select("id").maybeSingle()).data?.id??null;},
@@ -204,6 +208,6 @@ export function crearRepositorioRecordatorios(db:any):RepositorioRecordatorios {
       const r=check(await db.from(table).update(patch).eq("tenant_id",c.tenant_id).eq("appointment_id",c.id).eq("channel",channel).eq("purpose",purpose).eq("id",id).eq("status","procesando").select("id").maybeSingle());
       if(!r.data)throw new Error("Registro no actualizado");
     },
-    async marcarRecordatorio(c,ahora){return !!check(await db.from("appointments").update({reminder_sent:true,reminder_sent_at:ts(ahora)}).eq("tenant_id",c.tenant_id).eq("id",c.id).eq("client_id",c.client!.id).eq("status",c.status).eq("start_time",c.start_time).eq("date",c.date).eq("reminder_sent",false).select("id").maybeSingle()).data;},
+    async marcarRecordatorio(c,ahora){if(sinMarca)return true;return !!check(await db.from("appointments").update({reminder_sent:true,reminder_sent_at:ts(ahora)}).eq("tenant_id",c.tenant_id).eq("id",c.id).eq("client_id",c.client!.id).eq("status",c.status).eq("start_time",c.start_time).eq("date",c.date).eq("reminder_sent",false).select("id").maybeSingle()).data;},
   };
 }
