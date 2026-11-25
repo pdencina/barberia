@@ -167,6 +167,13 @@ const handlers = () => crearManejadoresWebhook({
       derivarAlTelefono: true,
       registrarChat: async (r) => { await registrarChat(db, r); if (Math.random() < 0.01) await purgarChats(db); },
       // El dueño le escribió a mano en las últimas 12 h (panel de conversaciones): el agente no tira el menú.
+      serviciosPorProfesional: async (tenantId, ids) => {
+        const r = await db.from("barber_service_assignments").select("barber_id,service_id").in("barber_id", ids);
+        if (r.error) throw new Error("sin servicios por profesional");
+        const m: Record<string, string[] | null> = Object.fromEntries(ids.map((i) => [i, null]));
+        for (const x of (r.data ?? []) as any[]) { const a = m[x.barber_id]; if (a === null) m[x.barber_id] = [String(x.service_id)]; else if (a) a.push(String(x.service_id)); }
+        return m;
+      },
       conversacionHumana: async (n, contactHash) => {
         const r = await db.from("agent_chats").select("id").eq("tenant_id", n.tenantId).eq("contact_hash", contactHash).eq("direccion", "saliente").like("texto", "[manual] %").gte("created_at", new Date(Date.now() - 12 * 3600000).toISOString()).limit(1);
         return !r.error && (r.data?.length ?? 0) > 0;

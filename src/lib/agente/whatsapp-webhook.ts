@@ -6,6 +6,7 @@ import { DEL_CURSO } from "./cta";
 import { enlacesPedidos } from "./archivos";
 import { opcionMenu, esSaludo, esSoloSaludo, esVolver, esConsultaLarga, textoMenu, infoGeneral, CONSULTA_POR_OPCION, RESPUESTA_OTRAS } from "./menu";
 import { manejarReservaChat, VIGENCIA_MIN, type EstadoChat, type CampoIndicador, type ResultadoCreacion, type ListaReserva } from "./reserva-chat";
+import { responderServicioProfesional, type ServiciosPorProfesional } from "./servicio-profesional";
 import { responderDisponibilidad, ahoraChile, type DependenciasDisponibilidad } from "./disponibilidad";
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
 import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
@@ -52,6 +53,8 @@ export interface DependenciasWebhook {
     /** true = quedó registrada y el dueño fue avisado. false = no se pudo (sin migración, sin ventana de 24 h...): se deriva como antes. */
     abrir: (n: NegocioWebhook, contactHash: string, telefono: string, pregunta: string, medio?: { tipo: "image" | "document"; id: string }) => Promise<boolean>;
   };
+  /** Qué servicios hace cada profesional (Profesionales > Servicios). Sin esto no se responde "¿quién hace rizos?". */
+  serviciosPorProfesional?: (tenantId: string, ids: string[]) => Promise<ServiciosPorProfesional>;
   /** Registro de conversaciones para que el dueño las revise (solo si el negocio lo encendió). Mejor esfuerzo: nunca debe romper la atención. */
   registrarChat?: (r: RegistroChat) => Promise<void>;
   /** true = el dueño le escribió a mano a este contacto hace poco: el agente no responde "No entendí"; lo que no sepa se lo pasa al dueño. */
@@ -297,6 +300,16 @@ export function crearManejadoresWebhook(config: {
                     if (respuestaFaq === null && tipo === "desconocido" && deps.derivarAlTelefono && !esBoton) {
                       if (pideCambio(text)) { const t = textoCambio(datosNegocio); if (t) { respuestaFaq = t; await contar("respuestas_automaticas"); } }
                       else if (pideHumano(text)) { const t = textoDerivacionTelefono(datosNegocio,"Claro, te atiende una persona del equipo."); if (t) { respuestaFaq = t; derivarChat = true; } }
+                    }
+                    // 1b) Quién hace qué servicio, con los datos reales de la agenda de cada profesional.
+                    if (respuestaFaq === null && tipo === "desconocido" && deps.serviciosPorProfesional && entradaTexto && !esBoton && datosNegocio) {
+                      try {
+                        const ids = (datosNegocio.profesionales ?? []).map((x) => x.id).filter((x): x is string => !!x);
+                        if (ids.length > 0) {
+                          const r = responderServicioProfesional(consulta,datosNegocio,await deps.serviciosPorProfesional(n.tenantId,ids));
+                          if (r) { respuestaFaq = r; await contar("respuestas_automaticas"); }
+                        }
+                      } catch { /* sin ese dato se sigue con el flujo de siempre */ }
                     }
                     if (respuestaFaq === null && tipo === "desconocido") {
                       // 2) Consulta de disponibilidad ("¿Matías tiene hora a las 3?"); si no aplica o falla, la FAQ.
