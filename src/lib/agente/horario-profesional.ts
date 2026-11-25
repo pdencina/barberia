@@ -47,7 +47,7 @@ export function responderHorarioProfesional(texto: string, datos: DatosFaq | nul
     const nombre = `*${p.nombre}*`;
     const dias = [1, 2, 3, 4, 5, 6, 0].filter((d) => !tr.some((x) => x.dia === d && x.trabaja));
     const vac = (info.vacaciones[p.id as string] ?? []).filter((v) => v.hasta >= hoy).sort((a, b) => a.desde.localeCompare(b.desde)).slice(0, 3);
-    const partes = [dias.length === 0 ? `${nombre} trabaja todos los días de la semana.` : `${nombre} libra los ${dias.map((d) => DIAS[d]).join(", ").replace(/, ([^,]*)$/, " y $1")}.`];
+    const partes = [dias.length === 0 ? `${nombre} trabaja todos los días de la semana.` : `${nombre} no trabaja los ${dias.map((d) => DIAS[d]).join(", ").replace(/, ([^,]*)$/, " y $1")}.`];
     partes.push(vac.length ? `Vacaciones próximas:\n${vac.map((v) => `• del ${fechaLinda(v.desde)} al ${fechaLinda(v.hasta)}`).join("\n")}` : "No tiene vacaciones agendadas.");
     const cola = proxima?.(p.id as string); if (cola) partes.push(cola);
     return partes.join("\n\n");

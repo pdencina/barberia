@@ -13,7 +13,7 @@ x = r("que dias trabaja nicolas?"); ok("dias", !!x && x.includes("sábado"), x ?
 x = r("nicolas atiende los domingos?"); ok("domingo no", !!x && x.includes("no atiende los domingos"), x ?? "");
 ok("hora concreta no aplica", r("nicolas tiene hora el sabado?") === null);
 ok("sin pro no aplica", r("atienden en las mañanas?") === null);
-x = r("que dias libra nicolas?"); ok("libra domingo", !!x && x.includes("libra los domingo") && x.includes("10 de diciembre al 20 de diciembre") && !x.includes("enero"), x ?? "");
+x = r("que dias libra nicolas?"); ok("libra domingo", !!x && x.includes("no trabaja los domingo") && x.includes("10 de diciembre al 20 de diciembre") && !x.includes("enero"), x ?? "");
 x = r("cuales son los dias libres de pablo"); ok("pablo libra", !!x && x.includes("domingo") && x.includes("No tiene vacaciones"), x ?? "");
 x = r("que horarios tiene nicolas?"); ok("horarios plural solo su horario", !!x && x.includes("07:00 a 10:00") && !x.includes("negocio"), x ?? "");
 console.log(fallas ? `fallas=${fallas}` : "OK horario-profesional");
