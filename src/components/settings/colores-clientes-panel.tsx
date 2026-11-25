@@ -7,6 +7,7 @@ import { useToast } from "@/components/ui/toast";
 import { Panel, ghostButton } from "@/components/ui/premium";
 import { ClientThemePreview } from "@/components/settings/client-theme-preview";
 import { THEMES, type AppTheme, isAppTheme, normalizeTheme } from "@/lib/themes";
+import { ACENTOS, esHexAcento } from "@/lib/accent";
 
 // Preferencias de reservas > "Colores para tus clientes": el negocio elige AHÍ MISMO el diseño que ven sus clientes
 // (página de reservas, reseñas y correos), sin depender del tema que usa su equipo en el sistema.
@@ -18,16 +19,19 @@ export function ColoresClientesPanel({ tenantId, slug, businessName }: { tenantI
   const [temaSistema, setTemaSistema] = useState<AppTheme>(normalizeTheme("light"));
   const [modo, setModo] = useState<Modo>("siempre");
   const [guardando, setGuardando] = useState(false);
+  const [acento, setAcento] = useState<string | null>(null);
 
   useEffect(() => {
     if (!tenantId) return;
     const sb = createClient();
     (async () => {
-      let r: any = await sb.from("tenants").select("theme, client_theme_enabled, client_theme").eq("id", tenantId).maybeSingle();
+      let r: any = await sb.from("tenants").select("theme, client_theme_enabled, client_theme, client_accent").eq("id", tenantId).maybeSingle();
+      if (r.error) r = await sb.from("tenants").select("theme, client_theme_enabled, client_theme").eq("id", tenantId).maybeSingle(); // sin la migración 178
       if (r.error) r = await sb.from("tenants").select("theme, client_theme_enabled").eq("id", tenantId).maybeSingle(); // sin la migración 177
       const d = r.data as any;
       if (!d) return;
       setTemaSistema(normalizeTheme(d.theme));
+      setAcento(esHexAcento(d.client_accent) ? d.client_accent : null);
       setModo(!d.client_theme_enabled ? "siempre" : isAppTheme(d.client_theme) ? d.client_theme : "sistema");
     })();
   }, [tenantId]);
@@ -44,6 +48,18 @@ export function ColoresClientesPanel({ tenantId, slug, businessName }: { tenantI
       if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || ""); }
       showToast(nuevo === "siempre" ? "Tus clientes verán los colores de siempre" : "Listo: tus clientes ya ven ese diseño", "success");
     } catch (e: any) { setModo(antes); showToast(e?.message || "No se pudo guardar", "error"); }
+    setGuardando(false);
+  };
+
+  const elegirAcento = async (hex: string | null, forzar = false) => {
+    if (guardando || (!forzar && hex === acento)) return;
+    const antes = acento;
+    setAcento(hex); setGuardando(true);
+    try {
+      const res = await fetch("/api/settings/theme", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId, clientAccent: hex }) });
+      if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d?.error || ""); }
+      showToast(hex ? "Listo: tu página de reservas usa ese color" : "Tu página vuelve al color de siempre", "success");
+    } catch (e: any) { setAcento(antes); showToast(e?.message || "No se pudo guardar", "error"); }
     setGuardando(false);
   };
 
@@ -75,12 +91,31 @@ export function ColoresClientesPanel({ tenantId, slug, businessName }: { tenantI
           })}
         </div>
 
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wider text-brand-gray">Color principal</p>
+          <p className="mb-2 text-[11px] text-brand-gray">Botones, números y detalles de tu página de reservas, y las formas que flotan de fondo.</p>
+          <div className="flex flex-wrap items-center gap-2" role="radiogroup" aria-label="Color principal">
+            <button type="button" role="radio" aria-checked={acento === null} disabled={guardando} onClick={() => elegirAcento(null)}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold disabled:opacity-60 ${acento === null ? "border-brand-blue ring-2 ring-brand-blue/30" : "border-gray-200"}`}>El de siempre</button>
+            {ACENTOS.map((a) => (
+              <button key={a.hex} type="button" role="radio" aria-checked={acento?.toLowerCase() === a.hex.toLowerCase()} disabled={guardando} onClick={() => elegirAcento(a.hex)} title={a.label}
+                className={`flex items-center gap-1.5 rounded-full border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-60 ${acento?.toLowerCase() === a.hex.toLowerCase() ? "border-brand-blue ring-2 ring-brand-blue/30" : "border-gray-200"}`}>
+                <span className="h-4 w-4 rounded-full border border-black/10" style={{ background: a.hex }} />{a.label}
+              </button>
+            ))}
+            <label className="flex cursor-pointer items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold">
+              Otro
+              <input type="color" value={acento || "#0f8b8d"} disabled={guardando} onChange={(e) => setAcento(e.target.value)} onBlur={(e) => elegirAcento(e.target.value, true)} className="h-6 w-7 cursor-pointer rounded border-0 bg-transparent p-0" />
+            </label>
+          </div>
+        </div>
+
         <p className="text-xs font-semibold uppercase tracking-wider text-brand-gray">Así se verían</p>
-        <ClientThemePreview theme={vista} businessName={businessName} />
+        <ClientThemePreview theme={vista} businessName={businessName} accent={acento} />
 
         <div className="flex flex-wrap items-center gap-2">
           {slug && (
-            <a href={`/${slug}?vista_tema=${vista}`} target="_blank" rel="noopener noreferrer" className={ghostButton}>
+            <a href={`/${slug}?vista_tema=${vista}${acento ? `&vista_color=${acento.slice(1)}` : ""}`} target="_blank" rel="noopener noreferrer" className={ghostButton}>
               Ver mi página de reservas con estos colores <ExternalLink className="h-4 w-4" />
             </a>
           )}
