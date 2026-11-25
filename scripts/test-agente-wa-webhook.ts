@@ -400,6 +400,16 @@ async function pruebasConsultas(){
     const x=armar(false);await enviar(x.f,"3: dile que sí, regalo");await enviar(x.f,"dile que sí","wamid.AVISO");
     check("consultas: un cliente no puede responder consultas",x.llamadas.length===0&&x.f.sent.every(t=>!t.includes("Respondí la consulta")&&!t.includes("No pude armar")));
   }
+  { // una imagen del cliente (comprobante, fotos) se le reenvía al dueño y el cliente recibe la espera; sin consultas, se deriva como antes
+    const enviarImg=async(f:ReturnType<typeof fixture>,tipo:string,id="media1")=>{await f.handlers.POST(request(payload({context:undefined,type:tipo,text:undefined,[tipo]:{id}})));};
+    const x=armar(false);const medios:any[]=[];(x.f.deps as any).consultas.abrir=async(_n:any,_h:string,tel:string,pregunta:string,medio:any)=>{medios.push({tel,pregunta,medio});return true;};
+    await enviarImg(x.f,"image","IMG-1");await enviarImg(x.f,"document","DOC-2");
+    check("consultas: imagen y documento se reenvían al dueño con su id",medios.length===2&&medios[0].medio.tipo==="image"&&medios[0].medio.id==="IMG-1"&&medios[1].medio.tipo==="document"&&x.f.sent.length===2&&x.f.sent.every(t=>t.includes("Recibí tu imagen")));
+    const y=armar(false);(y.f.deps as any).consultas.abrir=async()=>false;await enviarImg(y.f,"image");
+    check("consultas: si no se puede avisar, la imagen se atiende como antes (no se calla)",y.f.sent.length===1&&!y.f.sent[0].includes("Recibí tu imagen"));
+    const z=armar(false);delete (z.f.deps as any).consultas;await enviarImg(z.f,"image");
+    check("consultas: sin la función activada, la imagen se atiende como antes",z.f.sent.length<=1&&z.f.sent.every(t=>!t.includes("Recibí tu imagen")));
+  }
 }
 async function pruebasManicure(){
   const enviar=async(f:ReturnType<typeof fixture>,text:string)=>{await f.handlers.POST(request(payload({context:undefined,text:{body:text}})));};

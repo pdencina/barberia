@@ -21,23 +21,25 @@ export function preguntaPropiaValida(p: unknown): p is PreguntaPropia {
 export function responderPersonalizadas(textoNormalizado: string, lista: DatosFaq["personalizadas"]): string | null {
   if (!Array.isArray(lista) || lista.length === 0) return null;
   const t = " " + sinSignos(textoNormalizado) + " ";
-  const aciertos: { largo: number; r: string }[] = [];
+  const aciertos: { largo: number; r: string; clave: string }[] = [];
   for (const p of lista) {
     if (!preguntaPropiaValida(p)) continue;
-    let mejor = 0;
+    let mejor = 0, claveMejor = "";
     for (const c of p.claves) {
       const k = sinSignos(String(c));
       if (k.length < 3) continue;
       // Coincidencia por palabra completa o inicio de palabra para claves de 5 letras o más ("estacionamiento" acepta "estacionamientos").
       const re = new RegExp(`(^|\\s)${escapar(k)}${k.length >= 5 ? "[a-zñ]{0,2}" : ""}(?=\\s)`);
-      if (re.test(t)) mejor = Math.max(mejor, k.length);
+      if (re.test(t) && k.length > mejor) { mejor = k.length; claveMejor = k; }
     }
-    if (mejor > 0) aciertos.push({ largo: mejor, r: p.respuesta.trim() });
+    if (mejor > 0) aciertos.push({ largo: mejor, r: p.respuesta.trim(), clave: claveMejor });
   }
   if (aciertos.length === 0) return null;
   aciertos.sort((a, b) => b.largo - a.largo);
+  // "reservar visos" contiene "visos": si la clave de una respuesta está dentro de la clave más larga de otra, se responde solo la más específica.
+  const especificos = aciertos.filter((a) => !aciertos.some((b) => b !== a && b.clave.length > a.clave.length && (" " + b.clave + " ").includes(" " + a.clave + " ")));
   const textos: string[] = [];
-  for (const a of aciertos) if (!textos.includes(a.r)) textos.push(a.r);
+  for (const a of especificos) if (!textos.includes(a.r)) textos.push(a.r);
   return textos.slice(0, MAX_PERSONALIZADAS_POR_MENSAJE).join("\n\n");
 }
 

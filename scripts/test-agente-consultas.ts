@@ -1,7 +1,9 @@
 // Consultas difíciles: el dueño responde con una instrucción, el agente responde al cliente y guarda la respuesta. Sin red, base ni llaves.
 // Ejecutar: npx tsx scripts/test-agente-consultas.ts
 import assert from "node:assert/strict";
-import { manejarConsultaAdmin, leerRedaccion, avisoDeConsulta, type OperacionesConsulta, type Consulta } from "../src/lib/agente/consultas";
+import { responderPersonalizadas } from "../src/lib/agente/faq-extra";
+import { normalizar } from "../src/lib/agente/faq-fija";
+import { manejarConsultaAdmin, leerRedaccion, avisoDeConsulta, avisoDeImagen, TEXTO_ABONO_OK, type OperacionesConsulta, type Consulta } from "../src/lib/agente/consultas";
 
 const CONTEXTO = "El curso cuesta $390.000. Abono de $100.000. Horario: martes y miércoles de 19:00 a 22:30. Atendemos en Juan de Dios Malebrán 1889.";
 let casos = 0;
@@ -87,7 +89,7 @@ const LISTO = JSON.stringify({ estado: "listo", respuesta: "Sí, puedes pagar el
   await caso("'N: descartar' cierra sin enviar nada", async () => {
     const a = armar(LISTO);
     const r = (await manejarConsultaAdmin("3: descartar", undefined, a.ops)) ?? "";
-    assert.ok(r.includes("cerré la consulta #3 sin responder"));
+    assert.ok(r.includes("cerré la consulta #3"));
     assert.equal(a.e.enviados.length, 0); assert.equal(a.e.consultas.length, 0);
   });
   await caso("Pasadas las 24 h WhatsApp rechaza el envío: se avisa y la consulta sigue abierta, sin guardar nada", async () => {
@@ -107,6 +109,25 @@ const LISTO = JSON.stringify({ estado: "listo", respuesta: "Sí, puedes pagar el
     assert.ok(((await manejarConsultaAdmin("olvidar 5", undefined, a.ops)) ?? "").startsWith("No encuentro"));
     assert.equal(await manejarConsultaAdmin("consultas", undefined, a.ops), "No hay consultas pendientes.");
   });
+  await caso("Imagen del cliente: 'N: confirmado' pide las fotos y deja la consulta abierta; 'N: listo' la cierra; nada se guarda", async () => {
+    const a = armar(LISTO); a.e.consultas[0].tipo = "imagen";
+    const av = avisoDeImagen(3);
+    assert.ok(av.includes("3: confirmado") && av.includes("3: listo") && avisoDeImagen(3, true).includes("otra imagen"));
+    const r = (await manejarConsultaAdmin("3: confirmado", undefined, a.ops)) ?? "";
+    assert.ok(r.startsWith("✅ Confirmé el abono") && r.includes("3: listo"), r);
+    assert.deepEqual(a.e.enviados, [TEXTO_ABONO_OK]);
+    assert.ok(TEXTO_ABONO_OK.includes("2 fotos de referencia") && TEXTO_ABONO_OK.includes("fotos de tu cabello"));
+    assert.equal(a.e.consultas.length, 1, "sigue abierta para reenviar las fotos"); assert.equal(a.e.saber.length, 0); assert.equal(a.e.ia, 0);
+    assert.ok(((await manejarConsultaAdmin("Confirmado", "wamid.AVISO", a.ops)) ?? "").startsWith("✅ Confirmé"), "citando la imagen también");
+    assert.ok(((await manejarConsultaAdmin("3: listo", undefined, a.ops)) ?? "").startsWith("Listo, cerré la consulta #3"));
+    assert.equal(a.e.consultas.length, 0);
+  });
+  await caso("Respuesta con IA a una imagen: se envía pero NO se guarda como conocimiento", async () => {
+    const a = armar(LISTO); a.e.consultas[0].tipo = "imagen";
+    const r = (await manejarConsultaAdmin("3: dile que aún no vemos el abono, el abono de $100.000", undefined, a.ops)) ?? "";
+    assert.ok(r.startsWith("✅ Respondí") && r.includes("No la guardé"), r);
+    assert.equal(a.e.enviados.length, 1); assert.equal(a.e.saber.length, 0);
+  });
   await caso("leerRedaccion: respuestas largas, sin claves o con datos personales se rechazan", async () => {
     const ok = { estado: "listo", respuesta: "Sí, el saldo se puede pagar en cuotas.", titulo: "Cuotas", claves: ["cuotas curso"] };
     assert.equal(leerRedaccion(JSON.stringify(ok), CONTEXTO, "")?.tipo, "listo");
@@ -115,6 +136,15 @@ const LISTO = JSON.stringify({ estado: "listo", respuesta: "Sí, puedes pagar el
     assert.equal(leerRedaccion(JSON.stringify({ ...ok, respuesta: "Escríbele a juan@correo.cl" }), CONTEXTO, ""), null);
     assert.equal(leerRedaccion(JSON.stringify({ ...ok, claves: ["me llamo juan@correo.cl", "cuotas"] }), CONTEXTO, "")?.tipo, "listo", "la clave con correo se descarta, queda la limpia");
     assert.equal(leerRedaccion(undefined, CONTEXTO, ""), null);
+  });
+  await caso("Respuestas propias de trabajos químicos: gana la clave más específica y no se mezclan", async () => {
+    const L = (id: string, claves: string[], respuesta: string) => ({ id, claves, respuesta });
+    const lista = [L("v", ["visos", "mechas"], "VISOS"), L("c", ["color global", "tinte"], "COLOR"), L("r", ["rizo permanente", "rizos", "rizo"], "RIZO"), L("a", ["reservar visos", "reservar color global", "agendar visos"], "ABONO")];
+    const r = (m: string) => responderPersonalizadas(normalizar(m), lista as any);
+    assert.equal(r("Hacen visos?"), "VISOS"); assert.equal(r("cuál es el valor del color global?"), "COLOR");
+    assert.equal(r("quiero reservar visos"), "ABONO", "solo el abono, sin los visos"); assert.equal(r("quiero reservar color global"), "ABONO");
+    assert.equal(r("qué largo necesito para un rizo permanente"), "RIZO"); assert.equal(r("hola"), null);
+    assert.equal(r("cuánto cuestan los visos y el color global"), "COLOR\n\nVISOS", "si preguntan por dos, responde las dos");
   });
   console.log(`OK ${casos} casos de consultas difíciles; sin red, base ni llaves.`);
 })().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });
