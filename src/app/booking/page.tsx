@@ -66,6 +66,15 @@ function readAdParams(): Record<string, string> | null {
   } catch { return null; }
 }
 
+// Aspecto del negocio (tema y color principal) recordado de la visita anterior: se aplica de inmediato, antes de que cargue la página,
+// para que no se vea un instante el blanco con turquesa de siempre. La primera vez (sin recuerdo) la página espera unos instantes a tener los datos.
+const LOOK_PREFIX = "rb_look_";
+function slugDeLaRuta(): string {
+  const partes = window.location.pathname.split("/").filter(Boolean);
+  return (new URLSearchParams(window.location.search).get("tenant") || (partes[0] && partes[0] !== "booking" ? decodeURIComponent(partes[0]) : "")).toLowerCase();
+}
+const SCRIPT_LOOK = `(function(){try{var q=new URLSearchParams(location.search),p=location.pathname.split("/").filter(Boolean),s=(q.get("tenant")||(p[0]&&p[0]!=="booking"?decodeURIComponent(p[0]):"")).toLowerCase();if(!s)return;var raw=localStorage.getItem("${LOOK_PREFIX}"+s);if(!raw)return;var l=JSON.parse(raw),r=document.documentElement;if(l.theme){r.classList.toggle("dark",!!l.dark);r.dataset.colorTheme=l.theme}if(l.vars){for(var k in l.vars)r.style.setProperty(k,l.vars[k])}}catch(e){}})();`;
+
 export default function BookingPage() {
   const [step, setStep] = useState<Step>("barber");
   const [services, setServices] = useState<Service[]>([]);
@@ -137,6 +146,24 @@ export default function BookingPage() {
     for (const [k, v] of Object.entries(vars)) root.style.setProperty(k, v);
     return () => { for (const k of Object.keys(vars)) root.style.removeProperty(k); };
   }, [acento, colorTheme]);
+  // Recuerda el aspecto de este negocio para la próxima visita (se aplica antes de pintar). Solo con los datos ya cargados.
+  useEffect(() => {
+    if (!businessInfo) return;
+    try {
+      const slug = slugDeLaRuta();
+      if (!slug) return;
+      const vars = esHexAcento(acento) ? variablesDeAcento(acento, isDarkTheme(colorTheme)) : null;
+      if (!isAppTheme(colorTheme) && !vars) {
+        // El negocio ya no tiene aspecto propio: se limpia lo que pudo aplicar el recuerdo anterior.
+        localStorage.removeItem(LOOK_PREFIX + slug);
+        clearColorTheme(document.documentElement);
+        for (const k of ["--brand-blue", "--brand-accent", "--primary", "--ring"]) document.documentElement.style.removeProperty(k);
+        return;
+      }
+      localStorage.setItem(LOOK_PREFIX + slug, JSON.stringify({ theme: isAppTheme(colorTheme) ? colorTheme : null, dark: isDarkTheme(colorTheme), vars }));
+    } catch { /* sin almacenamiento: solo se pierde el recuerdo */ }
+  }, [businessInfo, colorTheme, acento]);
+  const carruselPros = useRef<HTMLDivElement>(null);
   const preselectSlot = useRef<string>(""); // hora elegida en la vista por horario
   const [depositRequired, setDepositRequired] = useState(false);
   const [depositPercentage, setDepositPercentage] = useState(30);
@@ -156,6 +183,12 @@ export default function BookingPage() {
   const [autoAssigned, setAutoAssigned] = useState(false);
   const [closedDaysLoaded, setClosedDaysLoaded] = useState(false);
   const [tenantSlugState, setTenantSlugState] = useState<string>("");
+  const [aspectoListo, setAspectoListo] = useState(false);
+  useEffect(() => {
+    try { if (!slugDeLaRuta() || localStorage.getItem(LOOK_PREFIX + slugDeLaRuta())) { setAspectoListo(true); return; } } catch { setAspectoListo(true); return; }
+    const id = setTimeout(() => setAspectoListo(true), 1800); // tope: si los datos tardan, se muestra igual
+    return () => clearTimeout(id);
+  }, []);
 
   useEffect(() => {
     // Get tenant slug from URL params
@@ -185,6 +218,7 @@ export default function BookingPage() {
           else { const q = new URLSearchParams(window.location.search); q.set("tenant", data.movedTo); window.location.replace(`${window.location.pathname}?${q.toString()}`); }
           return;
         }
+        setAspectoListo(true);
         if (data.name) {
           setBusinessName(data.name); setBusinessInfo(data);
           if (data.suspended) setBusinessSuspended(true);
@@ -510,7 +544,8 @@ export default function BookingPage() {
   }
 
   return (
-    <div className="relative isolate min-h-screen bg-brand-light text-brand-dark">
+    <div className="relative isolate min-h-screen bg-brand-light text-brand-dark" style={{ opacity: aspectoListo ? 1 : 0, transition: "opacity .18s ease" }}>
+      <script dangerouslySetInnerHTML={{ __html: SCRIPT_LOOK }} />
       {!kioskoQ && <FormasFlotantes />}
       {pixelDelNegocio && <MetaPixel pixelId={pixelDelNegocio} business={businessName || "Este negocio"} viewContent="Reserva online" />}
       {pago && (
@@ -576,14 +611,14 @@ export default function BookingPage() {
         </div>
       </div>
 
-      <div className="max-w-2xl mx-auto px-4 py-8">
+      <div className="max-w-2xl mx-auto px-4 py-4 sm:py-6">
 
         {/* Perfil del negocio (banner, logo, estrellas, dirección, cómo llegar…) */}
         {showProfile && businessInfo && <BusinessProfile info={businessInfo} />}
 
         {/* Botón pequeño para cambiar de vista (solo si el negocio eligió "ambas") */}
         {step === "barber" && timeViewAllowed && professionalViewAllowed && (
-          <div className="mb-6 flex justify-center">
+          <div className="mb-3 flex justify-center">
             <div className="inline-flex rounded-full border border-gray-200 bg-white p-1 text-xs font-semibold shadow-sm">
               <button onClick={() => setViewMode("time")} className={`rounded-full px-4 py-1.5 transition ${activeView === "time" ? "bg-brand-blue text-white" : "text-brand-gray"}`}>{vistaAmbas ? "Primer profesional disponible" : "Por horario"}</button>
               <button onClick={() => setViewMode("professional")} className={`rounded-full px-4 py-1.5 transition ${activeView === "professional" ? "bg-brand-blue text-white" : "text-brand-gray"}`}>{vistaAmbas ? "Elegir profesional" : "Por profesional"}</button>
@@ -593,10 +628,10 @@ export default function BookingPage() {
 
         {/* Progress indicator */}
         {step !== "confirmed" && (
-          <div className="flex items-center justify-center gap-2 mb-8">
+          <div className="flex items-center justify-center gap-1.5 mb-4">
             {["barber", "service", "datetime", "details"].map((s, i) => (
               <div key={s} className="flex items-center gap-2">
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                <div className={`w-6 h-6 rounded-full flex items-center justify-center text-[11px] font-bold ${
                   step === s ? "bg-brand-blue text-white" :
                   ["barber", "service", "datetime", "details"].indexOf(step) > i
                     ? "bg-green-500 text-white"
@@ -619,8 +654,8 @@ export default function BookingPage() {
                 ← Volver
               </button>
             )}
-            <h2 className="text-2xl font-bold mb-2">Servicios de {selectedBarber?.name}</h2>
-            <p className="text-brand-gray mb-6">Selecciona uno o mas servicios</p>
+            <h2 className="text-lg font-bold mb-1">Servicios de {selectedBarber?.name}</h2>
+            <p className="text-sm text-brand-gray mb-3">Selecciona uno o mas servicios</p>
             <div className="space-y-2.5">
               {services.map((s) => {
                 const isSelected = selectedServices.some((ss) => ss.id === s.id);
@@ -708,8 +743,7 @@ export default function BookingPage() {
         {/* Step 1: Barber (PRIMERO) */}
         {step === "barber" && activeView === "professional" && (
           <div>
-            <h2 className="text-2xl font-bold mb-2">Elige tu profesional</h2>
-            <p className="text-brand-gray mb-6">Selecciona un miembro del equipo</p>
+            <h2 className="text-lg font-bold mb-2">Elige tu profesional</h2>
 
             {/* «Primer profesional disponible» solo tiene sentido si hay más de uno que elegir */}
             {barbers.length > 1 && (
@@ -733,44 +767,45 @@ export default function BookingPage() {
                   setError("No hay profesionales con horas libres ese día. Elige otra fecha u otro profesional.");
                 }
               }}
-              className="w-full mb-4 p-4 rounded-xl border-2 border-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 transition-colors text-center"
+              className="w-full mb-3 px-3 py-2.5 rounded-xl border-2 border-brand-blue bg-brand-blue/10 hover:bg-brand-blue/20 transition-colors text-center"
             >
-              <p className="font-bold text-brand-blue text-lg">Primer profesional disponible</p>
-              <p className="text-xs text-brand-gray">Te asignamos al profesional con mas disponibilidad</p>
+              <p className="font-bold text-brand-blue text-sm">Primer profesional disponible</p>
+              <p className="text-[11px] text-brand-gray">Te asignamos al que tenga más disponibilidad</p>
             </button>
             )}
 
             {error && <p className="mb-4 text-sm text-red-500 text-center bg-red-50 rounded-lg py-2">{error}</p>}
-            {barbers.length > 1 && <p className="text-center text-xs text-brand-gray mb-4">o elige directamente:</p>}
+            {barbers.length > 1 && <p className="text-center text-[11px] text-brand-gray mb-2">o elige directamente:</p>}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-              {barbers.map((b) => (
-                <button
-                  key={b.id}
-                  onClick={() => { setError(""); setAutoAssigned(false); setSelectedBarber(b); setSelectedServices([]); setStep("service"); }}
-                  className="flex flex-col items-center p-5 rounded-2xl border border-gray-200 hover:border-brand-blue hover:shadow-lg transition-all text-center group"
-                >
-                  {b.avatar_url ? (
-                    <img src={b.avatar_url} alt={b.name} className="w-20 h-20 rounded-full object-cover border-2 border-gray-100 group-hover:border-brand-blue/50 transition-colors" />
-                  ) : (
-                    <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center text-xl font-bold text-brand-gray group-hover:bg-brand-blue/10 group-hover:text-brand-blue transition-colors">
-                      {b.name.split(" ").map((n) => n[0]).join("")}
-                    </div>
-                  )}
-                  <p className="font-semibold text-brand-dark text-sm mt-3">{b.name}</p>
-                  {b.specialties && b.specialties.length > 0 && (
-                    <div className="flex flex-wrap justify-center gap-1 mt-2">
-                      {b.specialties.slice(0, 3).map((s) => (
-                        <span key={s} className="px-2 py-0.5 bg-brand-blue/10 text-brand-blue text-[10px] rounded-full">{s}</span>
-                      ))}
-                    </div>
-                  )}
-                  {b.bio && <p className="text-xs text-brand-gray mt-2 line-clamp-2">{b.bio}</p>}
-                  {b.years_experience && (
-                    <p className="text-[10px] text-brand-gray mt-1">{b.years_experience} años de experiencia</p>
-                  )}
-                </button>
-              ))}
+            <div className="relative">
+              {/* Celular: cuadrícula de 3 tarjetas pequeñas (se ven más de una vez). PC: carrusel horizontal con flechas. */}
+              <div ref={carruselPros} className="grid grid-cols-3 gap-2 md:flex md:snap-x md:snap-mandatory md:gap-3 md:overflow-x-auto md:scroll-smooth md:pb-1 md:[scrollbar-width:none] md:[&::-webkit-scrollbar]:hidden">
+                {barbers.map((b) => (
+                  <button
+                    key={b.id}
+                    onClick={() => { setError(""); setAutoAssigned(false); setSelectedBarber(b); setSelectedServices([]); setStep("service"); }}
+                    className="group flex flex-col items-center rounded-xl border border-gray-200 px-1.5 py-2.5 text-center transition-all hover:border-brand-blue hover:shadow-md md:w-[8.5rem] md:shrink-0 md:snap-start md:px-2 md:py-3"
+                  >
+                    {b.avatar_url ? (
+                      <img src={b.avatar_url} alt={b.name} className="h-14 w-14 rounded-full border-2 border-gray-100 object-cover transition-colors group-hover:border-brand-blue/50 md:h-16 md:w-16" />
+                    ) : (
+                      <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 text-base font-bold text-brand-gray transition-colors group-hover:bg-brand-blue/10 group-hover:text-brand-blue md:h-16 md:w-16">
+                        {b.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                      </div>
+                    )}
+                    <p className="mt-1.5 line-clamp-2 text-xs font-semibold leading-tight text-brand-dark">{b.name}</p>
+                    {b.specialties && b.specialties.length > 0 && (
+                      <span className="mt-1 hidden max-w-full truncate rounded-full bg-brand-blue/10 px-2 py-0.5 text-[10px] text-brand-blue md:inline-block">{b.specialties[0]}</span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {barbers.length > 4 && (
+                <>
+                  <button type="button" aria-label="Anteriores" onClick={() => carruselPros.current?.scrollBy({ left: -300, behavior: "smooth" })} className="absolute -left-3 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-brand-dark shadow md:flex">‹</button>
+                  <button type="button" aria-label="Siguientes" onClick={() => carruselPros.current?.scrollBy({ left: 300, behavior: "smooth" })} className="absolute -right-3 top-1/2 hidden h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-gray-200 bg-white text-brand-dark shadow md:flex">›</button>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -781,12 +816,12 @@ export default function BookingPage() {
             <button onClick={() => setStep("service")} className="text-brand-gray hover:text-brand-blue text-sm mb-4 flex items-center gap-1">
               ← Volver
             </button>
-            <h2 className="text-2xl font-bold mb-2">Selecciona fecha y hora</h2>
-            <p className="text-brand-gray mb-6">{selectedServices.map((s) => s.name).join(" + ")} con {selectedBarber?.name}</p>
+            <h2 className="text-lg font-bold mb-1">Selecciona fecha y hora</h2>
+            <p className="text-sm text-brand-gray mb-3">{selectedServices.map((s) => s.name).join(" + ")} con {selectedBarber?.name}</p>
 
             {/* Date selection */}
-            <div className="mb-6">
-              <label className="text-sm text-brand-gray mb-2 block">Fecha</label>
+            <div className="mb-3">
+              <label className="text-xs text-brand-gray mb-1 block">Fecha</label>
               <div className="flex gap-2 overflow-x-auto pb-2">
                 {dateOptions.map((d) => {
                   const dateObj = new Date(d + "T12:00:00");
@@ -797,14 +832,14 @@ export default function BookingPage() {
                     <button
                       key={d}
                       onClick={() => setSelectedDate(d)}
-                      className={`flex-shrink-0 flex flex-col items-center px-3 py-2 rounded-xl border transition-colors ${
+                      className={`flex-shrink-0 flex flex-col items-center px-2.5 py-1.5 rounded-xl border transition-colors ${
                         selectedDate === d
                           ? "border-brand-blue bg-brand-blue/10 text-brand-dark"
                           : "border-gray-200 text-brand-gray hover:border-brand-blue/50"
                       }`}
                     >
                       <span className="text-xs uppercase">{dayName}</span>
-                      <span className="text-lg font-bold">{dayNum}</span>
+                      <span className="text-base font-bold leading-tight">{dayNum}</span>
                       <span className="text-xs">{monthName}</span>
                     </button>
                   );
@@ -814,7 +849,7 @@ export default function BookingPage() {
 
             {/* Time slots */}
             <div>
-              <label className="text-sm text-brand-gray mb-2 block">Hora disponible</label>
+              <label className="text-xs text-brand-gray mb-1 block">Hora disponible</label>
               {loadingSlots ? (
                 <div className="text-center py-8 text-brand-gray">Buscando horarios...</div>
               ) : slots.length === 0 ? (
@@ -931,8 +966,8 @@ export default function BookingPage() {
             <button onClick={() => setStep("datetime")} className="text-brand-gray hover:text-brand-blue text-sm mb-4 flex items-center gap-1">
               ← Volver
             </button>
-            <h2 className="text-2xl font-bold mb-2">Tus datos</h2>
-            <p className="text-brand-gray mb-6">Ingresa tu informacion para confirmar la cita</p>
+            <h2 className="text-lg font-bold mb-1">Tus datos</h2>
+            <p className="text-sm text-brand-gray mb-3">Ingresa tu informacion para confirmar la cita</p>
 
             {/* Summary card */}
             <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6">

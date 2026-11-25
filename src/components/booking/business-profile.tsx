@@ -52,99 +52,79 @@ export default function BusinessProfile({ info }: { info: BusinessInfo }) {
   const long = (info.description || "").length > 220;
   const hasDetails = !!(info.address || website || wa || (info.hours && info.hours.length));
 
+  // Compacto: banner bajo, logo chico, descripción en 2 líneas y los datos de contacto como una fila de botones pequeños (el horario se abre debajo).
+  const chip = "inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-brand-dark transition hover:border-brand-blue/50";
   return (
-    <div className="mb-8 space-y-4">
+    <div className="mb-4 space-y-3">
       {info.banner_url && (
-        <div className="overflow-hidden rounded-3xl bg-gray-100 shadow-sm">
-          <img src={info.banner_url} alt={info.name} className="h-40 w-full object-cover sm:h-56" />
+        <div className="overflow-hidden rounded-2xl bg-gray-100">
+          <img src={info.banner_url} alt={info.name} className="h-24 w-full object-cover sm:h-32" />
         </div>
       )}
 
-      <div className="flex items-start gap-4">
-        <div className={`flex h-20 w-20 flex-shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-100 bg-white p-1.5 shadow-sm sm:h-24 sm:w-24 ${info.banner_url ? "relative z-10 -mt-12 ml-2 ring-4 ring-brand-light" : ""}`}>
+      <div className="flex items-start gap-3">
+        <div className={`flex h-14 w-14 flex-shrink-0 items-center justify-center overflow-hidden rounded-xl border border-gray-100 bg-white p-1 sm:h-16 sm:w-16 ${info.banner_url ? "relative z-10 -mt-8 ml-1 ring-2 ring-brand-light" : ""}`}>
           {info.logo_url ? <img src={info.logo_url} alt={info.name} className="max-h-full max-w-full object-contain" /> : (
-            <span className="text-xl font-bold text-brand-blue">{info.name.slice(0, 2).toUpperCase()}</span>
+            <span className="text-base font-bold text-brand-blue">{info.name.slice(0, 2).toUpperCase()}</span>
           )}
         </div>
-        <div className={`min-w-0 flex-1 ${info.banner_url ? "pt-1" : ""}`}>
-          <h1 className="text-xl font-bold leading-tight sm:text-2xl">{info.name}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-lg font-bold leading-tight sm:text-xl">{info.name}</h1>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs">
             {open !== null && (
               <span className="flex items-center gap-1.5 text-brand-gray">
-                <span className={`h-2 w-2 rounded-full ${open ? "bg-emerald-500" : "bg-gray-400"}`} />
+                <span className={`h-1.5 w-1.5 rounded-full ${open ? "bg-emerald-500" : "bg-gray-400"}`} />
                 {open ? "Abierto ahora" : "Cerrado ahora"}
               </span>
             )}
             {hasRating && (
               <a href={info.google_maps_url || undefined} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 font-semibold">
-                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
                 {info.google_rating!.toFixed(1)}
                 {info.google_reviews_count ? <span className="font-normal text-brand-gray">({info.google_reviews_count})</span> : null}
               </a>
             )}
           </div>
-          {info.description && (
-            <p className={`mt-2 whitespace-pre-line text-sm leading-relaxed text-brand-gray ${!readMore && long ? "line-clamp-3" : ""}`}>{info.description}</p>
-          )}
-          {info.description && long && (
-            <button onClick={() => setReadMore((v) => !v)} className="mt-1 text-sm font-semibold underline">{readMore ? "Leer menos" : "Leer más"}</button>
-          )}
+          {info.address && <p className="mt-0.5 truncate text-xs text-brand-gray">{info.address}</p>}
         </div>
       </div>
 
+      {info.description && (
+        <div>
+          <p className={`whitespace-pre-line text-xs leading-relaxed text-brand-gray sm:text-sm ${!readMore && long ? "line-clamp-2" : ""}`}>{info.description}</p>
+          {long && <button onClick={() => setReadMore((v) => !v)} className="mt-0.5 text-xs font-semibold underline">{readMore ? "Leer menos" : "Leer más"}</button>}
+        </div>
+      )}
+
       {hasDetails && (
-        <div className="space-y-3 rounded-3xl border border-gray-100 bg-white p-4 text-sm shadow-sm sm:p-5">
-          {info.address && (
-            <div className="flex items-start gap-3">
-              <MapPin className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-gray" strokeWidth={1.75} />
-              <div className="min-w-0 flex-1">
-                <p>{info.address}</p>
-                {mapsLink && (
-                  <a href={mapsLink} target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-brand-blue px-3.5 py-2 text-xs font-bold text-white hover:brightness-110">
-                    <Navigation className="h-3.5 w-3.5" /> Cómo llegar
-                  </a>
-                )}
-              </div>
-            </div>
-          )}
-          {info.hours && info.hours.length > 0 && (
-            <div className="flex items-start gap-3">
-              <Clock className="mt-0.5 h-5 w-5 flex-shrink-0 text-brand-gray" strokeWidth={1.75} />
-              <div className="min-w-0 flex-1">
-                <button onClick={() => setShowHours((v) => !v)} className="font-medium underline">{showHours ? "Ocultar horario" : "Ver horario"}</button>
-                {showHours && (
-                  <ul className="mt-2 space-y-1 text-brand-gray">
-                    {[1, 2, 3, 4, 5, 6, 0].map((d) => {
-                      const h = info.hours!.find((x) => x.day_of_week === d);
-                      return (
-                        <li key={d} className="flex justify-between gap-4">
-                          <span>{DAYS[d]}</span>
-                          <span className="tabular-nums">{!h || h.is_closed ? "Cerrado" : `${hhmm(h.open_time)} – ${hhmm(h.close_time)}`}</span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
-              </div>
-            </div>
-          )}
-          {website && (
-            <div className="flex items-center gap-3">
-              <Globe className="h-5 w-5 flex-shrink-0 text-brand-gray" strokeWidth={1.75} />
-              <a href={website} target="_blank" rel="noopener noreferrer" className="min-w-0 truncate font-medium underline">{info.website}</a>
-            </div>
-          )}
-          {wa && (
-            <div className="flex items-center gap-3">
-              <MessageCircle className="h-5 w-5 flex-shrink-0 text-brand-gray" strokeWidth={1.75} />
-              <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" className="font-medium underline">¡Contáctanos por WhatsApp!</a>
-            </div>
-          )}
-          {!wa && info.phone && (
-            <div className="flex items-center gap-3">
-              <Phone className="h-5 w-5 flex-shrink-0 text-brand-gray" strokeWidth={1.75} />
-              <span>{info.phone}</span>
-            </div>
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            {info.address && mapsLink && (
+              <a href={mapsLink} target="_blank" rel="noopener noreferrer" className={chip}><Navigation className="h-3.5 w-3.5" /> Cómo llegar</a>
+            )}
+            {info.hours && info.hours.length > 0 && (
+              <button type="button" onClick={() => setShowHours((v) => !v)} className={chip} aria-expanded={showHours}><Clock className="h-3.5 w-3.5" /> {showHours ? "Ocultar horario" : "Horario"}</button>
+            )}
+            {website && (
+              <a href={website} target="_blank" rel="noopener noreferrer" className={chip}><Globe className="h-3.5 w-3.5" /> Sitio web</a>
+            )}
+            {wa && (
+              <a href={`https://wa.me/${wa}`} target="_blank" rel="noopener noreferrer" className={chip}><MessageCircle className="h-3.5 w-3.5" /> WhatsApp</a>
+            )}
+            {!wa && info.phone && <span className={chip}><Phone className="h-3.5 w-3.5" /> {info.phone}</span>}
+          </div>
+          {showHours && info.hours && (
+            <ul className="space-y-0.5 rounded-xl border border-gray-100 bg-white p-3 text-xs text-brand-gray">
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+                const h = info.hours!.find((x) => x.day_of_week === d);
+                return (
+                  <li key={d} className="flex justify-between gap-4">
+                    <span>{DAYS[d]}</span>
+                    <span className="tabular-nums">{!h || h.is_closed ? "Cerrado" : `${hhmm(h.open_time)} – ${hhmm(h.close_time)}`}</span>
+                  </li>
+                );
+              })}
+            </ul>
           )}
         </div>
       )}
