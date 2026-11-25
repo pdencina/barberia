@@ -1,10 +1,14 @@
 import { fetchAllRows } from "../accounting";
 import { obtenerFechaHoraInforme } from "./calendario-informe";
 import { hashContactoWhatsApp, normalizarTelefonoWhatsApp, type ResultadoEnvioPlantilla } from "./whatsapp-meta";
-import { PROPOSITO_RECORDATORIO_CITA } from "./acciones-cita";
+import { PROPOSITO_RECORDATORIO_CITA, HORAS_MIN_CANCELAR } from "./acciones-cita";
+import { parseWallClock } from "../wallclock";
 
 // INFERENCIA: cota técnica por invocación; no reemplaza cuota del negocio.
 export const MAX_ENVIOS_RECORDATORIOS = 20;
+export const MAX_ENVIOS_CONFIRMACIONES = 40;
+/** Confirmación por WhatsApp: se escribe al cliente desde 8 horas antes de su cita (o de inmediato si agenda con menos anticipación). */
+export const HORAS_ENVIO_CONFIRMACION = 8;
 export interface NegocioRecordatorios { tenantId: string; phoneNumberId: string; enabled: boolean }
 export interface CitaRecordatorio {
   id: string; tenant_id: string; status: string; start_time: string; date: string; reminder_sent: boolean;
@@ -17,6 +21,8 @@ type Final = "aceptado_proveedor" | "fallido" | "incierto";
 export class MigracionRecordatoriosPendiente extends Error { constructor() { super("Falta aplicar la migración 005"); } }
 export interface RepositorioRecordatorios {
   negocios: () => Promise<NegocioRecordatorios[]>;
+  /** Negocios con la confirmación por WhatsApp encendida (agent_whatsapp_settings.confirmacion_activa). */
+  negociosConfirmacion?: () => Promise<NegocioRecordatorios[]>;
   negocio: (tenant: string) => Promise<NegocioRecordatorios | null>;
   citas: (tenant: string, ventana: {desde:string;hasta:string}) => Promise<CitaRecordatorio[]>;
   actual: (c: CitaRecordatorio) => Promise<CitaRecordatorio | null>;
@@ -31,7 +37,7 @@ export interface DependenciasRecordatorios {
   repo: RepositorioRecordatorios; ahora: () => number; sal: string;
   tieneCuota: (tenant: string, canal: Canal) => Promise<boolean>;
   consumirCuota: (tenant: string, canal: Canal, citaId: string) => Promise<boolean>;
-  enviarWhatsApp: (n: NegocioRecordatorios, c: CitaRecordatorio, para: string) => Promise<ResultadoEnvioPlantilla>;
+  enviarWhatsApp: (n: NegocioRecordatorios, c: CitaRecordatorio, para: string, opciones?: { conBotones: boolean }) => Promise<ResultadoEnvioPlantilla>;
   enviarCorreo: (c: CitaRecordatorio) => Promise<ResultadoEnvioPlantilla>;
 }
 const json = (body:unknown,status=200) => new Response(JSON.stringify(body),{status,headers:{"Content-Type":"application/json","Cache-Control":"no-store"}});
@@ -44,10 +50,20 @@ export function ventanaRecordatorios(ahora: number) {
   };
   return {desde:pared(ahora+20*3600000),hasta:pared(ahora+28*3600000)};
 }
+// Ventana de la confirmación: desde ahora hasta 8 horas más (hora de pared de Santiago escrita como UTC, igual que start_time).
+export function paredSantiago(ms:number){
+  const p=obtenerFechaHoraInforme(ms);
+  return `${p.fecha}T${p.hora}:${String(p.segundos%60).padStart(2,"0")}.${String(((ms%1000)+1000)%1000).padStart(3,"0")}Z`;
+}
+export function ventanaConfirmaciones(ahora:number){return {desde:paredSantiago(ahora),hasta:paredSantiago(ahora+HORAS_ENVIO_CONFIRMACION*3600000)};}
+/** Milisegundos que faltan para la cita (ambos en hora de pared de Santiago). */
+export function anticipacionCita(startTime:string,ahora:number):number{return parseWallClock(startTime).getTime()-parseWallClock(paredSantiago(ahora)).getTime();}
+/** Con 3 horas o más por delante todavía puede confirmar, cancelar o modificar: se le dan los botones. Con menos, solo se le avisa. */
+export const conBotonesSegunPlazo=(startTime:string,ahora:number)=>anticipacionCita(startTime,ahora)>=HORAS_MIN_CANCELAR*3600000;
 function telefono(c:CitaRecordatorio) { return normalizarTelefonoWhatsApp(c.client?.phone); }
 
-function candidata(c:CitaRecordatorio,tenant:string,window:{desde:string;hasta:string}) {
-  return c.tenant_id===tenant&&!!c.client&&c.client.tenant_id===tenant&&["scheduled","confirmed"].includes(c.status)
+function candidata(c:CitaRecordatorio,tenant:string,window:{desde:string;hasta:string},soloPendientes=false) {
+  return c.tenant_id===tenant&&!!c.client&&c.client.tenant_id===tenant&&(soloPendientes?c.status==="scheduled":["scheduled","confirmed"].includes(c.status))
     &&c.start_time>=window.desde&&c.start_time<=window.hasta;
 }
 // Canonizar solo la representación (Supabase puede devolver +00:00 y omitir .000).
@@ -63,6 +79,8 @@ export function crearManejadorRecordatorios(config:{
   crearDependencias:()=>DependenciasRecordatorios;
   // No habilitar en producción hasta coordinar el reclamo del cron antiguo con Claude.
   permitirEnvio?:boolean;
+  /** "confirmacion": ventana de 8 h, solo citas pendientes, solo negocios con confirmacion_activa y botones según el plazo. Por defecto, el recordatorio de siempre. */
+  modo?:"recordatorio"|"confirmacion";
   configuracion?:()=>readonly string[];
 }) {
   return async (req:Request) => {
@@ -74,23 +92,25 @@ export function crearManejadorRecordatorios(config:{
       if(!dryRun&&config.permitirEnvio!==true)return json({...totals,bloqueado_coordinacion:1},503);
       const deps=config.crearDependencias(),repo=deps.repo;
       if(!deps.sal.trim())return json(totals,503);
-      const window=ventanaRecordatorios(deps.ahora());
-      for(const n of await repo.negocios()) {
+      const confirmar=config.modo==="confirmacion",maxEnvios=confirmar?MAX_ENVIOS_CONFIRMACIONES:MAX_ENVIOS_RECORDATORIOS;
+      const ventana=(ms:number)=>confirmar?ventanaConfirmaciones(ms):ventanaRecordatorios(ms);
+      const window=ventana(deps.ahora());
+      for(const n of await (confirmar?(repo.negociosConfirmacion?.()??Promise.resolve([] as NegocioRecordatorios[])):repo.negocios())) {
         if(!n.enabled||!n.tenantId||n.tenantId==="ALL"||!n.phoneNumberId)continue;
         for(const raw of await repo.citas(n.tenantId,window)) {
           // Reservar capacidad para el eventual respaldo: nunca exceder el máximo de llamadas.
-          if((!dryRun&&totals.intentos>MAX_ENVIOS_RECORDATORIOS-2)||(dryRun&&totals.candidatos>=MAX_ENVIOS_RECORDATORIOS))return json(totals);
+          if((!dryRun&&totals.intentos>maxEnvios-2)||(dryRun&&totals.candidatos>=maxEnvios))return json(totals);
           const c=normalizarCita(raw);totals.procesados++;
           let claim:string|null=null,invocado=false;
           try {
             const para=telefono(c);
-            if(!candidata(c,n.tenantId,window)||c.reminder_sent||!para){totals.omitidos++;continue;}
+            if(!candidata(c,n.tenantId,window,confirmar)||c.reminder_sent||!para){totals.omitidos++;continue;}
             const hash=hashContactoWhatsApp(deps.sal,n.tenantId,para);
             const vigente=async(email=false) => {
               const business=await repo.negocio(n.tenantId),row=await repo.actual(c);
               const current=row?normalizarCita(row):null;
               return business?.enabled===true&&business.phoneNumberId===n.phoneNumberId&&business.tenantId===n.tenantId
-                &&!!current&&same(c,current)&&candidata(current,n.tenantId,ventanaRecordatorios(deps.ahora()))
+                &&!!current&&same(c,current)&&candidata(current,n.tenantId,ventana(deps.ahora()),confirmar)
                 &&(email||!current.reminder_sent)&&!await repo.baja(n.tenantId,hash);
             };
             if(!await vigente()){totals.omitidos++;continue;}
@@ -110,7 +130,7 @@ export function crearManejadorRecordatorios(config:{
             // Última relectura antes de transportar; todavía reminder_sent=false.
             if(!await vigente(true)){await repo.finalizar(c,"whatsapp",claim,"fallido",deps.ahora());totals.omitidos++;continue;}
             totals.candidatos++;totals.intentos++;invocado=true;
-            const result=await deps.enviarWhatsApp(n,c,para);
+            const result=await deps.enviarWhatsApp(n,c,para,confirmar?{conBotones:conBotonesSegunPlazo(c.start_time,deps.ahora())}:undefined);
             if(result.estado!=="fallido"&&!await repo.marcarRecordatorio(c,deps.ahora()))throw new Error("Marca no persistida");
             await repo.finalizar(c,"whatsapp",claim,result.estado==="aceptado"?"aceptado_proveedor":result.estado,deps.ahora(),result.estado==="aceptado"?result.id:undefined);
             if(result.estado==="aceptado"){totals.whatsapp++;continue;}
@@ -165,6 +185,7 @@ export function crearRepositorioRecordatorios(db:any):RepositorioRecordatorios {
   return {
     // Configuración global del job: único descubrimiento de tenants habilitados; sin input del request.
     async negocios(){return(await page(from=>db.from("agent_whatsapp_settings").select("tenant_id,phone_number_id,enabled").eq("enabled",true).order("tenant_id").range(from,from+999))).map(negocio);},
+    async negociosConfirmacion(){return(await page(from=>db.from("agent_whatsapp_settings").select("tenant_id,phone_number_id,enabled").eq("enabled",true).eq("confirmacion_activa",true).order("tenant_id").range(from,from+999))).map(negocio);},
     async negocio(tenant){const r=check(await db.from("agent_whatsapp_settings").select("tenant_id,phone_number_id,enabled").eq("tenant_id",tenant).maybeSingle()).data;return r?negocio(r):null;},
     async citas(tenant,w){
       return fetchAllRows<CitaRecordatorio>(()=>{

@@ -29,6 +29,8 @@ export interface ParametrosPlantilla {
   plantilla: string;
   idioma: string;
   variables: readonly string[];
+  /** Respuestas de los botones de respuesta rápida de la plantilla, en orden (el cliente las devuelve como "payload"). */
+  botones?: readonly string[];
 }
 export interface DependenciasWhatsAppMeta {
   fetch: (url: string, opciones: RequestInit) => Promise<{ status: number; json: () => Promise<unknown> }>;
@@ -57,10 +59,14 @@ export async function enviarPlantilla(args: ParametrosPlantilla, deps: Dependenc
       || !/^v[0-9]+\.[0-9]+$/.test(deps.version) || !numero(deps.phone_number_id)
       || !args || !numero(args.para) || !/^[a-z0-9_]{1,512}$/.test(args.plantilla)
       || !/^[a-z]{2,3}(?:_[A-Z]{2})?$/.test(args.idioma) || !Array.isArray(args.variables)
-      || args.variables.length > 100 || args.variables.some(v => typeof v !== "string" || v.length > LIMITE_TEXTO_EN_MEMORIA)) return { estado: "fallido" };
+      || args.variables.length > 100 || args.variables.some(v => typeof v !== "string" || v.length > LIMITE_TEXTO_EN_MEMORIA)
+      || (args.botones !== undefined && (!Array.isArray(args.botones) || args.botones.length > 3 || args.botones.some(b => typeof b !== "string" || b.length < 1 || b.length > 256)))) return { estado: "fallido" };
     const template = {
       name: args.plantilla, language: { code: args.idioma },
-      ...(args.variables.length ? { components: [{ type: "body", parameters: args.variables.map(text => ({ type: "text", text })) }] } : {}),
+      ...(args.variables.length || (args.botones && args.botones.length) ? { components: [
+        ...(args.variables.length ? [{ type: "body", parameters: args.variables.map(text => ({ type: "text", text })) }] : []),
+        ...(args.botones ?? []).map((payload, index) => ({ type: "button", sub_type: "quick_reply", index: String(index), parameters: [{ type: "payload", payload }] })),
+      ] } : {}),
     };
     url = `https://graph.facebook.com/${deps.version}/${deps.phone_number_id}/messages`;
     opciones = {

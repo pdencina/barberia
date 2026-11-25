@@ -46,6 +46,10 @@
     {
       "path": "/api/cron/empresas-campanas",
       "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/agente/confirmaciones-whatsapp",
+      "schedule": "*/5 * * * *"
     }
   ]
 }
