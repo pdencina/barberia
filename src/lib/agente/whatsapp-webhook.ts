@@ -303,8 +303,19 @@ export function crearManejadoresWebhook(config: {
                     }
                     // Pedir a una persona, o cambiar / cancelar una hora: respuesta directa (con el teléfono real), sin pasar por la IA.
                     if (respuestaFaq === null && tipo === "desconocido" && deps.derivarAlTelefono && !esBoton) {
-                      if (pideCambio(text)) { const t = textoCambio(datosNegocio); if (t) { respuestaFaq = t; await contar("respuestas_automaticas"); } }
-                      else if (pideHumano(text)) { const t = textoDerivacionTelefono(datosNegocio,"Claro, te atiende una persona del equipo."); if (t) { respuestaFaq = t; derivarChat = true; } }
+                      // Sin teléfono público cargado no se manda a nadie a llamar: se le pasa el mensaje al equipo y se le responde por este mismo chat.
+                      const pasarAlEquipo = async () => {
+                        let ok = false;
+                        if (deps.consultas && entradaTexto) { try { ok = await deps.consultas.abrir(n,p.remitenteHash,para,text); } catch { ok = false; } }
+                        respuestaFaq = ok ? TEXTO_AL_CLIENTE : "Listo, le paso tu mensaje al equipo y te responden por aquí en cuanto puedan.";
+                        if (ok) await contar("derivadas_persona"); else derivarChat = true;
+                      };
+                      if (pideCambio(text)) { const t = textoCambio(datosNegocio); if (t) { respuestaFaq = t; await contar("respuestas_automaticas"); } else await pasarAlEquipo(); }
+                      else if (pideHumano(text)) { const t = textoDerivacionTelefono(datosNegocio,"Claro, te atiende una persona del equipo."); if (t) { respuestaFaq = t; derivarChat = true; } else await pasarAlEquipo(); }
+                    }
+                    // Pide el teléfono y el negocio no tiene uno público: se atiende por este mismo WhatsApp.
+                    if (respuestaFaq === null && tipo === "desconocido" && entradaTexto && !esBoton && datosNegocio && !datosNegocio.negocio.telefono && /\b(telefono|llamarlos|llamarte|numero de contacto|numero de telefono)\b/.test(normalizar(text))) {
+                      respuestaFaq = "Puedes escribirnos por aquí mismo, en este WhatsApp: te atendemos y te respondemos por este chat."; await contar("respuestas_automaticas");
                     }
                     // 1b) Quién hace qué servicio, con los datos reales de la agenda de cada profesional.
                     if (respuestaFaq === null && tipo === "desconocido" && deps.serviciosPorProfesional && entradaTexto && !esBoton && datosNegocio) {

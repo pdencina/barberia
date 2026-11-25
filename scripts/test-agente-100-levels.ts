@@ -35,7 +35,7 @@ const SEMANA: Record<string, ReturnType<typeof H>> = {
   [P.bastian]: H([[0, false, "10:00", "20:00"], [1, false, "10:00", "20:00"], [2, true, "10:00", "20:00"], [3, true, "10:00", "20:00"], [4, true, "10:00", "20:00"], [5, true, "10:00", "20:00"], [6, true, "09:00", "17:00"]]),
 };
 const VAC: Record<string, { desde: string; hasta: string }[]> = { [P.gabriel]: [{ desde: "2027-02-22", hasta: "2027-03-11" }] };
-const NEGOCIO = { id: "T1", name: "Estudio Levels", slug: "estudiolevels", address: "Juan de Dios malebran 1889, Puente alto", phone: "+56984939625" };
+const NEGOCIO = { id: "T1", name: "Estudio Levels", slug: "estudiolevels", address: "Juan de Dios malebran 1889, Puente alto", phone: null as any };
 const HORAS = [[1, "10:00", "20:00"], [2, "10:00", "20:00"], [3, "10:00", "20:00"], [4, "10:00", "20:00"], [5, "10:00", "20:00"], [6, "09:00", "17:00"], [0, "12:00", "18:00"]] as const;
 
 // ---- simulador ----
@@ -233,11 +233,11 @@ const conv: { titulo: string; casos: Caso[] }[] = [
   { titulo: "Barba precio", casos: [["cuanto cuesta arreglo de barba?", [/15\.000/]]] },
   { titulo: "Color precio", casos: [["cuanto cuesta el color global?", [/100\.000/]]] },
   { titulo: "Servicios lista", casos: [["que servicios tienen?", [/Corte/i]]] },
-  { titulo: "Teléfono", casos: [["cual es el telefono?", [/984939625|98493 9625|9 8493 9625/]]] },
+  { titulo: "Teléfono", casos: [["cual es el telefono?", [/aquí mismo/i], [/984939625|98493 9625/]]] },
   { titulo: "Link reserva", casos: [["me das el link para reservar?", [/re-booking\.cl/]]] },
   { titulo: "Cancelar", casos: [["quiero cancelar mi hora", [], [NO_ENTENDI]]] },
   { titulo: "Cambiar", casos: [["quiero cambiar mi hora", [], [NO_ENTENDI]]] },
-  { titulo: "Humano", casos: [["quiero hablar con una persona", [/984939625|persona/i]]] },
+  { titulo: "Humano", casos: [["quiero hablar con una persona", [/equipo/i], [/984939625|98493 9625/]]] },
   { titulo: "Nicolás tarde (no atiende)", casos: [["nicolas tiene hora en la tarde?", [/Nicolás Levels/]]] },
   { titulo: "Pablo mañana tarde", casos: [["pablo atiende en la tarde?", [/Sí/, /Pablo/]]] },
   { titulo: "Quién atiende domingo", casos: [["quien atiende el domingo?", [/domingo/i]]] },
@@ -251,7 +251,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
     for (const [msg, debe, nodebe] of c.casos) {
       const r = await s.enviar(msg);
       const faltan = debe.filter((d) => !(typeof d === "string" ? r.includes(d) : d.test(r)));
-      const sobran = (nodebe ?? []).filter((d) => (typeof d === "string" ? r.includes(d) : d.test(r)));
+      const sobran = [...(nodebe ?? []), /984939625|98493 9625|9 8493 9625/].filter((d) => (typeof d === "string" ? r.includes(d) : d.test(r)));
       const bien = faltan.length === 0 && sobran.length === 0;
       if (bien) ok++; else { mal++; fallas.push(`✗ [${c.titulo}] «${msg}»\n    faltan: ${faltan.join(" | ") || "-"}  sobran: ${sobran.join(" | ") || "-"}\n    ↳ ${r.replace(/\n+/g, " / ").slice(0, 300)}`); }
       if (process.env.VER) console.log(`${bien ? "✓" : "✗"} «${msg}»\n    ↳ ${r.replace(/\n+/g, " / ").slice(0, 400)}`);

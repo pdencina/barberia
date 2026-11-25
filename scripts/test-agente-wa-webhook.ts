@@ -277,7 +277,9 @@ async function pruebasFaq(){
     if(i===4)data.tables.services=[];
     if(i===5)data.tables.tenants[0].slug=null;
     await f.handlers.POST(request(payload({context:undefined,text:{body:preguntas[i]}})));
-    check(`dato faltante ${i} deriva y avisa`,f.sent[0]==="Te contactará una persona."&&f.notices.length===1);
+    // Sin teléfono público cargado no se manda a llamar a nadie: se atiende por el mismo WhatsApp.
+    if(i===2)check("dato faltante 2: sin teléfono público se atiende por el mismo chat",f.sent[0].includes("aquí mismo")&&f.notices.length===0);
+    else check(`dato faltante ${i} deriva y avisa`,f.sent[0]==="Te contactará una persona."&&f.notices.length===1);
   }
   f=fixture();const data=conectarFaq(f);data.tables.tenants=[];
   await f.handlers.POST(request(payload({context:undefined,text:{body:preguntas[1]}})));
