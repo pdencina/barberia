@@ -1,5 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, canAccessBarber } from "@/lib/supabase/server";
+import { createAdminSupabase, canAccessBarber, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
+
+// Quien puede tocar el horario: el equipo de administración del negocio (como siempre) y cada profesional en modalidad
+// ARRIENDO con el suyo propio. Un profesional a comisión no edita horarios; nadie edita el de otra persona.
+async function puedeEditarHorario(barberId: string, escribir: boolean): Promise<boolean> {
+  const { userId, role } = await getCurrentUserRoleAndTenant();
+  if (!userId) return false;
+  if (role === "barber") {
+    if (userId !== barberId) return false;
+    if (!escribir) return true;
+    const { data } = await createAdminSupabase().from("profiles").select("work_mode").eq("id", barberId).single();
+    return data?.work_mode === "rental";
+  }
+  return canAccessBarber(barberId);
+}
 import { loadBreaks, breaksForDay } from "@/lib/breaks";
 import { horarioInicial } from "@/lib/horario-inicial";
 
@@ -10,7 +24,7 @@ export async function GET(req: NextRequest) {
   const barberId = searchParams.get("barberId");
 
   if (!barberId) return NextResponse.json([]);
-  if (!(await canAccessBarber(barberId))) {
+  if (!(await puedeEditarHorario(barberId, false))) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
@@ -42,7 +56,7 @@ export async function POST(req: NextRequest) {
   if (!barberId || !schedule) {
     return NextResponse.json({ error: "barberId and schedule required" }, { status: 400 });
   }
-  if (!(await canAccessBarber(barberId))) {
+  if (!(await puedeEditarHorario(barberId, true))) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
 
