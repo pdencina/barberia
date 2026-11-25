@@ -69,6 +69,12 @@ function puntajeNombre(t: string, nombre: string): number {
 }
 function nombreMencionado(t: string, nombre: string): boolean { return puntajeNombre(t, nombre) > 0; }
 /** Los que mejor calzan con lo escrito: si dos comparten un apellido, gana quien calza con nombre y apellido. */
+/** Si el cliente nombró a UN profesional de la oferta y ese profesional NO tiene la hora pedida: no se le deja la hora a otra persona. */
+function nombradoSinEsaHora<T extends { nombre: string; horas: string[] }>(t: string, op: T[], tieneHora: (h: string) => boolean): T | null {
+  if (!op.some((o) => nombreMencionado(t, o.nombre))) return null;
+  const m = mejoresCoincidencias(t, op);
+  return m.length === 1 && !m[0].horas.some(tieneHora) ? m[0] : null;
+}
 function mejoresCoincidencias<T extends { nombre: string }>(t: string, xs: T[]): T[] {
   const p = xs.map((x) => puntajeNombre(t, x.nombre)), max = Math.max(0, ...p);
   return max > 0 ? xs.filter((_, i) => p[i] === max) : [];
@@ -145,8 +151,20 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
       if (o) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: pend });
       else return { texto: `Elige un número del 1 al ${Math.min(cand.length, 8)}, o escríbeme el nombre.`, lista: listaProfesionales(cand) };
     } else if (q) {
+      const sin = nombradoSinEsaHora(t, op, (h) => coincideHora(h, q));
+      if (sin) {
+        // "con Pablo a las 5" y Pablo no tiene esa hora: se dice, y se queda solo con él para que elija otra de las suyas.
+        await deps.guardarEstado({ etapa: "oferta", datos: { horaExacta: sin.horas.length === 1 ? sin.horas[0] : null, opciones: [sin] } });
+        const horaTxt = op.flatMap((o) => o.horas).find((h) => coincideHora(h, q)) ?? `${q.h}:${String(q.m).padStart(2, "0")}`;
+        return { texto: `*${sin.nombre}* no tiene a las ${horaTxt} ${textoDeFecha(sin.fecha, hoy)}. Con él tengo: ${sin.horas.slice(0, 6).join(" · ")}.\n\nEscríbeme la que prefieras, por ejemplo: «la de las ${sin.horas[0]}», o dime con quién más.` };
+      }
       for (const o of op) for (const hora of o.horas) if (coincideHora(hora, q)) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora });
     } else if (estado.datos.horaPendiente) {
+      const sinPend = nombradoSinEsaHora(t, op, (h) => h === estado.datos.horaPendiente);
+      if (sinPend) {
+        await deps.guardarEstado({ etapa: "oferta", datos: { horaExacta: sinPend.horas.length === 1 ? sinPend.horas[0] : null, opciones: [sinPend] } });
+        return { texto: `*${sinPend.nombre}* no tiene a las ${estado.datos.horaPendiente} ${textoDeFecha(sinPend.fecha, hoy)}. Con él tengo: ${sinPend.horas.slice(0, 6).join(" · ")}.\n\nEscríbeme la que prefieras, o dime con quién más.` };
+      }
       // Dijo una hora que tienen varios profesionales y se le preguntó con quién: ahora basta el nombre.
       for (const o of mejoresCoincidencias(t, op.filter((x) => x.horas.includes(estado.datos.horaPendiente!)))) elegidas.push({ id: o.id, nombre: o.nombre, duracionMin: o.duracionMin, fecha: o.fecha, hora: estado.datos.horaPendiente });
       if (elegidas.length === 0) {

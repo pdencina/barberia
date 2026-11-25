@@ -33,6 +33,33 @@ const OFERTA_VARIOS: EstadoChat = { etapa: "oferta", datos: { horaExacta: null, 
 const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos()) => { const a = armar(est, o); return manejarReservaChat(t, TEL, d, a.deps).then((res) => ({ res, ...a })); };
 
 (async () => {
+  await caso("'con Camila a las 5' y Camila no tiene las 17:00 pero otro sí: NO se le deja la hora al otro", async () => {
+    const op = [
+      { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", horas: ["16:00", "17:00"] },
+      { id: "c", nombre: "Camila Rojas", duracionMin: 30, fecha: "2026-11-03", horas: ["15:15", "16:45"] },
+    ];
+    const est: EstadoChat = { etapa: "oferta", datos: { horaExacta: null, opciones: op } };
+    const x = await r("con camila a las 5", est);
+    assert.ok(x.res!.texto.startsWith("*Camila Rojas* no tiene a las 17:00 hoy. Con él tengo: 15:15 · 16:45."), x.res!.texto);
+    assert.ok(!x.res!.texto.includes("Diego") && !x.res!.texto.includes("Perfecto. Te dejo"), "no agenda con otra persona");
+    assert.equal(x.e.creadas.length, 0);
+    assert.deepEqual((x.e.estado as any).datos.opciones.map((o: any) => o.id), ["c"], "se queda solo con ella para elegir otra hora");
+    // sigue funcionando el caso normal: nombre y hora que sí tiene
+    const y = await r("con diego a las 5", est);
+    assert.ok(y.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *17:00*."), y.res!.texto);
+    // solo la hora, sin nombre: sigue sin elegir por el cliente cuando hay varios
+    const z = await r("la de las 4", { etapa: "oferta", datos: { horaExacta: null, opciones: [{ ...op[0], horas: ["16:00"] }, { ...op[1], horas: ["16:00"] }] } } as EstadoChat);
+    assert.ok(z.res!.texto.includes("¿Con quién te la dejo?"), z.res!.texto);
+  });
+  await caso("Con la hora pendiente (se le preguntó con quién) y nombra a alguien que no la tiene, se le dice", async () => {
+    const op = [
+      { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", horas: ["16:00", "17:00"] },
+      { id: "g", nombre: "Gabriel Alcayaga", duracionMin: 45, fecha: "2026-11-03", horas: ["17:00"] },
+      { id: "c", nombre: "Camila Rojas", duracionMin: 30, fecha: "2026-11-03", horas: ["15:15"] },
+    ];
+    const x = await r("con camila", { etapa: "oferta", datos: { horaExacta: null, horaPendiente: "17:00", opciones: op } } as EstadoChat);
+    assert.ok(x.res!.texto.includes("*Camila Rojas* no tiene a las 17:00") && x.e.creadas.length === 0, x.res!.texto);
+  });
   await caso("Sin memoria no interviene", async () => { const x = await r("quiero la de las 15:15", null); assert.equal(x.res, null); });
   await caso("Elige una hora ofrecida y se le pide primero el nombre (de a un dato)", async () => {
     const x = await r("quiero la de las 15:15", OFERTA_DIEGO);
