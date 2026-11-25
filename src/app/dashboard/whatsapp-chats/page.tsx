@@ -19,7 +19,8 @@ export default function WhatsappChatsPage() {
   const [elegida, setElegida] = useState<Conv | null>(null);
   const [mensajes, setMensajes] = useState<Msg[]>([]);
   const [guardando, setGuardando] = useState(false);
-  const fin = useRef<HTMLDivElement>(null);
+  const hilo = useRef<HTMLDivElement>(null);
+  const [corrigiendo, setCorrigiendo] = useState(false);
   const [nuevo, setNuevo] = useState("");
   const [enviando, setEnviando] = useState(false);
   const [aviso, setAviso] = useState("");
@@ -38,7 +39,7 @@ export default function WhatsappChatsPage() {
 
   useEffect(() => { cargar(); const t = setInterval(cargar, 15000); return () => clearInterval(t); }, [cargar]);
   useEffect(() => { if (!elegida) return; cargarHilo(elegida); const t = setInterval(() => cargarHilo(elegida), 10000); return () => clearInterval(t); }, [elegida, cargarHilo]);
-  useEffect(() => { fin.current?.scrollIntoView({ block: "end" }); }, [mensajes]);
+  useEffect(() => { const el = hilo.current; if (el) el.scrollTop = el.scrollHeight; }, [mensajes]);
 
   useEffect(() => { setRevision(null); setAviso(""); setNuevo(""); }, [elegida?.contacto]);
   async function enviar() {
@@ -56,6 +57,15 @@ export default function WhatsappChatsPage() {
     const j = await r.json().catch(() => ({})); setRevisando(false);
     if (!r.ok) { setAviso(j.error ?? "No se pudo revisar"); return; }
     setRevision(j);
+    if (j.respuesta && !nuevo.trim()) setNuevo(j.respuesta);
+  }
+  async function corregir() {
+    if (!nuevo.trim()) return;
+    setCorrigiendo(true); setAviso("");
+    const r = await fetch("/api/agente/chats/revisar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ texto: nuevo }) });
+    const j = await r.json().catch(() => ({})); setCorrigiendo(false);
+    if (!r.ok) { setAviso(j.error ?? "No se pudo corregir"); return; }
+    setNuevo(j.texto);
   }
   async function alternar() {
     setGuardando(true);
@@ -109,7 +119,7 @@ export default function WhatsappChatsPage() {
                     {revision.alertas.length > 0 && <ul className="mt-1 list-disc pl-5">{revision.alertas.map((a, i) => <li key={i}>{a}</li>)}</ul>}
                   </div>
                 )}
-                <div className="max-h-[60vh] space-y-2 overflow-y-auto rounded-xl bg-gray-50 p-3 dark:bg-black/20">
+                <div ref={hilo} className="max-h-[45vh] space-y-2 overflow-y-auto rounded-xl bg-gray-50 p-3 dark:bg-black/20">
                   {mensajes.map((m) => {
                     const agente = m.direccion === "saliente";
                     const manual = agente && m.texto.startsWith("[manual] ");
@@ -124,14 +134,18 @@ export default function WhatsappChatsPage() {
                       </div>
                     );
                   })}
-                  <div ref={fin} />
                 </div>
+                <div className="sticky bottom-0 -mx-1 bg-white px-1 pb-1 pt-1 dark:bg-brand-white">
                 {aviso && <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{aviso}</p>}
                 <form onSubmit={(e) => { e.preventDefault(); enviar(); }} className="mt-2 flex gap-2">
-                  <input value={nuevo} onChange={(e) => setNuevo(e.target.value)} maxLength={1000} placeholder="Escribir un mensaje manual…" className="min-w-0 flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                  <textarea value={nuevo} onChange={(e) => setNuevo(e.target.value)} maxLength={1000} rows={3} placeholder="Escribir un mensaje manual…" className="min-w-0 flex-1 resize-y rounded-xl border border-gray-200 px-3 py-2 text-sm" />
+                  <div className="flex flex-col gap-2">
                   <button type="submit" disabled={enviando || !nuevo.trim()} className="inline-flex items-center gap-1 rounded-xl bg-brand-blue px-3 py-2 text-sm font-semibold text-white disabled:opacity-50"><Send className="h-4 w-4" />{enviando ? "…" : "Enviar"}</button>
+                  <button type="button" onClick={corregir} disabled={corrigiendo || !nuevo.trim()} className="inline-flex items-center justify-center gap-1 rounded-xl border border-gray-200 px-3 py-2 text-xs font-semibold text-brand-dark hover:border-brand-blue/50 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" />{corrigiendo ? "Corrigiendo…" : "Revisar ortografía"}</button>
+                  </div>
                 </form>
                 <p className="mt-1 text-[11px] text-brand-gray">Solo se puede escribir si el cliente escribió en las últimas 24 horas. El agente puede seguir respondiéndole.</p>
+                </div>
               </div>
             )}
           </Panel>
