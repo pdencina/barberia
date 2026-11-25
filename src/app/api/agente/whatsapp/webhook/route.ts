@@ -201,10 +201,14 @@ const handlers = () => crearManejadoresWebhook({
       },
       // Citas próximas por correo o código de reserva, siempre dentro del negocio.
       buscarCitas: async (tenantId, id) => {
-        let q = db.from("clients").select("id,name,checkin_code").eq("tenant_id", tenantId);
-        q = "correo" in id ? q.ilike("email", id.correo.replace(/[\\%_]/g, "\\$&")) : q.eq("checkin_code", id.codigo);
-        const cl = await q.limit(10);
+        let q = db.from("clients").select("id,name,checkin_code,phone").eq("tenant_id", tenantId);
+        // Por teléfono: los últimos 8 dígitos, aunque en la ficha estén con espacios, sin +56 o con caracteres pegados.
+        const cola = "telefono" in id ? id.telefono.replace(/\D/g, "").slice(-8) : "";
+        if ("telefono" in id && cola.length < 8) return null;
+        q = "correo" in id ? q.ilike("email", id.correo.replace(/[\\%_]/g, "\\$&")) : "codigo" in id ? q.eq("checkin_code", id.codigo) : q.ilike("phone", `%${cola.split("").join("%")}%`);
+        const cl = await q.limit(50);
         if (cl.error) throw new Error("Clientes no disponibles");
+        if (cl.data && "telefono" in id) cl.data = (cl.data as any[]).filter((c) => String(c.phone ?? "").replace(/\D/g, "").endsWith(cola)) as any;
         if (!cl.data?.length) return null;
         const hoy = ahoraChile(Date.now()).fecha;
         const ap = await db.from("appointments").select("client_id,date,start_time,status,barber:profiles!barber_id(name),services:appointment_services(service:services(name))")

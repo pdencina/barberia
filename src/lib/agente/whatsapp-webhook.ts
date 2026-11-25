@@ -267,7 +267,7 @@ export function crearManejadoresWebhook(config: {
                       try {
                         const estadoCita = chat ? await chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()) : null;
                         if (estadoCita?.etapa !== "datos") {
-                          const mc = await responderMiCita(text,ahoraChile(deps.ahora()).fecha,(id) => deps.buscarCitas!(n.tenantId,id));
+                          const mc = await responderMiCita(text,ahoraChile(deps.ahora()).fecha,(id) => deps.buscarCitas!(n.tenantId,id),para);
                           if (mc) {
                             respuestaFaq = mc.texto; reiniciado = true;
                             if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria */ } }
