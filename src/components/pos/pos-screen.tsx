@@ -1,5 +1,6 @@
 "use client";
 
+import { contieneSinTildes } from "@/lib/busqueda";
 import { profesionalUnico } from "@/lib/cierre-calculo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { pareceCodigoPlanilla } from "@/lib/planilla-codigo";
@@ -263,11 +264,11 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const filteredItems = (() => {
     let items: Array<Service | Product> = activeTab === "services"
       ? services.filter((s) => {
-          const matchesSearch = s.name.toLowerCase().includes(search.toLowerCase());
+          const matchesSearch = contieneSinTildes(s.name, search);
           const matchesCategory = categoryFilter === "all" || s.category === categoryFilter;
           return matchesSearch && matchesCategory;
         })
-      : products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()) || (p.barcode && p.barcode.includes(search)));
+      : products.filter((p) => contieneSinTildes(p.name, search) || (p.barcode && p.barcode.includes(search)));
 
     if (sortBy === "price_asc") items = [...items].sort((a, b) => a.price - b.price);
     if (sortBy === "price_desc") items = [...items].sort((a, b) => b.price - a.price);

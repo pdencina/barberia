@@ -1,5 +1,6 @@
 "use client";
 
+import { contieneSinTildes } from "@/lib/busqueda";
 import { useState, useEffect, useMemo } from "react";
 import { MessageCircle, Search, Copy, Check, Users, Info, ChevronDown, Link2, Hand, Ticket } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
@@ -127,7 +128,7 @@ export default function WhatsAppBroadcastPage() {
   const segmentList = clients.filter((c) => inSegment(c, segment));
   const q = search.trim().toLowerCase();
   const visible = q
-    ? segmentList.filter((c) => c.name.toLowerCase().includes(q) || (c.phone || "").includes(q))
+    ? segmentList.filter((c) => contieneSinTildes(c.name, q) || (c.phone || "").includes(q))
     : segmentList;
 
   const changeSegment = (s: Segment) => {

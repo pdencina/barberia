@@ -1,5 +1,6 @@
 "use client";
 
+import { contieneSinTildes } from "@/lib/busqueda";
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Mail, MessageCircle, Megaphone, Send, CalendarClock, ChevronDown, Search, AlertTriangle, Tag } from "lucide-react";
@@ -154,7 +155,7 @@ export default function CampanasEnviadasPage() {
                 const Icon = isEmail ? Mail : MessageCircle;
                 const incompleto = c.quotaExceeded || c.failedCount > 0 || c.sentCount < c.plannedTotal;
                 const q = query.trim().toLowerCase();
-                const shown = open && d ? d.recipients.filter((r) => !q || (r.name || "").toLowerCase().includes(q) || (r.contact || "").toLowerCase().includes(q)) : [];
+                const shown = open && d ? d.recipients.filter((r) => !q || contieneSinTildes(r.name, q) || contieneSinTildes(r.contact, q)) : [];
                 return (
                   <div key={c.id} className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-white/10 dark:bg-brand-white">
                     <button type="button" onClick={() => toggle(c.id)} aria-expanded={open} className="flex w-full flex-wrap items-center gap-3 px-4 py-4 text-left transition-colors hover:bg-brand-blue/[0.03] md:flex-nowrap md:px-5">
