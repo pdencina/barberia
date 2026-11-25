@@ -1,0 +1,13 @@
+import { sinTildes, contieneSinTildes, patronIlikeSinTildes } from "../src/lib/busqueda";
+let f = 0;
+const ok = (c: boolean, m: string) => { if (!c) { f++; console.log("FALLA", m); } };
+ok(sinTildes("NÉSTOR Bustamante") === "nestor bustamante", "sinTildes");
+ok(sinTildes("Muñoz") === "muñoz", "ñ se conserva");
+ok(contieneSinTildes("Néstor Bustamante Garrido", "nestor bust"), "nestor bust");
+ok(contieneSinTildes("Nestor", "Néstor"), "con tilde busca sin tilde");
+ok(!contieneSinTildes("Pedro", "nestor"), "no calza");
+ok(patronIlikeSinTildes("nestor bust") === "%__st_r%b_st%", "patrón " + patronIlikeSinTildes("nestor bust"));
+ok(patronIlikeSinTildes("Néstor") === "%__st_r%", "patrón con tilde");
+ok(!/[,()]/.test(patronIlikeSinTildes("a,b)(")), "caracteres peligrosos fuera");
+ok(patronIlikeSinTildes("   ") === "", "vacío");
+console.log(f ? "HAY FALLAS" : "OK búsqueda"); process.exit(f ? 1 : 0);

@@ -1,5 +1,6 @@
 "use client";
 
+import { contieneSinTildes } from "@/lib/busqueda";
 import { useEffect, useMemo, useState } from "react";
 import { MessageCircle, Plus, X } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
@@ -87,7 +88,7 @@ export default function ProveedoresPage() {
   const message = custom ?? auto;
   const waUrl = quoteFor ? whatsAppUrl(quoteFor.phone, message) : null;
   const canWhatsApp = !!waUrl && items.length + news.length > 0;
-  const shown = products.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase()));
+  const shown = products.filter((p) => contieneSinTildes(p.name, search.trim()));
 
   return (
     <div className="mx-auto max-w-3xl space-y-3 md:space-y-6 p-3 md:p-8 animate-fade-in">

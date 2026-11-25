@@ -1,5 +1,6 @@
 "use client";
 
+import { contieneSinTildes } from "@/lib/busqueda";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Mail, MessageCircle, Search, AlertTriangle } from "lucide-react";
 import { primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
@@ -62,7 +63,7 @@ export function SendReviewModal({
   const count = total - off.size;
   const q = query.trim().toLowerCase();
   const visible = useMemo(
-    () => (q ? recipients.filter((r) => r.name.toLowerCase().includes(q) || (r.contact || "").toLowerCase().includes(q)) : recipients),
+    () => (q ? recipients.filter((r) => contieneSinTildes(r.name, q) || contieneSinTildes(r.contact, q)) : recipients),
     [recipients, q]
   );
   const isEmail = kind === "email";

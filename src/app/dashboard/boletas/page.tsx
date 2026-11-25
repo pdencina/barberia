@@ -1,5 +1,6 @@
 "use client";
 
+import { contieneSinTildes } from "@/lib/busqueda";
 import { useState, useEffect } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
@@ -111,7 +112,7 @@ export default function BoletasPage() {
               <tr><td colSpan={6}><Spinner /></td></tr>
             ) : transactions.length === 0 ? (
               <tr><td colSpan={6} className="p-4 text-center text-gray-500">No hay transacciones</td></tr>
-            ) : transactions.filter((t: any) => !searchFilter || (t.client?.name || "").toLowerCase().includes(searchFilter.toLowerCase())).map((t: any) => (
+            ) : transactions.filter((t: any) => !searchFilter || contieneSinTildes(t.client?.name, searchFilter)).map((t: any) => (
               <tr key={t.id} className="hover:bg-gray-50">
                 <td className="p-4">{new Date(t.created_at).toLocaleDateString("es-CL")}</td>
                 <td className="p-4">{t.client?.name || "-"}</td>

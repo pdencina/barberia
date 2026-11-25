@@ -1,3 +1,4 @@
+import { contieneSinTildes, patronIlikeSinTildes } from "@/lib/busqueda";
 import { cleanClientName } from "@/lib/client-name";
 import { BUILTIN_SOURCES, loadCustomSources } from "@/lib/client-sources";
 import { NextRequest, NextResponse } from "next/server";
@@ -66,7 +67,7 @@ export async function GET(req: NextRequest) {
       const q = (search || "").toLowerCase();
       let lista = (await todosLosClientes())
         .filter((c: any) => !esGrupo(grupo) || (grupo === "nuevo" ? !c.imported_at : !!c.imported_at && (grupo === "activo") === act.has(c.id)))
-        .filter((c: any) => !q || [c.name, c.email, c.phone, c.checkin_code].some((v) => String(v || "").toLowerCase().includes(q)));
+        .filter((c: any) => !q || [c.name, c.email, c.phone, c.checkin_code].some((v) => contieneSinTildes(v, q)));
       let stats: Map<string, StatsCliente> | null = null;
       if (esOrdenPorStats(orden)) stats = await cargarStats(null);
       lista = ordenarClientes(lista, stats || new Map(), orden, asc);
@@ -87,7 +88,11 @@ export async function GET(req: NextRequest) {
   }
 
   if (search) {
-    query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%`);
+    // El nombre se busca sin importar tildes (nestor = Néstor); correo y teléfono, tal cual (sin caracteres que rompan el filtro).
+    const pNombre = patronIlikeSinTildes(search);
+    const crudo = search.replace(/[%_\\,()*"']/g, " ").trim().slice(0, 60);
+    const filtros = [pNombre && `name.ilike.${pNombre}`, crudo && `email.ilike.%${crudo}%`, crudo && `phone.ilike.%${crudo}%`].filter(Boolean);
+    if (filtros.length) query = query.or(filtros.join(","));
   }
 
   // Apply pagination
