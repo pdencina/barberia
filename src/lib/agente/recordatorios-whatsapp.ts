@@ -4,15 +4,15 @@ import { hashContactoWhatsApp, normalizarTelefonoWhatsApp, type ResultadoEnvioPl
 import { PROPOSITO_RECORDATORIO_CITA, HORAS_MIN_CANCELAR } from "./acciones-cita";
 import { parseWallClock } from "../wallclock";
 import { enHorarioDeSilencio } from "./horario-silencio";
+import { tocaConfirmar, HORAS_VENTANA_CONFIRMACION } from "./horario-confirmacion";
+export { HORAS_ENVIO_CONFIRMACION } from "./horario-confirmacion";
 
 // INFERENCIA: cota técnica por invocación; no reemplaza cuota del negocio.
 export const MAX_ENVIOS_RECORDATORIOS = 20;
 export const MAX_ENVIOS_CONFIRMACIONES = 40;
-/** Confirmación por WhatsApp: se escribe al cliente desde 8 horas antes de su cita (o de inmediato si agenda con menos anticipación). */
-export const HORAS_ENVIO_CONFIRMACION = 8;
 export interface NegocioRecordatorios { tenantId: string; phoneNumberId: string; enabled: boolean }
 export interface CitaRecordatorio {
-  id: string; tenant_id: string; status: string; start_time: string; date: string; reminder_sent: boolean;
+  id: string; tenant_id: string; status: string; start_time: string; date: string; reminder_sent: boolean; created_at?: string | null;
   client: { id: string; tenant_id: string; name: string; phone: string | null; email: string | null } | null;
   barber: { name: string } | null;
   services: { service: { name: string } | null }[];
@@ -56,7 +56,10 @@ export function paredSantiago(ms:number){
   const p=obtenerFechaHoraInforme(ms);
   return `${p.fecha}T${p.hora}:${String(p.segundos%60).padStart(2,"0")}.${String(((ms%1000)+1000)%1000).padStart(3,"0")}Z`;
 }
-export function ventanaConfirmaciones(ahora:number){return {desde:paredSantiago(ahora),hasta:paredSantiago(ahora+HORAS_ENVIO_CONFIRMACION*3600000)};}
+export function ventanaConfirmaciones(ahora:number){return {desde:paredSantiago(ahora),hasta:paredSantiago(ahora+HORAS_VENTANA_CONFIRMACION*3600000)};}
+/** Instante real (created_at, envíos) → hora de pared de Santiago en milisegundos. */
+export function paredMs(instante:string|number|null|undefined):number|null{const t=typeof instante==="number"?instante:Date.parse(String(instante??""));return Number.isFinite(t)?parseWallClock(paredSantiago(t)).getTime():null;}
+const yaToca=(c:CitaRecordatorio,ahora:number)=>tocaConfirmar(parseWallClock(c.start_time).getTime(),paredMs(c.created_at),paredMs(ahora)!);
 /** Milisegundos que faltan para la cita (ambos en hora de pared de Santiago). */
 export function anticipacionCita(startTime:string,ahora:number):number{return parseWallClock(startTime).getTime()-parseWallClock(paredSantiago(ahora)).getTime();}
 /** Con 3 horas o más por delante todavía puede confirmar, cancelar o modificar: se le dan los botones. Con menos, solo se le avisa. */
@@ -109,14 +112,14 @@ export function crearManejadorRecordatorios(config:{
           let claim:string|null=null,invocado=false;
           try {
             const para=telefono(c);
-            if(!candidata(c,n.tenantId,window,confirmar)||c.reminder_sent||!para){totals.omitidos++;continue;}
+            if(!candidata(c,n.tenantId,window,confirmar)||(confirmar&&!yaToca(c,deps.ahora()))||c.reminder_sent||!para){totals.omitidos++;continue;}
             const hash=hashContactoWhatsApp(deps.sal,n.tenantId,para);
             const vigente=async(email=false) => {
               const business=await repo.negocio(n.tenantId),row=await repo.actual(c);
               const current=row?normalizarCita(row):null;
               return business?.enabled===true&&business.phoneNumberId===n.phoneNumberId&&business.tenantId===n.tenantId
                 &&!!current&&same(c,current)&&candidata(current,n.tenantId,ventana(deps.ahora()),confirmar)
-                &&(email||!current.reminder_sent)&&!await repo.baja(n.tenantId,hash);
+                &&(!confirmar||yaToca(current,deps.ahora()))&&(email||!current.reminder_sent)&&!await repo.baja(n.tenantId,hash);
             };
             if(!await vigente()){totals.omitidos++;continue;}
             if(await repo.existe(c,"whatsapp")){totals.ya_reclamados++;continue;}
@@ -183,7 +186,7 @@ export function crearManejadorRecordatorios(config:{
 export function crearRepositorioRecordatorios(db:any,opciones:{sinMarca?:boolean}={}):RepositorioRecordatorios {
   const sinMarca=opciones.sinMarca===true;
   const table="agent_reminder_deliveries",purpose=PROPOSITO_RECORDATORIO_CITA;
-  const fields=`id,tenant_id,client_id,status,date,start_time,${sinMarca?"":"reminder_sent,"}client:clients!client_id(id,tenant_id,name,email,phone),barber:profiles!barber_id(name),services:appointment_services(service:services(name))`;
+  const fields=`id,tenant_id,client_id,status,date,start_time,created_at,${sinMarca?"":"reminder_sent,"}client:clients!client_id(id,tenant_id,name,email,phone),barber:profiles!barber_id(name),services:appointment_services(service:services(name))`;
   const conMarca=(r:any):any=>sinMarca&&r?{...r,reminder_sent:false}:r;
   const ts=(ms:number)=>new Date(ms).toISOString(); // Solo instantes técnicos del registro.
   const check=(r:any)=>{if(r.error){if(["42P01","42703","PGRST204","PGRST205"].includes(r.error.code))throw new MigracionRecordatoriosPendiente();throw new Error("Recordatorios no disponibles");}return r;};

@@ -34,3 +34,8 @@ export function textoPlantillaConfirmacion(conBotones:boolean,v:readonly string[
   ?`Hola ${v[0]}! Te escribimos desde ${v[1]} para confirmar tu hora de ${v[2]} con ${v[3]} el ${v[4]} a las ${v[5]}. ¿Nos confirmas si asistirás? ¡Gracias!\n[Botones: Sí, confirmo mi cita · No, deseo cancelar mi cita · Modificar mi cita]`
   :`Hola ${v[0]}! Tu hora en ${v[1]} quedó agendada: ${v[2]} con ${v[3]} el ${v[4]} a las ${v[5]}. Te recomendamos llegar unos minutos antes. Si necesitas ayuda con tu hora, puedes escribirnos por este mismo chat. ¡Te esperamos!`;
 }
+
+/** Segundo mensaje, con los mismos 3 botones. Variables de la confirmación + la hora límite. Debe calzar con lo aprobado en Meta. */
+export const PLANTILLA_ULTIMO_AVISO = "confirmacion_cita_ultimo_aviso";
+export const textoPlantillaUltimoAviso = (v: readonly string[]) =>
+ `Hola ${v[0]}! Aún no recibimos tu confirmación en ${v[1]} para ${v[2]} con ${v[3]} el ${v[4]} a las ${v[5]}. Si no respondes antes de las ${v[6]}, tu hora se cancelará. ¿Nos confirmas si asistirás?\n[Botones: Sí, confirmo mi cita · No, deseo cancelar mi cita · Modificar mi cita]`;

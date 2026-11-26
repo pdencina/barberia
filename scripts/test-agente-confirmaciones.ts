@@ -36,9 +36,9 @@ function armar(filas: CitaRecordatorio[], conInterruptor = true) {
 }
 
 (async () => {
-  await caso("Ventana: desde ahora hasta 8 horas, en hora de Santiago", () => {
+  await caso("Ventana de búsqueda: desde ahora hasta 27 horas, en hora de Santiago", () => {
     const v = ventanaConfirmaciones(AHORA);
-    assert.equal(v.desde.slice(0, 16), "2026-11-25T16:00"); assert.equal(v.hasta.slice(0, 16), "2026-11-26T00:00");
+    assert.equal(v.desde.slice(0, 16), "2026-11-25T16:00"); assert.equal(v.hasta.slice(0, 16), "2026-11-26T19:00");
     assert.equal(Math.round(anticipacionCita("2026-11-25T20:00:00.000Z", AHORA) / 60000), 240);
   });
   await caso("De 00:00 a 06:00 no se envía nada; a las 06:00 sí", async () => {

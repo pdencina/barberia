@@ -1,6 +1,9 @@
 import { registrarChat, purgarChats } from "@/lib/agente/chats";
 import { hashContactoWhatsApp } from "@/lib/agente/whatsapp-meta";
-import { textoPlantillaConfirmacion, variablesPlantillaConfirmacion, PLANTILLA_CONFIRMACION_BOTONES, PLANTILLA_CITA_AVISO, IDIOMA_PLANTILLAS_CONFIRMACION, BOTONES_CONFIRMACION } from "@/lib/agente/plantilla-recordatorio";
+import { procesarAvisos, repoAvisoDesdeBase } from "@/lib/agente/aviso-cancelacion";
+import { notify } from "@/lib/notify";
+import { horaAmPm } from "@/lib/hora-ampm";
+import { PLANTILLA_ULTIMO_AVISO, textoPlantillaUltimoAviso, textoPlantillaConfirmacion, variablesPlantillaConfirmacion, PLANTILLA_CONFIRMACION_BOTONES, PLANTILLA_CITA_AVISO, IDIOMA_PLANTILLAS_CONFIRMACION, BOTONES_CONFIRMACION } from "@/lib/agente/plantilla-recordatorio";
 import { getClientColorTheme } from "@/lib/client-theme";
 import { crearManejadorRecordatorios, crearRepositorioRecordatorios } from "@/lib/agente/recordatorios-whatsapp";
 import { crearAutorizadorInformeProgramado } from "@/lib/agente/informe-programado";
@@ -16,7 +19,7 @@ import { parseWallClock } from "@/lib/wallclock";
 // Desde 8 h antes de la cita (o de inmediato si agenda con menos): con más de 3 h por delante lleva 3 botones (confirmar, cancelar, modificar);
 // con menos de 3 h solo avisa. Las respuestas las procesa el webhook del agente.
 export const dynamic = "force-dynamic";
-export const GET = crearManejadorRecordatorios({
+const confirmaciones = crearManejadorRecordatorios({
   modo: "confirmacion",
   permitirEnvio: true,
   configuracion: () => verificarConfiguracionWhatsApp(process.env),
@@ -76,3 +79,38 @@ export const GET = crearManejadorRecordatorios({
     };
   },
 });
+
+// Después de las confirmaciones: aviso a quien no respondió y cancelación 1 hora más tarde (interruptor aparte, apagado por defecto).
+async function avisos() {
+  const db = createAdminSupabase();
+  const sal = process.env.AGENTE_CONTACT_HASH_SALT ?? "";
+  return procesarAvisos({
+    repo: repoAvisoDesdeBase(db), ahora: Date.now, sal,
+    consumirCuota: async (tenant, citaId) => {
+      const c = await tryConsumirCreditos(tenant, "utility", `aviso-${citaId}`, db);
+      // Sin referencia: la cita ya contó por su confirmación y este es un segundo envío.
+      return c !== null ? c : tryConsumeQuota(tenant, "whatsapp", "reminder");
+    },
+    enviar: async (negocio, cita, para, limite) => {
+      const t = await db.from("tenants").select("name").eq("id", cita.tenant_id).maybeSingle();
+      const variables = [...variablesPlantillaConfirmacion(cita, t.data?.name ? String(t.data.name) : ""), horaAmPm(limite)];
+      const r = await enviarPlantilla({ para, plantilla: PLANTILLA_ULTIMO_AVISO, idioma: IDIOMA_PLANTILLAS_CONFIRMACION, variables, botones: BOTONES_CONFIRMACION }, {
+        token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "", phone_number_id: negocio.phoneNumberId,
+        fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
+      });
+      if (r.estado === "aceptado") await registrarChat(db, { tenantId: cita.tenant_id, contactHash: hashContactoWhatsApp(sal, cita.tenant_id, para), telefono: para, direccion: "saliente", tipo: "plantilla", texto: textoPlantillaUltimoAviso(variables) });
+      return r;
+    },
+    notificar: notify,
+  });
+}
+
+export async function GET(req: Request) {
+  const respuesta = await confirmaciones(req);
+  // El manejador de arriba ya validó la llamada del cron; en modo de prueba (dryRun) no se avisa ni se cancela.
+  if (respuesta.status === 200 && new URL(req.url).searchParams.get("dryRun") !== "1") {
+    try { console.info("[agente] avisos de confirmación", JSON.stringify(await avisos())); }
+    catch (e) { console.error("[agente] avisos de confirmación:", e instanceof Error ? e.message : "error"); }
+  }
+  return respuesta;
+}

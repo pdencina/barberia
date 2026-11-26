@@ -582,7 +582,7 @@ export function crearRepositorioWebhook(db: any, sal: string): RepositorioWebhoo
       return duplicate.count===0?selected:null;
     },
     async referencia(tenant,providerId,contactHash) {
-      const record=check(await db.from("agent_reminder_deliveries").select("id,appointment_id").eq("tenant_id",tenant).eq("provider_message_id",providerId).eq("channel","whatsapp").eq("purpose","recordatorio-cita-v1").eq("status","aceptado_proveedor").maybeSingle()).data;
+      const record=check(await db.from("agent_reminder_deliveries").select("id,appointment_id").eq("tenant_id",tenant).eq("provider_message_id",providerId).eq("channel","whatsapp").in("purpose",["recordatorio-cita-v1","aviso-cancelacion-v1"]).eq("status","aceptado_proveedor").maybeSingle()).data;
       if (!record) return null;
       const appointment=check(await db.from("appointments").select("client_id,client:clients!client_id(id,phone,tenant_id)").eq("tenant_id",tenant).eq("id",record.appointment_id).maybeSingle()).data;
       const client=Array.isArray(appointment?.client)?appointment.client[0]:appointment?.client;
