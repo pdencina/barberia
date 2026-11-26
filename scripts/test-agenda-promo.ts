@@ -1,4 +1,4 @@
-import { avisosAgenda, periodoPromo, recortarHorarios } from "../src/lib/agenda-promo";
+import { avisosAgenda, demandaDe, periodoPromo, recortarHorarios } from "../src/lib/agenda-promo";
 import { dateStrOffset } from "../src/lib/utils";
 let f = 0;
 const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
@@ -12,9 +12,11 @@ const h = [{ barber_id: "x", day_of_week: 1, is_working: true, start_time: "09:0
 const r = recortarHorarios(h, "10:00", "16:00")[0];
 ok(r.start_time === "10:00" && r.end_time === "16:00", "recorta");
 ok(recortarHorarios(h, "21:00", "")[0].is_working === false, "fuera de horario");
-const pros = [{ id: "a", name: "Ana", disp: 600, ocup: 540, pct: 90 }, { id: "b", name: "Beto", disp: 600, ocup: 60, pct: 10 }, { id: "c", name: "Caro", disp: 0, ocup: 0, pct: 0 }];
-const av = avisosAgenda(pros, ["a", "c"]).join(" ");
-ok(av.includes("Ana (90%)") && av.includes("Beto (10%)") && av.includes("Caro"), "avisa lleno, fuera y sin horas");
-ok(avisosAgenda(pros, ["b"]).length === 0, "sin avisos");
+const pro = (id: string, name: string, cortes: number, atiende = true) => ({ id, name, cortes, dias: 16, reservas: 2, atiende });
+const pros = [pro("a", "Javier", 114), pro("b", "Pablo", 76), pro("c", "Bleiner", 21), pro("d", "Sin", 70, false)];
+ok(demandaDe(pros[0], pros) === "alta" && demandaDe(pros[1], pros) === "media" && demandaDe(pros[2], pros) === "baja", "niveles");
+const av = avisosAgenda(pros, ["a", "d"]).join(" ");
+ok(av.includes("Javier (114)") && av.includes("Bleiner (21)") && av.includes("Sin."), "avisa mucha demanda, fuera y sin horario");
+ok(avisosAgenda(pros, ["b", "c"]).length === 0, "sin avisos");
 console.log(f ? "HAY FALLAS" : "OK agenda promo");
 process.exit(f ? 1 : 0);

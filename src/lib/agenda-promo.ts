@@ -1,8 +1,6 @@
 // Agenda de los profesionales durante una promoción: qué periodo mirar, recorte al horario de la promo y avisos. Puro.
 import { aMinutos, type HorarioOc } from "@/lib/ocupacion";
 
-export const MUCHA_AGENDA = 70; // % ocupado desde el que se avisa «ya tiene mucha agenda»
-export const CON_ESPACIO = 35;  // % ocupado bajo el que se avisa «tiene espacio»
 const MAX_DIAS = 62;
 const esFecha = (v: unknown): v is string => typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v);
 
@@ -30,20 +28,37 @@ export function recortarHorarios(horarios: HorarioOc[], horaDesde: unknown, hora
   });
 }
 
-export interface ProAgenda { id: string; name: string; disp: number; ocup: number; pct: number }
+export const SEMANAS_DEMANDA = 4;
+export type Demanda = "alta" | "media" | "baja";
+export interface ProAgenda {
+  id: string; name: string;
+  cortes: number;    // servicios cobrados en las últimas 4 semanas
+  dias: number;      // días en que vendió en ese periodo
+  reservas: number;  // reservas ya tomadas en los días (y horario) de la promoción
+  atiende: boolean;  // tiene horario disponible en esos días
+}
+
+const promedio = (pros: ProAgenda[]) => { const con = pros.filter((p) => p.cortes > 0); return con.length ? con.reduce((s, p) => s + p.cortes, 0) / con.length : 0; };
+
+/** Cuánto está cortando comparado con el resto del equipo. */
+export function demandaDe(p: ProAgenda, pros: ProAgenda[]): Demanda {
+  const m = promedio(pros);
+  if (!m) return "media";
+  return p.cortes >= m * 1.15 ? "alta" : p.cortes <= m * 0.85 ? "baja" : "media";
+}
 
 /** Avisos según a quién se marcó. Sin nadie marcado la promo vale con todos. */
 export function avisosAgenda(pros: ProAgenda[], marcados: string[]): string[] {
   const out: string[] = [];
-  const nombres = (l: ProAgenda[]) => l.map((p) => `${p.name} (${p.pct}%)`).join(", ");
+  const nombres = (l: ProAgenda[]) => l.map((p) => `${p.name} (${p.cortes})`).join(", ");
   const elegidos = marcados.length ? pros.filter((p) => marcados.includes(p.id)) : pros;
-  const llenos = elegidos.filter((p) => p.disp > 0 && p.pct >= MUCHA_AGENDA);
-  if (llenos.length) out.push(`Ya tienen mucha agenda: ${nombres(llenos)}.`);
-  const sinHoras = marcados.length ? elegidos.filter((p) => p.disp === 0) : [];
-  if (sinHoras.length) out.push(`No tienen horas disponibles en esos días: ${sinHoras.map((p) => p.name).join(", ")}.`);
+  const llenos = elegidos.filter((p) => demandaDe(p, pros) === "alta");
+  if (llenos.length) out.push(`Incluidos que ya tienen mucha demanda: ${nombres(llenos)}.`);
+  const sinHorario = marcados.length ? elegidos.filter((p) => !p.atiende) : [];
+  if (sinHorario.length) out.push(`No tienen horario en esos días: ${sinHorario.map((p) => p.name).join(", ")}.`);
   if (marcados.length) {
-    const fuera = pros.filter((p) => !marcados.includes(p.id) && p.disp > 0 && p.pct <= CON_ESPACIO);
-    if (fuera.length) out.push(`Quedaron fuera y tienen bastante espacio: ${nombres(fuera)}.`);
+    const fuera = pros.filter((p) => !marcados.includes(p.id) && p.atiende && demandaDe(p, pros) === "baja");
+    if (fuera.length) out.push(`Quedaron fuera y están cortando menos que el resto: ${nombres(fuera)}.`);
   }
   return out;
 }

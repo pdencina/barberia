@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole, resolveTenantForRequest } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/accounting";
 import { dateStrOffset, todayInChile } from "@/lib/utils";
-import { calcularOcupacion, pctOcup, totalGrupo, type ProOc } from "@/lib/ocupacion";
-import { periodoPromo, recortarHorarios } from "@/lib/agenda-promo";
+import { calcularOcupacion, type ProOc } from "@/lib/ocupacion";
+import { SEMANAS_DEMANDA, periodoPromo, recortarHorarios } from "@/lib/agenda-promo";
 
 export const dynamic = "force-dynamic";
 
@@ -27,20 +27,33 @@ export async function GET(req: NextRequest) {
     if (ids.length === 0) return NextResponse.json({ ...p, pros: [] });
 
     const filas = (r: any) => { if (r.error) throw r.error; return r.data || []; };
-    const [horarios, descansos, vacaciones, bloqueos, citas] = await Promise.all([
+    const hoy = todayInChile();
+    const desdeVentas = dateStrOffset(hoy, -7 * SEMANAS_DEMANDA);
+    const [horarios, descansos, vacaciones, bloqueos, citas, ventas] = await Promise.all([
       sb.from("barber_schedule").select("barber_id, day_of_week, is_working, start_time, end_time, break_start, break_end").in("barber_id", ids).then(filas),
       sb.from("barber_breaks").select("barber_id, day_of_week, start_time, end_time").in("barber_id", ids).then((r: any) => (r.error ? [] : r.data || [])),
       sb.from("professional_vacations").select("barber_id, start_date, end_date").eq("tenant_id", tenantId).then((r: any) => (r.error ? [] : r.data || [])),
       sb.from("barber_blocks").select("barber_id, date, all_day, start_time, end_time").in("barber_id", ids).gte("date", p.desde).lte("date", p.hasta).then((r: any) => (r.error ? [] : r.data || [])),
       fetchAllRows<any>(() => sb.from("appointments").select("id, barber_id, date, start_time, end_time").eq("tenant_id", tenantId).in("status", ["scheduled", "confirmed", "in_progress", "completed"]).gte("date", p.desde).lte("date", p.hasta)),
+      // Lo que de verdad atiende cada uno: servicios cobrados (con o sin reserva) en las últimas semanas, sin contar hoy.
+      fetchAllRows<any>(() => sb.from("transactions").select("id, barber_id, created_at, items:transaction_items(service_id, quantity)").eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed").gte("created_at", `${desdeVentas}T03:00:00Z`).lt("created_at", `${hoy}T03:00:00Z`)),
     ]);
 
     const r = calcularOcupacion({ pros, horarios: recortarHorarios(horarios as any, sp.get("horaDesde"), sp.get("horaHasta")), descansos, bloqueos, vacaciones, citas, ventas: [], desde: p.desde, hasta: p.hasta });
+    const dia = (iso: string) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(new Date(iso));
+    const hd = sp.get("horaDesde") || "", hh = sp.get("horaHasta") || "";
     const salida = r.pros.map((x) => {
-      // Se suman los meses que toque el periodo.
-      const t = r.meses.reduce((acc, m) => { const v = totalGrupo({ ...r, pros: [x] }, "todos", m); return { disp: acc.disp + v.disp, ocup: acc.ocup + v.ocup }; }, { disp: 0, ocup: 0 });
-      return { id: x.id, name: x.name, disp: t.disp, ocup: t.ocup, pct: pctOcup(t.ocup, t.disp) };
-    }).sort((a, b) => Number(a.disp === 0) - Number(b.disp === 0) || a.pct - b.pct || a.name.localeCompare(b.name, "es"));
+      let cortes = 0;
+      const dias = new Set<string>();
+      for (const v of ventas) {
+        if (v.barber_id !== x.id) continue;
+        const n = (v.items || []).filter((i: any) => i.service_id).reduce((s: number, i: any) => s + (Number(i.quantity) || 1), 0);
+        if (n > 0) { cortes += n; dias.add(dia(v.created_at)); }
+      }
+      const reservas = citas.filter((c: any) => { const h = String(c.start_time || "").slice(11, 16); return c.barber_id === x.id && (!hd || h >= hd) && (!hh || h < hh); }).length;
+      const atiende = r.meses.some((m) => (x.porMes[m]?.disp || 0) > 0);
+      return { id: x.id, name: x.name, cortes, dias: dias.size, reservas, atiende };
+    }).sort((a, b) => b.cortes - a.cortes || a.name.localeCompare(b.name, "es"));
     return NextResponse.json({ ...p, pros: salida });
   } catch (e) {
     console.error("[agenda-promo]", e);
