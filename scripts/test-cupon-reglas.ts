@@ -1,0 +1,16 @@
+import { motivoCuponNoValido as m, limpiarReglas } from "../src/lib/cupon-reglas";
+let f = 0;
+const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
+const p = "91bede52-f11a-46b0-970a-91b83cb6227e", otro = "08dfa271-6ede-45bf-b79c-ff9eaeba19a1";
+const c = { active: true, conditions: { desde: "2026-12-01", hasta: "2026-12-15", horaDesde: "10:00", horaHasta: "18:00", profesionalIds: [p] } };
+const cita = { barberId: p, fecha: "2026-12-05", hora: "12:00" };
+ok(m(c, cita) === null, "válido");
+ok(!!m(c, { ...cita, barberId: otro }), "otro profesional");
+ok(!!m(c, { ...cita, fecha: "2026-11-30" }), "antes");
+ok(!!m(c, { ...cita, fecha: "2026-12-16" }), "después");
+ok(!!m(c, { ...cita, hora: "09:30" }), "temprano");
+ok(!!m({ active: false }, cita), "inactivo");
+ok(!!m({ max_uses: 2, used_count: 2 }, cita), "agotado");
+ok(m({ active: true }, cita) === null, "sin reglas");
+ok(limpiarReglas({ desde: "x", profesionalIds: ["a'; drop"] }) === null, "limpia basura");
+console.log(f ? "HAY FALLAS" : "OK reglas cupón"); process.exit(f ? 1 : 0);

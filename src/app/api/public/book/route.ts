@@ -1,3 +1,4 @@
+import { horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
 import { buscarClienteExistente } from "@/lib/cliente-existente";
 import { getPlazoCambios } from "@/lib/cambio-cliente";
 import { getClientColorTheme } from "@/lib/client-theme";
@@ -108,6 +109,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Horario no disponible. Selecciona otro." }, { status: 409 });
   }
 
+  // Código promocional escrito al reservar (migración 182): se valida en el servidor; si no sirve, se avisa antes de crear la cita.
+  let cuponId: string | null = null;
+  const codigoPromo = String(body.couponCode || "").trim().toUpperCase().slice(0, 40);
+  if (codigoPromo) {
+    const { data: c } = await supabase.from("coupons").select("*").eq("code", codigoPromo).eq("tenant_id", barberForCap?.tenant_id).maybeSingle();
+    const motivo = c ? motivoCuponNoValido(c as any, { barberId, fecha: date, hora: horaDeCita(start.toISOString()) }) : "Código no encontrado.";
+    if (motivo) return NextResponse.json({ error: `${motivo} Quítalo o cámbialo para confirmar.`, code: "coupon" }, { status: 409 });
+    cuponId = (c as any).id;
+  }
+
   // Find or create client
   // Get tenant_id from barber
   const { data: barberData } = await supabase.from("profiles").select("tenant_id").eq("id", barberId).single();
@@ -182,6 +193,10 @@ export async function POST(req: NextRequest) {
   if (await exceededAfterInsert(supabase, barberId, tenantId, date, start, end, appointment!.id)) {
     await supabase.from("appointments").delete().eq("id", appointment!.id);
     return NextResponse.json({ error: "Horario no disponible. Selecciona otro." }, { status: 409 });
+  }
+
+  if (cuponId) {
+    await supabase.from("appointments").update({ coupon_id: cuponId }).eq("id", appointment!.id); // si falta la migración 182, no pasa nada
   }
 
   if (trackAds) {

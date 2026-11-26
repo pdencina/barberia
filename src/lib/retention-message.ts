@@ -16,6 +16,9 @@ export function greetingName(clientName?: string | null): string {
   return /^\[.*\]$/.test(n) ? n : n.split(/\s+/)[0];
 }
 
+/** Link de reserva con el código ya puesto. */
+export const linkConCupon = (url: string, code?: string | null) => (code ? `${url}${url.includes("?") ? "&" : "?"}cupon=${encodeURIComponent(code)}` : url);
+
 export function buildRetentionWhatsApp(opts: { clientName?: string | null; message?: string | null; coupon?: RetentionCoupon | null; bookingUrl: string; conditions?: string | null }): string {
   const first = greetingName(opts.clientName);
   let msg = (opts.message || "").trim() || `Hola${first ? ` ${first}` : ""}! Te extrañamos. Agenda tu próxima cita.`;
@@ -28,6 +31,6 @@ export function buildRetentionWhatsApp(opts: { clientName?: string | null; messa
   }
   const cond = (opts.conditions || "").trim();
   if (cond) msg += `\n\n${cond}`;
-  msg += `\n\nAgenda aquí: ${opts.bookingUrl}`;
+  msg += `\n\nAgenda aquí: ${linkConCupon(opts.bookingUrl, opts.coupon?.code)}`;
   return msg;
 }

@@ -176,6 +176,18 @@ export default function BookingPage() {
 
   // Computed totals
   const totalPrice = selectedServices.reduce((sum, s) => sum + Number(s.price), 0);
+  // Código promocional (también llega en el link: ?cupon=CODIGO, como el del correo de la promoción).
+  const [codigoPromo, setCodigoPromo] = useState("");
+  const [promoEstado, setPromoEstado] = useState<{ ok: boolean; texto: string } | null>(null);
+  useEffect(() => { const c = new URLSearchParams(window.location.search).get("cupon"); if (c) setCodigoPromo(c.toUpperCase().slice(0, 40)); }, []);
+  useEffect(() => { setPromoEstado(null); }, [codigoPromo, selectedSlot, selectedBarber?.id, totalPrice]);
+  const revisarPromo = async () => {
+    if (!codigoPromo.trim() || !selectedBarber || !selectedSlot) return;
+    const d = await fetch("/api/public/coupon", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: codigoPromo, barberId: selectedBarber.id, startTime: selectedSlot, total: totalPrice }) }).then((r) => r.json()).catch(() => null);
+    if (!d) setPromoEstado({ ok: false, texto: "No pudimos revisar el código. Intenta de nuevo." });
+    else if (!d.valid) setPromoEstado({ ok: false, texto: d.message });
+    else setPromoEstado({ ok: true, texto: d.discount > 0 ? `Código aplicado: pagas ${formatCurrency(totalPrice - d.discount)} en el local (antes ${formatCurrency(totalPrice)}).` : `Código aplicado${d.description ? `: ${d.description}` : ""}.` });
+  };
   const totalDuration = Math.max(5, selectedServices.reduce((sum, s) => sum + s.duration, 0));
 
   const [closedDays, setClosedDays] = useState<number[]>([]);
@@ -465,6 +477,7 @@ export default function BookingPage() {
         autoAssigned,
         marketingConsent,
         adAttribution: readAdParams(),
+        couponCode: codigoPromo.trim() || null,
       }),
     });
 
@@ -1099,6 +1112,18 @@ export default function BookingPage() {
                 />
               </div>
             </div>
+
+            {!depositRequired && (
+              <div className="mt-4">
+                <label className="text-sm text-brand-gray mb-1 block">¿Tienes un código? (opcional)</label>
+                <div className="flex gap-2">
+                  <input type="text" value={codigoPromo} onChange={(e) => setCodigoPromo(e.target.value.toUpperCase().slice(0, 40))} placeholder="Ej: CUANDO-PAGAN" autoCapitalize="characters"
+                    className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-2.5 font-mono text-brand-dark placeholder:font-sans placeholder:text-brand-gray focus:border-brand-blue focus:outline-none" />
+                  <button type="button" onClick={revisarPromo} disabled={!codigoPromo.trim()} className="rounded-xl border border-brand-blue px-4 text-sm font-semibold text-brand-blue disabled:opacity-40">Aplicar</button>
+                </div>
+                {promoEstado && <p className={`mt-1.5 text-xs font-medium ${promoEstado.ok ? "text-emerald-600" : "text-red-500"}`}>{promoEstado.texto}</p>}
+              </div>
+            )}
 
             <label className="mt-4 flex items-start gap-2 text-sm text-brand-gray">
               <input type="checkbox" checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} className="mt-0.5 h-4 w-4" />

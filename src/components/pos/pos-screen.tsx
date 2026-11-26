@@ -4,7 +4,7 @@ import { contieneSinTildes } from "@/lib/busqueda";
 import { profesionalUnico } from "@/lib/cierre-calculo";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import { pareceCodigoPlanilla } from "@/lib/planilla-codigo";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatCurrency } from "@/lib/utils";
 import { useToast } from "@/components/ui/toast";
 import { useTenant } from "@/lib/tenant-context";
@@ -320,6 +320,28 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   }, [selectedClient, appointmentId]);
   const abonoAplicado = Math.min(abono, Math.max(0, subtotal - discount));
   const total = subtotal - discount - abonoAplicado;
+
+  // Código con el que se reservó: al elegir al cliente (o abrir su cita) el descuento se aplica solo, sobre los servicios.
+  const totalServicios = cart.filter((c) => c.type === "service").reduce((sum, c) => sum + Number(c.price) * c.quantity, 0);
+  const promoPuesta = useRef("");
+  useEffect(() => {
+    const quitar = () => { if (promoPuesta.current) { promoPuesta.current = ""; setDiscount(0); setCouponCode(""); setCouponNote(""); } };
+    if (!(selectedClient || appointmentId) || totalServicios <= 0) { quitar(); return; }
+    let vigente = true;
+    const q = new URLSearchParams({ amount: String(totalServicios), ...(appointmentId ? { appointmentId } : {}), ...(selectedClient ? { clientId: selectedClient } : {}), ...(selectedBarber ? { barberId: selectedBarber } : {}) });
+    fetch(`/api/cupones/de-cita?${q}`).then((r) => (r.ok ? r.json() : null)).then((d) => {
+      if (!vigente) return;
+      const c = d?.cupon;
+      if (!c) { quitar(); return; }
+      setCouponCode(c.code);
+      setDiscount(c.discount);
+      setCouponNote(`Reservó con el código ${c.code}: ${c.discount > 0 ? `descuento de $${Number(c.discount).toLocaleString("es-CL")} aplicado` : c.description || "aplica el beneficio al cobrar"}.`);
+      if (promoPuesta.current !== c.code) showToast(`Código ${c.code} aplicado`, "success");
+      promoPuesta.current = c.code;
+    }).catch(() => {});
+    return () => { vigente = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedClient, appointmentId, selectedBarber, totalServicios]);
   const [showTipModal, setShowTipModal] = useState(false);
   // Con el libro de movimientos encendido (Configuracion) la propina se pregunta en TODA venta (tambien efectivo) y se
   // sugiere el 10%; va al profesional que atendio. Apagado: solo se pregunta tras un pago con tarjeta, como siempre.
@@ -333,7 +355,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
     setCouponNote("");
     if (!couponCode) return;
     try {
-      const res = await fetch(`/api/cupones/validate?code=${couponCode}&amount=${subtotal}`);
+      const res = await fetch(`/api/cupones/validate?code=${encodeURIComponent(couponCode)}&amount=${subtotal}${selectedBarber ? `&barberId=${selectedBarber}` : ""}${appointmentId ? `&appointmentId=${appointmentId}` : ""}`);
       const data = await res.json();
       if (data.valid) {
         setDiscount(data.discount);

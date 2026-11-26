@@ -11,6 +11,7 @@ export interface CondicionesPromo {
   pagos: string[];                        // vacío = no se menciona
   todosLosPagos: boolean;
   profesionales: string[];                // nombres; vacío = no se menciona
+  profesionalIds?: string[];              // los mismos, para las reglas del cupón
   canje: FormaCanje;
 }
 
