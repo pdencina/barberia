@@ -67,7 +67,7 @@ export function PromoCondicionesForm({ value, onChange, tenantId, hayCupon, inpu
           <div>
             <span className={etiqueta}>Cómo se canjea</span>
             <div className="flex flex-wrap gap-1.5">
-              {([["", "No indicar"], ["recepcion", "Muestra el código en recepción"], ["online", "Pago online con código"]] as Array<[FormaCanje, string]>).map(([k, t]) => (
+              {([["", "No indicar"], ["agenda", "Ingresar cupón en el link de agenda"], ["recepcion", "Muestra el código en recepción"], ["online", "Pago online con código"]] as Array<[FormaCanje, string]>).map(([k, t]) => (
                 <button key={k} type="button" aria-pressed={value.canje === k} onClick={() => set({ canje: k })} className={chip(value.canje === k)}>{t}</button>
               ))}
             </div>
