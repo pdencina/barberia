@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
   const supabase = createAdminSupabase();
   const body = await req.json();
   const { clientId, type, couponCode, message } = body;
+  const conditions = String(body.conditions || "").trim().slice(0, 700);
 
   // Get client
   const { data: client } = await supabase
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
       await sendRetentionEmail({
         to: client.email,
         clientName: client.name,
-        message: message || "Te extrañamos! Vuelve pronto.",
+        message: [message || "Te extrañamos! Vuelve pronto.", conditions].filter(Boolean).join("\n\n"),
         couponCode: couponDetails?.code || null,
         couponDescription: couponDetails?.description || null,
         discountType: couponDetails?.discount_type || null,
@@ -92,7 +93,7 @@ export async function POST(req: NextRequest) {
     const phone = client.phone.replace(/\D/g, "").replace(/^0/, "56");
     const whatsappPhone = phone.startsWith("56") ? phone : `56${phone}`;
 
-    const whatsappMessage = buildRetentionWhatsApp({ clientName: client.name, message, coupon: couponDetails as any, bookingUrl });
+    const whatsappMessage = buildRetentionWhatsApp({ clientName: client.name, message, coupon: couponDetails as any, bookingUrl, conditions });
 
     const whatsappUrl = `https://wa.me/${whatsappPhone}?text=${encodeURIComponent(whatsappMessage)}`;
 

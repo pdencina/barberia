@@ -22,9 +22,10 @@ export async function POST(req: NextRequest) {
   const clientName = String(body.clientName || "").trim().slice(0, 80) || "Cliente";
   const message = String(body.message || "").slice(0, 600);
 
-  const whatsapp = buildRetentionWhatsApp({ clientName, message, coupon, bookingUrl });
+  const conditions = String(body.conditions || "").trim().slice(0, 700);
+  const whatsapp = buildRetentionWhatsApp({ clientName, message, coupon, bookingUrl, conditions });
   const email = buildRetentionEmail({
-    to: "", clientName, message: message.trim() || "Te extrañamos! Vuelve pronto.",
+    to: "", clientName, message: [message.trim() || "Te extrañamos! Vuelve pronto.", conditions].filter(Boolean).join("\n\n"),
     couponCode: coupon?.code || null, couponDescription: coupon?.description || null,
     discountType: coupon?.discount_type || null, discountValue: coupon ? Number(coupon.discount_value) : null, bookingUrl, businessLogoUrl,
   });

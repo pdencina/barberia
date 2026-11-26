@@ -16,7 +16,7 @@ export function greetingName(clientName?: string | null): string {
   return /^\[.*\]$/.test(n) ? n : n.split(/\s+/)[0];
 }
 
-export function buildRetentionWhatsApp(opts: { clientName?: string | null; message?: string | null; coupon?: RetentionCoupon | null; bookingUrl: string }): string {
+export function buildRetentionWhatsApp(opts: { clientName?: string | null; message?: string | null; coupon?: RetentionCoupon | null; bookingUrl: string; conditions?: string | null }): string {
   const first = greetingName(opts.clientName);
   let msg = (opts.message || "").trim() || `Hola${first ? ` ${first}` : ""}! Te extrañamos. Agenda tu próxima cita.`;
   if (opts.coupon) {
@@ -26,6 +26,8 @@ export function buildRetentionWhatsApp(opts: { clientName?: string | null; messa
     const desc = (opts.coupon.description || "").trim();
     if (!d && desc) msg += `\n${desc}`;
   }
+  const cond = (opts.conditions || "").trim();
+  if (cond) msg += `\n\n${cond}`;
   msg += `\n\nAgenda aquí: ${opts.bookingUrl}`;
   return msg;
 }

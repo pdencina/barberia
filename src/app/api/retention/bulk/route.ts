@@ -61,10 +61,11 @@ export async function POST(req: NextRequest) {
     const { data: prof } = await supabase.from("profiles").select("name").eq("id", caller.userId).maybeSingle();
     callerName = (prof as any)?.name || null;
   }
+  const conditions = String(body.conditions || "").trim().slice(0, 700); // condiciones de la promoción (texto)
   const campaignBase = {
     tenantId, userId: caller?.userId || null, userName: callerName,
     name: cleanCampaignName(body.campaignName),
-    message: typeof message === "string" && message.trim() ? message.trim().slice(0, 600) : null,
+    message: [typeof message === "string" ? message.trim().slice(0, 600) : "", conditions].filter(Boolean).join("\n\n") || null,
     couponCode: null as string | null, couponDetail: null as string | null,
     rangeMinDays: Number.isFinite(Number(days)) ? Math.max(0, Number(days)) : 30,
     rangeMaxDays: Number.isFinite(Number(maxDays)) && Number(maxDays) > 0 ? Number(maxDays) : null,
@@ -128,7 +129,7 @@ export async function POST(req: NextRequest) {
         await sendRetentionEmail({
           to: client.email!,
           clientName: client.name,
-          message: message || "Te extrañamos! Vuelve pronto.",
+          message: [message || "Te extrañamos! Vuelve pronto.", conditions].filter(Boolean).join("\n\n"),
           couponCode: coupon?.code || null,
           couponDescription: coupon?.description || null,
           discountType: coupon?.discount_type || null,
@@ -182,7 +183,7 @@ export async function POST(req: NextRequest) {
       }
       const phone = c.phone!.replace(/\D/g, "").replace(/^0/, "56");
       const whatsappPhone = phone.startsWith("56") ? phone : `56${phone}`;
-      const msg = buildRetentionWhatsApp({ clientName: c.name, message, coupon: coupon as any, bookingUrl });
+      const msg = buildRetentionWhatsApp({ clientName: c.name, message, coupon: coupon as any, bookingUrl, conditions });
 
       links.push({
         name: c.name,
