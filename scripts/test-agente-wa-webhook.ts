@@ -560,6 +560,22 @@ async function main(){
   let fetches=0;
   const result=await enviarTexto({para:phone,texto:"Tu cita está confirmada."},{token:"synthetic",version:"v99.0",phone_number_id:"1001",fetch:async(_u,o)=>{fetches++;const b=JSON.parse(String(o.body));check("envío texto transporta contrato",b.type==="text"&&b.to===phone);return {status:200,json:async()=>({messages:[{id:"out.1"}]})};}});
   check("una petición sin reintento",result.estado==="aceptado"&&fetches===1);
+  { // "Si" escrito tras la confirmación: confirma; con otra pregunta pendiente o si lo último no fue la confirmación, no.
+    const probar=async(ultima:boolean|null,estado:unknown=null,conRef=true)=>{
+      const g=fixture();
+      g.deps.repo.referenciaAlternativa=async()=>conRef?{registroId:"internal-delivery",clienteId:"clientA"}:null;
+      g.deps.ultimoEnvioEsConfirmacion=async()=>ultima;
+      if(estado)g.deps.chat={leerEstado:async()=>estado,guardarEstado:async()=>{},borrarEstado:async()=>{},contar:async()=>{},reservasFuturas:async()=>0,crearReserva:async()=>({ok:false})} as any;
+      await g.handlers.POST(request(payload({context:undefined,text:{body:"Si"}})));
+      return g;
+    };
+    const si=await probar(true);
+    check("si confirma la cita",si.actions.length===1&&(si.actions[0] as any[])[0]==="confirmar"&&si.sent[0]==="Tu cita está confirmada.");
+    check("sin registro de chats también",(await probar(null)).actions.length===1);
+    check("si lo último no fue la confirmación, no",(await probar(false)).actions.length===0);
+    check("con otra pregunta pendiente, no",(await probar(true,{etapa:"oferta",datos:{opciones:[],horaExacta:null}})).actions.length===0);
+    check("sin confirmación enviada, no",(await probar(true,null,false)).actions.length===0);
+  }
   console.log(`OK: ${cases} casos webhook; sin red/base/entorno ni mensajes reales.`);
 }
 main().catch(e=>{console.error(e instanceof assert.AssertionError?e.message:"FALLO de prueba, detalle privado omitido");process.exitCode=1;});

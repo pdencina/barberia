@@ -16,6 +16,7 @@ import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./a
 import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
 import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
 import { fetchAllRows } from "../accounting";
+import { esSiDeConfirmacion } from "./respuesta-cliente";
 import { tipoEntrante, textoEntrante, type RegistroChat } from "./chats";
 import { seleccionarRecordatorioUnico, recordatoriosCandidatos, patronTelefonoCanonico, type Cliente, type Registro } from "./referencia-alternativa";
 import { createHmac } from "node:crypto";
@@ -67,6 +68,8 @@ export interface DependenciasWebhook {
   registrarChat?: (r: RegistroChat) => Promise<void>;
   /** true = el dueño le escribió a mano a este contacto hace poco: el agente no responde "No entendí"; lo que no sepa se lo pasa al dueño. */
   conversacionHumana?: (n: NegocioWebhook, contactHash: string) => Promise<boolean>;
+  /** ¿Lo último que se le envió fue la confirmación de su hora? null = no se sabe (sin registro de conversaciones). */
+  ultimoEnvioEsConfirmacion?: (tenantId: string, contactHash: string) => Promise<boolean | null>;
   // Modo Avanzado (IA): última etapa, solo si todo lo anterior no pudo responder. null = lo ve una persona.
   ia?: (tenantId: string, texto: string, datos: DatosFaq | null, contactHash?: string) => Promise<string | null>;
   // true: las respuestas informativas (reglas e IA) terminan con "¿Quieres agendar? Reserva aquí: <link>". Apagado si no se indica.
@@ -218,9 +221,25 @@ export function crearManejadoresWebhook(config: {
                   : await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
                 if (ref) res = await deps.accion(tipo,{tenantId:n.tenantId,clienteId:ref.clienteId,referenciaRecordatorio:ref.registroId});
               }
+              // "Si" a secas respondiendo la confirmación (sin tocar el botón): confirma, siempre que no haya otra pregunta pendiente.
+              let confirmoConSi = false;
+              if (tipo === "desconocido" && p.tipo === "text" && esSiDeConfirmacion(text)) {
+                try {
+                  let ref = p.context_id ? await deps.repo.referencia(n.tenantId,p.context_id,p.remitenteHash) : null;
+                  if (!p.context_id) {
+                    const pendiente = deps.chat ? await deps.chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()) : null;
+                    const ultima = !pendiente && deps.ultimoEnvioEsConfirmacion ? await deps.ultimoEnvioEsConfirmacion(n.tenantId,p.remitenteHash) : null;
+                    if (!pendiente && ultima !== false) ref = await deps.repo.referenciaAlternativa(n.tenantId,p.remitenteHash,deps.ahora());
+                  }
+                  if (ref) {
+                    const r = await deps.accion("confirmar",{tenantId:n.tenantId,clienteId:ref.clienteId,referenciaRecordatorio:ref.registroId});
+                    if (r.motivo === "ok" || r.motivo === "ya_estaba") { res = r; confirmoConSi = true; }
+                  }
+                } catch { /* no se pudo confirmar: sigue el camino normal */ }
+              }
               if (res && (res.motivo === "ok" || res.motivo === "ya_estaba")) {
                 totals.acciones++;
-                await responder(tipo === "confirmar" ? "Tu cita está confirmada." : "Tu cita está cancelada.");
+                await responder(tipo === "confirmar" || confirmoConSi ? "Tu cita está confirmada." : "Tu cita está cancelada.");
               } else if (res && res.motivo === "fuera_de_plazo" && tipo === "cancelar") {
                 // Faltan menos de 3 horas (o ya pasó): ya no se puede cancelar desde aquí.
                 totals.acciones++;
