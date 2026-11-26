@@ -20,6 +20,12 @@ export const SIN_CONDICIONES: CondicionesPromo = { desde: "", hasta: "", horaDes
 const fecha = (d: string) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d); return m ? `${m[3]}/${m[2]}/${m[1]}` : ""; };
 const lista = (a: string[]) => (a.length < 2 ? a.join("") : `${a.slice(0, -1).join(", ")} y ${a[a.length - 1]}`);
 
+/** Solo el nombre de pila, salvo que dos se llamen igual. */
+export function nombresCortos(nombres: string[]): string[] {
+  const pila = nombres.map((n) => n.trim().split(/\s+/)[0]);
+  return nombres.map((n, i) => (pila.filter((x) => x === pila[i]).length > 1 ? n.trim() : pila[i]));
+}
+
 /** Problema a corregir antes de enviar, o null. */
 export function errorCondiciones(c: CondicionesPromo): string | null {
   if (c.desde && c.hasta && c.hasta < c.desde) return "La fecha «hasta» es anterior a la fecha «desde».";
@@ -39,7 +45,7 @@ export function textoCondiciones(c: CondicionesPromo, hayCupon = false): string 
   else if (c.horaHasta) l.push(`Horario: hasta las ${c.horaHasta} hrs`);
   if (c.todosLosPagos) l.push("Válida con todos los medios de pago");
   else if (c.pagos.length) l.push(`Pago solo con: ${lista(c.pagos.map((p) => p.toLowerCase()))}`);
-  if (c.profesionales.length) l.push(`Válida solo con: ${lista(c.profesionales)}`);
+  if (c.profesionales.length) l.push(`Válida solo con: ${lista(nombresCortos(c.profesionales))}`);
   if (c.canje === "agenda") l.push(hayCupon ? "Ingresa el cupón en el link de agenda" : "Reserva en el link de agenda");
   if (c.canje === "recepcion") l.push(hayCupon ? "Muestra el código en recepción" : "Menciona esta promoción en recepción");
   if (c.canje === "online") l.push(hayCupon ? "Para pago online, usa el código" : "Disponible con pago online");
