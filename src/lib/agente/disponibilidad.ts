@@ -53,7 +53,7 @@ export function textoDeFecha(f: string, hoy: string): string {
 }
 
 // ---------- interpretación del mensaje
-interface Consulta { fecha: string; fechaExplicita: boolean; hora: number | null; franja: Franja | null; profesionales: Perfil[]; relativo: "despues" | "antes" | null; rango?: { d: number; h: number; puntos: boolean } }
+interface Consulta { fecha: string; fechaExplicita: boolean; hora: number | null; franja: Franja | null; profesionales: Perfil[]; relativo: "despues" | "antes" | null; ultima?: boolean; rango?: { d: number; h: number; puntos: boolean } }
 interface Perfil { id: string; nombre: string; link: string; duracionMin: number }
 
 export function interpretarFecha(t: string, hoy: string): { fecha: string; explicita: boolean; resto: string } | "invalida" {
@@ -144,6 +144,9 @@ const PALABRA_HORA = /\b(hora|horas|cupo|cupos|disponib\w*|libre|libres|espacio|
 const PREGUNTA_HORARIO = /\b(abren|abre|abrir|abierto|abiertos|cierran|cierra|cerrar|cerrado|atencion|horario|horarios)\b/;
 const NO_CONSULTA = /\b(cancelar|cancelo|cancela|anular|anulo|anula|cambiar|cambio|cambia|reagendar|reprogramar|mover|modificar|cuanto|cuesta|cuestan|precio|precios|valor|vale|descuento)\b/;
 
+// "La más tarde", "la última hora", "lo más cerca del cierre": la hora libre más cercana a la noche (no "las que siguen a las ya dadas").
+const LA_ULTIMA = /\b(?:la|lo|el|las) m[aá]s tarde\b|(?<![a-zñáéíóú])[uú]ltim[ao]s? (?:hora|horas|horario|horarios|cupo|cupos|turno|disponib\w*|que (?:tengan|tenga|tienes|tienen|haya|quede|queden))|\bm[aá]s (?:cerca|cercan[ao]) (?:del?|al) (?:cierre|la noche)\b/;
+
 function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = false): Consulta | null {
   if (PREGUNTA_HORARIO.test(t) || NO_CONSULTA.test(t)) return null;
   let franja: Franja | null = null;
@@ -160,6 +163,8 @@ function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = f
     const suelta = /(?<!m[aá]s )(?<![a-zñáéíóú])(tarde|noche)\b/.exec(texto);
     if (suelta) { franja = suelta[1] as Franja; texto = texto.replace(suelta[0], " "); }
   }
+  const ultima = LA_ULTIMA.test(texto);
+  if (ultima) texto = texto.replace(LA_ULTIMA, " hora ");
   const f = interpretarFecha(texto, hoy);
   if (f === "invalida") return null;
   const rango = interpretarRango(f.resto, franja);
@@ -167,13 +172,13 @@ function interpretar(t: string, hoy: string, perfiles: Perfil[], seguimiento = f
   if (hora === "invalida") return null;
   const mencionados = profesionalesMencionados(t, perfiles);
   const generica = PRIMER_DISPONIBLE.test(t) || /\b(tienen|tiene|hay|quedan|queda|alguna|algun)\b.*\b(hora|horas|cupo|cupos|espacio|espacios)\b|\b(hora|horas|cupo|cupos)\b.*\b(disponible|disponibles)\b|\b(primera|primer|proxima|proximo|siguiente|mas cercana|mas pronta)\b.*\b(hora|cupo)\b/.test(t);
-  const rel = /\bm[aá]s (tarde|temprano)\b/.exec(t);
+  const rel = ultima ? null : /\bm[aá]s (tarde|temprano)\b/.exec(t);
   const relativo: "despues" | "antes" | null = rel ? (rel[1] === "tarde" ? "despues" : "antes") : null;
   // Con una oferta reciente, un horario suelto ("en la tarde", "a las 4", "más tarde") se entiende como seguimiento.
-  const pide = PRIMER_DISPONIBLE.test(t) || (mencionados.length > 0 && hora !== null) || (PALABRA_HORA.test(t) && (mencionados.length > 0 || f.explicita || hora !== null || franja !== null || generica)) || (seguimiento && (franja !== null || hora !== null || relativo !== null || (f.explicita && t.split(" ").length <= 6)));
+  const pide = ultima || PRIMER_DISPONIBLE.test(t) || (mencionados.length > 0 && hora !== null) || (PALABRA_HORA.test(t) && (mencionados.length > 0 || f.explicita || hora !== null || franja !== null || generica)) || (seguimiento && (franja !== null || hora !== null || relativo !== null || (f.explicita && t.split(" ").length <= 6)));
   if (!pide) return null;
   // Con una hora concreta ("a las 7 de la tarde") la franja solo sirve para saber si es am o pm: no se usa para filtrar (las 19:00 caen en "noche").
-  return { fecha: f.fecha, fechaExplicita: f.explicita, hora, franja: hora !== null && !rango ? null : franja, profesionales: mencionados, relativo, ...(rango ? { rango } : {}) };
+  return { fecha: f.fecha, fechaExplicita: f.explicita, hora, franja: hora !== null && !rango ? null : franja, profesionales: mencionados, relativo, ...(ultima ? { ultima } : {}), ...(rango ? { rango } : {}) };
 }
 
 // ---------- redacción (pensada para leerse bien en WhatsApp: nombres en negrita, una idea por línea, link en su propia línea)
@@ -243,6 +248,31 @@ async function responderDisponibilidadBase(texto: unknown, datos: DatosFaq | nul
   const consultarTodos = (ps: Perfil[], f: string) => Promise.all(ps.map(async (p) => ({ p, r: await consultar(p, f) })));
   const hh = q.hora === null ? null : hhmm(q.hora);
   const fueraDeVentana = (enlace: string, de: string) => `Esa fecha todavía no está abierta para reservar.\n\nPuedes ver las fechas disponibles${de} aquí:\n${enlace}`;
+
+  // ---- "la más tarde": la última hora libre del día (o del primer día siguiente que tenga), de quien se pidió o de todos
+  if (q.ultima && q.hora === null) {
+    const revisados = q.profesionales.length > 0 ? q.profesionales : perfiles;
+    for (let i = 0; i <= MAX_DIAS_ADELANTE; i++) {
+      const f = sumar(q.fecha, i), res = await consultarTodos(revisados, f);
+      if (res.some(({ r }) => r.fueraDeVentana)) break;
+      const con = res.map(({ p, r }) => ({ p, horas: horasDe(r, q.franja).sort() })).filter((x) => x.horas.length > 0)
+        .sort((a, b) => b.horas[b.horas.length - 1].localeCompare(a.horas[a.horas.length - 1]));
+      if (con.length === 0) continue;
+      const fin = (x: (typeof con)[number]) => x.horas[x.horas.length - 1];
+      const tope = fin(con[0]), vistos = con.slice(0, MAX_OTROS);
+      const sinDia = i > 0 ? `${mayus(dia(q.fecha))} no hay horas disponibles${franjaTxt}.` : null;
+      const opciones = vistos.map((x) => ({ id: x.p.id, nombre: x.p.nombre, duracionMin: x.p.duracionMin, fecha: f, horas: x.horas.slice(-MAX_HORAS_OFRECIDAS) }));
+      if (revisados.length === 1) {
+        const P = con[0].p, antes = con[0].horas.slice(-MAX_HORAS, -1);
+        return { tipo: "respuesta", texto: bloque(sinDia, `Lo más tarde que tiene ${nombreNegrita(P.nombre)} ${dia(f)}${franjaTxt} es a las *${tope}*.`, antes.length > 0 && `Un poco antes también tiene: ${horasTxt(antes)}`, conNota(`¿Quieres que te agende? Dime a qué hora y te pido tus datos.\nO reserva tú aquí: ${P.link}`)), oferta: { horaExacta: antes.length > 0 ? null : tope, opciones } };
+      }
+      const quienes = con.filter((x) => fin(x) === tope).slice(0, MAX_OTROS).map((x) => nombreNegrita(x.p.nombre)).join(" o ");
+      const resto = vistos.filter((x) => fin(x) !== tope).map((x) => `• ${nombreNegrita(x.p.nombre)}: ${fin(x)}`).join("\n");
+      const enlace = general ?? con[0].p.link;
+      return { tipo: "respuesta", texto: bloque(sinDia, `La hora más tarde ${dia(f)}${franjaTxt} es a las *${tope}* con ${quienes}.`, !!resto && `Otras de las últimas horas:\n${resto}`, conNota(`¿Quieres que te agende? Dime con quién y a qué hora.\nO reserva tú aquí: ${enlace}`)), oferta: { horaExacta: null, opciones } };
+    }
+    return { tipo: "respuesta", texto: bloque(`No hay horas disponibles ${dia(q.fecha)} ni en los próximos días.`, `Puedes revisar la agenda aquí:\n${general ?? revisados[0].link}`) };
+  }
 
   // ---- con un profesional concreto
   if (q.profesionales.length === 1) {
