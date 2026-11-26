@@ -6,7 +6,7 @@ const base = { clientName: "Sebastián Castillo R.", businessName: "Estudio Leve
 
 // Sin configurar queda el mensaje de siempre (y no repite al profesional si ya va en el servicio).
 assert.equal(renderWhatsAppMessage(base),
-  "Hola Sebastián! Te escribimos desde Estudio Levels para confirmar tu hora de Corte Tijeras Nicolas el martes, 20 de octubre a las 10:00. Nos confirmas si asistirás? Gracias!");
+  "Hola Sebastián! Te escribimos desde Estudio Levels para confirmar tu hora de Corte Tijeras Nicolas el martes, 20 de octubre a las 10:00 (AM). Nos confirmas si asistirás? Gracias!");
 assert.ok(renderWhatsAppMessage({ ...base, serviceNames: ["Corte de cabello"] }).includes("de Corte de cabello con Nicolás Levels el martes"));
 // Datos faltantes: no quedan huecos.
 assert.equal(renderWhatsAppMessage({ ...base, clientName: "", businessName: "", serviceNames: [], professionalName: "", time: "" }),
@@ -17,7 +17,7 @@ assert.ok(!renderWhatsAppMessage(base, cfg).includes("abono"));
 const full = renderWhatsAppMessage(base, cfg, { deposit: true, welcome: true, info: true });
 assert.ok(full.includes("abono de $6.000") && full.includes("Banco X") && full.startsWith("Bienvenido/a a Estudio Levels"));
 // Variables dia / mes.
-assert.ok(renderWhatsAppMessage(base, { ...C, confirm_text: "{dia} de {mes} {hora}" }).startsWith("martes 20 de octubre 10:00"));
+assert.ok(renderWhatsAppMessage(base, { ...C, confirm_text: "{dia} de {mes} {hora}" }).startsWith("martes 20 de octubre 10:00 (AM)"));
 // Datos guardados incompletos o malos se completan con los de siempre.
 assert.equal(mergeWhatsAppConfig({ confirm_text: "   ", deposit_value: -5 }).confirm_text, C.confirm_text);
 assert.equal(mergeWhatsAppConfig(null).deposit_enabled, false);

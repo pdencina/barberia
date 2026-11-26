@@ -46,7 +46,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     assert.deepEqual((x.e.estado as any).datos.opciones.map((o: any) => o.id), ["c"], "se queda solo con ella para elegir otra hora");
     // sigue funcionando el caso normal: nombre y hora que sí tiene
     const y = await r("con diego a las 5", est);
-    assert.ok(y.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *17:00*."), y.res!.texto);
+    assert.ok(y.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *17:00 (PM)*."), y.res!.texto);
     // solo la hora, sin nombre: sigue sin elegir por el cliente cuando hay varios
     const z = await r("la de las 4", { etapa: "oferta", datos: { horaExacta: null, opciones: [{ ...op[0], horas: ["16:00"] }, { ...op[1], horas: ["16:00"] }] } } as EstadoChat);
     assert.ok(z.res!.texto.includes("¿Con quién te la dejo?"), z.res!.texto);
@@ -85,7 +85,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   await caso("Sin memoria no interviene", async () => { const x = await r("quiero la de las 15:15", null); assert.equal(x.res, null); });
   await caso("Elige una hora ofrecida y se le pide primero el nombre (de a un dato)", async () => {
     const x = await r("quiero la de las 15:15", OFERTA_DIEGO);
-    assert.ok(x.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *15:15*."));
+    assert.ok(x.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *15:15 (PM)*."));
     assert.ok(x.res!.texto.includes("¿cuál es tu nombre completo?") && !x.res!.texto.includes("Corte de cabello"), "pide el nombre primero, sin lista larga");
     assert.deepEqual(x.e.estado, { etapa: "datos", datos: { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", hora: "15:15", intentos: 0 } });
     assert.deepEqual(x.e.contados, ["reservas_iniciadas"]);
@@ -113,7 +113,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     assert.equal((x.e.estado as any).etapa, "oferta"); assert.equal((x.e.estado as any).datos.horaPendiente, "16:00"); assert.equal(x.e.creadas.length, 0);
     // Toca la opción 2 (llega como "2"): queda con Camila y se pide el nombre.
     const y = await r("2", x.e.estado);
-    assert.ok(y.res!.texto.startsWith("Perfecto. Te dejo la hora con *Camila Rojas* hoy a las *16:00*.") && (y.e.estado as any).etapa === "datos");
+    assert.ok(y.res!.texto.startsWith("Perfecto. Te dejo la hora con *Camila Rojas* hoy a las *16:00 (PM)*.") && (y.e.estado as any).etapa === "datos");
     // Escribe el nombre en vez de tocar.
     const z = await r("con camila", x.e.estado); assert.ok(z.res!.texto.startsWith("Perfecto. Te dejo la hora con *Camila Rojas*"));
     // "con cualquiera": ahí sí se toma el primero.
@@ -132,7 +132,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   });
   await caso("Con el nombre en la misma frase elige directo", async () => {
     const x = await r("la de las 4 con Matías", OFERTA_VARIOS);
-    assert.ok(x.res!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto* mañana a las *16:00*."));
+    assert.ok(x.res!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto* mañana a las *16:00 (PM)*."));
   });
   await caso("Una nueva consulta no se confunde con elegir (y la oferta sigue)", async () => {
     for (const msg of ["Diego Fuentes tiene hora para hoy a las 2?", "tienen hora mañana", "hay hora el viernes a las 4"]) { const x = await r(msg, OFERTA_DIEGO); assert.equal(x.res, null, msg); assert.equal(x.e.estado?.etapa, "oferta"); }
@@ -156,7 +156,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   await caso("Confirma con un sí: pide los datos de esa hora", async () => {
     const pregunta = await r("la de las 4", OFERTA_DIEGO, { futuras: 2, detalle: DETALLE });
     const x = await r("si", pregunta.e.estado, { futuras: 2 });
-    assert.ok(x.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *16:00*."));
+    assert.ok(x.res!.texto.startsWith("Perfecto. Te dejo la hora con *Diego Fuentes* hoy a las *16:00 (PM)*."));
     assert.equal(x.e.estado?.etapa, "datos"); assert.deepEqual(x.e.contados, ["reservas_iniciadas"]);
   });
   await caso("Dice que no: no agenda nada y borra la memoria", async () => {
@@ -181,7 +181,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   await caso("Datos completos: crea la reserva con el celular de WhatsApp y confirma", async () => {
     const x = await r("Juan Pérez, juan@correo.cl, 1", DATOS_ETAPA);
     assert.deepEqual(x.e.creadas, [{ profesionalId: "d", fecha: "2026-11-03", hora: "15:15", servicioId: "s1", nombre: "Juan Pérez", correo: "juan@correo.cl", telefono: TEL }]);
-    assert.equal(x.res!.texto, "¡Listo, Juan! Tu hora quedó agendada:\n\n• *Diego Fuentes*\n• hoy a las *15:15*\n• Corte de cabello\n\nRecomendamos llegar unos minutos antes. Te enviamos el detalle a tu correo. Si necesitas cambiarla, escríbenos por aquí.");
+    assert.equal(x.res!.texto, "¡Listo, Juan! Tu hora quedó agendada:\n\n• *Diego Fuentes*\n• hoy a las *15:15 (PM)*\n• Corte de cabello\n\nRecomendamos llegar unos minutos antes. Te enviamos el detalle a tu correo. Si necesitas cambiarla, escríbenos por aquí.");
     assert.equal(x.e.estado, null); assert.deepEqual(x.e.contados, ["reservas_cerradas"]);
   });
   await caso("Distintas formas de enviar los datos", async () => {
@@ -253,7 +253,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
     { id: "m", nombre: "Matías Soto", duracionMin: 45, fecha: "2026-11-03", horas: ["16:00", "17:00"] } ] } };
   const a = mk(EX);
   const x = await manejarReservaChat("con matias soto", TEL, datos(), a.deps);
-  assert.ok(x!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto* hoy a las *16:00*."));
+  assert.ok(x!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto* hoy a las *16:00 (PM)*."));
   const b = mk({ etapa: "oferta", datos: { horaExacta: null, opciones: EX.datos.opciones } });
   const y = await manejarReservaChat("con Matías", TEL, datos(), b.deps);
   assert.ok(y!.texto.startsWith("Con *Matías Soto* hoy tengo: 16:00 · 17:00."));
@@ -315,11 +315,11 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   const x2 = await manejarReservaChat("con enzo perez", TEL, datos(), armar(hom).deps);
   assert.ok(x2!.texto.startsWith("Con *Enzo Perez* hoy tengo: 13:15 · 15:00"), x2!.texto);
   const x3 = await manejarReservaChat("dylan a las 3", TEL, datos(), armar(hom).deps);
-  assert.ok(x3!.texto.startsWith("Perfecto. Te dejo la hora con *Dylan Perez* hoy a las *15:00*."), x3!.texto);
+  assert.ok(x3!.texto.startsWith("Perfecto. Te dejo la hora con *Dylan Perez* hoy a las *15:00 (PM)*."), x3!.texto);
   const x5 = await manejarReservaChat("con dilan perez", TEL, datos(), armar(hom).deps);
   assert.ok(x5!.texto.startsWith("Con *Dylan Perez* hoy tengo:"), "dilan = Dylan: " + x5!.texto);
   const x4 = await manejarReservaChat("la de las 3 con dylan perez", TEL, datos(), armar(hom).deps);
-  assert.ok(x4!.texto.startsWith("Perfecto. Te dejo la hora con *Dylan Perez* hoy a las *15:00*."), x4!.texto);
+  assert.ok(x4!.texto.startsWith("Perfecto. Te dejo la hora con *Dylan Perez* hoy a las *15:00 (PM)*."), x4!.texto);
   console.log("OK mismo apellido");
 })();
 (async () => {
@@ -332,7 +332,7 @@ const r = (t: string, est: EstadoChat | null, o = {}, d: DatosFaq | null = datos
   const unaSola: EstadoChat = { etapa: "oferta", datos: { horaExacta: null, opciones: [{ id: "m", nombre: "Matías Soto", duracionMin: 45, fecha: "2026-11-03", horas: ["19:00"] }] } };
   for (const msg of ["Si, quiero agendar", "Confirmo", "claro", "dale"]) {
     const a = armar(unaSola); const x = await manejarReservaChat(msg, TEL, datos(), a.deps);
-    assert.ok(x!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto* hoy a las *19:00*."), msg);
+    assert.ok(x!.texto.startsWith("Perfecto. Te dejo la hora con *Matías Soto* hoy a las *19:00 (PM)*."), msg);
   }
   const varias: EstadoChat = { etapa: "oferta", datos: { horaExacta: null, opciones: [
     { id: "d", nombre: "Diego Fuentes", duracionMin: 45, fecha: "2026-11-03", horas: ["19:15"] },
