@@ -6,6 +6,8 @@ ok(textoCondiciones(S) === "", "sin condiciones no agrega nada");
 const t = textoCondiciones({ ...S, desde: "2026-12-01", hasta: "2026-12-15", horaDesde: "10:00", horaHasta: "14:00", pagos: ["Efectivo", "Débito"], profesionales: ["Pablo", "Vicente"], canje: "recepcion" }, true);
 for (const x of ["del 01/12/2026 al 15/12/2026", "de 10:00 a 14:00 hrs", "efectivo y débito", "Pablo y Vicente", "Muestra el código en recepción"]) ok(t.includes(x), x);
 ok(textoCondiciones({ ...S, canje: "agenda" }, true).includes("Ingresa el cupón en el link de agenda"), "canje en la agenda");
+ok(textoCondiciones({ ...S, profesionales: ["Dylan Perez", "Pablo Yañez"] }).includes("Dylan y Pablo"), "nombres cortos");
+ok(textoCondiciones({ ...S, profesionales: ["Juan A", "Juan B"] }).includes("Juan A y Juan B"), "repetidos completos");
 ok(!!errorCondiciones({ ...S, desde: "2026-12-10", hasta: "2026-12-01" }), "fechas al revés");
 ok(!!errorCondiciones({ ...S, horaDesde: "15:00", horaHasta: "10:00" }), "horas al revés");
 const w = buildRetentionWhatsApp({ clientName: "Ana Pérez", bookingUrl: "https://x.cl/n", conditions: t });
