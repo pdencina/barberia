@@ -3,6 +3,7 @@ import { obtenerFechaHoraInforme } from "./calendario-informe";
 import { hashContactoWhatsApp, normalizarTelefonoWhatsApp, type ResultadoEnvioPlantilla } from "./whatsapp-meta";
 import { PROPOSITO_RECORDATORIO_CITA, HORAS_MIN_CANCELAR } from "./acciones-cita";
 import { parseWallClock } from "../wallclock";
+import { enHorarioDeSilencio } from "./horario-silencio";
 
 // INFERENCIA: cota técnica por invocación; no reemplaza cuota del negocio.
 export const MAX_ENVIOS_RECORDATORIOS = 20;
@@ -85,7 +86,7 @@ export function crearManejadorRecordatorios(config:{
 }) {
   return async (req:Request) => {
     const dryRun=new URL(req.url).searchParams.get("dryRun")==="1";
-    const totals={dryRun,procesados:0,candidatos:0,whatsapp:0,correos:0,omitidos:0,sin_cuota:0,ya_reclamados:0,fallidos:0,inciertos:0,intentos:0,migracion_pendiente:0,bloqueado_coordinacion:0,...(dryRun?{configuracion_faltante:[] as string[]}:{})};
+    const totals={dryRun,procesados:0,candidatos:0,whatsapp:0,correos:0,omitidos:0,sin_cuota:0,ya_reclamados:0,fallidos:0,inciertos:0,intentos:0,migracion_pendiente:0,silencio:0,bloqueado_coordinacion:0,...(dryRun?{configuracion_faltante:[] as string[]}:{})};
     try {
       const auth=await config.autorizar(req);if(!auth.ok)return json(totals,auth.status);
       if(dryRun)totals.configuracion_faltante=[...(config.configuracion?.()??[])];
@@ -93,6 +94,9 @@ export function crearManejadorRecordatorios(config:{
       const deps=config.crearDependencias(),repo=deps.repo;
       if(!deps.sal.trim())return json(totals,503);
       const confirmar=config.modo==="confirmacion",maxEnvios=confirmar?MAX_ENVIOS_CONFIRMACIONES:MAX_ENVIOS_RECORDATORIOS;
+      // De madrugada no se envía ninguna confirmación: lo pendiente sale en la primera pasada desde las 06:00.
+      const callar=()=>confirmar&&!dryRun&&enHorarioDeSilencio(deps.ahora());
+      if(callar())return json({...totals,silencio:1});
       const ventana=(ms:number)=>confirmar?ventanaConfirmaciones(ms):ventanaRecordatorios(ms);
       const window=ventana(deps.ahora());
       for(const n of await (confirmar?(repo.negociosConfirmacion?.()??Promise.resolve([] as NegocioRecordatorios[])):repo.negocios())) {
@@ -100,6 +104,7 @@ export function crearManejadorRecordatorios(config:{
         for(const raw of await repo.citas(n.tenantId,window)) {
           // Reservar capacidad para el eventual respaldo: nunca exceder el máximo de llamadas.
           if((!dryRun&&totals.intentos>maxEnvios-2)||(dryRun&&totals.candidatos>=maxEnvios))return json(totals);
+          if(callar())return json({...totals,silencio:1});
           const c=normalizarCita(raw);totals.procesados++;
           let claim:string|null=null,invocado=false;
           try {

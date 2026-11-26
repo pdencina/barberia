@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { enHorarioDeSilencio } from "@/lib/agente/horario-silencio";
 import { enviarPlantilla } from "@/lib/agente/whatsapp-meta";
 import { verifyCron } from "@/lib/cron-auth";
 import { runDueCampaigns, type CampaignRepo, type Recipient } from "@/lib/empresas/campanas";
@@ -13,6 +14,7 @@ export async function GET(req: Request) {
   const denied = verifyCron(req);
   if (denied) return denied;
   if (!isEmpresasEnabled()) return NextResponse.json({ skipped: "empresas apagado" });
+  if (enHorarioDeSilencio(Date.now())) return NextResponse.json({ skipped: "horario de silencio (00:00 a 06:00)" });
   const db = createAdminSupabase();
   const check = <T,>(r: { data: T; error: any }) => { if (r.error) throw new Error(r.error.message); return r.data; };
 
