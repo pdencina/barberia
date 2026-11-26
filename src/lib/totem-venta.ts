@@ -6,12 +6,13 @@
 import { buscarAbonosDisponibles, marcarAbonosAplicados } from "@/lib/abonos-disponibles";
 import { saldoCita } from "@/lib/totem-pago";
 
-export type MedioPago = "debit_card" | "credit_card" | "transfer";
+export type MedioPago = "debit_card" | "credit_card" | "transfer" | "cash";
 
 // Medio de pago que se anota en la venta. Mercado Pago informa el tipo real; si no, lo elegido en el tótem; por defecto, débito.
 export function medioDePago(tipoMp?: string | null, tarjeta?: string | null): MedioPago {
   const t = String(tipoMp || "").toLowerCase();
   if (t === "debit_card" || t === "prepaid_card") return "debit_card";
+  if (t === "cash") return "cash"; // efectivo confirmado por el equipo
   if (t === "credit_card") return "credit_card";
   if (t === "account_money" || t === "bank_transfer" || t === "digital_currency" || t === "digital_wallet") return "transfer";
   if (String(tarjeta || "").toLowerCase().startsWith("cred")) return "credit_card";

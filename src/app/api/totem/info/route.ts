@@ -34,7 +34,11 @@ export async function GET(req: NextRequest) {
   const { data: mod, error: modError } = await supabase.from("tenants").select("kiosk_modules").eq("id", t.id).maybeSingle();
   const modulos = !modError && (mod as any)?.kiosk_modules ? Math.min(9, Math.max(1, Number((mod as any).kiosk_modules))) : 1;
 
+  // Pago en efectivo (migración 181; apagado por defecto).
+  const { data: efe } = await supabase.from("tenants").select("kiosk_cash_enabled").eq("id", t.id).maybeSingle();
+
   return NextResponse.json({
+    pagoEfectivo: !!(efe as any)?.kiosk_cash_enabled,
     modulos,
     whatsapp, web,
     profesionales,
