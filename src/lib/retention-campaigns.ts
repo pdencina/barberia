@@ -195,3 +195,21 @@ export async function recentlyContacted(supabase: Db, tenantId: string, clientId
   }
   return out;
 }
+
+/** Suma una tanda a una campaña ya registrada (del mismo negocio). Devuelve false si no existe o no se pudo. */
+export async function appendCampaign(supabase: Db, campaignId: string, tenantId: string, planned: number, quotaExceeded: boolean, recipients: CampaignRecipientInput[]): Promise<boolean> {
+  try {
+    const { data: c } = await supabase.from("retention_campaigns").select("planned_total, sent_count, failed_count, quota_exceeded").eq("id", campaignId).eq("tenant_id", tenantId).maybeSingle();
+    if (!c) return false;
+    const x = c as any;
+    const sent = recipients.filter((r) => r.status === "sent").length;
+    await supabase.from("retention_campaigns").update({
+      planned_total: (x.planned_total || 0) + planned, sent_count: (x.sent_count || 0) + sent,
+      failed_count: (x.failed_count || 0) + (recipients.length - sent), quota_exceeded: x.quota_exceeded || quotaExceeded,
+    }).eq("id", campaignId);
+    if (recipients.length) {
+      await supabase.from("retention_campaign_recipients").insert(recipients.map((r) => ({ campaign_id: campaignId, tenant_id: tenantId, client_id: r.clientId, name: r.name, contact: r.contact, status: r.status })));
+    }
+    return true;
+  } catch { return false; }
+}

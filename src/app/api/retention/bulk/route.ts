@@ -2,14 +2,19 @@ import { estiloCorreo } from "@/lib/correo-oscuro";
 import { imagenDelNegocio } from "@/lib/promo-imagen";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
-import { sendRetentionEmail } from "@/lib/resend";
+import { buildRetentionEmail } from "@/lib/resend";
+import { getResendClient, withPoweredBy } from "@/lib/resend-client";
+import { enviarTanda, type CorreoListo } from "@/lib/envio-lote";
 import { getInactiveClients, dedupeBy, tenantBookingUrl, tenantLogoUrl, parseExcludeIds, parseIdSet, excludeClients, mergeRecipients, loadManualRecipients, type Recipient } from "@/lib/retention";
 import { parseRangos } from "@/lib/rangos-dias";
 import { formatPhoneCL } from "@/lib/phone";
 import { tryConsumeQuota } from "@/lib/message-quota";
 import { tenantHasFeature } from "@/lib/plan-features";
 import { buildRetentionWhatsApp } from "@/lib/retention-message";
-import { recordCampaign, recentlyContacted, couponSnapshot, cleanCampaignName, RECENT_DAYS, type CampaignRecipientInput } from "@/lib/retention-campaigns";
+import { appendCampaign, recordCampaign, recentlyContacted, couponSnapshot, cleanCampaignName, RECENT_DAYS, type CampaignRecipientInput } from "@/lib/retention-campaigns";
+
+export const maxDuration = 60;
+const TANDA_MAXIMA = 60;
 
 // POST: Send retention message to inactive clients OF THIS BUSINESS.
 //
@@ -119,44 +124,50 @@ export async function POST(req: NextRequest) {
     // Cuenta contra el cupo de correos del negocio (Nico, 27-sep: envios masivos de
     // retencion si cuentan). Se detiene apenas se agota — el resto queda sin enviar y se
     // informa en la respuesta.
-    let sent = 0;
+    // Se envía por tandas: la pantalla manda en soloIds los clientes de esta tanda (nunca agrega a nadie fuera de la lista).
+    const soloIds = parseIdSet(body.soloIds, TANDA_MAXIMA);
+    if (!soloIds.size && withEmail.length > TANDA_MAXIMA) {
+      return NextResponse.json({ error: "Recarga la página (Cmd + R) y vuelve a enviar: la lista es grande y ahora se manda por tandas." }, { status: 409 });
+    }
+    const tanda = soloIds.size ? withEmail.filter((c) => soloIds.has(c.id)) : withEmail;
+
     let quotaExceeded = false;
-    const results: CampaignRecipientInput[] = [];
-    for (const client of withEmail) {
+    const correos: CorreoListo[] = [];
+    for (const client of tanda) {
       const allowed = await tryConsumeQuota(tenantId, "email", "retention");
       if (!allowed) {
         quotaExceeded = true;
         break;
       }
-      try {
-        await sendRetentionEmail({
-          to: client.email!,
-          clientName: client.name,
-          message: [message || "Te extrañamos! Vuelve pronto.", conditions].filter(Boolean).join("\n\n"),
-          couponCode: coupon?.code || null,
-          couponDescription: coupon?.description || null,
-          discountType: coupon?.discount_type || null,
-          discountValue: coupon ? Number(coupon.discount_value) : null,
-          bookingUrl,
-          businessLogoUrl,
-          imageUrl: imagenDelNegocio(body.imageUrl, tenantId),
-          ...estiloCorreo(body),
-        });
-        sent++;
-        results.push({ clientId: client.id, name: client.name, contact: client.email, status: "sent" });
-      } catch (e) {
-        console.error(`Error sending to ${client.email}:`, e);
-        results.push({ clientId: client.id, name: client.name, contact: client.email, status: "failed" });
-      }
+      const { subject, html } = buildRetentionEmail({
+        to: client.email!,
+        clientName: client.name,
+        message: [message || "Te extrañamos! Vuelve pronto.", conditions].filter(Boolean).join("\n\n"),
+        couponCode: coupon?.code || null,
+        couponDescription: coupon?.description || null,
+        discountType: coupon?.discount_type || null,
+        discountValue: coupon ? Number(coupon.discount_value) : null,
+        bookingUrl,
+        businessLogoUrl,
+        imageUrl: imagenDelNegocio(body.imageUrl, tenantId),
+        ...estiloCorreo(body),
+      });
+      correos.push({ id: client.id, payload: { from: process.env.EMAIL_FROM || "re-booking <no-reply@re-booking.cl>", to: client.email!.trim(), subject, html: withPoweredBy(html) } });
     }
+    const { enviados } = correos.length ? await enviarTanda(getResendClient() as any, correos) : { enviados: new Set<string>() };
+    const sent = enviados.size;
+    const results: CampaignRecipientInput[] = tanda.slice(0, correos.length).map((c) => ({ clientId: c.id, name: c.name, contact: c.email, status: enviados.has(c.id) ? "sent" : "failed" }));
 
     // Historial: queda registrado que se envio, con que cupon y a quien (no bloquea la respuesta si falla).
-    await recordCampaign(supabase, {
-      ...campaignBase, channel: "email", plannedTotal: withEmail.length, sentCount: sent,
-      failedCount: results.filter((r) => r.status === "failed").length, quotaExceeded, recipients: results,
-    });
+    let campaignId: string | null = typeof body.campaignId === "string" && /^[0-9a-f-]{36}$/i.test(body.campaignId) ? body.campaignId : null;
+    if (!campaignId || !(await appendCampaign(supabase, campaignId, tenantId, tanda.length, quotaExceeded, results))) {
+      campaignId = await recordCampaign(supabase, {
+        ...campaignBase, channel: "email", plannedTotal: tanda.length, sentCount: sent,
+        failedCount: results.filter((r) => r.status === "failed").length, quotaExceeded, recipients: results,
+      });
+    }
 
-    return NextResponse.json({ success: true, sent, total: withEmail.length, quotaExceeded });
+    return NextResponse.json({ success: true, sent, total: tanda.length, quotaExceeded, campaignId });
   }
 
   if (type === "whatsapp") {

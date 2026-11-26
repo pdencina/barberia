@@ -27,7 +27,7 @@ export function plantillaOscura(o: {
   const logoArriba = o.logoNegocio
     ? `<img src="${o.logoNegocio}" alt="Logo del negocio" height="56" style="display:inline-block;height:56px;max-width:220px;width:auto;border:0;${o.logoFondo ? "background:#FFFFFF;border-radius:12px;padding:6px 14px;" : ""}">`
     : "";
-  const firma = `<div style="padding-top:18px;"><span style="color:#6B6B73;font-size:11px;vertical-align:middle;">Enviado con&nbsp;</span><img src="https://www.re-booking.cl/logo-horizontal-white.png" alt="re-booking" width="72" height="18" style="display:inline-block;vertical-align:middle;width:72px;height:18px;border:0;opacity:0.55;"></div>`;
+  const firma = `<div data-rb-powered="1" style="padding-top:18px;"><span style="color:#6B6B73;font-size:11px;vertical-align:middle;">Enviado con&nbsp;</span><img src="https://www.re-booking.cl/logo-horizontal-white.png" alt="re-booking" width="72" height="18" style="display:inline-block;vertical-align:middle;width:72px;height:18px;border:0;opacity:0.55;"></div>`;
   // Todas las condiciones en UN recuadro compacto (una línea cada una).
   const fila = (h: string, i: number) => `<tr><td align="center" style="padding:7px 12px;color:#0A0A0A;font-size:13px;line-height:1.35;font-weight:600;${i ? "border-top:1px solid rgba(0,0,0,0.14);" : ""}">${h}</td></tr>`;
   return `<!DOCTYPE html>

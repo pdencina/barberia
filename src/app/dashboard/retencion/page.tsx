@@ -75,6 +75,14 @@ export default function RetencionPage() {
   const [borrarArmado, setBorrarArmado] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [bulkSending, setBulkSending] = useState(false);
+  const [progreso, setProgreso] = useState(""); // avance del envío por tandas
+  // Mientras se envía, se avisa antes de cerrar o recargar la página.
+  useEffect(() => {
+    if (!progreso) return;
+    const avisar = (e: BeforeUnloadEvent) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", avisar);
+    return () => window.removeEventListener("beforeunload", avisar);
+  }, [progreso]);
   // Clientes que se DESMARCARON: no reciben el mensaje masivo (ni el cupon). Por defecto van todos marcados.
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
   // Clientes agregados A MANO (buscados entre todos los del negocio), aunque no esten en el rango de dias.
@@ -148,24 +156,34 @@ export default function RetencionPage() {
       });
       if (!choice) return;
 
-      const res = await fetch("/api/retention/bulk", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(bulkBody("email", choice.ids, choice.name)),
-      });
-      const data = await res.json();
-      if (!res.ok) { showToast(data.error || "Error al enviar", "error"); return; }
-      showToast(
-        data.quotaExceeded
-          ? `Se enviaron ${data.sent || 0} de ${data.total || 0} correos: se agotó tu cupo de correos de este ciclo.`
-          : `${data.sent || 0} de ${data.total || 0} correos enviados`,
-        data.quotaExceeded ? "info" : "success"
-      );
-      setQuotaRefresh((k) => k + 1);
+      // Se manda por tandas de 60. Quien ya recibió hoy este mismo cupón se salta (sirve para retomar un envío cortado).
+      const fuera = new Set(choice.ids);
+      const hoy = new Date().toDateString();
+      const pendientes = shown.filter((r: any) => !fuera.has(r.id) && !(selectedCoupon && r.last && r.last.coupon === selectedCoupon && new Date(r.last.at).toDateString() === hoy)).map((r) => r.id);
+      const yaEnviados = shown.filter((r) => !fuera.has(r.id)).length - pendientes.length;
+      if (!pendientes.length) { showToast("Todos los marcados ya recibieron este cupón hoy", "info"); return; }
+      let enviados = 0, intentados = 0, campaignId: string | null = null;
+      for (let i = 0; i < pendientes.length; i += 60) {
+        const soloIds = pendientes.slice(i, i + 60);
+        setProgreso(`Enviando ${Math.min(i + 60, pendientes.length)} de ${pendientes.length}…`);
+        const res: Response = await fetch("/api/retention/bulk", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ...bulkBody("email", choice.ids, choice.name), soloIds, campaignId }),
+        });
+        const data: any = await res.json().catch(() => ({}));
+        if (!res.ok) { showToast(`${data.error || "Error al enviar"} — van ${enviados} correos enviados.`, "error"); return; }
+        enviados += data.sent || 0; intentados += data.total || 0; campaignId = data.campaignId || campaignId;
+        if (data.quotaExceeded) { showToast(`Se enviaron ${enviados} de ${pendientes.length}: se agotó tu cupo de correos de este ciclo.`, "info"); return; }
+        if (data.total > 0 && !data.sent) { showToast(`El proveedor de correo dejó de aceptar envíos. Van ${enviados} de ${pendientes.length}.`, "error"); return; }
+      }
+      showToast(`${enviados} de ${intentados} correos enviados${yaEnviados ? ` (${yaEnviados} ya lo habían recibido hoy)` : ""}`, "success");
     } catch {
-      showToast("Error al enviar", "error");
+      showToast("Se cortó el envío. Vuelve a tocar «Email masivo»: quienes ya lo recibieron hoy se saltan.", "error");
     } finally {
+      setProgreso("");
       setBulkSending(false);
+      setQuotaRefresh((k) => k + 1);
     }
   };
 
@@ -360,7 +378,7 @@ export default function RetencionPage() {
                   <MessageCircle className="h-4 w-4 text-emerald-500" strokeWidth={2} /> Copiar para difusión ({withPhone})
                 </button>
                 <button onClick={sendBulkEmail} disabled={bulkSending || withEmail === 0} className={primaryButton}>
-                  <Send className="h-4 w-4" strokeWidth={2} /> {bulkSending ? "Procesando..." : `Email masivo (${withEmail})`}
+                  <Send className="h-4 w-4" strokeWidth={2} /> {progreso || (bulkSending ? "Procesando..." : `Email masivo (${withEmail})`)}
                 </button>
               </>
             )}
@@ -381,6 +399,7 @@ export default function RetencionPage() {
       </div>
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,480px)]">
+      {progreso && <p className="col-span-full rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{progreso} No cierres esta pantalla ni cambies de sección.</p>}
       {/* Filtros y mensaje */}
       <Panel title="A quién y qué decirles">
         <div className="space-y-4">
