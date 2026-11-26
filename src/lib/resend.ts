@@ -406,6 +406,8 @@ interface SendRetentionEmailParams {
   bookingUrl?: string | null;
   /** Logo del negocio (tenants.logo_url). Si el negocio no subio uno, el correo lleva el logo de re-booking. */
   businessLogoUrl?: string | null;
+  /** Imagen de la promoción (ya validada como propia del negocio). */
+  imageUrl?: string | null;
 }
 
 // Arma el correo de retencion (asunto + HTML). Lo usa el envio real y la vista previa de Retencion.
@@ -451,6 +453,7 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
     inner: `
     <p style="font-size:18px;color:#111827;font-weight:700;margin:12px 0 8px;">Hola ${clientName}!</p>
     <p style="font-size:15px;line-height:1.6;color:#374151;margin:0 0 8px;">${message}</p>
+    ${params.imageUrl ? `<img src="${esc(params.imageUrl)}" alt="Promoción" width="100%" style="display:block;width:100%;max-width:100%;height:auto;border-radius:12px;margin:16px 0 4px;">` : ""}
     ${couponBox}
     <div style="text-align:center;margin:26px 0 4px;"><a href="${bookingUrl}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:13px 32px;border-radius:10px;font-weight:700;font-size:15px;">Agendar ahora</a></div>`,
   });

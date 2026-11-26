@@ -1,3 +1,4 @@
+import { imagenDelNegocio } from "@/lib/promo-imagen";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { tenantBookingUrl, tenantLogoUrl } from "@/lib/retention";
@@ -27,7 +28,7 @@ export async function POST(req: NextRequest) {
   const email = buildRetentionEmail({
     to: "", clientName, message: [message.trim() || "Te extrañamos! Vuelve pronto.", conditions].filter(Boolean).join("\n\n"),
     couponCode: coupon?.code || null, couponDescription: coupon?.description || null,
-    discountType: coupon?.discount_type || null, discountValue: coupon ? Number(coupon.discount_value) : null, bookingUrl, businessLogoUrl,
+    discountType: coupon?.discount_type || null, discountValue: coupon ? Number(coupon.discount_value) : null, bookingUrl, businessLogoUrl, imageUrl: imagenDelNegocio(body.imageUrl, tenantId),
   });
   return NextResponse.json({ whatsapp, emailSubject: email.subject, emailHtml: email.html });
 }
