@@ -181,6 +181,10 @@ const handlers = () => crearManejadoresWebhook({
       derivarAlTelefono: true,
       registrarChat: async (r) => { await registrarChat(db, r); if (Math.random() < 0.01) await purgarChats(db); },
       // El dueño le escribió a mano en las últimas 12 h (panel de conversaciones): el agente no tira el menú.
+      ultimoEnvioEsConfirmacion: async (tenantId, contactHash) => {
+        const r = await db.from("agent_chats").select("tipo").eq("tenant_id", tenantId).eq("contact_hash", contactHash).eq("direccion", "saliente").order("created_at", { ascending: false }).limit(1);
+        return r.error || !r.data?.length ? null : r.data[0].tipo === "plantilla";
+      },
       serviciosPorProfesional: async (tenantId, ids) => {
         const r = await db.from("barber_service_assignments").select("barber_id,service_id").in("barber_id", ids);
         if (r.error) throw new Error("sin servicios por profesional");

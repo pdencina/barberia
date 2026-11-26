@@ -27,6 +27,21 @@ const BAJA = new Set([
   "no me manden mas mensajes", "no enviar mas mensajes", "dejar de recibir mensajes",
 ]);
 
+const SI_INICIO = "(?:si+|sip|sipo|ok|okey|oka|dale|ya|claro|obvio|listo|perfecto|confirmo|confirmado|confirmada|voy|asisto|asistire|asistiremos|por supuesto|ahi estare|alla estare|alli estare)";
+const SI_RESTO = "(?:si+|po|voy|vamos|ire|confirmo|confirmado|confirmada|confirmamos|asisto|asistire|asistiremos|gracias|muchas|porfa|por favor|a ir|claro|ahi estare|alla estare|estare|bro|hermano|compa|de todas maneras|todo bien)";
+const SI = new RegExp(`^${SI_INICIO}(?: ${SI_RESTO})*$`);
+const SOLO_OK = new RegExp("^\\s*(?:(?:👍|👌|✅)[\\u{1F3FB}-\\u{1F3FF}\\uFE0F]?\\s*)+$", "u");
+const ADORNOS = new RegExp("(?:[.,!¡:;()*]|\\p{Extended_Pictographic}|[\\u{1F3FB}-\\u{1F3FF}\\uFE0F])", "gu");
+/** Un "sí" corto ("Si", "sí voy", "dale gracias", 👍). SOLO vale como confirmación si lo último que se le envió fue la confirmación de su hora. */
+export function esSiDeConfirmacion(texto: unknown): boolean {
+  if (typeof texto !== "string" || texto.length > 80) return false;
+  if (SOLO_OK.test(texto)) return true;
+  if (texto.includes("?") || texto.includes("¿")) return false;
+  // Signos y caritas se ignoran; cualquier otra cosa (dígitos, "no", otro alfabeto) deja de ser un "sí".
+  const t = texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(ADORNOS, " ").replace(/\s+/g, " ").trim();
+  return SI.test(t);
+}
+
 export function clasificarRespuestaCliente(texto: unknown): RespuestaCliente {
   // No convertir objetos a string: podría ejecutar código externo o reflejar datos privados.
   if (typeof texto !== "string" || texto.length === 0 || texto.length > 160) return "desconocido";
