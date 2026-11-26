@@ -2,6 +2,7 @@
 // iniciada, confirma que recibió el dinero. Si coincide se registra la venta en efectivo (entra a la caja); si no coincide no se registra y se avisa.
 import { confirmarPagoTotem } from "@/lib/totem-pago";
 import { notify } from "@/lib/notify";
+import { citasYaCobradas } from "@/lib/totem-citas";
 
 export interface EfectivoPendiente {
   id: string; monto: number; creado: string; barberId: string | null; profesional: string;
@@ -72,6 +73,12 @@ export async function resolverEfectivo(
       await supabase.from("kiosk_payments").update({ status: "cancelled" }).eq("id", kp.id).eq("status", "pending");
       return { ok: false, error: "Esa cita ya fue pagada con otro medio. No se registra el efectivo.", status: 409 };
     }
+  }
+  // Tampoco si ya se cobró en el POS mientras el pedido esperaba.
+  const { data: filas } = await supabase.from("appointments").select("id, client_id, date, status").in("id", [kp.appointment_id, ...(kp.appointment_ids || [])].filter(Boolean)).eq("tenant_id", o.tenantId);
+  if ((await citasYaCobradas(supabase, o.tenantId, filas || [])).size > 0) {
+    await supabase.from("kiosk_payments").update({ status: "cancelled" }).eq("id", kp.id).eq("status", "pending");
+    return { ok: false, error: "Esa cita ya fue cobrada. No se registra el efectivo.", status: 409 };
   }
   const marcado = await confirmarPagoTotem(supabase, kp, monto, `efectivo:${o.userId}`, "en efectivo", "cash");
   if (!marcado) return { ok: false, error: "Ese pago ya no está pendiente", status: 409 };
