@@ -8,10 +8,10 @@ import { Qr } from "@/components/totem/qr";
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "otro" | "info" | "contacto" | "gracias";
+type Pantalla = "efectivo" | "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "otro" | "info" | "contacto" | "gracias";
 interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null; cosmetico?: boolean }
-interface Info { modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
+interface Info { pagoEfectivo?: boolean; modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -117,6 +117,7 @@ function Totem() {
   const [carrito, setCarrito] = useState<Record<string, number>>({});
   const [modo, setModo] = useState<"llegue" | "pagar">("llegue");
   const [pagoQr, setPagoQr] = useState<{ id: string; url: string; monto: number; abono: number } | null>(null);
+  const [pagoEfe, setPagoEfe] = useState<{ id: string; monto: number; profesional: string | null } | null>(null);
   const [pagoTerm, setPagoTerm] = useState<{ id: string; monto: number; abono: number; profesional: string | null } | null>(null);
   // Compra de productos: quién vendió (por código del cliente o elegido de la lista) y a qué pantalla volver si el pago falla o se cancela.
   const [vendedor, setVendedor] = useState<{ code?: string; barberId?: string; nombre?: string } | null>(null);
@@ -141,14 +142,14 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita"); setUpsellHecho(false); setOtros([]); setCodigoOtro(""); setExtra({}); pendienteRef.current = null;
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setPagoEfe(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita"); setUpsellHecho(false); setOtros([]); setCodigoOtro(""); setExtra({}); pendienteRef.current = null;
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
   useEffect(() => {
     const tocar = () => { ultimo.current = Date.now(); };
     window.addEventListener("pointerdown", tocar);
-    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : (pantallaRef.current === "pagoqr" || pantallaRef.current === "pagoterm" || pantallaRef.current === "pagoprod" || pantallaRef.current === "vincular") ? 240_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
+    const t = setInterval(() => { if (Date.now() - ultimo.current > (pantallaRef.current === "reservar" ? 300_000 : (pantallaRef.current === "pagoqr" || pantallaRef.current === "pagoterm" || pantallaRef.current === "efectivo" || pantallaRef.current === "pagoprod" || pantallaRef.current === "vincular") ? 240_000 : 60_000)) { ultimo.current = Date.now(); inicio(); } }, 5_000);
     return () => { window.removeEventListener("pointerdown", tocar); clearInterval(t); };
   }, [inicio]);
 
@@ -306,6 +307,34 @@ function Totem() {
     await buscar(code); // vuelve a leer la cita con el servicio y el monto nuevos
     setCargando(false);
   };
+
+  // Efectivo: se crea el pedido y se espera a que el profesional confirme en su celular que recibió el dinero.
+  const crearPagoEfectivo = async (c: Cita, ids?: string[], productos?: { id: string; cantidad: number }[], otrosPay?: { code: string; appointmentIds: string[] }[]) => {
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("pago-efectivo", { appointmentId: c.id, appointmentIds: ids, code, productos, otros: otrosPay });
+    setCargando(false);
+    if (!ok) { setMsg(d.error || "No pudimos avisar"); return; }
+    setPagoEfe({ id: d.id, monto: d.monto, profesional: d.profesional || null });
+    setPantalla("efectivo");
+  };
+  const cancelarPagoEfectivo = async () => {
+    if (pagoEfe) { try { await post("pago-cancelar", { id: pagoEfe.id }); } catch { /* se sigue igual */ } }
+    setPagoEfe(null); setMsg(""); setPantalla("cita");
+  };
+  useEffect(() => {
+    if (pantalla !== "efectivo" || !pagoEfe || !codigo) return;
+    const t = setInterval(async () => {
+      try {
+        const r = await fx(`/api/totem/pago-estado?codigo=${encodeURIComponent(codigo)}&id=${pagoEfe.id}`);
+        const d = await r.json();
+        if (d.estado === "paid") { setPagoEfe(null); setGracias("¡Pago en efectivo confirmado! Gracias."); setPantalla("gracias"); }
+        else if (d.estado === "failed") { setPagoEfe(null); setMsg("No se confirmó el efectivo. Por favor, habla con quien te atiende."); setPantalla("cita"); }
+        else if (d.estado === "cancelled") { setPagoEfe(null); setMsg("El pago en efectivo se canceló."); setPantalla("cita"); }
+      } catch { /* se reintenta */ }
+    }, 3000);
+    return () => clearInterval(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pantalla, pagoEfe, codigo]);
 
   const crearPagoQr = async (c: Cita, ids?: string[], productos?: { id: string; cantidad: number }[], otrosPay?: { code: string; appointmentIds: string[] }[]) => {
     setCargando(true); setMsg("");
@@ -567,7 +596,7 @@ function Totem() {
           <h2 className="tt-display mb-6 text-6xl font-semibold">{citas.length > 1 ? "Encontramos estas citas" : "Esta es tu cita"}</h2>
           {msg && <p className={`mb-6 ${aviso}`}>{msg}</p>}
           {/* Varias citas con el mismo profesional (o varias personas que pagan juntas): un solo cobro. Cada persona queda con su propia venta. */}
-          {modo === "pagar" && (info.pagoTerminal || info.pagoQr) && (() => {
+          {modo === "pagar" && (info.pagoTerminal || info.pagoQr || info.pagoEfectivo) && (() => {
             const mismoPro = citas.every((x) => x.barberId && x.barberId === citas[0].barberId && (x.saldo || 0) > 0);
             const juntas = (citas.length > 1 && mismoPro) || (otros.length > 0 && citas.some((x) => x.barberId === citas[0].barberId && (x.saldo || 0) > 0));
             const principales = mismoPro ? citas : citas.filter((x) => x.barberId === citas[0].barberId && (x.saldo || 0) > 0);
@@ -595,6 +624,7 @@ function Totem() {
                         </div>
                       ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", ids, pr, otrosPay))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
                       {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(citas[0], ids, pr, otrosPay))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
+                      {info.pagoEfectivo && <button className={secundario} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoEfectivo(citas[0], ids, pr, otrosPay))}>Pagar todo en efectivo</button>}
                     </div>
                   </div>
                 )}
@@ -623,9 +653,10 @@ function Totem() {
                           </div>
                         ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
                         {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(c, undefined, pr))}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
-                        <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>
+                        {info.pagoEfectivo && <button className={secundario} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoEfectivo(c, undefined, pr))}>Pagar en efectivo</button>}
+                        {!info.pagoEfectivo && <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>}
                         <button className={secundario} disabled={cargando} onClick={() => abrirServicios(c)}>{cargando ? "Cargando…" : "Agregar o cambiar servicio"}</button>
-                        <p className="pt-1 text-center text-xl text-white/60">Si pagas en caja, le avisamos a {c.profesional || "tu profesional"} y al equipo para que te atiendan.</p>
+                        {!info.pagoEfectivo && <p className="pt-1 text-center text-xl text-white/60">Si pagas en caja, le avisamos a {c.profesional || "tu profesional"} y al equipo para que te atiendan.</p>}
                       </div>
                     : c.llego
                       ? <p className="rounded-2xl bg-white/10 p-5 text-center text-2xl text-white">Ya avisamos que llegaste</p>
@@ -682,7 +713,7 @@ function Totem() {
             {cosmeticos.some((p) => (extra[p.id] || 0) > 0) && (
               <button className={principal} onClick={() => seguirDelUpsell(true)}>Agregar y pagar · {plata(cosmeticos.reduce((n, p) => n + (extra[p.id] || 0) * p.price, 0))} de productos</button>
             )}
-            <button className={cosmeticos.some((p) => (extra[p.id] || 0) > 0) ? secundario : principal} onClick={() => seguirDelUpsell(false)}>No, gracias. Deseo pagar</button>
+            <button className={`${cosmeticos.some((p) => (extra[p.id] || 0) > 0) ? secundario : principal} !py-10 !text-5xl !font-bold`} onClick={() => seguirDelUpsell(false)}>No, gracias. Deseo pagar</button>
           </div>
         </section>
       )}
@@ -743,14 +774,37 @@ function Totem() {
       )}
 
       {pantalla === "pagoterm" && pagoTerm && (
+        // La gente se quedaba mirando la pantalla: se muestra lo mismo que sale en la máquina y una flecha hacia abajo, donde está.
         <section className="flex flex-1 flex-col items-center justify-center text-center">
-          <p className="tt-mono mb-4 text-lg uppercase tracking-[0.16em] text-white/50">Pago con tarjeta</p>
-          <p className="tt-display mb-6 text-9xl font-semibold">{plata(pagoTerm.monto)}</p>
-          <h2 className="tt-display mb-4 max-w-5xl text-5xl font-semibold">{pagoTerm.profesional ? `Pasa o acerca tu tarjeta a la máquina de ${pagoTerm.profesional}` : "Pasa o acerca tu tarjeta a la máquina"}</h2>
-          <p className="max-w-3xl text-2xl text-white/60">Sigue las instrucciones de la máquina. Esta pantalla se actualiza sola cuando se confirme el pago.</p>
-          {pagoTerm.abono > 0 && <p className="mt-3 text-xl text-white/60">Ya descontamos tu abono de {plata(pagoTerm.abono)}.</p>}
+          <div className="grid w-full items-center gap-x-16 gap-y-6 md:grid-cols-[1.4fr_1fr]">
+            <div>
+              <p className="tt-mono mb-3 text-lg uppercase tracking-[0.16em] text-white/50">Pago con tarjeta</p>
+              <p className="tt-display mb-5 text-9xl font-semibold">{plata(pagoTerm.monto)}</p>
+              <h2 className="tt-display mb-4 text-5xl font-semibold">Ahora paga en la máquina de abajo{pagoTerm.profesional ? ` (la de ${pagoTerm.profesional})` : ""}</h2>
+              <p className="text-2xl text-white/70">En la máquina toca «Tarjetas» y pasa o acerca tu tarjeta. Esta pantalla se actualiza sola.</p>
+              {pagoTerm.abono > 0 && <p className="mt-3 text-xl text-white/60">Ya descontamos tu abono de {plata(pagoTerm.abono)}.</p>}
+              <button onClick={cancelarPagoTerminal} className="tt-mono mt-8 rounded-xl border border-white/15 px-6 py-3 text-base uppercase tracking-[0.12em] text-white/70">Cancelar</button>
+            </div>
+            <div className="flex flex-col items-center">
+              <MaquinaPos monto={plata(pagoTerm.monto)} />
+              <div aria-hidden className="mt-4 flex flex-col items-center text-white" style={{ animation: "ttFlecha 1.1s ease-in-out infinite" }}>
+                <p className="tt-display text-3xl font-bold">La máquina está aquí abajo</p>
+                <svg className="h-28 w-28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v17M5 13l7 7 7-7" /></svg>
+              </div>
+              <style>{`@keyframes ttFlecha { 0%,100% { transform: translateY(0) } 50% { transform: translateY(18px) } }`}</style>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {pantalla === "efectivo" && pagoEfe && (
+        <section className="flex flex-1 flex-col items-center justify-center text-center">
+          <p className="tt-mono mb-4 text-lg uppercase tracking-[0.16em] text-white/50">Pago en efectivo</p>
+          <p className="tt-display mb-6 text-9xl font-semibold">{plata(pagoEfe.monto)}</p>
+          <h2 className="tt-display mb-4 max-w-5xl text-5xl font-semibold">Entrega el dinero a {pagoEfe.profesional || "quien te atendió"}</h2>
+          <p className="max-w-3xl text-2xl text-white/60">Cuando confirme que lo recibió, esta pantalla se actualiza sola. Ya le avisamos en su celular.</p>
           <div className="mt-10 h-3 w-3 rounded-full bg-white/60" style={{ animation: "ttPulse 2.2s infinite" }} />
-          <button onClick={cancelarPagoTerminal} className="tt-mono mt-12 rounded-xl border border-white/15 px-6 py-3 text-base uppercase tracking-[0.12em] text-white/70">Cancelar</button>
+          <button onClick={cancelarPagoEfectivo} className="tt-mono mt-12 rounded-xl border border-white/15 px-6 py-3 text-base uppercase tracking-[0.12em] text-white/70">Cancelar</button>
         </section>
       )}
 
@@ -906,6 +960,32 @@ function Totem() {
         <img src="/Logo%20RE-BOOKING%20Oficial%2002.png" alt="re-booking" className="h-8 w-auto opacity-90" />
       </footer>
     </main>
+    </div>
+  );
+}
+
+// Dibujo de la máquina de tarjetas con lo mismo que muestra su pantalla, para que se entienda que hay que pagar ahí.
+function MaquinaPos({ monto }: { monto: string }) {
+  return (
+    <div aria-hidden className="w-72 rounded-[2.2rem] bg-[#FFD500] p-3 shadow-2xl">
+      <div className="mx-auto mb-2 h-3 w-24 rounded-full bg-black/25" />
+      <div className="overflow-hidden rounded-[1.4rem] bg-[#F4F5F7] text-[#1F2430]">
+        <div className="h-4 bg-[#FFD500]" />
+        <div className="px-4 pb-5 pt-3 text-center">
+          <p className="text-left text-2xl leading-none text-[#555]">←</p>
+          <p className="mt-1 text-4xl font-medium">{monto.replace("$", "$ ")}</p>
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-white px-2 py-5 shadow ring-4 ring-[#009EE3]" style={{ animation: "ttPulse 1.6s infinite" }}>
+              <svg className="mx-auto h-9 w-9 text-[#009EE3]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><rect x="2.5" y="5" width="19" height="14" rx="2.5" /><path d="M2.5 10h19" /></svg>
+              <p className="mt-2 text-lg font-semibold">Tarjetas</p>
+            </div>
+            <div className="rounded-xl bg-white px-2 py-5 shadow">
+              <svg className="mx-auto h-9 w-9 text-[#009EE3]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M4 9V4h5M15 4h5v5M20 15v5h-5M9 20H4v-5M8 8h3v3H8zM13 8h3v3h-3zM8 13h3v3H8zM14 14h2v2h-2z" /></svg>
+              <p className="mt-2 text-lg font-semibold">Código QR</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

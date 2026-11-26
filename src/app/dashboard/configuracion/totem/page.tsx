@@ -23,6 +23,7 @@ export default function ConfiguracionTotemPage() {
   const [pagoTerminal, setPagoTerminal] = useState(false);
   const [terminalListo, setTerminalListo] = useState(false);
   const [ventaAuto, setVentaAuto] = useState(true);
+  const [pagoEfectivo, setPagoEfectivo] = useState(false);
   const [modulos, setModulos] = useState(1);
   const [whatsapp, setWhatsapp] = useState("");
   const [web, setWeb] = useState("");
@@ -31,7 +32,7 @@ export default function ConfiguracionTotemPage() {
   useEffect(() => {
     fetch(`/api/settings/totem${tq}`).then((r) => r.json()).then((d) => {
       if (d.error) return;
-      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo); setVentaAuto(d.ventaAuto !== false); setModulos(Number(d.modulos) || 1); setWhatsapp(d.whatsapp || ""); setWeb(d.web || "");
+      setEnabled(!!d.enabled); setCodigo(d.codigo || ""); setInfo(d.info || []); setFaltaMigracion(!!d.falta_migracion); setDesbloqueado(d.desbloqueado !== false || !!d.falta_migracion); setPagoQr(!!d.pagoQr); setMpListo(!!d.mpListo); setPagoTerminal(!!d.pagoTerminal); setTerminalListo(!!d.terminalListo); setVentaAuto(d.ventaAuto !== false); setPagoEfectivo(!!d.pagoEfectivo); setModulos(Number(d.modulos) || 1); setWhatsapp(d.whatsapp || ""); setWeb(d.web || "");
     }).catch(() => {}).finally(() => setLoading(false));
   }, [tq]);
 
@@ -49,7 +50,7 @@ export default function ConfiguracionTotemPage() {
 
   const guardar = async () => {
     setSaving(true);
-    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal, ventaAuto, whatsapp, web, modulos }) });
+    const res = await fetch("/api/settings/totem", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tenantId: tenant?.id, enabled, info, pagoQr, pagoTerminal, ventaAuto, pagoEfectivo, whatsapp, web, modulos }) });
     const d = await res.json().catch(() => ({}));
     setSaving(false);
     if (!res.ok) return showToast(d.error || "No se pudo guardar", "error");
@@ -85,6 +86,14 @@ export default function ConfiguracionTotemPage() {
               <span className="text-xs text-brand-gray">Cuando un cliente paga en el tótem (máquina o QR), la venta se crea sola como una venta normal: aparece en la billetera del profesional, el dashboard, el cierre y la caja (origen «Tótem»), suma puntos y emite la boleta si la tienes automática. Si la apagas, solo se avisa al equipo y la venta la registras tú en el POS.</span>
             </span>
             <input type="checkbox" className="mt-1 h-5 w-5 flex-shrink-0" checked={ventaAuto} onChange={(e) => setVentaAuto(e.target.checked)} />
+          </label>
+
+          <label className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">
+            <span>
+              <span className="block font-bold text-brand-dark">Pago en efectivo</span>
+              <span className="text-xs text-brand-gray">El cliente elige «Pagar en efectivo» y le entrega el dinero a su profesional. Al profesional (y a administración) le llega el aviso y, al abrir Standby en su celular con su sesión iniciada, aparece el monto para confirmar «Sí, coincide» o «No coincide» (sin código de Standby). La venta se registra en efectivo solo si coincide.</span>
+            </span>
+            <input type="checkbox" className="mt-1 h-5 w-5 flex-shrink-0" checked={pagoEfectivo} onChange={(e) => setPagoEfectivo(e.target.checked)} />
           </label>
 
           <label className="flex items-start justify-between gap-3 rounded-2xl border border-gray-100 dark:border-white/10 bg-white dark:bg-brand-white p-4">

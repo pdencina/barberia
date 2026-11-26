@@ -22,8 +22,10 @@ export async function GET(req: NextRequest) {
 async function contactoGuardado(tenantId: string) {
   const { data, error } = await createAdminSupabase().from("tenants").select("kiosk_whatsapp, kiosk_web").eq("id", tenantId).maybeSingle();
   const m = await createAdminSupabase().from("tenants").select("kiosk_modules").eq("id", tenantId).maybeSingle(); // migración 175
+  const e = await createAdminSupabase().from("tenants").select("kiosk_cash_enabled").eq("id", tenantId).maybeSingle(); // migración 181
+  const pagoEfectivo = !!(e.data as any)?.kiosk_cash_enabled;
   const modulos = !m.error && (m.data as any)?.kiosk_modules ? Number((m.data as any).kiosk_modules) : 1;
-  return error ? { whatsapp: "", web: "", modulos } : { whatsapp: (data as any)?.kiosk_whatsapp || "", web: (data as any)?.kiosk_web || "", modulos };
+  return error ? { whatsapp: "", web: "", modulos, pagoEfectivo } : { whatsapp: (data as any)?.kiosk_whatsapp || "", web: (data as any)?.kiosk_web || "", modulos, pagoEfectivo };
 }
 
 export async function POST(req: NextRequest) {
@@ -54,6 +56,7 @@ export async function POST(req: NextRequest) {
     if (!(n >= 1 && n <= 9)) return NextResponse.json({ error: "La cantidad de tótems debe ser entre 1 y 9" }, { status: 400 });
     update.kiosk_modules = n;
   }
+  if (typeof body.pagoEfectivo === "boolean") update.kiosk_cash_enabled = body.pagoEfectivo; // pago en efectivo en el tótem (migración 181)
   if (body.nuevoCodigo === true) update.kiosk_code = generarCodigoNegocio(); // los equipos ya configurados dejan de abrir: hay que escribir el nuevo
   const { error } = await createAdminSupabase().from("tenants").update(update).eq("id", guard.tenantId);
   if (error) return NextResponse.json({ error: /kiosk/i.test(error.message) ? "Falta aplicar la migración 162 (o la 165)" : "No se pudo guardar" }, { status: 500 });

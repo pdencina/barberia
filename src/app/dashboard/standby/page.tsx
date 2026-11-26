@@ -7,6 +7,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { formatCurrency } from "@/lib/utils";
 import { EmptyIcons } from "@/components/ui/empty-state";
 import StandbyV2 from "@/components/standby/standby-v2";
+import EfectivoTotem from "@/components/standby/efectivo-totem";
 
 interface Service { id: string; name: string; price: number; duration: number; }
 
@@ -293,5 +294,6 @@ export default function StandbyPage() {
       .catch(() => setMode("legacy"));
   }, [tenantLoading, tenant?.id]);
   if (mode === "loading") return <Spinner />;
-  return mode === "v2" ? <StandbyV2 /> : <LegacyStandby />;
+  // Los cobros en efectivo pedidos en el tótem aparecen encima, sin pedir el código (el cliente ya se identificó con el suyo).
+  return <>{mode === "v2" ? <StandbyV2 /> : <LegacyStandby />}<EfectivoTotem /></>;
 }
