@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ChevronDown } from "lucide-react";
+import { AgendaPromo } from "./agenda-promo";
 import { MEDIOS_DE_PAGO, SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPromo, type FormaCanje } from "@/lib/promo-condiciones";
 
 // Condiciones opcionales de la promoción. Parte cerrado y vacío: sin elegir nada, el mensaje sale igual que siempre.
@@ -62,6 +63,10 @@ export function PromoCondicionesForm({ value, onChange, tenantId, hayCupon, inpu
                   }} className={chip((value.profesionalIds || []).includes(id))}>{n}</button>
                 ))}
               </div>
+              <AgendaPromo value={value} tenantId={tenantId} onToggle={(id) => {
+                const ids = alternar(value.profesionalIds || [], id);
+                set({ profesionalIds: ids, profesionales: pros.filter((p) => ids.includes(p.id)).map((p) => p.name) });
+              }} />
             </div>
           )}
           <div>
