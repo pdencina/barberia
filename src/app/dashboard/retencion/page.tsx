@@ -3,6 +3,7 @@
 import { useTenant } from "@/lib/tenant-context";
 import { couponKind } from "@/lib/coupon";
 import { useBorrador } from "@/lib/use-borrador";
+import { etiquetaRangos, rangosATexto, type Rango } from "@/lib/rangos-dias";
 import { SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPromo } from "@/lib/promo-condiciones";
 import { PromoCondicionesForm } from "./promo-condiciones-form";
 import { PromoImagenCampo } from "./promo-imagen-campo";
@@ -43,6 +44,8 @@ export default function RetencionPage() {
   // Por defecto solo clientes que SI vinieron alguna vez. Los que nunca tuvieron una visita registrada (nuevos o importados)
   // no "dejaron de venir": se suman solo si se pide. Lo que se ve en pantalla es lo mismo que recibe el envio masivo.
   const [includeNever, setIncludeNever] = useState(false);
+  // Grupos marcados cuando son dos o mas (con uno solo bastan days / maxDays).
+  const [rangos, setRangos] = useState<Rango[]>([]);
   // Rango y orden: "entre 15 y 30 dias" y de mas a menos tiempo sin venir (o al reves).
   const [maxDays, setMaxDays] = useState<number | null>(30);
   const [maxInput, setMaxInput] = useState("30");
@@ -86,7 +89,7 @@ export default function RetencionPage() {
   const suggestCampaignName = () => `Campaña ${new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "America/Santiago" }).format(new Date())} · ${rangeLabel}`;
   // Cuerpo comun de los envios masivos: quienes se desmarcaron no reciben; los agregados a mano se suman.
   const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = [], campaignName?: string) => ({
-    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, logoFondo, type, campaignName: campaignName || null,
+    days, includeNever, maxDays, rangos, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, logoFondo, type, campaignName: campaignName || null,
     excludeClientIds: [...Array.from(excluded), ...extraExcluded],
     includeClientIds: manualClients.map((m) => m.id),
   });
@@ -94,14 +97,14 @@ export default function RetencionPage() {
   const { tenant } = useTenant();
   // Borrador automático: lo armado queda guardado en este equipo y vuelve al entrar de nuevo.
   const borrador = {
-    days, maxDays, includeNever, selectedCoupon, customMessage, condiciones, imageUrl, design, subject, title, logoFondo,
+    days, maxDays, rangos, includeNever, selectedCoupon, customMessage, condiciones, imageUrl, design, subject, title, logoFondo,
     excluidos: Array.from(excluded), agregados: manualClients,
   };
   const { hayBorrador, borrar: borrarBorrador } = useBorrador(tenant?.id ? `rb_borrador_retencion_${tenant.id}` : null, borrador, (g) => {
     const d = g?.days ?? 15;
     const m = g ? (g.maxDays ?? null) : 30;
     setDays(d); setMinInput(String(d)); setMaxDays(m); setMaxInput(m ? String(m) : "");
-    setIncludeNever(!!g?.includeNever);
+    setIncludeNever(!!g?.includeNever); setRangos(g?.rangos || []);
     setSelectedCoupon(g?.selectedCoupon || ""); setCustomMessage(g?.customMessage || "");
     setCondiciones({ ...SIN_CONDICIONES, ...(g?.condiciones || {}) });
     setImageUrl(g?.imageUrl || ""); setSubject(g?.subject || ""); setTitle(g?.title || "");
@@ -220,7 +223,7 @@ export default function RetencionPage() {
   const fetchData = async () => {
     setLoading(true);
     const [retRes, coupRes] = await Promise.all([
-      fetch(`/api/retention?days=${days}${maxDays ? `&maxDays=${maxDays}` : ""}${includeNever ? "&includeNever=1" : ""}`),
+      fetch(`/api/retention?days=${days}${maxDays ? `&maxDays=${maxDays}` : ""}${includeNever ? "&includeNever=1" : ""}${rangos.length ? `&rangos=${rangosATexto(rangos)}` : ""}`),
       fetch("/api/cupones"),
     ]);
     const retData = await retRes.json();
@@ -232,7 +235,7 @@ export default function RetencionPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [days, maxDays, includeNever]);
+  useEffect(() => { fetchData(); }, [days, maxDays, includeNever, rangos]);
   // Si "desde" pasa a ser mayor que "hasta", se quita el tope.
   useEffect(() => { if (maxDays && maxDays < days) { setMaxDays(null); setMaxInput(""); } }, [days, maxDays]);
 
@@ -285,7 +288,21 @@ export default function RetencionPage() {
 
   const sortedClients = [...clients].sort((a, b) =>
     sortBy === "name" ? a.name.localeCompare(b.name, "es") : sortBy === "days_asc" ? a.daysSinceVisit - b.daysSinceVisit : b.daysSinceVisit - a.daysSinceVisit);
-  const rangeLabel = maxDays != null ? `${days}–${maxDays} días` : `${days}+ días`;
+  const rangeLabel = rangos.length ? etiquetaRangos(rangos) : maxDays != null ? `${days}–${maxDays} días` : `${days}+ días`;
+  const todos = !rangos.length && days === 0 && maxDays === null;
+  // Deja marcados esos grupos: days / maxDays quedan cubriendo desde el menor hasta el mayor.
+  const elegirRangos = (lista: Rango[]) => {
+    const min = Math.min(...lista.map((r) => r[0]));
+    const max = lista.some((r) => r[1] === null) ? null : Math.max(...lista.map((r) => r[1] as number));
+    setRangos(lista.length > 1 ? lista : []);
+    setDays(min); setMaxDays(max); setMinInput(String(min)); setMaxInput(max ? String(max) : "");
+  };
+  const marcados: Rango[] = rangos.length ? rangos : RANGE_PRESETS.filter((r) => days === r.min && r.max === maxDays).map((r) => [r.min, r.max]);
+  const alternarRango = (min: number, max: number | null) => {
+    const esta = marcados.some((r) => r[0] === min && r[1] === max);
+    const lista: Rango[] = esta ? marcados.filter((r) => !(r[0] === min && r[1] === max)) : [...marcados, [min, max]];
+    if (lista.length) elegirRangos(lista); // siempre queda al menos uno
+  };
 
   // Mismos numeros que usa el envio: un correo / un telefono se cuenta una sola vez.
   // Solo cuentan los clientes marcados (los desmarcados no reciben el mensaje masivo).
@@ -368,13 +385,17 @@ export default function RetencionPage() {
       <Panel title="A quién y qué decirles">
         <div className="space-y-4">
           <div>
-            <p className="mb-2 text-xs font-semibold text-brand-gray">Días sin venir (elige un rango o escríbelo)</p>
+            <p className="mb-2 text-xs font-semibold text-brand-gray">Días sin venir (marca uno o varios grupos, o escríbelo)</p>
             <div className="-mx-1 flex flex-wrap items-center gap-2 px-1">
+              <button type="button" aria-pressed={todos} onClick={() => elegirRangos([[0, null]])}
+                className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${todos ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/40"}`}>
+                Todos
+              </button>
               {RANGE_PRESETS.map((r) => {
-                const active = days === r.min && (r.max ?? null) === maxDays;
+                const active = marcados.some((m) => m[0] === r.min && m[1] === r.max);
                 return (
-                  <button key={`${r.min}-${r.max}`}
-                    onClick={() => { setDays(r.min); setMaxDays(r.max); setMinInput(String(r.min)); setMaxInput(r.max ? String(r.max) : ""); }}
+                  <button key={`${r.min}-${r.max}`} type="button" aria-pressed={active}
+                    onClick={() => alternarRango(r.min, r.max)}
                     className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${active ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/40"}`}>
                     {r.max ? `${r.min}–${r.max} días` : `${r.min}+ días`}
                   </button>
@@ -384,12 +405,12 @@ export default function RetencionPage() {
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-brand-gray">
               Entre
               <input type="number" min={0} max={999} value={minInput} onChange={(e) => setMinInput(e.target.value)}
-                onBlur={() => { const v = parseInt(minInput); if (v >= 0) { setDays(v); if (maxDays && maxDays < v) { setMaxDays(null); setMaxInput(""); } } else setMinInput(String(days)); }}
+                onBlur={() => { const v = parseInt(minInput); if (v >= 0) { if (v !== days) setRangos([]); setDays(v); if (maxDays && maxDays < v) { setMaxDays(null); setMaxInput(""); } } else setMinInput(String(days)); }}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                 className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue" />
               y
               <input type="number" min={days} max={999} placeholder="sin tope" value={maxInput} onChange={(e) => setMaxInput(e.target.value)}
-                onBlur={() => { const v = parseInt(maxInput); if (v >= days) setMaxDays(v); else { setMaxDays(null); setMaxInput(""); } }}
+                onBlur={() => { const v = parseInt(maxInput); if ((v >= days ? v : null) !== maxDays) setRangos([]); if (v >= days) setMaxDays(v); else { setMaxDays(null); setMaxInput(""); } }}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                 className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue" />
               días sin venir
