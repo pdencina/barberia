@@ -9,12 +9,12 @@ export function PromoCondicionesForm({ value, onChange, tenantId, hayCupon, inpu
   value: CondicionesPromo; onChange: (v: CondicionesPromo) => void; tenantId?: string; hayCupon: boolean; inputClass: string;
 }) {
   const [abierto, setAbierto] = useState(false);
-  const [pros, setPros] = useState<string[]>([]);
+  const [pros, setPros] = useState<Array<{ id: string; name: string }>>([]);
   useEffect(() => {
     if (!abierto) return;
     fetch(`/api/barberos${tenantId ? `?tenantId=${tenantId}` : ""}`)
       .then((r) => r.json())
-      .then((d) => setPros(Array.isArray(d) ? d.filter((p: any) => p.role === "barber" || p.also_attends_clients).map((p: any) => String(p.name).trim()) : []))
+      .then((d) => setPros(Array.isArray(d) ? d.filter((p: any) => p.role === "barber" || p.also_attends_clients).map((p: any) => ({ id: String(p.id), name: String(p.name).trim() })) : []))
       .catch(() => setPros([]));
   }, [abierto, tenantId]);
 
@@ -55,8 +55,11 @@ export function PromoCondicionesForm({ value, onChange, tenantId, hayCupon, inpu
             <div>
               <span className={etiqueta}>Válida solo con estos profesionales (si no marcas ninguno, no se menciona)</span>
               <div className="flex flex-wrap gap-1.5">
-                {pros.map((n) => (
-                  <button key={n} type="button" aria-pressed={value.profesionales.includes(n)} onClick={() => set({ profesionales: alternar(value.profesionales, n) })} className={chip(value.profesionales.includes(n))}>{n}</button>
+                {pros.map(({ id, name: n }) => (
+                  <button key={id} type="button" aria-pressed={(value.profesionalIds || []).includes(id)} onClick={() => {
+                    const ids = alternar(value.profesionalIds || [], id);
+                    set({ profesionalIds: ids, profesionales: pros.filter((p) => ids.includes(p.id)).map((p) => p.name) });
+                  }} className={chip((value.profesionalIds || []).includes(id))}>{n}</button>
                 ))}
               </div>
             </div>
@@ -71,7 +74,7 @@ export function PromoCondicionesForm({ value, onChange, tenantId, hayCupon, inpu
           </div>
           {error && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">{error}</p>}
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] text-brand-gray">Estas condiciones se informan en el mensaje. El sistema todavía no las bloquea al cobrar.</p>
+            <p className="text-[11px] text-brand-gray">Se informan en el mensaje. Las fechas, el horario y los profesionales se pueden exigir guardándolos en el cupón.</p>
             {activas > 0 && <button type="button" onClick={() => onChange(SIN_CONDICIONES)} className="flex-shrink-0 text-xs font-semibold text-brand-blue hover:underline">Borrar todas</button>}
           </div>
         </div>

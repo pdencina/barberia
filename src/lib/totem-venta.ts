@@ -5,6 +5,7 @@
 // (su ficha, sus puntos, su boleta y su comprobante); el cobro es uno solo.
 import { buscarAbonosDisponibles, marcarAbonosAplicados } from "@/lib/abonos-disponibles";
 import { saldoCita } from "@/lib/totem-pago";
+import { cuponDeCita } from "@/lib/cupon-cita";
 
 export type MedioPago = "debit_card" | "credit_card" | "transfer" | "cash";
 
@@ -122,6 +123,9 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
         }
       }
 
+      // Código con el que se reservó: queda anotado en la venta (para medirlo) y suma un uso.
+      let cupon: Awaited<ReturnType<typeof cuponDeCita>> = null;
+      for (const cid of citaIds) { cupon = await cuponDeCita(supabase, cid, items.reduce((s: number, i: any) => s + i.price * (i.quantity || 1), 0)); if (cupon) break; }
       // Totales como en el POS: total = lo cobrado por el servicio (SIN la propina); el descuento es lo que ya estaba pagado (abono) o cualquier diferencia.
       // La propina que el cliente agregó en la máquina va aparte, en tip_amount, 100% al profesional (como en el POS).
       const subtotal = items.reduce((s: number, i: any) => s + i.price * (i.quantity || 1), 0);
@@ -136,7 +140,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
 
       const txRow: Record<string, any> = {
         type: "income", status: "completed", subtotal, discount, total,
-        payment_method: medio, client_id: clientId, barber_id: barberId, coupon_id: null, tenant_id: tenantId,
+        payment_method: medio, client_id: clientId, barber_id: barberId, coupon_id: cupon?.couponId || null, tenant_id: tenantId,
         created_by: barberId, origin: "totem",
         ...(citaIds[0] ? { appointment_id: citaIds[0] } : {}),
         ...(barberProfile?.branch_id ? { branch_id: barberProfile.branch_id } : {}),
@@ -153,6 +157,7 @@ export async function registrarVentaTotem(supabase: any, kioskPaymentId: string)
       // Guardar el vínculo de inmediato: si algo falla después, el pago ya no puede generar otra venta.
       if (primero) await supabase.from("kiosk_payments").update({ transaction_id: tx.id }).eq("id", kioskPaymentId);
 
+      if (cupon) await supabase.rpc("increment_coupon_usage", { coupon_id: cupon.couponId }).then(() => {}, () => {});
       if (abonosUsados.length && abono > 0) await marcarAbonosAplicados(supabase, abonosUsados.map((x) => x.paymentId), tx.id);
 
       await supabase.from("transaction_items").insert(items.map((i: any) => ({

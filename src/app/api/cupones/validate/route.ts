@@ -1,3 +1,4 @@
+import { horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
 import { computeCouponDiscount, couponKind } from "@/lib/coupon";
@@ -13,11 +14,9 @@ export async function GET(req: NextRequest) {
 
   if (!code) return NextResponse.json({ valid: false, message: "Codigo requerido" });
 
-  const { data: coupon } = await supabase
-    .from("coupons")
-    .select("*")
-    .eq("code", code.toUpperCase())
-    .single();
+  let q = supabase.from("coupons").select("*").eq("code", code.toUpperCase());
+  if (guard.role !== "super_admin") q = q.eq("tenant_id", guard.tenantId);
+  const { data: coupon } = await q.maybeSingle();
 
   if (!coupon) return NextResponse.json({ valid: false, message: "Cupon no encontrado" });
   if (!coupon.active) return NextResponse.json({ valid: false, message: "Cupon inactivo" });
@@ -29,6 +28,21 @@ export async function GET(req: NextRequest) {
   }
   if (coupon.min_purchase && amount < Number(coupon.min_purchase)) {
     return NextResponse.json({ valid: false, message: `Compra minima: $${Number(coupon.min_purchase).toLocaleString("es-CL")}` });
+  }
+
+  // Reglas del cupón (profesional, fechas y horario de la atención). Con cita se usa su día y hora; sin cita, ahora en Chile.
+  const barberId = searchParams.get("barberId") || "";
+  const apptId = searchParams.get("appointmentId") || "";
+  if (coupon.conditions && barberId) {
+    const ahora = new Intl.DateTimeFormat("sv-SE", { timeZone: "America/Santiago", dateStyle: "short", timeStyle: "short" }).format(new Date());
+    let fecha = ahora.slice(0, 10), hora = ahora.slice(11, 16);
+    if (apptId) {
+      const { data: a } = await supabase.from("appointments").select("date, start_time").eq("id", apptId).eq("tenant_id", coupon.tenant_id).maybeSingle();
+      if (a) { fecha = a.date; hora = horaDeCita(a.start_time); }
+    }
+    // El vencimiento y el uso ya se revisaron arriba; aquí interesan las reglas.
+    const motivo = motivoCuponNoValido({ conditions: coupon.conditions }, { barberId, fecha, hora });
+    if (motivo) return NextResponse.json({ valid: false, message: motivo });
   }
 
   const discount = computeCouponDiscount(coupon, amount);

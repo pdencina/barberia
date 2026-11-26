@@ -1,3 +1,4 @@
+import { limpiarReglas } from "@/lib/cupon-reglas";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
 
@@ -28,6 +29,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.max_uses !== undefined) update.max_uses = body.max_uses;
   if (body.valid_until !== undefined) update.valid_until = body.valid_until;
   if (body.active !== undefined) update.active = body.active;
+  if (body.conditions !== undefined) update.conditions = limpiarReglas(body.conditions);
 
   const { data, error } = await supabase
     .from("coupons")
@@ -36,7 +38,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json({ error: /conditions/i.test(error.message) ? "Falta aplicar la migración 182" : error.message }, { status: 500 });
   return NextResponse.json(data);
 }
 

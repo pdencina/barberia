@@ -63,6 +63,10 @@ export default function CuponesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tenantLoading, tenant?.id]);
 
+  // Medición por código: reservas, atendidas y lo cobrado con cada cupón.
+  const [stats, setStats] = useState<Record<string, { reservas: number; atendidas: number; ventas: number; monto: number }>>({});
+  useEffect(() => { fetch("/api/cupones/stats").then((r) => (r.ok ? r.json() : {})).then((d) => setStats(d || {})).catch(() => {}); }, [coupons.length]);
+
   const deleteCoupon = async (c: Coupon) => {
     const ok = await confirm({
       title: "Eliminar cupon",
@@ -174,7 +178,9 @@ export default function CuponesPage() {
                   {couponKind(c) === "none" ? <span className="text-gray-400">Sin monto</span> : c.discount_type === "percentage" ? `${c.discount_value}%` : formatCurrency(Number(c.discount_value))}
                 </td>
                 <td className="p-4 text-right">{c.min_purchase ? formatCurrency(Number(c.min_purchase)) : "-"}</td>
-                <td className="p-4 text-center">{c.used_count}/{c.max_uses || "∞"}</td>
+                <td className="p-4 text-center">{c.used_count}/{c.max_uses || "∞"}
+                  {stats[c.id] && <span className="mt-0.5 block whitespace-nowrap text-[11px] text-gray-500">{stats[c.id].reservas} reservas · {stats[c.id].atendidas} atendidas · {formatCurrency(stats[c.id].monto)}</span>}
+                </td>
                 <td className="p-4">
                   {c.valid_until ? new Date(c.valid_until).toLocaleDateString("es-CL") : "Sin limite"}
                 </td>

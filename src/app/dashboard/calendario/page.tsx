@@ -2547,6 +2547,9 @@ export default function CalendarioPage() {
                               <button type="button" title="Código del cliente (toca para copiar)" onClick={() => { try { navigator.clipboard?.writeText(apptDetails.client.checkin_code); showToast("Código copiado", "success"); } catch { /* sin portapapeles */ } }}
                                 className="rounded-md border border-brand-blue/30 bg-brand-blue/5 px-1.5 py-0.5 font-mono text-[11px] font-bold tracking-wider text-brand-blue">{apptDetails.client.checkin_code}</button>
                             )}
+                            {apptDetails.couponCode && (
+                              <span title="Código promocional usado al reservar" className="rounded-md bg-amber-100 px-1.5 py-0.5 font-mono text-[11px] font-bold text-amber-800">{apptDetails.couponCode}</span>
+                            )}
                             {apptDetails.isNewClient && (
                               <span className="rounded bg-emerald-500 px-1.5 py-0.5 text-[9px] font-extrabold uppercase leading-none tracking-wide text-white">Cliente nuevo</span>
                             )}

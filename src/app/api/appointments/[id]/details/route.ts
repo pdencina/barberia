@@ -56,10 +56,15 @@ export async function GET(req: NextRequest, { params }: { params: { id: string }
     );
   }
 
+  // Código promocional escrito al reservar (migración 182).
+  const { data: cp } = await supabase.from("appointments").select("coupon:coupons(code)").eq("id", params.id).maybeSingle();
+  const couponCode: string | null = (cp as any)?.coupon?.code || null;
+
   // Nota del equipo (migracion 105): si la columna aun no existe, simplemente no hay nota.
   const { data: sn } = await supabase.from("appointments").select("staff_note").eq("id", params.id).maybeSingle();
 
   return NextResponse.json({
+    couponCode,
     ...appt,
     staff_note: (sn as any)?.staff_note ?? null,
     isNewClient,

@@ -1,7 +1,7 @@
 import { fraseCorreoPlazo } from "@/lib/cambio-cliente";
 import { lineaContactoHtml } from "@/lib/contacto-negocio";
 import { getResendClient } from "@/lib/resend-client";
-import { couponDiscountText } from "@/lib/retention-message";
+import { couponDiscountText, linkConCupon } from "@/lib/retention-message";
 import { receiptThanksHtml } from "@/lib/receipt-thanks";
 import type { CorreoLinks } from "@/lib/post-service-links";
 import { applyMailTheme } from "@/lib/mail-theme";
@@ -455,7 +455,7 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
     <p style="font-size:15px;line-height:1.6;color:#374151;margin:0 0 8px;">${message}</p>
     ${params.imageUrl ? `<img src="${esc(params.imageUrl)}" alt="Promoción" width="100%" style="display:block;width:100%;max-width:100%;height:auto;border-radius:12px;margin:16px 0 4px;">` : ""}
     ${couponBox}
-    <div style="text-align:center;margin:26px 0 4px;"><a href="${bookingUrl}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:13px 32px;border-radius:10px;font-weight:700;font-size:15px;">Agendar ahora</a></div>`,
+    <div style="text-align:center;margin:26px 0 4px;"><a href="${linkConCupon(bookingUrl, couponCode)}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:13px 32px;border-radius:10px;font-weight:700;font-size:15px;">Agendar ahora</a></div>`,
   });
 
   return { subject: `Te extrañamos ${params.clientName}! | re-booking`, html };

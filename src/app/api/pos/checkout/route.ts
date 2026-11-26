@@ -79,7 +79,8 @@ export async function POST(req: NextRequest) {
       .from("coupons")
       .select("id")
       .eq("code", couponCode.toUpperCase())
-      .single();
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
 
     if (coupon) {
       couponId = coupon.id;

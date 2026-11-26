@@ -85,6 +85,16 @@ export default function RetencionPage() {
   // Ask the server WHO would receive this (scoped to the business), show a sample and
   // the exact count, and only send after an explicit confirmation. This is the guard
   // against the "sent to 647 people by one click" incident.
+  const guardarReglas = async () => {
+    if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
+    const cupon: any = coupons.find((c: any) => c.code === selectedCoupon);
+    if (!cupon?.id) return;
+    const reglas = { desde: condiciones.desde, hasta: condiciones.hasta, horaDesde: condiciones.horaDesde, horaHasta: condiciones.horaHasta, profesionalIds: condiciones.profesionalIds || [] };
+    const res = await fetch(`/api/cupones/${cupon.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conditions: reglas }) });
+    const d = await res.json().catch(() => ({}));
+    showToast(res.ok ? `Reglas guardadas en ${selectedCoupon}` : d.error || "No se pudieron guardar", res.ok ? "success" : "error");
+  };
+
   const sendBulkEmail = async () => {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
     setBulkSending(true);
@@ -365,6 +375,12 @@ export default function RetencionPage() {
               </select>
             </div>
             <PromoCondicionesForm value={condiciones} onChange={setCondiciones} tenantId={tenant?.id} hayCupon={!!selectedCoupon} inputClass={inputClass} />
+            {selectedCoupon && (
+              <div className="rounded-xl bg-brand-blue/5 px-3 py-2.5">
+                <button type="button" onClick={guardarReglas} className="rounded-full bg-brand-blue px-3.5 py-1.5 text-xs font-semibold text-white">Exigir estas reglas en el código {selectedCoupon}</button>
+                <p className="mt-1 text-[11px] text-brand-gray">Al reservar y al cobrar, el código solo se aceptará en las fechas, horario y profesionales marcados arriba. Sin nada marcado, vale siempre.</p>
+              </div>
+            )}
             <PromoImagenCampo url={imageUrl} onChange={setImageUrl} tenantId={tenant?.id} showToast={showToast} />
             <div>
               <label htmlFor="retencion-mensaje" className="mb-1.5 block text-xs font-semibold text-brand-gray">Mensaje personalizado</label>
