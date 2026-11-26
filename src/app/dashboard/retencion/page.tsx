@@ -12,6 +12,7 @@ import { formatPhoneCL } from "@/lib/phone";
 import { contactosVcf } from "@/lib/vcard";
 import { SendReviewModal, type ReviewRecipient } from "./send-review-modal";
 import { AddClientSearch, type ManualClient } from "./add-client-search";
+import { TutorialDifusion } from "./tutorial-difusion";
 
 interface InactiveClient {
   id: string;
@@ -295,6 +296,8 @@ export default function RetencionPage() {
       />
 
       <MessageQuotaBar refreshKey={quotaRefresh} />
+
+      <TutorialDifusion />
 
       {/* Metricas */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
