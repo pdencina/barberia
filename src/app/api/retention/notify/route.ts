@@ -1,3 +1,4 @@
+import { imagenDelNegocio } from "@/lib/promo-imagen";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
 import { tenantBookingUrl, tenantLogoUrl } from "@/lib/retention";
@@ -70,6 +71,7 @@ export async function POST(req: NextRequest) {
         discountValue: couponDetails ? Number(couponDetails.discount_value) : null,
         bookingUrl,
         businessLogoUrl: client.tenant_id ? await tenantLogoUrl(supabase, client.tenant_id) : null,
+        imageUrl: imagenDelNegocio(body.imageUrl, client.tenant_id),
       });
       return NextResponse.json({ success: true, channel: "email" });
     } catch (e: any) {

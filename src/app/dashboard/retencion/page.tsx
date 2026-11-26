@@ -4,6 +4,7 @@ import { useTenant } from "@/lib/tenant-context";
 import { couponKind } from "@/lib/coupon";
 import { SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPromo } from "@/lib/promo-condiciones";
 import { PromoCondicionesForm } from "./promo-condiciones-form";
+import { PromoImagenCampo } from "./promo-imagen-campo";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
@@ -55,6 +56,7 @@ export default function RetencionPage() {
   const [selectedCoupon, setSelectedCoupon] = useState("");
   const [customMessage, setCustomMessage] = useState("");
   const [condiciones, setCondiciones] = useState<CondicionesPromo>(SIN_CONDICIONES);
+  const [imageUrl, setImageUrl] = useState("");
   const conditions = textoCondiciones(condiciones, !!selectedCoupon);
   const conCondiciones = (m: string) => [m, conditions].filter(Boolean).join("\n\n");
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -73,7 +75,7 @@ export default function RetencionPage() {
   const suggestCampaignName = () => `Campaña ${new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "America/Santiago" }).format(new Date())} · ${rangeLabel}`;
   // Cuerpo comun de los envios masivos: quienes se desmarcaron no reciben; los agregados a mano se suman.
   const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = [], campaignName?: string) => ({
-    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, conditions, type, campaignName: campaignName || null,
+    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, type, campaignName: campaignName || null,
     excludeClientIds: [...Array.from(excluded), ...extraExcluded],
     includeClientIds: manualClients.map((m) => m.id),
   });
@@ -201,12 +203,12 @@ export default function RetencionPage() {
   const PREVIEW_NAME = "[nombre del cliente]";
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, conditions, clientName: PREVIEW_NAME }) })
+      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, clientName: PREVIEW_NAME }) })
         .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.whatsapp) setMsgPreview(d); }).catch(() => {});
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCoupon, customMessage, conditions]);
+  }, [selectedCoupon, customMessage, conditions, imageUrl]);
 
   const notifyClient = async (clientId: string, type: "email" | "whatsapp") => {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
@@ -220,6 +222,7 @@ export default function RetencionPage() {
         couponCode: selectedCoupon || null,
         message: customMessage || null,
         conditions,
+        imageUrl,
       }),
     });
     const data = await res.json();
@@ -362,6 +365,7 @@ export default function RetencionPage() {
               </select>
             </div>
             <PromoCondicionesForm value={condiciones} onChange={setCondiciones} tenantId={tenant?.id} hayCupon={!!selectedCoupon} inputClass={inputClass} />
+            <PromoImagenCampo url={imageUrl} onChange={setImageUrl} tenantId={tenant?.id} showToast={showToast} />
             <div>
               <label htmlFor="retencion-mensaje" className="mb-1.5 block text-xs font-semibold text-brand-gray">Mensaje personalizado</label>
               {/* Varias lineas y crece al escribir: antes era una sola linea que se corria hacia el lado y no se podia leer. */}

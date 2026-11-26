@@ -1,0 +1,15 @@
+import { imagenDelNegocio } from "../src/lib/promo-imagen";
+import { buildRetentionEmail } from "../src/lib/resend";
+let f = 0;
+const ok = (c: boolean, m: string) => { if (!c) { f++; console.log("FALLA", m); } };
+const base = "https://x.supabase.co", t = "abc";
+const buena = `${base}/storage/v1/object/public/cut-photos/promos/abc/1a2b-3c.jpg`;
+ok(imagenDelNegocio(buena, t, base) === buena, "propia");
+ok(imagenDelNegocio(buena, "otro", base) === null, "de otro negocio");
+ok(imagenDelNegocio("https://malo.com/a.jpg", t, base) === null, "externa");
+ok(imagenDelNegocio(buena + '"><script>', t, base) === null, "inyección");
+ok(imagenDelNegocio(`${base}/storage/v1/object/public/cut-photos/promos/abc/../x.jpg`, t, base) === null, "ruta relativa");
+const p = { to: "", clientName: "Ana", message: "Hola", couponCode: null, couponDescription: null, discountType: null, discountValue: null };
+ok(buildRetentionEmail({ ...p, imageUrl: buena }).html.includes(buena), "va en el correo");
+ok(!buildRetentionEmail(p).html.includes("alt=\"Promoción\""), "sin imagen igual que antes");
+console.log(f ? "HAY FALLAS" : "OK imagen"); process.exit(f ? 1 : 0);

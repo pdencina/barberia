@@ -1,3 +1,4 @@
+import { imagenDelNegocio } from "@/lib/promo-imagen";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { sendRetentionEmail } from "@/lib/resend";
@@ -136,6 +137,7 @@ export async function POST(req: NextRequest) {
           discountValue: coupon ? Number(coupon.discount_value) : null,
           bookingUrl,
           businessLogoUrl,
+          imageUrl: imagenDelNegocio(body.imageUrl, tenantId),
         });
         sent++;
         results.push({ clientId: client.id, name: client.name, contact: client.email, status: "sent" });
