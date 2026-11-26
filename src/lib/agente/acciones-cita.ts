@@ -6,6 +6,8 @@ import type { NotifyInput } from "../notify";
 /** Se puede cancelar o modificar hasta 3 horas antes de la cita. */
 export const HORAS_MIN_CANCELAR = 3;
 export const PROPOSITO_RECORDATORIO_CITA = "recordatorio-cita-v1";
+/** El segundo mensaje ("no has respondido"): responder citándolo vale igual que la confirmación. */
+export const PROPOSITO_AVISO_CANCELACION = "aviso-cancelacion-v1";
 export type MotivoAccionCita = "ok" | "ya_estaba" | "fuera_de_plazo" | "estado_no_permitido" | "no_encontrada";
 export interface ResultadoAccionCita { motivo: MotivoAccionCita }
 // Contexto resuelto por el servidor después de autenticar al remitente. Nunca usar ids del texto recibido.
@@ -90,7 +92,7 @@ export function crearRepositorioAccionesCita(db: any): RepositorioAccionesCita {
     async desdeRecordatorio(c) {
       const envio = check(await db.from("agent_reminder_deliveries").select("appointment_id")
         .eq("id", c.referenciaRecordatorio).eq("tenant_id", c.tenantId).eq("channel", "whatsapp")
-        .eq("purpose", PROPOSITO_RECORDATORIO_CITA).eq("status", "aceptado_proveedor").maybeSingle()).data;
+        .in("purpose", [PROPOSITO_RECORDATORIO_CITA, PROPOSITO_AVISO_CANCELACION]).eq("status", "aceptado_proveedor").maybeSingle()).data;
       if (!envio?.appointment_id) return null;
       return check(await db.from("appointments").select("id,tenant_id,client_id,status,date,start_time,barber_id,client:clients(name)")
         .eq("id", envio.appointment_id).eq("tenant_id", c.tenantId).eq("client_id", c.clienteId).maybeSingle()).data;

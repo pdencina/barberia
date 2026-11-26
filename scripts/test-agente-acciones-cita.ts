@@ -94,18 +94,19 @@ async function main() {
         select(campos: string) { llamada.select = campos; return query; },
         eq(campo: string, valor: unknown) { llamada.filtros.push([campo, valor]); return query; },
         update(patch: unknown) { llamada.patch = patch; return query; },
+        in(campo: string, valores: unknown) { llamada.filtros.push([campo, valores]); return query; },
         async maybeSingle() { return salidas.shift(); },
       }; return query;
     } };
     const repo = crearRepositorioAccionesCita(db); const c = await repo.desdeRecordatorio(contexto); assert.ok(c);
     assert.equal(await repo.transicionar(c, "cancelled"), true);
-    for (const filtro of [["id", contexto.referenciaRecordatorio], ["tenant_id", contexto.tenantId], ["channel", "whatsapp"], ["purpose", "recordatorio-cita-v1"], ["status", "aceptado_proveedor"]]) assert.ok(llamadas[0].filtros.some((x: any) => JSON.stringify(x) === JSON.stringify(filtro)));
+    for (const filtro of [["id", contexto.referenciaRecordatorio], ["tenant_id", contexto.tenantId], ["channel", "whatsapp"], ["purpose", ["recordatorio-cita-v1", "aviso-cancelacion-v1"]], ["status", "aceptado_proveedor"]]) assert.ok(llamadas[0].filtros.some((x: any) => JSON.stringify(x) === JSON.stringify(filtro)));
     assert.ok(llamadas[1].filtros.some((x: any) => x[0] === "client_id" && x[1] === contexto.clienteId));
     for (const campo of ["id", "tenant_id", "client_id", "status", "start_time", "date"]) assert.ok(llamadas[2].filtros.some((x: any) => x[0] === campo && x[1] === (inicial as any)[campo]));
     assert.deepEqual(llamadas[2].patch, { status: "cancelled" });
   });
   await test("migración ausente avisa 005 sin error crudo", async () => {
-    const q: any = { select() { return q; }, eq() { return q; }, async maybeSingle() { return { error: { code: "42P01", message: "dato privado simulado" } }; } };
+    const q: any = { select() { return q; }, eq() { return q; }, in() { return q; }, async maybeSingle() { return { error: { code: "42P01", message: "dato privado simulado" } }; } };
     await assert.rejects(() => crearRepositorioAccionesCita({ from: () => q }).desdeRecordatorio(contexto), (e: unknown) => e instanceof MigracionAccionesCitaPendiente && e.message === "Falta aplicar la migración 005");
   });
   console.log(`${pruebas} pruebas pasaron (sin red/base/llaves).`);

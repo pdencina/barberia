@@ -111,6 +111,7 @@ const CANAL: Record<string, string> = { link: "desde el link de su cita", portal
 
 // «Quién» de una cancelación, lo más exacto posible: la cuenta (nombre y rol) si fue desde el panel, o el cliente y por dónde entró.
 export function textoQuienCancelo(f: { cancelled_by?: string | null; cancel_channel?: string | null; userName?: string | null }): string {
+  if (f.cancel_channel === "sin_confirmar") return "Automática: no respondió la confirmación por WhatsApp";
   if (f.cancelled_by === "client") return `El cliente ${CANAL[f.cancel_channel || "link"] || "desde su link"}`;
   if (f.userName) return `${f.userName} (${etiquetaQuien(f.cancelled_by).toLowerCase()})`;
   if (f.cancelled_by) return `${etiquetaQuien(f.cancelled_by)} (cuenta no identificada)`;
