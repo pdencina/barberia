@@ -96,3 +96,7 @@ Cambios de datos hechos con OK de Nico: 2.138 clientes de Levels marcados como "
 - 2026-11-07 · Codex · `codex/escala-rosa`: variedad tonal en Rosa: títulos intensos, acentos medios, resumen pastel y fondos de tarjetas al 7%/12%, con texto sólido.
 - Se conservan fondo blanco y logo rosado; ninguna otra paleta cambia. Sin SQL ni cambios de datos.
 - Verificación de contraste y TypeScript; falta revisión en app instalada. Nico crea/mergea PR.
+
+- 2026-11-26 · Claude · `claude/totem-sin-cita`: caso «sin cita» en el tótem = código mal escrito (6 por G). Pantalla nueva para corregir o avisar al equipo.
+- Citas completadas sin cobro se pueden pagar en el tótem; las ya cobradas (POS o tótem) se rechazan, también en efectivo. Sin SQL.
+- tsc y scripts test-kiosk-* en pruebas OK; falta ver la pantalla en el tótem.

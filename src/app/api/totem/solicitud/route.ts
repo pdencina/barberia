@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     const clave = `pago:${quienClave}`;
     if (await avisoReciente(supabase, t.id, clave, 3)) return NextResponse.json({ ok: true, repetido: true });
     await registrarAviso(supabase, t.id, clave);
-    await notify({ tenantId: t.id, kind: "client_arrived", roles: ["admin", "receptionist"], userIds: barberId ? [barberId] : [], title: "Cliente quiere pagar", body: `${quien} pidió pagar desde el tótem.`, url: "/dashboard/pos", professionalId: barberId }).catch(() => {});
+    await notify({ tenantId: t.id, kind: "client_arrived", roles: ["admin", "receptionist"], userIds: barberId ? [barberId] : [], title: "Cliente quiere pagar", body: `${quien} pidió pagar desde el tótem.${code.length === 5 && quien === "Un cliente" ? ` No encontró su cita con el código ${code}.` : ""}`, url: "/dashboard/pos", professionalId: barberId }).catch(() => {});
     return NextResponse.json({ ok: true });
   }
   if (body.tipo === "producto") {

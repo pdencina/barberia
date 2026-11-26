@@ -9,9 +9,16 @@ import { Qr } from "@/components/totem/qr";
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
 type Pantalla = "efectivo" | "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "otro" | "info" | "contacto" | "gracias";
-interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; code: string | null }
+interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; completada?: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null; cosmetico?: boolean }
 interface Info { pagoEfectivo?: boolean; modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
+
+// Caracteres del código que se confunden al leerlo: se le recuerdan al cliente solo los que escribió.
+const PARECIDOS: [string, string][] = [["G", "6"], ["B", "8"], ["S", "5"], ["Z", "2"]];
+const parecidos = (codigo: string) => {
+  const p = PARECIDOS.filter(([a, b]) => codigo.includes(a) || codigo.includes(b)).map(([a, b]) => `la letra ${a} y el número ${b}`);
+  return p.length ? ` Ojo: se parecen ${p.join("; ")}.` : "";
+};
 
 const LETRAS = "ABCDEFGHJKLMNPQRSTUVWXYZ".split("");
 const NUMEROS = "23456789".split("");
@@ -111,7 +118,7 @@ function Totem() {
   const [code, setCode] = useState("");
   const [citas, setCitas] = useState<Cita[]>([]);
   const [msg, setMsg] = useState("");
-  const [sinCita, setSinCita] = useState(false); // el código no tiene cita hoy: nunca se corta el flujo, se ofrece reservar
+  const [sinCita, setSinCita] = useState<false | "sin" | "pagada">(false); // el código no tiene cita hoy: nunca se corta el flujo (corregir, avisar al equipo o reservar)
   const [gracias, setGracias] = useState("");
   const [cargando, setCargando] = useState(false);
   const [carrito, setCarrito] = useState<Record<string, number>>({});
@@ -225,20 +232,20 @@ function Totem() {
         const d = await r.json();
         if (d.estado === "expirado") { setVinculo(null); setMsg("El código QR venció. Vuelve a tocar «Ver mi código»."); setPantalla("codigo"); }
         else if (d.estado === "vinculado") setVinculo((v) => (v && !v.code ? { ...v, code: d.code, nombre: d.nombre || "" } : v));
-        else if (d.estado === "listo") { setVinculo(null); setCode(d.code); setModo(d.accion === "pagar" ? "pagar" : "llegue"); await buscar(d.code); }
+        else if (d.estado === "listo") { setVinculo(null); setCode(d.code); const m = d.accion === "pagar" ? "pagar" : "llegue"; setModo(m); await buscar(d.code, m); }
       } catch { /* se reintenta */ }
     }, 2000);
     return () => clearInterval(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pantalla, vinculo?.token, codigo]);
 
-  const buscar = async (codigoCliente?: string) => {
+  const buscar = async (codigoCliente?: string, modoBusqueda: string = modo) => {
     const codigoUsado = codigoCliente || code;
     setCargando(true); setMsg(""); setSinCita(false);
-    const { ok, d } = await post("buscar", { code: codigoUsado });
+    const { ok, d } = await post("buscar", { code: codigoUsado, modo: modoBusqueda });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos buscar tu cita"); return; }
-    if (!d.citas?.length) { setSinCita(true); return; }
+    if (!d.citas?.length) { setSinCita(d.yaPagada ? "pagada" : "sin"); return; }
     setCitas(d.citas); setPantalla("cita");
   };
 
@@ -251,7 +258,7 @@ function Totem() {
     setPantalla("gracias");
   };
 
-  const pedirPagar = async (c: Cita) => {
+  const pedirPagar = async () => {
     setCargando(true);
     const { ok, d } = await post("solicitud", { tipo: "pago", code });
     setCargando(false);
@@ -280,7 +287,7 @@ function Totem() {
     if (codigoOtro.length !== 5) return;
     if (codigoOtro === code || otros.some((o) => o.code === codigoOtro)) { setMsg("Ese código ya está en el pago."); return; }
     setCargando(true); setMsg("");
-    const { ok, d } = await post("buscar", { code: codigoOtro });
+    const { ok, d } = await post("buscar", { code: codigoOtro, modo: "pagar" });
     setCargando(false);
     if (!ok) { setMsg(d.error || "No pudimos buscar esa cita"); return; }
     const barber = citas[0]?.barberId;
@@ -539,12 +546,14 @@ function Totem() {
               </div>
               {msg && <p className={`mb-6 ${aviso}`}>{msg}</p>}
               {sinCita ? (
-                // Sin cita hoy: el flujo no se cierra, se ofrece reservar.
+                // Sin cita para cobrar o avisar: el flujo no se cierra. Primero revisar el código; al pagar, también avisar al equipo.
                 <div className={`${caja} p-6`}>
-                  <p className="tt-display text-3xl font-semibold">No tienes una cita agendada para hoy</p>
-                  <p className="mt-2 text-2xl text-white/65">¿Deseas reservar?</p>
-                  <button className={`${principal} mt-5`} onClick={() => { setSinCita(false); setPantalla("nohora"); }}>Sí, reservar</button>
-                  <button className={`${secundario} mt-3`} onClick={() => { setSinCita(false); setCode(""); }}>Escribir otro código</button>
+                  <p className="tt-display text-3xl font-semibold">{sinCita === "pagada" ? "Tu cita de hoy ya aparece pagada" : "No encontramos una cita de hoy con ese código"}</p>
+                  <p className="mt-2 text-2xl text-white/65">{sinCita === "pagada" ? "Si necesitas pagar otra cosa, avisa al equipo." : `Revisa que esté bien escrito.${parecidos(code)}`}</p>
+                  {sinCita === "sin" && <button className={`${principal} mt-5`} onClick={() => { setSinCita(false); setCode(""); }}>Corregir mi código</button>}
+                  {modo === "pagar" && <button className={`${sinCita === "sin" ? secundario : principal} mt-3`} disabled={cargando} onClick={() => pedirPagar()}>Avisar al equipo que quiero pagar</button>}
+                  {sinCita === "sin" && <button className={`${secundario} mt-3`} disabled={cargando} onClick={() => { setSinCita(false); abrirVinculo(); }}>Ver mi código con mi celular</button>}
+                  <button className={`${secundario} mt-3`} onClick={() => { setSinCita(false); setPantalla("nohora"); }}>No tengo hora · Reservar</button>
                 </div>
               ) : (
                 <>
@@ -654,8 +663,8 @@ function Totem() {
                         ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
                         {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(c, undefined, pr))}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
                         {info.pagoEfectivo && <button className={secundario} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoEfectivo(c, undefined, pr))}>Pagar en efectivo</button>}
-                        {!info.pagoEfectivo && <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar(c)}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>}
-                        <button className={secundario} disabled={cargando} onClick={() => abrirServicios(c)}>{cargando ? "Cargando…" : "Agregar o cambiar servicio"}</button>
+                        {!info.pagoEfectivo && <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar()}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>}
+                        {!c.completada && <button className={secundario} disabled={cargando} onClick={() => abrirServicios(c)}>{cargando ? "Cargando…" : "Agregar o cambiar servicio"}</button>}
                         {!info.pagoEfectivo && <p className="pt-1 text-center text-xl text-white/60">Si pagas en caja, le avisamos a {c.profesional || "tu profesional"} y al equipo para que te atiendan.</p>}
                       </div>
                     : c.llego
