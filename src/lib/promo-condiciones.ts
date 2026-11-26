@@ -3,7 +3,7 @@
 
 export const MEDIOS_DE_PAGO = ["Efectivo", "Débito", "Crédito", "Crédito en cuotas", "Transferencia"] as const;
 
-export type FormaCanje = "" | "recepcion" | "online";
+export type FormaCanje = "" | "agenda" | "recepcion" | "online";
 
 export interface CondicionesPromo {
   desde: string; hasta: string;           // YYYY-MM-DD
@@ -40,6 +40,7 @@ export function textoCondiciones(c: CondicionesPromo, hayCupon = false): string 
   if (c.todosLosPagos) l.push("Válida con todos los medios de pago");
   else if (c.pagos.length) l.push(`Pago solo con: ${lista(c.pagos.map((p) => p.toLowerCase()))}`);
   if (c.profesionales.length) l.push(`Válida solo con: ${lista(c.profesionales)}`);
+  if (c.canje === "agenda") l.push(hayCupon ? "Ingresa el código al reservar en el link de agenda" : "Reserva en el link de agenda");
   if (c.canje === "recepcion") l.push(hayCupon ? "Muestra el código en recepción" : "Menciona esta promoción en recepción");
   if (c.canje === "online") l.push(hayCupon ? "Para pago online, usa el código" : "Disponible con pago online");
   return l.length ? `Condiciones:\n${l.map((x) => `• ${x}`).join("\n")}` : "";

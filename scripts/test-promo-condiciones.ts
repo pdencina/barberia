@@ -5,6 +5,7 @@ const ok = (c: boolean, m: string) => { if (!c) { f++; console.log("FALLA", m); 
 ok(textoCondiciones(S) === "", "sin condiciones no agrega nada");
 const t = textoCondiciones({ ...S, desde: "2026-12-01", hasta: "2026-12-15", horaDesde: "10:00", horaHasta: "14:00", pagos: ["Efectivo", "Débito"], profesionales: ["Pablo", "Vicente"], canje: "recepcion" }, true);
 for (const x of ["del 01/12/2026 al 15/12/2026", "de 10:00 a 14:00 hrs", "efectivo y débito", "Pablo y Vicente", "Muestra el código en recepción"]) ok(t.includes(x), x);
+ok(textoCondiciones({ ...S, canje: "agenda" }, true).includes("al reservar en el link de agenda"), "canje en la agenda");
 ok(!!errorCondiciones({ ...S, desde: "2026-12-10", hasta: "2026-12-01" }), "fechas al revés");
 ok(!!errorCondiciones({ ...S, horaDesde: "15:00", horaHasta: "10:00" }), "horas al revés");
 const w = buildRetentionWhatsApp({ clientName: "Ana Pérez", bookingUrl: "https://x.cl/n", conditions: t });
