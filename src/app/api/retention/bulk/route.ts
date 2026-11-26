@@ -1,3 +1,4 @@
+import { estiloCorreo } from "@/lib/correo-oscuro";
 import { imagenDelNegocio } from "@/lib/promo-imagen";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
@@ -138,6 +139,7 @@ export async function POST(req: NextRequest) {
           bookingUrl,
           businessLogoUrl,
           imageUrl: imagenDelNegocio(body.imageUrl, tenantId),
+          ...estiloCorreo(body),
         });
         sent++;
         results.push({ clientId: client.id, name: client.name, contact: client.email, status: "sent" });

@@ -1,6 +1,7 @@
 import { fraseCorreoPlazo } from "@/lib/cambio-cliente";
 import { lineaContactoHtml } from "@/lib/contacto-negocio";
 import { getResendClient } from "@/lib/resend-client";
+import { plantillaOscura, separarCondiciones, type DisenoCorreo } from "@/lib/correo-oscuro";
 import { couponDiscountText, linkConCupon } from "@/lib/retention-message";
 import { receiptThanksHtml } from "@/lib/receipt-thanks";
 import type { CorreoLinks } from "@/lib/post-service-links";
@@ -408,6 +409,11 @@ interface SendRetentionEmailParams {
   businessLogoUrl?: string | null;
   /** Imagen de la promoción (ya validada como propia del negocio). */
   imageUrl?: string | null;
+  /** Diseño del correo; sin valor, el de siempre. */
+  design?: DisenoCorreo;
+  /** Asunto propio y titular grande (opcionales). */
+  subject?: string;
+  title?: string;
 }
 
 // Arma el correo de retencion (asunto + HTML). Lo usa el envio real y la vista previa de Retencion.
@@ -418,6 +424,26 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
   const clientName = esc(params.clientName);
   // El mensaje se escribe en varias lineas: se escapa y los saltos de linea pasan a <br> (en HTML, un salto normal se pierde).
   const message = esc(params.message).replace(/\r?\n/g, "<br>");
+  // Asunto propio si se escribió uno.
+  const asunto = (params.subject || "").trim() || `Te extrañamos ${params.clientName}! | re-booking`;
+  if (params.design === "oscuro") {
+    const { texto, datos } = separarCondiciones(params.message);
+    const url = params.bookingUrl || (process.env.NEXT_PUBLIC_APP_URL ? `${process.env.NEXT_PUBLIC_APP_URL}/booking` : "https://www.re-booking.cl/booking");
+    const detalle = couponDiscountText({ code: couponCode || "", discount_type: discountType, discount_value: discountValue }) || couponDescription || "";
+    return {
+      subject: asunto,
+      html: plantillaOscura({
+        logoNegocio: params.businessLogoUrl ? esc(params.businessLogoUrl) : null,
+        titulo: esc((params.title || "").trim()),
+        saludo: `Hola ${clientName}!`,
+        textoHtml: esc(texto).replace(/\r?\n/g, "<br>"),
+        imagen: params.imageUrl ? esc(params.imageUrl) : null,
+        datosHtml: datos.map(esc),
+        cupon: couponCode ? { codigo: esc(couponCode), detalle: esc(detalle) } : null,
+        boton: { url: esc(linkConCupon(url, couponCode)), texto: "Reservar ahora" },
+      }),
+    };
+  }
 
   const couponHtml = couponCode ? `
     <div style="background: #0F8B8D22; border: 2px dashed #0F8B8D; border-radius: 12px; padding: 20px; margin: 20px 0; text-align: center;">
@@ -451,6 +477,7 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
     label: "Te extrañamos",
     businessLogoUrl: params.businessLogoUrl,
     inner: `
+    ${(params.title || "").trim() ? `<p style="font-size:24px;line-height:1.2;color:#111827;font-weight:800;margin:12px 0 4px;">${esc((params.title || "").trim())}</p>` : ""}
     <p style="font-size:18px;color:#111827;font-weight:700;margin:12px 0 8px;">Hola ${clientName}!</p>
     <p style="font-size:15px;line-height:1.6;color:#374151;margin:0 0 8px;">${message}</p>
     ${params.imageUrl ? `<img src="${esc(params.imageUrl)}" alt="Promoción" width="100%" style="display:block;width:100%;max-width:100%;height:auto;border-radius:12px;margin:16px 0 4px;">` : ""}
@@ -458,7 +485,7 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
     <div style="text-align:center;margin:26px 0 4px;"><a href="${linkConCupon(bookingUrl, couponCode)}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:13px 32px;border-radius:10px;font-weight:700;font-size:15px;">Agendar ahora</a></div>`,
   });
 
-  return { subject: `Te extrañamos ${params.clientName}! | re-booking`, html };
+  return { subject: asunto, html };
 }
 
 export async function sendRetentionEmail(params: SendRetentionEmailParams) {
