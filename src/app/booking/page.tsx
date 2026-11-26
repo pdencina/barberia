@@ -1115,9 +1115,9 @@ export default function BookingPage() {
 
             {!depositRequired && (
               <div className="mt-4">
-                <label className="text-sm text-brand-gray mb-1 block">¿Tienes un código? (opcional)</label>
+                <label className="text-sm text-brand-gray mb-1 block">¿Tienes un cupón? (opcional)</label>
                 <div className="flex gap-2">
-                  <input type="text" value={codigoPromo} onChange={(e) => setCodigoPromo(e.target.value.toUpperCase().slice(0, 40))} placeholder="Escribe tu código" autoCapitalize="characters"
+                  <input type="text" value={codigoPromo} onChange={(e) => setCodigoPromo(e.target.value.toUpperCase().slice(0, 40))} placeholder="Escribe tu cupón" autoCapitalize="characters"
                     className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-2.5 font-mono text-brand-dark placeholder:font-sans placeholder:text-brand-gray focus:border-brand-blue focus:outline-none" />
                   <button type="button" onClick={revisarPromo} disabled={!codigoPromo.trim()} className="rounded-xl border border-brand-blue px-4 text-sm font-semibold text-brand-blue disabled:opacity-40">Aplicar</button>
                 </div>
