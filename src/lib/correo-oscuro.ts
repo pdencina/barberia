@@ -29,7 +29,7 @@ export function plantillaOscura(o: {
     : "";
   const firma = `<div style="padding-top:18px;"><span style="color:#6B6B73;font-size:11px;vertical-align:middle;">Enviado con&nbsp;</span><img src="https://www.re-booking.cl/logo-horizontal-white.png" alt="re-booking" width="72" height="18" style="display:inline-block;vertical-align:middle;width:72px;height:18px;border:0;opacity:0.55;"></div>`;
   // Todas las condiciones en UN recuadro compacto (una línea cada una).
-  const fila = (h: string, i: number) => `<tr><td align="center" style="padding:7px 12px;color:#0A0A0A;font-size:13px;line-height:1.35;font-weight:600;${i ? "border-top:1px solid #E7E7EA;" : ""}">${h}</td></tr>`;
+  const fila = (h: string, i: number) => `<tr><td align="center" style="padding:7px 12px;color:#0A0A0A;font-size:13px;line-height:1.35;font-weight:600;${i ? "border-top:1px solid rgba(0,0,0,0.14);" : ""}">${h}</td></tr>`;
   return `<!DOCTYPE html>
 <html lang="es">
 <head>
@@ -50,7 +50,7 @@ export function plantillaOscura(o: {
         <div style="color:#FFFFFF;font-size:17px;font-weight:700;margin-bottom:6px;">${o.saludo}</div>
         <div style="color:#C9C9CF;font-size:14px;line-height:1.5;">${o.textoHtml}</div>
       </td></tr>
-      ${o.datosHtml.length ? `<tr><td style="padding:12px 24px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#FFFFFF" style="background:#FFFFFF;border-radius:12px;">${o.datosHtml.map(fila).join("")}</table></td></tr>` : ""}
+      ${o.datosHtml.length ? `<tr><td style="padding:12px 24px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="#858586" style="background:#858586;background:rgba(255,255,255,0.5);border-radius:12px;">${o.datosHtml.map(fila).join("")}</table></td></tr>` : ""}
       ${o.cupon ? `<tr><td style="padding:10px 24px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="border:2px dashed #FFFFFF;border-radius:12px;padding:11px;">
         <div style="color:#9A9AA2;font-size:11px;letter-spacing:0.18em;text-transform:uppercase;font-weight:700;">Tu código</div>
         <div style="color:#FFFFFF;font-size:24px;font-weight:800;font-family:monospace;margin-top:3px;">${o.cupon.codigo}</div>
