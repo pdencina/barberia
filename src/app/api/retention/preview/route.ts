@@ -1,3 +1,4 @@
+import { estiloCorreo } from "@/lib/correo-oscuro";
 import { imagenDelNegocio } from "@/lib/promo-imagen";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
@@ -28,7 +29,7 @@ export async function POST(req: NextRequest) {
   const email = buildRetentionEmail({
     to: "", clientName, message: [message.trim() || "Te extrañamos! Vuelve pronto.", conditions].filter(Boolean).join("\n\n"),
     couponCode: coupon?.code || null, couponDescription: coupon?.description || null,
-    discountType: coupon?.discount_type || null, discountValue: coupon ? Number(coupon.discount_value) : null, bookingUrl, businessLogoUrl, imageUrl: imagenDelNegocio(body.imageUrl, tenantId),
+    discountType: coupon?.discount_type || null, discountValue: coupon ? Number(coupon.discount_value) : null, bookingUrl, businessLogoUrl, imageUrl: imagenDelNegocio(body.imageUrl, tenantId), ...estiloCorreo(body),
   });
   return NextResponse.json({ whatsapp, emailSubject: email.subject, emailHtml: email.html });
 }

@@ -57,6 +57,12 @@ export default function RetencionPage() {
   const [customMessage, setCustomMessage] = useState("");
   const [condiciones, setCondiciones] = useState<CondicionesPromo>(SIN_CONDICIONES);
   const [imageUrl, setImageUrl] = useState("");
+  // Diseño, asunto y titular del correo. El diseño elegido se recuerda en este equipo.
+  const [design, setDesign] = useState<"clasico" | "oscuro">("clasico");
+  const [subject, setSubject] = useState("");
+  const [title, setTitle] = useState("");
+  useEffect(() => { try { if (localStorage.getItem("rb_diseno_correo") === "oscuro") setDesign("oscuro"); } catch { /* sin almacenamiento */ } }, []);
+  const elegirDiseno = (d: "clasico" | "oscuro") => { setDesign(d); try { localStorage.setItem("rb_diseno_correo", d); } catch { /* sin almacenamiento */ } };
   const conditions = textoCondiciones(condiciones, !!selectedCoupon);
   const conCondiciones = (m: string) => [m, conditions].filter(Boolean).join("\n\n");
   const [sendingId, setSendingId] = useState<string | null>(null);
@@ -75,7 +81,7 @@ export default function RetencionPage() {
   const suggestCampaignName = () => `Campaña ${new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "America/Santiago" }).format(new Date())} · ${rangeLabel}`;
   // Cuerpo comun de los envios masivos: quienes se desmarcaron no reciben; los agregados a mano se suman.
   const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = [], campaignName?: string) => ({
-    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, type, campaignName: campaignName || null,
+    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, type, campaignName: campaignName || null,
     excludeClientIds: [...Array.from(excluded), ...extraExcluded],
     includeClientIds: manualClients.map((m) => m.id),
   });
@@ -213,12 +219,12 @@ export default function RetencionPage() {
   const PREVIEW_NAME = "[nombre del cliente]";
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, clientName: PREVIEW_NAME }) })
+      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, clientName: PREVIEW_NAME }) })
         .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.whatsapp) setMsgPreview(d); }).catch(() => {});
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCoupon, customMessage, conditions, imageUrl]);
+  }, [selectedCoupon, customMessage, conditions, imageUrl, design, subject, title]);
 
   const notifyClient = async (clientId: string, type: "email" | "whatsapp") => {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
@@ -233,6 +239,9 @@ export default function RetencionPage() {
         message: customMessage || null,
         conditions,
         imageUrl,
+        design,
+        subject,
+        title,
       }),
     });
     const data = await res.json();
@@ -381,6 +390,20 @@ export default function RetencionPage() {
                 <p className="mt-1 text-[11px] text-brand-gray">Al reservar y al cobrar, el código solo se aceptará en las fechas, horario y profesionales marcados arriba. Sin nada marcado, vale siempre.</p>
               </div>
             )}
+            <div className="space-y-3">
+              <div>
+                <span className="mb-1.5 block text-xs font-semibold text-brand-gray">Diseño del correo</span>
+                <div className="flex gap-1.5">
+                  {([["clasico", "Clásico (blanco)"], ["oscuro", "Oscuro (blanco y negro)"]] as const).map(([k, t]) => (
+                    <button key={k} type="button" aria-pressed={design === k} onClick={() => elegirDiseno(k)} className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${design === k ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 bg-white text-brand-gray"}`}>{t}</button>
+                  ))}
+                </div>
+              </div>
+              <label className="block"><span className="mb-1.5 block text-xs font-semibold text-brand-gray">Asunto (opcional)</span>
+                <input value={subject} maxLength={120} onChange={(e) => setSubject(e.target.value)} placeholder="🔥 ¡¡Cuando pagan!! 20% descuento" className={inputClass} /></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-semibold text-brand-gray">Título grande (opcional)</span>
+                <input value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="¡¡Cuando pagan!!" className={inputClass} /></label>
+            </div>
             <PromoImagenCampo url={imageUrl} onChange={setImageUrl} tenantId={tenant?.id} showToast={showToast} />
             <div>
               <label htmlFor="retencion-mensaje" className="mb-1.5 block text-xs font-semibold text-brand-gray">Mensaje personalizado</label>
