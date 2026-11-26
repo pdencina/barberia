@@ -32,7 +32,7 @@ function armar(filas: CitaRecordatorio[], conInterruptor = true) {
     enviarCorreo: async () => ({ estado: "fallido" }),
   };
   const correr = async (modo: "confirmacion" | "recordatorio" = "confirmacion") => (await crearManejadorRecordatorios({ modo, permitirEnvio: true, autorizar: async () => ({ ok: true }), crearDependencias: () => deps })(new Request("https://t.invalid/x"))).json();
-  return { e, correr };
+  return { e, correr, deps, filas };
 }
 
 (async () => {
@@ -40,6 +40,17 @@ function armar(filas: CitaRecordatorio[], conInterruptor = true) {
     const v = ventanaConfirmaciones(AHORA);
     assert.equal(v.desde.slice(0, 16), "2026-11-25T16:00"); assert.equal(v.hasta.slice(0, 16), "2026-11-26T00:00");
     assert.equal(Math.round(anticipacionCita("2026-11-25T20:00:00.000Z", AHORA) / 60000), 240);
+  });
+  await caso("De 00:00 a 06:00 no se envía nada; a las 06:00 sí", async () => {
+    // Santiago en verano es UTC-3: 03:00 UTC = 00:00, 07:00 UTC = 04:00, 09:00 UTC = 06:00.
+    for (const [utc, envia] of [[2, true], [3, false], [7, false], [8, false], [9, true]] as const) {
+      const hora = (utc + 21) % 24, a = armar([cita("x", "00:00")]);
+      a.deps.ahora = () => Date.UTC(2026, 10, 25, utc, 0);
+      const pared = new Date(Date.UTC(2026, 10, 25, utc - 3 + 4, 0)).toISOString();
+      a.filas[0].start_time = pared; a.filas[0].date = pared.slice(0, 10);
+      await a.correr();
+      assert.equal(a.e.enviados.length, envia ? 1 : 0, `${hora}:00`);
+    }
   });
   await caso("Con 3 h o más lleva botones; con menos, solo aviso", () => {
     assert.equal(conBotonesSegunPlazo("2026-11-25T20:00:00.000Z", AHORA), true);   // 4 h
