@@ -162,7 +162,7 @@ export default function ClientesPage() {
         showToast(data.error || "Error al crear cliente", "error");
         return;
       }
-      showToast("Cliente creado exitosamente", "success");
+      showToast(data.yaExistia ? `Ese cliente ya existe: ${data.name}. No se creó otra ficha` : "Cliente creado exitosamente", "success");
       setShowModal(false);
       setFormData({ name: "", email: "", phone: "", notes: "", source: "", sourceDetail: "" });
       fetchClients(search);

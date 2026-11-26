@@ -1,3 +1,4 @@
+import { buscarClienteExistente } from "@/lib/cliente-existente";
 import { getPlazoCambios } from "@/lib/cambio-cliente";
 import { getClientColorTheme } from "@/lib/client-theme";
 import { leerServiciosPublicos } from "@/lib/servicios-internos";
@@ -132,35 +133,22 @@ export async function POST(req: NextRequest) {
 
   let clientId: string;
   let clientIsNew = false;
-  if (clientEmail) {
-    // Reuse an existing client with this email in this business. Was using .single(),
-    // which errored (treated as "not found") when duplicates already existed, so every
-    // booking created another duplicate. limit(1)+maybeSingle reuses the existing one.
-    let dupQuery = supabase
-      .from("clients")
-      .select("id")
-      .eq("email", clientEmail);
-    if (tenantId) dupQuery = dupQuery.eq("tenant_id", tenantId);
-    const { data: existingClient } = await dupQuery.order("created_at", { ascending: true }).limit(1).maybeSingle();
-
-    if (existingClient) {
-      clientId = existingClient.id;
-      // Update phone if provided
-      if (clientPhone) {
-        await supabase.from("clients").update({ phone: clientPhone }).eq("id", clientId);
-      }
-      if (marketingConsent === true) {
-        await supabase.from("clients").update(consentNew).eq("id", clientId); // si falta la migracion 101, no pasa nada
-      }
-    } else {
-      // Punto 10 (Pablo): cliente nuevo que se creo solo reservando por link -> origen "link".
-      // Solo se marca al CREAR el cliente; uno que ya existia conserva su origen original.
-      const { data: newClient } = await insertClient({ name: clientName, email: clientEmail, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" });
-      clientId = newClient!.id;
-      clientIsNew = true;
+  // Se reutiliza la ficha de la persona (mismo celular o correo y mismo primer nombre); un familiar con el mismo celular pero otro nombre queda aparte.
+  const existingClient = await buscarClienteExistente(supabase, tenantId, { name: clientName, phone: clientPhone, email: clientEmail });
+  if (existingClient) {
+    clientId = existingClient.id;
+    // Se actualizan los datos de contacto que la persona acaba de escribir
+    const contacto: Record<string, any> = {};
+    if (clientPhone) contacto.phone = clientPhone;
+    if (clientEmail) contacto.email = clientEmail;
+    if (Object.keys(contacto).length) await supabase.from("clients").update(contacto).eq("id", clientId);
+    if (marketingConsent === true) {
+      await supabase.from("clients").update(consentNew).eq("id", clientId); // si falta la migracion 101, no pasa nada
     }
   } else {
-    const { data: newClient } = await insertClient({ name: clientName, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" });
+    // Punto 10 (Pablo): cliente nuevo que se creo solo reservando por link -> origen "link".
+    // Solo se marca al CREAR el cliente; uno que ya existia conserva su origen original.
+    const { data: newClient } = await insertClient({ name: clientName, email: clientEmail || null, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" });
     clientId = newClient!.id;
     clientIsNew = true;
   }

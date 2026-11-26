@@ -1,3 +1,4 @@
+import { buscarClienteExistente } from "@/lib/cliente-existente";
 import { contieneSinTildes, patronIlikeSinTildes } from "@/lib/busqueda";
 import { cleanClientName } from "@/lib/client-name";
 import { BUILTIN_SOURCES, loadCustomSources } from "@/lib/client-sources";
@@ -159,6 +160,16 @@ export async function POST(req: NextRequest) {
   // porque eso inflaria esa metrica.
   const acquisitionSource = VALID_SOURCES.includes(source) ? source : null;
   const acquisitionDetail = (source === "promotion" || source === "influencer") ? (sourceDetail || null) : null;
+
+  // Si la persona ya tiene ficha (mismo celular o correo y mismo primer nombre) se usa esa: no se crea otra.
+  const yaEsta = await buscarClienteExistente(supabase, resolvedTenantId, { name, phone, email });
+  if (yaEsta) {
+    const faltan: Record<string, any> = {};
+    if (!yaEsta.email && email) faltan.email = email;
+    if (!yaEsta.phone && phone) faltan.phone = phone;
+    if (Object.keys(faltan).length) await supabase.from("clients").update(faltan).eq("id", yaEsta.id);
+    return NextResponse.json({ ...yaEsta, ...faltan, yaExistia: true }, { status: 200 });
+  }
 
   // Límite de clientes del plan (el super admin no se limita).
   if (resolvedTenantId && session.role !== "super_admin") {

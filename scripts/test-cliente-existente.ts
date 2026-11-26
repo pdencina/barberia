@@ -1,0 +1,12 @@
+import { esLaMismaPersona } from "../src/lib/cliente-existente";
+let f = 0;
+const ok = (c: boolean, m: string) => { if (!c) { f++; console.log("FALLA", m); } };
+const marcelo = { name: "Marcelo nerian", phone: "+56966151692", email: "morales.nerian@gmail.com" };
+ok(esLaMismaPersona(marcelo, { name: "marcelo", phone: "966151692" }), "mismo teléfono con y sin +56");
+ok(esLaMismaPersona(marcelo, { name: "Marcelo N", phone: "911111111", email: "MORALES.NERIAN@gmail.com" }), "mismo correo y nombre");
+ok(!esLaMismaPersona(marcelo, { name: "Demian", phone: "966151692" }), "mismo teléfono, otro nombre");
+ok(!esLaMismaPersona({ name: "Nestor Bustamante Garrido", phone: "998022582", email: "a@x.cl" }, { name: "Néstor Bustamante Monsalve", phone: "979777167", email: "b@x.cl" }), "dos Néstor distintos");
+ok(esLaMismaPersona({ name: "Bastián", phone: "912345678" }, { name: "Bastian Valdes", phone: "912345678" }), "tildes");
+ok(!esLaMismaPersona(marcelo, { name: "", phone: "966151692" }), "sin nombre");
+ok(!esLaMismaPersona({ name: "Marcelo" }, { name: "Marcelo" }), "solo nombre no basta");
+console.log(f ? "HAY FALLAS" : "OK cliente existente"); process.exit(f ? 1 : 0);
