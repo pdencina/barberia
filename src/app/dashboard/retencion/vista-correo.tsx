@@ -48,7 +48,7 @@ function Marco({ equipo, asunto, html, maxAlto }: { equipo: Equipo; asunto: stri
             </div>
           </div>
           <div style={{ width: ancho * escala, height: alto * escala }} className="overflow-hidden">
-            <iframe title={`Vista previa del correo en ${equipo}`} sandbox="" srcDoc={html}
+            <iframe title="" aria-label={`Vista previa del correo en ${equipo}`} sandbox="" srcDoc={html}
               style={{ width: ancho, height: alto, transform: `scale(${escala})`, transformOrigin: "top left", border: 0 }} />
           </div>
         </div>
