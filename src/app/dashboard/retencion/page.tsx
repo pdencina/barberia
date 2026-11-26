@@ -5,6 +5,7 @@ import { couponKind } from "@/lib/coupon";
 import { SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPromo } from "@/lib/promo-condiciones";
 import { PromoCondicionesForm } from "./promo-condiciones-form";
 import { PromoImagenCampo } from "./promo-imagen-campo";
+import { VistaCorreo } from "./vista-correo";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
@@ -451,10 +452,7 @@ export default function RetencionPage() {
             <p className="whitespace-pre-wrap break-words">{msgPreview.whatsapp}</p>
           </div>
         ) : (
-          <div>
-            <p className="mb-2 text-xs text-brand-gray">Asunto: <span className="font-medium text-brand-dark">{msgPreview.emailSubject}</span></p>
-            <iframe title="Vista previa del correo" sandbox="" srcDoc={msgPreview.emailHtml} className="h-[520px] w-full rounded-xl border border-gray-200 bg-white" />
-          </div>
+          <VistaCorreo asunto={msgPreview.emailSubject} html={msgPreview.emailHtml} />
         )}
       </Panel>
       </div>
