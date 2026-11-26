@@ -1,6 +1,7 @@
 import type { createAdminSupabase } from "@/lib/supabase/server";
 import { todayInChile, toChileDateStr, daysBetweenDateStrs } from "@/lib/utils";
 import { fetchAllRows } from "@/lib/accounting";
+import { enRangos, type Rango } from "@/lib/rangos-dias";
 
 // Fuente UNICA de "quien esta inactivo" — la usan la pantalla de Retencion y el envio
 // masivo, para que el numero que ves en pantalla sea exactamente el que recibe el mensaje
@@ -86,7 +87,8 @@ export async function getInactiveClients(
   // includeNever: true (por defecto, como siempre) cuenta tambien a quien NUNCA tuvo una visita registrada (clientes nuevos o
   // importados): su reloj parte en la fecha de registro y no significa que "dejaron de venir". La pantalla de Retencion y el
   // envio masivo piden false para hablarle solo a quien SI vino alguna vez, y avisan cuantos quedan fuera.
-  opts: { includeNever?: boolean; maxDays?: number | null } = {}
+  // rangos: varios grupos a la vez; si viene, la persona debe caer en alguno (ademas de days/maxDays).
+  opts: { includeNever?: boolean; maxDays?: number | null; rangos?: Rango[] } = {}
 ): Promise<{ total: number; inactive: RetentionClient[]; neverVisited: number }> {
   const includeNever = opts.includeNever !== false;
   // Ley 21.719: no se escribe a quien pidio no ser contactado ni a quien rechazo las promociones (migracion 101).
@@ -122,7 +124,7 @@ export async function getInactiveClients(
         hasUpcoming: upcoming.has(client.id),
       };
     })
-    .filter((c) => !c.hasUpcoming && c.daysSinceVisit >= days && (!opts.maxDays || c.daysSinceVisit <= opts.maxDays) && !optedOut.has(c.id))
+    .filter((c) => !c.hasUpcoming && c.daysSinceVisit >= days && (!opts.maxDays || c.daysSinceVisit <= opts.maxDays) && (!opts.rangos?.length || enRangos(c.daysSinceVisit, opts.rangos)) && !optedOut.has(c.id))
     .sort((a, b) => b.daysSinceVisit - a.daysSinceVisit);
 
   const neverVisited = inactive.filter((c) => !c.lastVisit).length;

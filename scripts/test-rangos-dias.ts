@@ -1,0 +1,13 @@
+import { enRangos, etiquetaRangos, parseRangos, rangosATexto, unirRangos, type Rango } from "../src/lib/rangos-dias";
+let f = 0;
+const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
+const r: Rango[] = [[60, 90], [45, 60]];
+ok(etiquetaRangos(r) === "45–90 días", "unidos: " + etiquetaRangos(r));
+ok(etiquetaRangos([[0, 15], [90, 180], [365, null]]) === "0–15, 90–180 y 365+ días", "separados");
+ok(enRangos(100, [[0, 15], [90, 180]]) && !enRangos(50, [[0, 15], [90, 180]]), "dentro/fuera");
+ok(enRangos(999, [[365, null]]), "sin tope");
+ok(JSON.stringify(parseRangos(rangosATexto([[45, 60], [365, null]]))) === "[[45,60],[365,null]]", "ida y vuelta");
+ok(parseRangos("x-1,,5-2,[object]").length === 0 && parseRangos(null).length === 0, "basura");
+ok(unirRangos([[0, 15], [15, 30]]).length === 1, "contiguos");
+console.log(f ? "HAY FALLAS" : "OK rangos");
+process.exit(f ? 1 : 0);

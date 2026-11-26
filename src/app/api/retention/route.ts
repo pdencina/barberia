@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, resolveTenantForRequest } from "@/lib/supabase/server";
+import { parseRangos } from "@/lib/rangos-dias";
 import { getInactiveClients, dedupeBy, tenantBookingUrl } from "@/lib/retention";
 
 export async function GET(req: NextRequest) {
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
   // maxDays (opcional): rango "entre N y M dias sin venir".
   const maxRaw = parseInt(searchParams.get("maxDays") || "");
   const maxDays = Number.isFinite(maxRaw) && maxRaw >= days ? maxRaw : null;
-  const { total, inactive: all, neverVisited } = await getInactiveClients(supabase, tenantId, days, { includeNever, maxDays });
+  const { total, inactive: all, neverVisited } = await getInactiveClients(supabase, tenantId, days, { includeNever, maxDays, rangos: parseRangos(searchParams.get("rangos")) });
 
   // Una fila por persona: dos fichas con el mismo correo (o el mismo telefono, si no tienen correo) se muestran una sola vez.
   const digits = (t: string | null) => (t || "").replace(/\D/g, "");
