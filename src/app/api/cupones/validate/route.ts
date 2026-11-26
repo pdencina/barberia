@@ -1,4 +1,4 @@
-import { horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
+import { cuponVencido, horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
 import { computeCouponDiscount, couponKind } from "@/lib/coupon";
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
   if (coupon.max_uses && coupon.used_count >= coupon.max_uses) {
     return NextResponse.json({ valid: false, message: "Cupon agotado" });
   }
-  if (coupon.valid_until && new Date() > new Date(coupon.valid_until)) {
+  if (cuponVencido(coupon.valid_until)) {
     return NextResponse.json({ valid: false, message: "Cupon expirado" });
   }
   if (coupon.min_purchase && amount < Number(coupon.min_purchase)) {

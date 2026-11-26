@@ -18,11 +18,23 @@ export function limpiarReglas(r: any): ReglasCupon | null {
 
 const dia = (d: string) => d.split("-").reverse().join("/");
 
+/** ¿Ya venció? Una fecha sola (guardada como medianoche UTC) vale hasta el final de ESE día en Chile; con hora, hasta esa hora. */
+export function cuponVencido(validUntil: string | null | undefined, ahora: Date = new Date()): boolean {
+  if (!validUntil) return false;
+  const fin = new Date(validUntil);
+  if (Number.isNaN(fin.getTime())) return false;
+  if (fin.getUTCHours() === 0 && fin.getUTCMinutes() === 0 && fin.getUTCSeconds() === 0) {
+    const hoy = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Santiago" }).format(ahora);
+    return hoy > fin.toISOString().slice(0, 10);
+  }
+  return ahora > fin;
+}
+
 /** Por qué NO se puede usar el cupón en esa cita, o null si se puede. `fecha` YYYY-MM-DD y `hora` HH:MM de la cita (hora de Chile). */
 export function motivoCuponNoValido(c: CuponFila, cita: { barberId: string; fecha: string; hora: string }, ahora: Date = new Date()): string | null {
   if (c.active === false) return "Ese código ya no está activo.";
   if (c.max_uses && (c.used_count || 0) >= c.max_uses) return "Ese código ya se agotó.";
-  if (c.valid_until && ahora > new Date(c.valid_until)) return "Ese código ya venció.";
+  if (cuponVencido(c.valid_until, ahora)) return "Ese código ya venció.";
   const r = c.conditions || {};
   if (r.desde && cita.fecha < r.desde) return `Ese código vale para atenciones desde el ${dia(r.desde)}.`;
   if (r.hasta && cita.fecha > r.hasta) return `Ese código vale para atenciones hasta el ${dia(r.hasta)}.`;

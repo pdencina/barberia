@@ -1,4 +1,4 @@
-import { motivoCuponNoValido as m, limpiarReglas } from "../src/lib/cupon-reglas";
+import { motivoCuponNoValido as m, limpiarReglas, cuponVencido } from "../src/lib/cupon-reglas";
 let f = 0;
 const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
 const p = "91bede52-f11a-46b0-970a-91b83cb6227e", otro = "08dfa271-6ede-45bf-b79c-ff9eaeba19a1";
@@ -12,5 +12,9 @@ ok(!!m(c, { ...cita, hora: "09:30" }), "temprano");
 ok(!!m({ active: false }, cita), "inactivo");
 ok(!!m({ max_uses: 2, used_count: 2 }, cita), "agotado");
 ok(m({ active: true }, cita) === null, "sin reglas");
+const fecha = "2026-11-30T00:00:00+00:00"; // «válido hasta 30/11»
+ok(!cuponVencido(fecha, new Date("2026-11-30T23:30:00-03:00")), "vale todo el día 30 en Chile");
+ok(cuponVencido(fecha, new Date("2026-12-01T00:30:00-03:00")), "vencido el 1");
+ok(cuponVencido("2026-12-01T02:59:59Z", new Date("2026-12-01T03:00:30Z")), "con hora, al instante");
 ok(limpiarReglas({ desde: "x", profesionalIds: ["a'; drop"] }) === null, "limpia basura");
 console.log(f ? "HAY FALLAS" : "OK reglas cupón"); process.exit(f ? 1 : 0);
