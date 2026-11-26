@@ -977,7 +977,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                     if (!res.ok || !created?.id) {
                       showToast(created?.error || "No se pudo crear el cliente", "error");
                     } else {
-                      setClients((prev) => [created, ...prev]);
+                      setClients((prev) => [created, ...prev.filter((c: any) => c.id !== created.id)]);
                       setSelectedClient(created.id);
                       setClientSearch(created.name);
                       setClientPoints(0);
@@ -985,7 +985,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                       setNewClientPhone("");
                       setNewClientEmail("");
                       setNewClientSource("");
-                      showToast(`Cliente "${created.name}" agregado`, "success");
+                      showToast(created.yaExistia ? `Ya estaba registrado: se usa la ficha de ${created.name}` : `Cliente "${created.name}" agregado`, "success");
                     }
                   } finally {
                     setSavingClient(false);

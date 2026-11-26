@@ -1191,7 +1191,7 @@ export default function CalendarioPage() {
         setSelectedClient(data.id);
         setClientSearch(data.name);
         setFilteredClients([]);
-        showToast("Cliente guardado. Ahora toca \"Crear\" para agendar la cita", "success");
+        showToast(data.yaExistia ? `Ya estaba registrado: se usa la ficha de ${data.name}. Toca "Crear" para agendar` : "Cliente guardado. Ahora toca \"Crear\" para agendar la cita", "success");
       } else {
         showToast(data.error || "Error al crear cliente", "error");
       }
