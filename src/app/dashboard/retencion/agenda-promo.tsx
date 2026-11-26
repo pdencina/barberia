@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { CalendarSearch, Check } from "lucide-react";
-import { CON_ESPACIO, MUCHA_AGENDA, avisosAgenda, type ProAgenda } from "@/lib/agenda-promo";
+import { avisosAgenda, demandaDe, type ProAgenda } from "@/lib/agenda-promo";
 import type { CondicionesPromo } from "@/lib/promo-condiciones";
 
 const dia = (d: string) => d.split("-").reverse().join("/");
-const horas = (min: number) => `${Math.round(min / 60)} h`;
+const ETIQUETA = { alta: ["Mucha demanda", "bg-red-50 text-red-700", "bg-red-500"], media: ["Normal", "bg-amber-50 text-amber-800", "bg-amber-500"], baja: ["Poca demanda", "bg-emerald-50 text-emerald-700", "bg-emerald-500"] } as const;
 
 // Muestra la agenda de cada profesional en los días de la promoción y recomienda. Solo informa: la decisión es del negocio.
 export function AgendaPromo({ value, tenantId, onToggle }: { value: CondicionesPromo; tenantId?: string; onToggle: (id: string, name: string) => void }) {
@@ -30,6 +30,7 @@ export function AgendaPromo({ value, tenantId, onToggle }: { value: CondicionesP
 
   const marcados = value.profesionalIds || [];
   const avisos = datos ? avisosAgenda(datos.pros, marcados) : [];
+  const maximo = Math.max(1, ...(datos?.pros || []).map((p) => p.cortes));
 
   return (
     <div className="mt-3">
@@ -45,7 +46,7 @@ export function AgendaPromo({ value, tenantId, onToggle }: { value: CondicionesP
             <>
               <p className="text-[11px] text-brand-gray">
                 {datos.porDefecto ? "Sin fecha de término: " : ""}del {dia(datos.desde)} al {dia(datos.hasta)}
-                {value.horaDesde || value.horaHasta ? `, ${value.horaDesde || "inicio"} a ${value.horaHasta || "cierre"}` : ""}. Horas con cita sobre las horas disponibles.
+                {value.horaDesde || value.horaHasta ? `, ${value.horaDesde || "inicio"} a ${value.horaHasta || "cierre"}` : ""}. La barra muestra los cortes y servicios cobrados en las últimas 4 semanas.
               </p>
               {avisos.length > 0 ? (
                 <ul className="space-y-1 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
@@ -55,14 +56,21 @@ export function AgendaPromo({ value, tenantId, onToggle }: { value: CondicionesP
               <ul className="space-y-1">
                 {datos.pros.map((p) => {
                   const on = marcados.includes(p.id);
-                  const color = p.pct >= MUCHA_AGENDA ? "bg-red-500" : p.pct <= CON_ESPACIO ? "bg-emerald-500" : "bg-amber-500";
+                  const [texto, pastilla, barra] = ETIQUETA[demandaDe(p, datos.pros)];
                   return (
                     <li key={p.id}>
-                      <button type="button" aria-pressed={on} onClick={() => onToggle(p.id, p.name)} className="flex w-full items-center gap-2 rounded-lg px-1.5 py-1.5 text-left hover:bg-gray-50">
-                        <span className={`flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${on ? "border-brand-blue bg-brand-blue text-white" : "border-gray-300"}`}>{on && <Check className="h-3 w-3" />}</span>
-                        <span className="w-32 flex-shrink-0 truncate text-xs font-semibold text-brand-dark">{p.name}</span>
-                        <span className="h-1.5 min-w-0 flex-1 overflow-hidden rounded-full bg-gray-100"><span className={`block h-full ${color}`} style={{ width: `${p.disp ? Math.max(p.pct, 2) : 0}%` }} /></span>
-                        <span className="w-28 flex-shrink-0 text-right text-[11px] tabular-nums text-brand-gray">{p.disp ? `${p.pct}% · ${horas(p.disp - p.ocup)} libres` : "sin horas"}</span>
+                      <button type="button" aria-pressed={on} onClick={() => onToggle(p.id, p.name)} className="flex w-full items-start gap-2 rounded-lg px-1.5 py-2 text-left hover:bg-gray-50">
+                        <span className={`mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border ${on ? "border-brand-blue bg-brand-blue text-white" : "border-gray-300"}`}>{on && <Check className="h-3 w-3" />}</span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center justify-between gap-2">
+                            <span className="truncate text-xs font-semibold text-brand-dark">{p.name}</span>
+                            <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold ${pastilla}`}>{texto}</span>
+                          </span>
+                          <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-gray-100"><span className={`block h-full ${barra}`} style={{ width: `${Math.round((p.cortes / maximo) * 100)}%` }} /></span>
+                          <span className="mt-1 block text-[11px] text-brand-gray">
+                            <b className="text-brand-dark">{p.cortes}</b> en 4 semanas{p.dias ? ` (${(p.cortes / p.dias).toFixed(1).replace(".", ",")} por día trabajado)` : ""} · {p.atiende ? <><b className="text-brand-dark">{p.reservas}</b> {p.reservas === 1 ? "reserva" : "reservas"} en estos días</> : "sin horario en estos días"}
+                          </span>
+                        </span>
                       </button>
                     </li>
                   );
