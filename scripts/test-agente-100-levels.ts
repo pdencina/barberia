@@ -270,6 +270,9 @@ const conv: { titulo: string; casos: Caso[] }[] = [
   { titulo: "Última hora de uno", casos: [["cual es la ultima hora de javier mañana?", [/Lo más tarde que tiene \*Javier García\*/]]] },
   { titulo: "Lo más tarde posible", casos: [["quiero hora para el viernes lo mas tarde posible", [/La hora más tarde/]]] },
   { titulo: "Última disponible sin contexto", casos: [["que es lo ultimo que tienen hoy?", [/más tarde|no hay horas/i]]] },
+  { titulo: "Saray con Vicente", casos: [["1", [/Javier García/]], ["Cuál es la hora más tarde de Vicente ?", [/Lo más tarde que tiene \*Vicente Espinosa\*/]], ["Muéstrame todas sus horas", [/todas las horas de \*Vicente Espinosa\*/], [/tiempo real|y \d+ más/]], ["Necesito la más tarde", [/Lo más tarde que tiene \*Vicente Espinosa\*/], [/tiempo real/]], ["Cuál es la hora más tarde que tiene disponible", [/Lo más tarde que tiene \*Vicente Espinosa\*/], [/Nicolás Levels/]]] },
+  { titulo: "Todas las horas sin contexto", casos: [["muestrame todas las horas de enzo mañana", [/todas las horas de \*Enzo Perez\*/]]] },
+  { titulo: "Todos los horarios", casos: [["javier tiene hora mañana?", [/Javier García/]], ["dame todos sus horarios", [/todas las horas de \*Javier García\*/]]] },
 ];
 
 (async () => {
