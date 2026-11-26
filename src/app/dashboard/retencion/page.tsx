@@ -2,6 +2,7 @@
 
 import { useTenant } from "@/lib/tenant-context";
 import { couponKind } from "@/lib/coupon";
+import { useBorrador } from "@/lib/use-borrador";
 import { SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPromo } from "@/lib/promo-condiciones";
 import { PromoCondicionesForm } from "./promo-condiciones-form";
 import { PromoImagenCampo } from "./promo-imagen-campo";
@@ -68,6 +69,7 @@ export default function RetencionPage() {
   const elegirDiseno = (d: "clasico" | "oscuro") => { setDesign(d); try { localStorage.setItem("rb_diseno_correo", d); } catch { /* sin almacenamiento */ } };
   const conditions = textoCondiciones(condiciones, !!selectedCoupon);
   const conCondiciones = (m: string) => [m, conditions].filter(Boolean).join("\n\n");
+  const [borrarArmado, setBorrarArmado] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [bulkSending, setBulkSending] = useState(false);
   // Clientes que se DESMARCARON: no reciben el mensaje masivo (ni el cupon). Por defecto van todos marcados.
@@ -90,6 +92,23 @@ export default function RetencionPage() {
   });
   const { showToast } = useToast();
   const { tenant } = useTenant();
+  // Borrador automático: lo armado queda guardado en este equipo y vuelve al entrar de nuevo.
+  const borrador = {
+    days, maxDays, includeNever, selectedCoupon, customMessage, condiciones, imageUrl, design, subject, title, logoFondo,
+    excluidos: Array.from(excluded), agregados: manualClients,
+  };
+  const { hayBorrador, borrar: borrarBorrador } = useBorrador(tenant?.id ? `rb_borrador_retencion_${tenant.id}` : null, borrador, (g) => {
+    const d = g?.days ?? 15;
+    const m = g ? (g.maxDays ?? null) : 30;
+    setDays(d); setMinInput(String(d)); setMaxDays(m); setMaxInput(m ? String(m) : "");
+    setIncludeNever(!!g?.includeNever);
+    setSelectedCoupon(g?.selectedCoupon || ""); setCustomMessage(g?.customMessage || "");
+    setCondiciones({ ...SIN_CONDICIONES, ...(g?.condiciones || {}) });
+    setImageUrl(g?.imageUrl || ""); setSubject(g?.subject || ""); setTitle(g?.title || "");
+    if (g?.design) setDesign(g.design);
+    if (typeof g?.logoFondo === "boolean") setLogoFondo(g.logoFondo);
+    setExcluded(new Set(g?.excluidos || [])); setManualClients(g?.agregados || []);
+  });
 
   // Ask the server WHO would receive this (scoped to the business), show a sample and
   // the exact count, and only send after an explicit confirmation. This is the guard
@@ -386,6 +405,10 @@ export default function RetencionPage() {
                   <option key={c.code} value={c.code}>{c.code}{couponKind(c) !== "none" ? ` · ${c.discount_type === "percentage" ? `${c.discount_value}%` : `$${Number(c.discount_value).toLocaleString("es-CL")}`} de descuento` : ""}{c.description ? ` · ${c.description}` : ""}</option>
                 ))}
               </select>
+            </div>
+            <div className="flex items-center justify-between gap-3 text-[11px] text-brand-gray">
+              <span>{hayBorrador ? "✓ Borrador guardado en este equipo" : "Lo que armes se guarda solo como borrador"}</span>
+              {hayBorrador && <button type="button" onClick={() => { if (!borrarArmado) { setBorrarArmado(true); setTimeout(() => setBorrarArmado(false), 4000); return; } setBorrarArmado(false); borrarBorrador(); }} className="font-semibold text-brand-blue hover:underline">{borrarArmado ? "Toca otra vez para borrar" : "Empezar de cero"}</button>}
             </div>
             <PromoCondicionesForm value={condiciones} onChange={setCondiciones} tenantId={tenant?.id} hayCupon={!!selectedCoupon} inputClass={inputClass} />
             {selectedCoupon && (
