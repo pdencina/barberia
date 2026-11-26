@@ -4,11 +4,12 @@ import { couponKind } from "@/lib/coupon";
 import { useState, useEffect } from "react";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
-import { Users, UserMinus, Percent, Mail, MessageCircle, HeartHandshake, Send, Eye, History } from "lucide-react";
+import { Users, UserMinus, Percent, Mail, MessageCircle, HeartHandshake, Send, Eye, History, Download } from "lucide-react";
 import Link from "next/link";
 import { PageHeader, StatCard, Panel, primaryButton, ghostButton, inputClass } from "@/components/ui/premium";
 import { MessageQuotaBar } from "@/components/dashboard/message-quota-bar";
 import { formatPhoneCL } from "@/lib/phone";
+import { contactosVcf } from "@/lib/vcard";
 import { SendReviewModal, type ReviewRecipient } from "./send-review-modal";
 import { AddClientSearch, type ManualClient } from "./add-client-search";
 
@@ -239,6 +240,18 @@ export default function RetencionPage() {
   const selectedCount = selectedClients.length;
   const withEmail = new Set(selectedClients.filter((c) => c.email).map((c) => c.email!.trim().toLowerCase())).size;
   const withPhone = new Set(selectedClients.filter((c) => c.phone).map((c) => c.phone!.replace(/\D/g, ""))).size;
+  // Contactos de los marcados, para guardarlos en el teléfono y armar la difusión buscando la etiqueta. No envía nada ni gasta cupo.
+  const downloadContacts = () => {
+    const tag = `RET ${maxDays != null ? `${days}-${maxDays}` : `${days}+`}`;
+    const { total, texto } = contactosVcf(selectedClients, tag);
+    if (!total) { showToast("No hay clientes con teléfono válido", "info"); return; }
+    const url = URL.createObjectURL(new Blob([texto], { type: "text/vcard;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = `contactos ${tag}.vcf`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    showToast(`${total} contactos descargados. En WhatsApp búscalos como «${tag}».`, "success");
+  };
   const addManual = (c: ManualClient) => {
     setManualClients((prev) => (prev.some((m) => m.id === c.id) ? prev : [c, ...prev]));
     setExcluded((prev) => { if (!prev.has(c.id)) return prev; const n = new Set(prev); n.delete(c.id); return n; }); // al agregarlo queda marcado
@@ -266,6 +279,9 @@ export default function RetencionPage() {
             </Link>
             {rows.length > 0 && (
               <>
+                <button onClick={downloadContacts} disabled={withPhone === 0} className={ghostButton}>
+                  <Download className="h-4 w-4" strokeWidth={2} /> Descargar contactos
+                </button>
                 <button onClick={copyForBroadcast} disabled={bulkSending || withPhone === 0} className={ghostButton}>
                   <MessageCircle className="h-4 w-4 text-emerald-500" strokeWidth={2} /> Copiar para difusión ({withPhone})
                 </button>
