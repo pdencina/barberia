@@ -47,7 +47,7 @@ const request = (p: unknown) => { const b = JSON.stringify(p); return new Reques
 const diaStr = (n: number) => new Date(AHORA + n * 86400000).toISOString().slice(0, 10);
 const nombre = (id: string) => PROS.find((p) => p[0] === id)?.[1] ?? "?";
 
-function crear() {
+function crear(conTelefono = false) {
   const sent: string[] = [], notices: string[] = [], events: any[] = [];
   const memoria = new Map<string, any>(); const citas: any[] = [];
   const tables: Record<string, any[]> = {
@@ -89,7 +89,7 @@ function crear() {
     leerEstado: async (t: string, c: string) => memoria.get(t + c) ?? null, guardarEstado: async (t: string, c: string, e: any) => { memoria.set(t + c, e); }, borrarEstado: async (t: string, c: string) => { memoria.delete(t + c); },
     reservasFuturas: async () => citas.length, detalleFuturas: async () => [], crearReserva: async (_t: string, a: any) => { const dur = SERV.find((x) => x[0] === a.servicioId)?.[3] ?? 45; const libres = (await deps.horasLibres(a.profesionalId, a.fecha, dur)).slots.map((x: string) => x.slice(11, 16)); if (!libres.includes(a.hora)) return { ok: false, motivo: "no_cabe" }; citas.push({ servicio: a.servicioId, nombre: nombre(a.profesionalId), fecha: a.fecha, hora: a.hora }); return { ok: true, citaId: "c" + citas.length, codigo: "XFD4D" }; }, contar: async () => {},
   };
-  deps.buscarCitas = async (_t: string, id: any) => ("correo" in id ? id.correo === "alexis@gmail.com" : id.codigo === "UJ6N4") ? { nombre: "Alexis Villegas", codigo: "UJ6N4", citas: [{ profesional: "Nicolás Levels", fecha: "2026-11-26", hora: "08:30", servicio: "Corte de cabello" }] } : null;
+  deps.buscarCitas = async (_t: string, id: any) => ("telefono" in id ? conTelefono : "correo" in id ? id.correo === "alexis@gmail.com" : id.codigo === "UJ6N4") ? { nombre: "Alexis Villegas", codigo: "UJ6N4", citas: [{ profesional: "Nicolás Levels", fecha: "2026-11-26", hora: "08:30", servicio: "Corte de cabello" }] } : null;
   deps.conMenu = true; deps.conCta = true; deps.derivarAlTelefono = true;
   deps.ia = async () => null; // la IA no responde en el simulador: lo que le llegue se marca
   deps.responderLista = async (_n: any, _p: any, l: any) => { sent.push(`[LISTA] ${l.cuerpo.replace(/\n+/g, " / ")}  {${l.filas.map((f: any) => f.title).join(" | ")}}`); return { estado: "aceptado" }; };
@@ -200,7 +200,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
   { titulo: "Rizos 7 tarde sin hoy", casos: [["tienen hora para rizos a las 7 de la tarde?", [/19:00/]]] },
   { titulo: "Javier a las 7", casos: [["javier tiene hora hoy a las 7?", [/Javier/]]] },
   { titulo: "¿Quedó mi hora? (error: respondía el link de agendar)", casos: [
-    ["Hola, quisiera saber si se agendó mi cita para mañana a las 8:30 con Nicolás", [/correo/, /código de reserva/], [/20:30/, /Deseas agendar/, /re-booking/]],
+    ["Hola, quisiera saber si se agendó mi cita para mañana a las 8:30 con Nicolás", [/con tu número/, /otra persona/, /código de reserva/], [/20:30/, /Deseas agendar/, /re-booking/]],
     ["alexis@gmail.com", [/Alexis/, /Nicolás Levels/, /08:30/, /UJ6N4/], [/Deseas agendar/]],
   ] },
   { titulo: "Ya agendé (frase real)", casos: [["Pero yo ya agende y quisiera saber si se agendó bien la hora", [/correo/, /código/], [/Deseas agendar/]], ["UJ6N4", [/08:30/, /Nicolás Levels/]]] },
@@ -215,6 +215,10 @@ const conv: { titulo: string; casos: Caso[] }[] = [
   ] },
   { titulo: "Pablo el martes: la más próxima es antes", casos: [["pablo tiene hora el martes?", [/no atiende el martes 1/i, /hora más próxima es (hoy|mañana)/i]]] },
   { titulo: "Enzo viene los lunes", casos: [["enzo viene los lunes?", [/no atiende los lunes/]]] },
+  { titulo: "Mi número tiene la reserva: responde sin pedir datos", casos: [
+    ["Hola, quisiera saber si se agendó mi cita para mañana a las 8:30 con Nicolás", [/Alexis/, /Nicolás Levels/, /08:30/, /UJ6N4/, /otra persona/], [/20:30/, /Deseas agendar/, /Envíame el \*correo\* con el que reservaste/]],
+  ] },
+  { titulo: "Mi número: para otra persona se usa el código", casos: [["no me llegó el correo de confirmación", [/08:30/, /otra persona/]], ["codigo UJ6N4", [/08:30/]]] },
   { titulo: "Primera pregunta sin 'hola' (no todos parten con hola)", casos: [
     ["que horario tienen?", [/lunes a viernes de 10:00 a 20:00/i]],
   ] },
@@ -267,7 +271,7 @@ const conv: { titulo: string; casos: Caso[] }[] = [
 (async () => {
   let ok = 0, mal = 0; const fallas: string[] = [];
   for (const c of conv) {
-    const s = crear();
+    const s = crear(c.titulo.startsWith("Mi número"));
     for (const [msg, debe, nodebe] of c.casos) {
       const r = await s.enviar(msg);
       const faltan = debe.filter((d) => !(typeof d === "string" ? r.includes(d) : d.test(r)));
