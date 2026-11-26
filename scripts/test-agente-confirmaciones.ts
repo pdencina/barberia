@@ -69,7 +69,7 @@ function armar(filas: CitaRecordatorio[], conInterruptor = true) {
     assert.equal(a.e.enviados.length, 1);
   });
   await caso("Variables de la plantilla: nombre, negocio, servicio, profesional, fecha larga y hora", () => {
-    assert.deepEqual(variablesPlantillaConfirmacion(cita("v", "08:30"), "Estudio Levels"), ["Amaro", "Estudio Levels", "Solo corte", "Nicolas", "miércoles, 25 de noviembre", "08:30"]);
+    assert.deepEqual(variablesPlantillaConfirmacion(cita("v", "08:30"), "Estudio Levels"), ["Amaro", "Estudio Levels", "Solo corte", "Nicolas", "miércoles, 25 de noviembre", "08:30 (AM)"]);
     assert.equal(variablesPlantillaConfirmacion(cita("v", "08:30", { client: { id: "c", tenant_id: "T", name: null as any, phone: "1", email: null } }), "N")[0], "cliente");
     assert.deepEqual([...BOTONES_CONFIRMACION], ["confirmo mi cita", "cancelo mi cita", "modificar mi cita"]);
   });
@@ -77,7 +77,7 @@ function armar(filas: CitaRecordatorio[], conInterruptor = true) {
     const cuerpos: any[] = [];
     const fetch = async (_u: string, o: RequestInit) => { cuerpos.push(JSON.parse(String(o.body))); return { status: 200, json: async () => ({ messages: [{ id: "wamid.1" }] }) }; };
     const deps = { token: "t", version: "v21.0", phone_number_id: "1", fetch };
-    const v = ["Amaro", "Estudio Levels", "Solo corte", "Nicolas", "miércoles, 25 de noviembre", "08:30"];
+    const v = ["Amaro", "Estudio Levels", "Solo corte", "Nicolas", "miércoles, 25 de noviembre", "08:30 (AM)"];
     assert.equal((await enviarPlantilla({ para: "56911112222", plantilla: PLANTILLA_CONFIRMACION_BOTONES, idioma: "es", variables: v, botones: BOTONES_CONFIRMACION }, deps)).estado, "aceptado");
     const comp = cuerpos[0].template.components;
     assert.equal(cuerpos[0].template.name, "confirmacion_cita_botones"); assert.equal(comp.length, 4);

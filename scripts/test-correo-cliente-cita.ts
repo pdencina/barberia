@@ -61,14 +61,14 @@ const cita = (over: any = {}) => ({
   const m1 = enviados[0]?.body;
   t("cita nueva: envia 1 correo al cliente", r === "enviado" && enviados.length === 1 && Array.isArray(m1?.to) ? m1.to.includes("alan@example.cl") : m1?.to === "alan@example.cl", `to=${JSON.stringify(m1?.to)}`);
   t("cita nueva: asunto de confirmacion", /Cita confirmada/.test(m1?.subject || ""), m1?.subject);
-  t("cita nueva: trae la hora 03:30 p. m. (15:30 de Chile), profesional, servicios, duracion 45 y precio", /03:30 p\. m\./.test(m1?.html) && /Javier/.test(m1?.html) && /Corte \+ Barba/.test(m1?.html) && /45 minutos/.test(m1?.html) && /15[.,]000/.test(m1?.html));
+  t("cita nueva: trae la hora 15:30 (PM), profesional, servicios, duracion 45 y precio", /15:30 \(PM\)/.test(m1?.html) && /Javier/.test(m1?.html) && /Corte \+ Barba/.test(m1?.html) && /45 minutos/.test(m1?.html) && /15[.,]000/.test(m1?.html));
   t("cita nueva: incluye el enlace para cancelar", /\/cancel\/a1/.test(m1?.html));
 
   enviados.length = 0;
   r = await emailClientAboutAppointment(fakeSupabase(cita({ start_time: "2026-10-23T10:00:00+00:00", end_time: "2026-10-23T10:45:00+00:00" })), "a1", "updated");
   const m2 = enviados[0]?.body;
   t("cita movida: envia el correo de modificacion", r === "enviado" && /Cita modificada/.test(m2?.subject || ""), m2?.subject);
-  t("cita movida: muestra la hora NUEVA (10:00 a. m.) y el dia nuevo", /10:00 a\. m\./.test(m2?.html) && /23 de octubre/.test(m2?.html));
+  t("cita movida: muestra la hora NUEVA 10:00 (AM) y el dia nuevo", /10:00 \(AM\)/.test(m2?.html) && /23 de octubre/.test(m2?.html));
 
   enviados.length = 0;
   r = await emailClientAboutAppointment(fakeSupabase(cita({ client: { name: "Gabriel Vargas", email: null } })), "a1", "created");

@@ -9,6 +9,7 @@
 // Variables de la plantilla: {cliente} {negocio} {servicio} {profesional} {dia} {mes} {fecha} {hora}
 // (y {abono} en el bloque de abono). El nombre del negocio viene siempre del negocio de quien esta
 // logueado (nunca fijo en el codigo).
+import { horaAmPm } from "./hora-ampm";
 import { formatCurrency } from "@/lib/utils";
 
 const normalize = (t: string) =>
@@ -105,7 +106,7 @@ function vars(input: ConfirmWhatsAppInput, abono: string): Record<string, string
     dia: `${weekday} ${d.getDate()}`,
     mes: d.toLocaleDateString("es-CL", { month: "long" }),
     fecha: d.toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" }),
-    hora: input.time?.match(/(\d{2}:\d{2})/)?.[1] || "",
+    hora: horaAmPm(input.time?.match(/(\d{2}:\d{2})/)?.[1] || ""),
     abono,
   };
 }

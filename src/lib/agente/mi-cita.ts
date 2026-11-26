@@ -1,6 +1,7 @@
 // "¿Quedó agendada mi hora?" / "no me llegó el correo": se pide el correo o el código de reserva y se revisa en la agenda real.
 import { textoDeFecha } from "./disponibilidad";
 import { normalizar } from "./faq-fija";
+import { horaAmPm } from "../hora-ampm";
 
 export type Identificador = { correo: string } | { codigo: string } | { telefono: string };
 export interface CitaEncontrada { nombre: string; codigo: string | null; citas: { profesional: string; fecha: string; hora: string; servicio: string }[] }
@@ -54,7 +55,7 @@ export async function responderMiCita(texto: string, hoy: string, buscar: Buscar
 }
 
 function redactar(r: CitaEncontrada, hoy: string): string {
-  const lista = r.citas.slice(0, 3).map((c) => `• *${c.profesional}*, ${textoDeFecha(c.fecha, hoy)} a las *${c.hora}*${c.servicio ? ` (${c.servicio})` : ""}`).join("\n");
+  const lista = r.citas.slice(0, 3).map((c) => `• *${c.profesional}*, ${textoDeFecha(c.fecha, hoy)} a las *${horaAmPm(c.hora)}*${c.servicio ? ` (${c.servicio})` : ""}`).join("\n");
   const nombre = r.nombre.trim().split(/\s+/)[0] ?? "";
   const codigo = r.codigo ? `\n\n*Tu código de reserva es: ${r.codigo.toUpperCase()}*` : "";
   return `Sí${nombre ? `, ${nombre}` : ""}: ${r.citas.length === 1 ? "tu hora está agendada" : "estas son tus horas agendadas"}:\n\n${lista}${codigo}\n\nRecomendamos llegar unos minutos antes. Si no te llegó el correo, revisa tu carpeta de spam; la reserva vale igual.`;

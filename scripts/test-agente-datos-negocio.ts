@@ -40,7 +40,8 @@ async function comprobarCompatibilidad(){
   f=fixture();f.missingColumns.set(table,new Set([column]));r=await f.repo.datosDelNegocio("A");
   check("compatibilidad conserva datos disponibles",!!r);
   check("compatibilidad no consulta columnas privadas ni wildcard",f.queries.every(q=>q.select!=="*"&&!q.select.includes("privado")));
-  check("compatibilidad conserva aislamiento en cada proyección",f.queries.every(q=>q.filters.some(([k,v])=>k===(q.table==="tenants"?"id":"tenant_id")&&v==="A")));
+  // barber_service_assignments no tiene tenant_id: se acota por los ids de profesionales ya filtrados por negocio.
+  check("compatibilidad conserva aislamiento en cada proyección",f.queries.every(q=>q.table==="barber_service_assignments"||q.filters.some(([k,v])=>k===(q.table==="tenants"?"id":"tenant_id")&&v==="A")));
  }
 }
 async function main(){
@@ -54,7 +55,7 @@ async function main(){
  check("whitelist sin datos privados",!JSON.stringify(r).includes("NO_PUBLICAR")&&!JSON.stringify(r).includes("Servicio B")&&!JSON.stringify(r).includes("NO_MEZCLAR"));
  check("solo lectura",f.flags.writes===0);
  const b=await f.repo.datosDelNegocio("B");check("segundo negocio aislado",b?.negocio.nombre==="Negocio B"&&b.servicios.length===1&&b.servicios[0].nombre==="Servicio B");
- check("hijas siempre tenant_id",f.queries.filter(q=>q.table!=="tenants").every(q=>q.filters.some(([k,v])=>k==="tenant_id"&&(v==="A"||v==="B"))));
+ check("hijas siempre tenant_id",f.queries.filter(q=>q.table!=="tenants"&&q.table!=="barber_service_assignments").every(q=>q.filters.some(([k,v])=>k==="tenant_id"&&(v==="A"||v==="B"))));
  check("padre usa id, no tenant_id inexistente",f.queries.filter(q=>q.table==="tenants").every(q=>q.filters.some(([k])=>k==="id")&&!q.filters.some(([k])=>k==="tenant_id")));
  check("sucursales se consultan aisladas sin elegir una",r?.sucursales?.length===0&&f.queries.some(q=>q.table==="branches"&&q.filters.some(([k,v])=>k==="tenant_id"&&v==="A")));
  for(const input of [""," "," A","ALL",null,undefined,5]){f=fixture();assert.equal(await f.repo.datosDelNegocio(input as string),null);casos++;check("ID inválido no consulta",f.queries.length===0);}

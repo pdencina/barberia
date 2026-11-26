@@ -6,6 +6,7 @@ import { receiptThanksHtml } from "@/lib/receipt-thanks";
 import type { CorreoLinks } from "@/lib/post-service-links";
 import { applyMailTheme } from "@/lib/mail-theme";
 import type { AppTheme } from "@/lib/themes";
+import { horaAmPm } from "@/lib/hora-ampm";
 
 interface SendReceiptParams {
   to: string;
@@ -291,11 +292,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
     day: "numeric",
     timeZone: "UTC",
   });
-  const timeStr = new Date(date).toLocaleTimeString("es-CL", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  });
+  const timeStr = horaAmPm(new Date(date).toISOString().slice(11, 16));
 
   // Código corto para avisar tu llegada en el tótem del local (lo asigna la base al crear la cita; migración 162). Sin él, el correo sale igual.
   const bloqueCodigo = await bloqueCodigoTotem(appointmentId);
@@ -364,11 +361,7 @@ export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParam
     day: "numeric",
     timeZone: "UTC",
   });
-  const timeStr = new Date(date).toLocaleTimeString("es-CL", {
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  });
+  const timeStr = horaAmPm(new Date(date).toISOString().slice(11, 16));
 
   const bloqueCodigo = await bloqueCodigoTotem(appointmentId);
   const html = mailShell({
@@ -498,10 +491,7 @@ export async function sendAppointmentReminder(params: SendAppointmentReminderPar
     day: "numeric",
     month: "long",
   });
-  const timeStr = new Date(date).toLocaleTimeString("es-CL", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const timeStr = horaAmPm(new Date(date).toISOString().slice(11, 16));
 
   const appBase = process.env.NEXT_PUBLIC_APP_URL || "https://www.re-booking.cl";
   const bloqueCodigo = await bloqueCodigoTotem(appointmentId);
@@ -624,7 +614,7 @@ export async function sendBarberNewAppointment(params: SendBarberNewAppointmentP
   const { to, barberName, clientName, serviceName, date, businessName, businessLogoUrl } = params;
 
   const dateStr = new Date(date).toLocaleDateString("es-CL", { weekday: "long", day: "numeric", month: "long" });
-  const timeStr = new Date(date).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" });
+  const timeStr = horaAmPm(new Date(date).toISOString().slice(11, 16));
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://re-booking.cl";
 
   const html = `<!DOCTYPE html>
