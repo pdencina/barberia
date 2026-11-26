@@ -266,6 +266,10 @@ const conv: { titulo: string; casos: Caso[] }[] = [
   { titulo: "Pablo mañana tarde", casos: [["pablo atiende en la tarde?", [/Sí/, /Pablo/]]] },
   { titulo: "Quién atiende domingo", casos: [["quien atiende el domingo?", [/domingo/i]]] },
   { titulo: "Rizos precio con duración", casos: [["cuanto demora el rizo permanente?", [/rizo/i]]] },
+  { titulo: "La más tarde (Saray)", casos: [["Hola", [/reservar/i]], ["1", [/Javier García/]], ["Tienes hora en la tarde?", [/tarde/i]], ["Cuál es la más tarde ?", [/La hora más tarde hoy es a las \*(19|2\d):\d\d\*/], [/primera hora libre/]], ["Quiero la más tarde que tengan", [/La hora más tarde/], [/primera hora libre/]]] },
+  { titulo: "Última hora de uno", casos: [["cual es la ultima hora de javier mañana?", [/Lo más tarde que tiene \*Javier García\*/]]] },
+  { titulo: "Lo más tarde posible", casos: [["quiero hora para el viernes lo mas tarde posible", [/La hora más tarde/]]] },
+  { titulo: "Última disponible sin contexto", casos: [["que es lo ultimo que tienen hoy?", [/más tarde|no hay horas/i]]] },
 ];
 
 (async () => {
