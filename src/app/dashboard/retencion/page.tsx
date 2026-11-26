@@ -61,6 +61,8 @@ export default function RetencionPage() {
   const [design, setDesign] = useState<"clasico" | "oscuro">("clasico");
   const [subject, setSubject] = useState("");
   const [title, setTitle] = useState("");
+  const [logoFondo, setLogoFondo] = useState(false); // fondo blanco detrás del logo (para logos oscuros)
+  useEffect(() => { try { setLogoFondo(localStorage.getItem("rb_correo_logo_fondo") === "1"); } catch { /* sin almacenamiento */ } }, []);
   useEffect(() => { try { if (localStorage.getItem("rb_diseno_correo") === "oscuro") setDesign("oscuro"); } catch { /* sin almacenamiento */ } }, []);
   const elegirDiseno = (d: "clasico" | "oscuro") => { setDesign(d); try { localStorage.setItem("rb_diseno_correo", d); } catch { /* sin almacenamiento */ } };
   const conditions = textoCondiciones(condiciones, !!selectedCoupon);
@@ -81,7 +83,7 @@ export default function RetencionPage() {
   const suggestCampaignName = () => `Campaña ${new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "America/Santiago" }).format(new Date())} · ${rangeLabel}`;
   // Cuerpo comun de los envios masivos: quienes se desmarcaron no reciben; los agregados a mano se suman.
   const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = [], campaignName?: string) => ({
-    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, type, campaignName: campaignName || null,
+    days, includeNever, maxDays, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, logoFondo, type, campaignName: campaignName || null,
     excludeClientIds: [...Array.from(excluded), ...extraExcluded],
     includeClientIds: manualClients.map((m) => m.id),
   });
@@ -219,12 +221,12 @@ export default function RetencionPage() {
   const PREVIEW_NAME = "[nombre del cliente]";
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, clientName: PREVIEW_NAME }) })
+      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, logoFondo, clientName: PREVIEW_NAME }) })
         .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.whatsapp) setMsgPreview(d); }).catch(() => {});
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCoupon, customMessage, conditions, imageUrl, design, subject, title]);
+  }, [selectedCoupon, customMessage, conditions, imageUrl, design, subject, title, logoFondo]);
 
   const notifyClient = async (clientId: string, type: "email" | "whatsapp") => {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
@@ -242,6 +244,7 @@ export default function RetencionPage() {
         design,
         subject,
         title,
+        logoFondo,
       }),
     });
     const data = await res.json();
@@ -399,10 +402,16 @@ export default function RetencionPage() {
                   ))}
                 </div>
               </div>
+              {design === "oscuro" && (
+                <label className="flex items-center gap-2 text-xs text-brand-gray">
+                  <input type="checkbox" checked={logoFondo} onChange={(e) => { setLogoFondo(e.target.checked); try { localStorage.setItem("rb_correo_logo_fondo", e.target.checked ? "1" : "0"); } catch { /* sin almacenamiento */ } }} />
+                  Poner fondo blanco detrás de mi logo (si tu logo es oscuro)
+                </label>
+              )}
               <label className="block"><span className="mb-1.5 block text-xs font-semibold text-brand-gray">Asunto (opcional)</span>
-                <input value={subject} maxLength={120} onChange={(e) => setSubject(e.target.value)} placeholder="🔥 ¡¡Cuando pagan!! 20% descuento" className={inputClass} /></label>
+                <input value={subject} maxLength={120} onChange={(e) => setSubject(e.target.value)} placeholder="Ej: Tenemos una promoción para ti" className={inputClass} /></label>
               <label className="block"><span className="mb-1.5 block text-xs font-semibold text-brand-gray">Título grande (opcional)</span>
-                <input value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="¡¡Cuando pagan!!" className={inputClass} /></label>
+                <input value={title} maxLength={80} onChange={(e) => setTitle(e.target.value)} placeholder="Ej: Promoción especial" className={inputClass} /></label>
             </div>
             <PromoImagenCampo url={imageUrl} onChange={setImageUrl} tenantId={tenant?.id} showToast={showToast} />
             <div>

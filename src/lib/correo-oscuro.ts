@@ -4,9 +4,9 @@
 export type DisenoCorreo = "clasico" | "oscuro";
 
 /** Lo que llega del navegador sobre el diseño del correo, ya acotado. Sin nada, queda el correo de siempre. */
-export function estiloCorreo(body: any): { design: DisenoCorreo; subject: string; title: string } {
+export function estiloCorreo(body: any): { design: DisenoCorreo; subject: string; title: string; logoFondo: boolean } {
   const texto = (v: unknown, max: number) => (typeof v === "string" ? v.replace(/[\r\n]+/g, " ").trim().slice(0, max) : "");
-  return { design: body?.design === "oscuro" ? "oscuro" : "clasico", subject: texto(body?.subject, 120), title: texto(body?.title, 80) };
+  return { design: body?.design === "oscuro" ? "oscuro" : "clasico", subject: texto(body?.subject, 120), title: texto(body?.title, 80), logoFondo: body?.logoFondo === true };
 }
 
 /** Separa el mensaje del bloque «Condiciones:» (cada línea «• dato» pasa a ser un recuadro). */
@@ -18,13 +18,13 @@ export function separarCondiciones(mensaje: string): { texto: string; datos: str
 }
 
 export function plantillaOscura(o: {
-  logoNegocio: string | null; titulo: string; saludo: string; textoHtml: string; imagen: string | null;
+  logoNegocio: string | null; logoFondo?: boolean; titulo: string; saludo: string; textoHtml: string; imagen: string | null;
   datosHtml: string[]; cupon: { codigo: string; detalle: string } | null; boton: { url: string; texto: string };
 }): string {
   const fuente = "'Plus Jakarta Sans', -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif";
-  // El logo del negocio va sobre una pastilla blanca: así se ve aunque sea negro.
+  // El logo del negocio va directo sobre el negro (un logo claro se ve bien); si es oscuro, el negocio activa el fondo blanco.
   const logos = `<img src="https://www.re-booking.cl/logo-horizontal.png" alt="re-booking" height="26" style="display:inline-block;vertical-align:middle;height:26px;width:auto;border:0;background:#FFFFFF;border-radius:10px;padding:10px 14px;">${
-    o.logoNegocio ? `<span style="display:inline-block;width:14px;">&nbsp;</span><img src="${o.logoNegocio}" alt="Logo del negocio" height="40" style="display:inline-block;vertical-align:middle;height:40px;max-width:170px;width:auto;border:0;background:#FFFFFF;border-radius:10px;padding:4px 10px;">` : ""}`;
+    o.logoNegocio ? `<span style="display:inline-block;width:14px;">&nbsp;</span><img src="${o.logoNegocio}" alt="Logo del negocio" height="60" style="display:inline-block;vertical-align:middle;height:60px;max-width:180px;width:auto;border:0;${o.logoFondo ? "background:#FFFFFF;border-radius:10px;padding:4px 10px;" : ""}">` : ""}`;
   const fila = (h: string) => `<tr><td style="padding:0 0 10px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" bgcolor="#FFFFFF" style="background:#FFFFFF;border-radius:12px;padding:14px 16px;color:#0A0A0A;font-size:15px;font-weight:700;">${h}</td></tr></table></td></tr>`;
   return `<!DOCTYPE html>
 <html lang="es">
