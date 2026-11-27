@@ -14,6 +14,7 @@ import { responderHorarioProfesional, type HorariosProfesionales } from "./horar
 import { responderDisponibilidad, ahoraChile, sumar, textoDeFecha, type DependenciasDisponibilidad } from "./disponibilidad";
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
 import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
+import { respuestaDeAtraso } from "./atraso";
 import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
 import { fetchAllRows } from "../accounting";
 import { esSiDeConfirmacion } from "./respuesta-cliente";
@@ -297,7 +298,12 @@ export function crearManejadoresWebhook(config: {
                       } catch { /* agenda no disponible: sigue el flujo de siempre */ }
                     }
                     // 1) Conversación de reserva en curso (elegir hora, enviar datos).
-                    if (chat && !reiniciado) {
+                    // "Voy atrasado": la regla de espera del negocio, antes de que se lea como otra cosa.
+                    if (respuestaFaq === null && tipo === "desconocido" && !esBoton) {
+                      const atraso = respuestaDeAtraso(text,datosNegocio);
+                      if (atraso) { respuestaFaq = atraso; await contar("respuestas_automaticas"); }
+                    }
+                    if (chat && !reiniciado && respuestaFaq === null) {
                       try {
                         const rc = await manejarReservaChat(text,para,datosNegocio,{
                           ahora: deps.ahora,
