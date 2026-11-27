@@ -150,16 +150,18 @@ export async function POST(req: NextRequest) {
   // Si falta la migracion 112 el guardado falla en silencio y la reserva sigue igual.
   const trackAds = !!adAttr;
 
+  // Acompañante sin correo propio (promo de 2): el correo es el de quien reservó; no sirve para reconocer su ficha ni se le guarda.
+  const correoPropio = cuponGrupo && body.correoPrestado === true ? null : clientEmail;
   let clientId: string;
   let clientIsNew = false;
   // Se reutiliza la ficha de la persona (mismo celular o correo y mismo primer nombre); un familiar con el mismo celular pero otro nombre queda aparte.
-  const existingClient = await buscarClienteExistente(supabase, tenantId, { name: clientName, phone: clientPhone, email: clientEmail });
+  const existingClient = await buscarClienteExistente(supabase, tenantId, { name: clientName, phone: clientPhone, email: correoPropio });
   if (existingClient) {
     clientId = existingClient.id;
     // Se actualizan los datos de contacto que la persona acaba de escribir
     const contacto: Record<string, any> = {};
     if (clientPhone) contacto.phone = clientPhone;
-    if (clientEmail) contacto.email = clientEmail;
+    if (correoPropio) contacto.email = correoPropio;
     if (Object.keys(contacto).length) await supabase.from("clients").update(contacto).eq("id", clientId);
     if (marketingConsent === true) {
       await supabase.from("clients").update(consentNew).eq("id", clientId); // si falta la migracion 101, no pasa nada
@@ -167,7 +169,7 @@ export async function POST(req: NextRequest) {
   } else {
     // Punto 10 (Pablo): cliente nuevo que se creo solo reservando por link -> origen "link".
     // Solo se marca al CREAR el cliente; uno que ya existia conserva su origen original.
-    const { data: newClient } = await insertClient({ name: clientName, email: clientEmail || null, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" });
+    const { data: newClient } = await insertClient({ name: clientName, email: correoPropio || null, phone: clientPhone || null, tenant_id: tenantId, acquisition_source: "link" });
     clientId = newClient!.id;
     clientIsNew = true;
   }

@@ -37,7 +37,9 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const personas = body.conditions?.personas ?? (dueno as any)?.conditions?.personas;
     const politicas = body.conditions?.politicas ?? (dueno as any)?.conditions?.politicas;
     const servicioIds = body.conditions?.servicioIds ?? (dueno as any)?.conditions?.servicioIds;
-    update.conditions = limpiarReglas({ ...body.conditions, personas, politicas, servicioIds, imagen: imagenDelNegocio(body.conditions?.imagen, (dueno as any)?.tenant_id) });
+    // null = volver al negro; sin mandarlo, se conservan.
+    const colores = body.conditions?.colores === undefined ? (dueno as any)?.conditions?.colores : body.conditions.colores;
+    update.conditions = limpiarReglas({ ...body.conditions, personas, politicas, servicioIds, colores, imagen: imagenDelNegocio(body.conditions?.imagen, (dueno as any)?.tenant_id) });
   }
 
   const { data, error } = await supabase

@@ -22,6 +22,7 @@ ok(porServ.servicioIds?.length === 1, "servicios");
 ok(!!m({ conditions: porServ }, { barberId: "", fecha: "2026-11-28", hora: "11:00", serviceIds: [O] }), "otro servicio no");
 ok(!m({ conditions: porServ }, { barberId: "", fecha: "2026-11-28", hora: "11:00", serviceIds: [O, S] }), "incluido sí");
 ok(baseConDescuento(porServ, [{ id: S, price: 10000 }, { id: O, price: 5000 }], 15000) === 10000, "descuento solo sobre los incluidos");
+ok(limpiarReglas({ colores: { fondo: "#FBE4EC", texto: "#4A1030", boton: "#B8245A" } })?.colores?.fondo === "#FBE4EC" && !limpiarReglas({ colores: { fondo: "x" } }), "colores");
 ok(limpiarReglas({ politicas: "  Llega a tu hora  " })?.politicas === "Llega a tu hora", "políticas");
 ok(limpiarReglas({ desde: "x", profesionalIds: ["a'; drop"] }) === null, "limpia basura");
 console.log(f ? "HAY FALLAS" : "OK reglas cupón"); process.exit(f ? 1 : 0);
