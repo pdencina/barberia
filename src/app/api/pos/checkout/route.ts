@@ -1,3 +1,4 @@
+import { pagoNoPermitido } from "@/lib/cupon-pagos";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 import { todayInChile } from "@/lib/utils";
@@ -77,12 +78,16 @@ export async function POST(req: NextRequest) {
   if (couponCode) {
     const { data: coupon } = await supabase
       .from("coupons")
-      .select("id")
+      .select("*")
       .eq("code", couponCode.toUpperCase())
       .eq("tenant_id", tenantId)
       .maybeSingle();
 
     if (coupon) {
+      // Promoción con medios de pago limitados: si hay descuento, solo se acepta cobrar con ellos.
+      const usados: string[] = payments && payments.length > 0 ? payments.map((p: any) => String(p.method)) : [String(paymentMethod || "cash")];
+      const bloqueo = Number(discount) > 0 ? pagoNoPermitido((coupon as any).conditions?.pagos, usados) : null;
+      if (bloqueo) return NextResponse.json({ error: `${bloqueo} Cambia el medio de pago o quita la promoción.` }, { status: 400 });
       couponId = coupon.id;
       await supabase.rpc("increment_coupon_usage", { coupon_id: coupon.id });
     }

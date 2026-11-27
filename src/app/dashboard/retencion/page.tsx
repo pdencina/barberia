@@ -3,6 +3,7 @@
 import { useTenant } from "@/lib/tenant-context";
 import { couponKind } from "@/lib/coupon";
 import { useBorrador } from "@/lib/use-borrador";
+import { codigosDePago } from "@/lib/cupon-pagos";
 import { etiquetaRangos, rangosATexto, type Rango } from "@/lib/rangos-dias";
 import { SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPromo } from "@/lib/promo-condiciones";
 import { PromoCondicionesForm } from "./promo-condiciones-form";
@@ -128,7 +129,7 @@ export default function RetencionPage() {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
     const cupon: any = coupons.find((c: any) => c.code === selectedCoupon);
     if (!cupon?.id) return;
-    const reglas = { desde: condiciones.desde, hasta: condiciones.hasta, horaDesde: condiciones.horaDesde, horaHasta: condiciones.horaHasta, profesionalIds: condiciones.profesionalIds || [] };
+    const reglas = { desde: condiciones.desde, hasta: condiciones.hasta, horaDesde: condiciones.horaDesde, horaHasta: condiciones.horaHasta, profesionalIds: condiciones.profesionalIds || [], pagos: condiciones.todosLosPagos ? [] : codigosDePago(condiciones.pagos) };
     const res = await fetch(`/api/cupones/${cupon.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conditions: reglas }) });
     const d = await res.json().catch(() => ({}));
     showToast(res.ok ? `Reglas guardadas en ${selectedCoupon}` : d.error || "No se pudieron guardar", res.ok ? "success" : "error");
@@ -454,7 +455,7 @@ export default function RetencionPage() {
             {selectedCoupon && (
               <div className="rounded-xl bg-brand-blue/5 px-3 py-2.5">
                 <button type="button" onClick={guardarReglas} className="rounded-full bg-brand-blue px-3.5 py-1.5 text-xs font-semibold text-white">Exigir estas reglas en el código {selectedCoupon}</button>
-                <p className="mt-1 text-[11px] text-brand-gray">Al reservar y al cobrar, el código solo se aceptará en las fechas, horario y profesionales marcados arriba. Sin nada marcado, vale siempre.</p>
+                <p className="mt-1 text-[11px] text-brand-gray">Al reservar y al cobrar, el código solo se aceptará en las fechas, horario, profesionales y medios de pago marcados arriba. Sin nada marcado, vale siempre.</p>
               </div>
             )}
             <div className="space-y-3">

@@ -50,5 +50,5 @@ export async function GET(req: NextRequest) {
   // noDiscount: cupon sin monto (solo codigo y texto, p. ej. "cejas gratis"): es valido pero no descuenta dinero; el POS muestra
   // su descripcion para que quien cobra aplique el beneficio.
   const noDiscount = couponKind(coupon) === "none";
-  return NextResponse.json({ valid: true, discount, couponId: coupon.id, noDiscount, description: noDiscount ? coupon.description || null : undefined });
+  return NextResponse.json({ valid: true, pagos: coupon.conditions?.pagos || [], discount, couponId: coupon.id, noDiscount, description: noDiscount ? coupon.description || null : undefined });
 }

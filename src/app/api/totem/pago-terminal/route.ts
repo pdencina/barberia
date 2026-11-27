@@ -1,3 +1,4 @@
+import { bloqueoPorPromo } from "@/lib/cupon-cita";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe, moduloDe } from "@/lib/totem";
@@ -35,6 +36,9 @@ export async function POST(req: NextRequest) {
   if (!otras.ok) return NextResponse.json({ error: otras.error }, { status: otras.status });
   const s = { saldo: cc.saldo + otras.saldo + extraTotal, abono: cc.abono + otras.abono, total: cc.total + otras.total + extraTotal };
   const extraIds = [...cc.extraIds, ...otras.extraIds];
+  // Reserva con promoción de «solo efectivo o transferencia»: no se cobra con tarjeta ni QR.
+  const bloqueo = await bloqueoPorPromo(supabase, [cc.primeraId, ...extraIds], [body.tarjeta === "credito" ? "credit_card" : "debit_card"]);
+  if (bloqueo) return NextResponse.json({ error: `${bloqueo} Elige «Pagar en efectivo».` }, { status: 409 });
 
   const term = await resolverTerminal(supabase, t.id, (a as any).barber_id);
   if (!term) return NextResponse.json({ error: "Tu profesional no tiene una máquina de tarjetas conectada. Elige pagar en caja y avisamos al equipo." }, { status: 400 });

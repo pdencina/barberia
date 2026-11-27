@@ -1,8 +1,11 @@
 // Reglas de un cupón (coupons.conditions, migración 182): fechas y horario de la ATENCIÓN y profesionales que lo aceptan.
+import { limpiarPagos } from "@/lib/cupon-pagos";
+
 export interface ReglasCupon {
   desde?: string; hasta?: string;          // YYYY-MM-DD (día de la cita)
   horaDesde?: string; horaHasta?: string;  // HH:MM (hora de inicio de la cita)
   profesionalIds?: string[];               // vacío = todos
+  pagos?: string[];                        // medios permitidos (cash, transfer…); vacío = cualquiera
 }
 
 export interface CuponFila { active?: boolean | null; max_uses?: number | null; used_count?: number | null; valid_until?: string | null; conditions?: ReglasCupon | null }
@@ -12,7 +15,8 @@ export function limpiarReglas(r: any): ReglasCupon | null {
   const f = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : undefined);
   const h = (v: unknown) => (typeof v === "string" && /^\d{2}:\d{2}$/.test(v) ? v : undefined);
   const ids = Array.isArray(r?.profesionalIds) ? r.profesionalIds.filter((x: unknown) => typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x)).slice(0, 50) : [];
-  const out: ReglasCupon = { desde: f(r?.desde), hasta: f(r?.hasta), horaDesde: h(r?.horaDesde), horaHasta: h(r?.horaHasta), profesionalIds: ids.length ? ids : undefined };
+  const pagos = limpiarPagos(r?.pagos);
+  const out: ReglasCupon = { desde: f(r?.desde), hasta: f(r?.hasta), horaDesde: h(r?.horaDesde), horaHasta: h(r?.horaHasta), profesionalIds: ids.length ? ids : undefined, pagos: pagos.length ? pagos : undefined };
   return Object.values(out).some(Boolean) ? JSON.parse(JSON.stringify(out)) : null;
 }
 
