@@ -15,6 +15,7 @@ import { responderDisponibilidad, ahoraChile, sumar, textoDeFecha, type Dependen
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
 import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
 import { respuestaDeAtraso } from "./atraso";
+import { esPedidoGeneral, preguntaPreferencia, consultaDePreferencia } from "./pedir-hora";
 import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
 import { fetchAllRows } from "../accounting";
 import { esSiDeConfirmacion } from "./respuesta-cliente";
@@ -360,6 +361,12 @@ export function crearManejadoresWebhook(config: {
                     // Pide el teléfono y el negocio no tiene uno público: se atiende por este mismo WhatsApp.
                     if (respuestaFaq === null && tipo === "desconocido" && entradaTexto && !esBoton && datosNegocio && !datosNegocio.negocio.telefono && /\b(telefono|llamarlos|llamarte|numero de contacto|numero de telefono)\b/.test(normalizar(text))) {
                       respuestaFaq = "Puedes escribirnos por aquí mismo, en este WhatsApp: te atendemos y te respondemos por este chat."; await contar("respuestas_automaticas");
+                    }
+                    // Pide hora sin decir más: se le pregunta con quién (o el primero disponible) y se sigue por el chat.
+                    if (respuestaFaq === null && tipo === "desconocido" && entradaTexto && !esBoton && chat && deps.horasLibres) {
+                      const pregunta = esPedidoGeneral(consulta) ? preguntaPreferencia(datosNegocio) : null;
+                      if (pregunta) { respuestaFaq = pregunta; await contar("respuestas_automaticas"); }
+                      else consulta = consultaDePreferencia(consulta,datosNegocio) ?? consulta;
                     }
                     // 1b) Quién hace qué servicio, con los datos reales de la agenda de cada profesional.
                     if (respuestaFaq === null && tipo === "desconocido" && deps.serviciosPorProfesional && entradaTexto && !esBoton && datosNegocio) {
