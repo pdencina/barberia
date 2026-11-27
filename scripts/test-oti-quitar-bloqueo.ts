@@ -1,0 +1,17 @@
+import { entenderQuitarBloqueo as e, resumenHorario } from "../src/lib/oti/quitar-bloqueo";
+import { entenderBloqueo } from "../src/lib/oti/bloqueo";
+let f = 0;
+const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
+const equipo = [{ id: "n", name: "Nicolás Levels" }, { id: "n2", name: "Nicolas" }, { id: "j", name: "Javier García" }];
+const de = (t: string, yo = "n") => { const r = e(t, equipo, yo); return r === null ? null : r.ok ? r.profesional.id : r.falta; };
+ok(de("elimíname todos los bloqueos de nicolas levels") === "n", "nombre completo");
+ok(de("borra mis bloqueos") === "n" && de("quita todos los bloqueos", "j") === "j", "quien escribe");
+ok(de("elimina los bloqueos de javier") === "j", "primer nombre");
+ok(de("desbloquea mi agenda") === "n", "desbloquear");
+ok(de("quita los bloqueos de pedro") === "profesional", "no adivina a un desconocido");
+ok(de("cierra mañana mi agenda") === null && de("bloquea el viernes a javier") === null && de("como elimino un bloqueo") === null && de("me bloquearon, no puedo entrar") === null, "no confunde");
+ok(entenderBloqueo("bloquea mañana mi agenda", "2026-11-27", equipo, "n") !== null, "cerrar sigue igual");
+const h = resumenHorario([0, 1, 2, 3, 4, 5, 6].map((d) => ({ day_of_week: d, is_working: d !== 0, start_time: "06:00:00", end_time: d === 6 ? "09:00:00" : "10:00:00" })));
+ok(h.join("|") === "lunes a viernes 06:00–10:00|sábado 06:00–09:00|domingo libre", "horario: " + h.join("|"));
+console.log(f ? `${f} FALLAS` : "OK quitar bloqueos");
+process.exit(f ? 1 : 0);

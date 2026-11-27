@@ -634,6 +634,13 @@ export default function CalendarioPage() {
     }
   };
 
+  // Si Oti quita o devuelve bloqueos mientras se mira el calendario, se vuelven a leer.
+  useEffect(() => {
+    const f = () => setBlocksRefresh((n) => n + 1);
+    window.addEventListener("bloqueos-changed", f);
+    return () => window.removeEventListener("bloqueos-changed", f);
+  }, []);
+
   // Fetch blocks whenever the barber list, date, or refresh trigger changes.
   // Load blocks for the SAME set of barbers the grid renders (displayBarbers), not just
   // the raw `barbers` list. If that list came back empty (e.g. the barbers fetch failed
