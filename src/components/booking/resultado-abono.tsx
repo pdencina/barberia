@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { DesgloseAbono } from "@/components/booking/desglose-abono";
 import { enlaceDeVuelta } from "@/lib/volver-reserva";
 import { enlaceWhatsappNegocio } from "@/components/booking/ayuda-whatsapp";
 
@@ -96,6 +97,7 @@ export function ResultadoAbono({ modo }: { modo: "success" | "pending" }) {
         </div>
         <h1 className="text-2xl font-bold text-brand-dark mb-2">{titulo}</h1>
         <p className="text-brand-gray text-sm mb-4">{texto}</p>
+        {ok && (est as any).resumen && <div className="mb-4 rounded-xl border border-brand-blue/20 bg-brand-blue/5 p-4 text-brand-dark"><DesgloseAbono r={(est as any).resumen} codigo={(est as any).resumen.codigo} pagado /></div>}
         {ok && <p className="text-xs text-brand-gray mb-6">Recibirás un correo con los detalles de tu cita.</p>}
         {!espera && (
           <Link href={volver.href} className="inline-block px-6 py-3 bg-brand-blue text-white rounded-xl font-medium hover:bg-brand-blue/90 transition-colors">

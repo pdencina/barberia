@@ -9,6 +9,7 @@ import { SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPr
 import { PromoCondicionesForm } from "./promo-condiciones-form";
 import { PromoImagenCampo } from "./promo-imagen-campo";
 import { VistaCorreo } from "./vista-correo";
+import { reglasDeCampana } from "@/lib/reglas-campana";
 import { ColoresCorreoCampo } from "./colores-correo-campo";
 import { PALETAS, coloresLegibles } from "@/lib/correo-colores";
 import { useFondoLogo } from "@/lib/use-fondo-logo";
@@ -157,6 +158,18 @@ export default function RetencionPage() {
     showToast(res.ok ? `Reglas guardadas en ${selectedCoupon}` : d.error || "No se pudieron guardar", res.ok ? "success" : "error");
   };
 
+  // Antes de enviar: imagen, título y condiciones de la campaña pasan al código. Solo se escribe lo que está puesto; no se borra nada.
+  const sincronizarCodigo = async (): Promise<boolean> => {
+    const cupon: any = coupons.find((c: any) => c.code === selectedCoupon);
+    if (!cupon?.id) return true;
+    const conditionsNuevas = reglasDeCampana(cupon.conditions, condiciones, imageUrl, title);
+    if (!conditionsNuevas) return true;
+    const res = await fetch(`/api/cupones/${cupon.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conditions: conditionsNuevas }) });
+    if (!res.ok) { showToast((await res.json().catch(() => ({}))).error || "No se pudieron guardar las condiciones del código; no se envió nada.", "error"); return false; }
+    setCoupons((l: any) => l.map((c: any) => (c.id === cupon.id ? { ...c, conditions: conditionsNuevas } : c)));
+    return true;
+  };
+
   const sendBulkEmail = async () => {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
     setBulkSending(true);
@@ -185,6 +198,7 @@ export default function RetencionPage() {
       const pendientes = shown.filter((r: any) => !fuera.has(r.id) && !(selectedCoupon && r.last && r.last.coupon === selectedCoupon && new Date(r.last.at).toDateString() === hoy)).map((r) => r.id);
       const yaEnviados = shown.filter((r) => !fuera.has(r.id)).length - pendientes.length;
       if (!pendientes.length) { showToast("Todos los marcados ya recibieron este cupón hoy", "info"); return; }
+      if (!(await sincronizarCodigo())) return;
       await continuarEnvio({
         cuerpo: bulkBody("email", choice.ids, choice.name), pendientes, enviados: 0, total: pendientes.length, campaignId: null, creado: new Date().toISOString(),
       }, yaEnviados);
@@ -322,6 +336,7 @@ export default function RetencionPage() {
   const notifyClient = async (clientId: string, type: "email" | "whatsapp") => {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
     setSendingId(`${clientId}-${type}`);
+    if (!(await sincronizarCodigo())) { setSendingId(null); return; }
     const res = await fetch("/api/retention/notify", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -537,7 +552,7 @@ export default function RetencionPage() {
               <div className="rounded-xl bg-brand-blue/5 px-3 py-2.5">
                 {tenant?.slug && <a href={`/${tenant.slug}/promocion?cupon=${encodeURIComponent(selectedCoupon)}`} target="_blank" rel="noopener noreferrer" className="mb-2 block text-xs font-semibold text-brand-blue underline">Ver la página de la promoción</a>}
                 <button type="button" onClick={guardarReglas} className="rounded-full bg-brand-blue px-3.5 py-1.5 text-xs font-semibold text-white">Exigir estas reglas en el código {selectedCoupon}</button>
-                <p className="mt-1 text-[11px] text-brand-gray">Al reservar y al cobrar, el código solo se aceptará en las fechas, horario, profesionales y medios de pago marcados arriba. Sin nada marcado, vale siempre.</p>
+                <p className="mt-1 text-[11px] text-brand-gray">Se guardan solas al enviar el correo. Al reservar y al cobrar, el código solo se aceptará en las fechas, horario, profesionales y medios de pago marcados arriba. Sin nada marcado, vale siempre.</p>
               </div>
             )}
             <div className="space-y-3">

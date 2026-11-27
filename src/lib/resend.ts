@@ -289,7 +289,14 @@ async function filasPrecio(appointmentId: string | null | undefined, price: numb
     try {
       const { createAdminSupabase } = await import("@/lib/supabase/server");
       const { cuponDeCita } = await import("@/lib/cupon-cita");
-      const c = await cuponDeCita(createAdminSupabase(), appointmentId, price, { paraAviso: true });
+      const sb = createAdminSupabase();
+      const c = await cuponDeCita(sb, appointmentId, price, { paraAviso: true });
+      const { data: cita } = await sb.from("appointments").select("deposit_amount, deposit_status").eq("id", appointmentId).maybeSingle();
+      const abono = (cita as any)?.deposit_status === "paid" ? Math.max(0, Math.round(Number((cita as any).deposit_amount) || 0)) : 0;
+      if (abono > 0) {
+        const d = c?.discount || 0;
+        return fila("Valor del servicio", pesos(price)) + (d > 0 ? fila(`Cupón ${c!.code}`, `-${pesos(d)}`) : "") + fila("Abono pagado", `-${pesos(abono)}`) + fila("Pagas en el local", pesos(Math.max(0, price - d - abono)), true);
+      }
       if (c && c.discount > 0) {
         return fila("Precio normal", `<s style="color:#9CA3AF;">${pesos(price)}</s>`) + fila(`Cupón ${c.code}${c.dosPersonas ? " (si vienen las 2 personas)" : ""}`, `-${pesos(c.discount)}`) + fila("Pagas en el local", pesos(price - c.discount), true);
       }

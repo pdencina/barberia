@@ -4,6 +4,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Check, ChevronLeft } from "lucide-react";
 import { horasDePromo } from "@/lib/promo-link";
+import { resumenAbono } from "@/lib/resumen-abono";
+import { DesgloseAbono } from "@/components/booking/desglose-abono";
+import { calcularAbono } from "@/lib/deposit-calc";
+import { textoPoliticaAbono } from "@/lib/deposit-policy";
 import { useFondoLogo } from "@/lib/use-fondo-logo";
 import { PromoCabecera } from "@/components/promo/promo-cabecera";
 
@@ -48,6 +52,8 @@ export default function PromocionPage() {
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState<Array<{ total: number; descuento: number }> | null>(null);
   const [recarga, setRecarga] = useState(0);
+  const [abono, setAbono] = useState<any>(null); // el negocio cobra abono para reservar
+  const [revisandoAbono, setRevisandoAbono] = useState(true);
 
   const normal = `/${encodeURIComponent(slug)}?normal=1`;
 
@@ -60,8 +66,8 @@ export default function PromocionPage() {
         setDatos(d);
         if (d.promo) {
           setDia(d.promo.dias[0]);
-          // Si el negocio pide abono para reservar, se usa la reserva normal (que cobra el abono).
-          fetch(`/api/settings/deposit?tenantId=${d.negocio.id}`).then((r) => r.json()).then((a) => { if (a?.deposit_enabled && a?.deposit_ready !== false) window.location.replace(`/${slug}?normal=1&cupon=${encodeURIComponent(d.promo.codigo)}`); }).catch(() => {});
+          // Si el negocio pide abono, se cobra desde esta misma página.
+          fetch(`/api/settings/deposit?tenantId=${d.negocio.id}`).then((r) => r.json()).then((a) => { if (a?.deposit_enabled && a?.deposit_ready !== false) setAbono(a); }).catch(() => {}).finally(() => setRevisandoAbono(false));
           for (const p of d.promo.profesionales as Pro[]) {
             fetch(`/api/public/barber-services?barberId=${p.id}`).then((r) => r.json()).then((s) => { if (Array.isArray(s)) setServicios((x) => ({ ...x, [p.id]: s })); }).catch(() => {});
           }
@@ -115,11 +121,24 @@ export default function PromocionPage() {
   const correoValido = (c: string) => /^\S+@\S+\.\S+$/.test(c.trim());
   const completo = turnosListos && grupo.every((g, i) => g.nombre.trim() && g.celular.replace(/\D/g, "").length >= 8 && (i === 0 ? correoValido(g.correo) : !g.correo.trim() || correoValido(g.correo)));
 
+  const precioTurno = precioDe(grupo[0]);
+  const cuenta = resumenAbono(precioTurno, precioTurno - conDescuento(precioTurno), abono ? calcularAbono(precioTurno, { mode: abono.deposit_mode, percent: abono.deposit_percentage, fixed: abono.deposit_fixed_amount, minAmount: abono.deposit_min_amount }) : 0);
+  const montoAbono = cuenta.abono;
+  const abonoSinOnline = !!abono && cuantos === 2; // dos abonos a la vez no se pueden cobrar en línea
+
   const reservar = async () => {
+    if (revisandoAbono || abonoSinOnline) return;
     if (!promo || !completo || (promo.politicas && !conforme)) return;
     setEnviando(true); setError("");
     try {
       const datosDe = (g: Persona) => ({ serviceIds: g.elegidos, barberId: g.turno!.pro.id, startTime: g.turno!.slot, clientName: g.nombre.trim(), clientEmail: g.correo.trim(), clientPhone: g.celular.trim() });
+      if (abono) {
+        const r = await fetch("/api/booking/create-deposit", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...datosDe(grupo[0]), date: dia, marketingConsent: acepta, couponCode: promo.codigo }) });
+        const x = await r.json().catch(() => ({}));
+        if (x.checkoutUrl) { window.location.href = x.checkoutUrl; return; } // al volver, Mercado Pago confirma la reserva
+        setError(x.error || "No pudimos preparar el pago. Intenta de nuevo."); if (r.status === 409) setRecarga((k) => k + 1);
+        return;
+      }
       const res = await fetch(cuantos === 2 ? "/api/public/promo/reservar" : "/api/public/book", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify(cuantos === 2
@@ -177,7 +196,7 @@ export default function PromocionPage() {
 
         {promo && !listo && (
           <div className="space-y-7">
-            <PromoCabecera imagen={promo.imagen} titulo={promo.titulo || (promo.tipo === "percentage" && promo.valor ? `${promo.valor}% de descuento` : "Promoción")} descripcion={promo.descripcion} detalles={promo.detalles} codigo={promo.codigo} />
+            <PromoCabecera imagen={promo.imagen} titulo={promo.titulo || (promo.valor ? (promo.tipo === "percentage" ? `${promo.valor}% de descuento` : `${pesos(promo.valor)} de descuento`) : "Promoción")} descripcion={promo.descripcion} detalles={promo.detalles} codigo={promo.codigo} />
 
             {cuantos === 2 && (
               <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Persona">
@@ -260,8 +279,17 @@ export default function PromocionPage() {
                     <label className="mt-3 flex items-start gap-2 text-sm font-bold"><input type="checkbox" className="mt-1 h-4 w-4" checked={conforme} onChange={(e) => setConforme(e.target.checked)} /> Leí y acepto estas condiciones.</label>
                   </div>
                 )}
+                {abono && !abonoSinOnline && (
+                  <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
+                    <p className="mb-2 text-sm font-extrabold uppercase">Abono para confirmar</p>
+                    <DesgloseAbono r={cuenta} codigo={promo.codigo} />
+                    <p className="mt-3 text-sm font-light text-white/80">Tienes 5 minutos para pagar el abono con Mercado Pago.</p>
+                    {textoPoliticaAbono(abono.deposit_refund_policy, abono.deposit_refund_hours) && <p className="mt-1 text-xs font-light text-white/60">{textoPoliticaAbono(abono.deposit_refund_policy, abono.deposit_refund_hours)}</p>}
+                  </div>
+                )}
+                {abonoSinOnline && <p className="rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm">Esta promoción se reserva directamente con el local. Escríbenos para tomar tu hora.</p>}
                 {error && <p role="alert" className="rounded-xl bg-red-500/15 px-4 py-3 text-sm text-red-200">{error}</p>}
-                <button type="button" onClick={reservar} disabled={!completo || enviando || (!!promo.politicas && !conforme)} className="w-full rounded-full bg-white py-4 text-base font-extrabold uppercase italic text-black disabled:opacity-40">{enviando ? "Confirmando…" : cuantos === 2 ? "Confirmar las 2 reservas" : "Confirmar reserva"}</button>
+                <button type="button" onClick={reservar} disabled={!completo || enviando || revisandoAbono || abonoSinOnline || (!!promo.politicas && !conforme)} className="w-full rounded-full bg-white py-4 text-base font-extrabold uppercase italic text-black disabled:opacity-40">{enviando ? (abono ? "Abriendo el pago…" : "Confirmando…") : abono ? `Pagar abono ${pesos(montoAbono)}` : cuantos === 2 ? "Confirmar las 2 reservas" : "Confirmar reserva"}</button>
               </section>
             )}
 

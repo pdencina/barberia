@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { cargarCredencialAbono } from "@/lib/deposit";
 import { HOLD_SEGUNDOS } from "@/lib/deposit-hold";
+import { resumenAbono } from "@/lib/resumen-abono";
 import { decidirEstadoAbono } from "@/lib/verificar-abono";
 
 export const dynamic = "force-dynamic";
@@ -37,5 +38,8 @@ export async function GET(req: NextRequest) {
   }
 
   const estado = decidirEstadoAbono({ intent: intent ? { data: (intent as any).data, created_at: (intent as any).created_at } : null, deposito, pagoMp, ref, ahora: Date.now(), segundosDeCobro: HOLD_SEGUNDOS });
-  return NextResponse.json(estado, { headers: { "Cache-Control": "no-store" } });
+  // Con el pago confirmado se muestra la cuenta (solo montos, ningún dato personal).
+  const d: any = (intent as any)?.data;
+  const resumen = estado.estado === "pagado" && d?.totalPrice ? { ...resumenAbono(d.totalPrice, d.descuento || 0, d.depositAmount), codigo: d.cupon || null } : null;
+  return NextResponse.json(resumen ? { ...estado, resumen } : estado, { headers: { "Cache-Control": "no-store" } });
 }

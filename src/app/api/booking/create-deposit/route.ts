@@ -7,6 +7,10 @@ import { horarioDisponible, limpiarHoldsVencidos, crearHold, liberarHold, HOLD_S
 import { parseWallClock } from "@/lib/wallclock";
 import { fechaCoincideConHora } from "@/lib/capacity";
 import { guardarIntento } from "@/lib/booking-intent";
+import { computeCouponDiscount } from "@/lib/coupon";
+import { baseConDescuento, horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
+import { resumenAbono } from "@/lib/resumen-abono";
+import { MENSAJE_DOS_PERSONAS } from "@/lib/promo-grupo";
 
 /**
  * Creates a MercadoPago Checkout Pro preference for a booking deposit.
@@ -75,11 +79,26 @@ export async function POST(req: NextRequest) {
   await limpiarHoldsVencidos(supabase, { barberId, date });
   const libre = await horarioDisponible(supabase, { barberId, tenantId: barber.tenant_id, date, start, end });
   if (!libre.ok) return NextResponse.json({ error: libre.error, code: "slot_taken" }, { status: 409 });
+  // Código promocional: mismas reglas que al reservar sin abono. Queda guardado para anotarlo en la cita cuando se pague.
+  let cuponId: string | null = null;
+  let descuento = 0;
+  const codigoPromo = String(body.couponCode || "").trim().toUpperCase().slice(0, 40);
+  if (codigoPromo) {
+    const { data: c } = await supabase.from("coupons").select("*").eq("code", codigoPromo).eq("tenant_id", barber.tenant_id).maybeSingle();
+    const motivo = c ? motivoCuponNoValido(c as any, { barberId, fecha: date, hora: horaDeCita(start.toISOString()), serviceIds: svcRows.map((x: any) => x.id) }) : "Código no encontrado.";
+    if (motivo) return NextResponse.json({ error: `${motivo} Quítalo o cámbialo para continuar.`, code: "coupon" }, { status: 400 });
+    if (Number((c as any).conditions?.personas) === 2) return NextResponse.json({ error: MENSAJE_DOS_PERSONAS, code: "coupon" }, { status: 400 });
+    cuponId = (c as any).id;
+    const base = baseConDescuento((c as any).conditions, svcRows, totalPrice);
+    descuento = Math.max(0, Math.min(base, computeCouponDiscount(c as any, base)));
+  }
+
   const depositPercentage = Number(settings.deposit_percentage) || 30;
-  const depositAmount = calcularAbono(totalPrice, {
+  const abonoNormal = calcularAbono(totalPrice, {
     mode: settings.deposit_mode === "fixed" ? "fixed" : "percent", percent: depositPercentage,
     fixed: settings.deposit_fixed_amount ?? null, minAmount: settings.deposit_min_amount ?? null,
   });
+  const depositAmount = resumenAbono(totalPrice, descuento, abonoNormal).abono; // se abona lo de siempre
   if (depositAmount < 1) return NextResponse.json({ error: "No se pudo calcular el abono de esta reserva" }, { status: 400 });
 
   // Get tenant name for display
@@ -102,6 +121,7 @@ export async function POST(req: NextRequest) {
   try {
     referenciaPago = await guardarIntento(supabase, barber.tenant_id, {
       barberId, clientName, clientEmail, clientPhone, serviceIds, date, startTime, notes, totalPrice, depositAmount, tenantId: barber.tenant_id, holdRef,
+      ...(cuponId ? { cuponId, cupon: codigoPromo, descuento } : {}), ...(body.marketingConsent === true ? { marketingConsent: true } : {}),
     });
   } catch (e: any) {
     await liberarHold(supabase, holdRef);
@@ -115,6 +135,7 @@ export async function POST(req: NextRequest) {
   if (tenant?.slug) volverParams.set("n", tenant.slug);
   if ((barber as any).booking_slug) volverParams.set("p", (barber as any).booking_slug);
   if (/^[0-9a-f-]{36}$/i.test(referenciaPago)) volverParams.set("r", referenciaPago);
+  if (cuponId && /^[A-Z0-9_-]{3,40}$/.test(codigoPromo)) volverParams.set("c", codigoPromo); // si no paga, vuelve al link de la promoción
   const volver = volverParams.toString();
 
   // Create MP Checkout Pro preference
