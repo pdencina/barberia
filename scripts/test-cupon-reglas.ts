@@ -16,5 +16,6 @@ const fecha = "2026-11-30T00:00:00+00:00"; // «válido hasta 30/11»
 ok(!cuponVencido(fecha, new Date("2026-11-30T23:30:00-03:00")), "vale todo el día 30 en Chile");
 ok(cuponVencido(fecha, new Date("2026-12-01T00:30:00-03:00")), "vencido el 1");
 ok(cuponVencido("2026-12-01T02:59:59Z", new Date("2026-12-01T03:00:30Z")), "con hora, al instante");
+ok(limpiarReglas({ politicas: "  Llega a tu hora  " })?.politicas === "Llega a tu hora", "políticas");
 ok(limpiarReglas({ desde: "x", profesionalIds: ["a'; drop"] }) === null, "limpia basura");
 console.log(f ? "HAY FALLAS" : "OK reglas cupón"); process.exit(f ? 1 : 0);
