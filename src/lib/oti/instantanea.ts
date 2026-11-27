@@ -1,5 +1,6 @@
 // Carga una «instantanea» del negocio (solo lectura) con lo necesario para el diagnostico de reservas y para el checklist de configuracion inicial.
 import { cargarCredencialAbono } from "@/lib/deposit";
+import { atiende } from "@/lib/profesional-unico";
 import { todayInChile } from "@/lib/utils";
 import type { InstantaneaNegocio } from "@/lib/oti/diagnostico";
 
@@ -33,7 +34,7 @@ export async function cargarInstantanea(sb: any, tenantId: string): Promise<Inst
     horarios: horasPro.map((h) => ({ barber_id: h.barber_id, day_of_week: h.day_of_week, is_working: h.is_working })),
     horarioNegocio: horasNegocio.map((h) => ({ day_of_week: h.day_of_week, is_closed: h.is_closed })),
     servicios: (sv.data as any[]) || [],
-    asignaciones: (as.data as any[]) || [],
+    asignaciones: ((pr.data as any[]) || []).filter(atiende).length === 1 ? [] : (as.data as any[]) || [],
     vacaciones: (va.data as any[]) || [],
     datos: { name: tt.name ?? "", logo_url: tt.logo_url ?? null, phone: tt.phone ?? null, address: tt.address ?? null },
     horasPro, horasNegocio,

@@ -1,3 +1,4 @@
+import { atiende } from "@/lib/profesional-unico";
 import { fetchAllRows } from "../accounting";
 import { tenantBookingUrl } from "../retention";
 import type { DatosFaq } from "./faq-fija";
@@ -113,7 +114,7 @@ export function crearRepositorioDatosNegocio(db:any,dependencias:{enlace?:typeof
        // Servicios que hace cada profesional (sin ninguno marcado = hace todos). Si la tabla falta, se asume que todos hacen todo.
        try{
         const as=await db.from("barber_service_assignments").select("barber_id,service_id").in("barber_id",lista.map(x=>x.id));
-        if(!as.error&&Array.isArray(as.data)){
+        if(!as.error&&Array.isArray(as.data)&&perfiles.filter(atiende).length!==1){ // independiente: hace todo
          const m=new Map<string,string[]>();
          for(const x of as.data as any[])if(x&&typeof x.barber_id==="string"&&typeof x.service_id==="string"){const a=m.get(x.barber_id)??[];a.push(x.service_id);m.set(x.barber_id,a);}
          for(const x of lista)x.serviciosIds=m.get(x.id)??null;
