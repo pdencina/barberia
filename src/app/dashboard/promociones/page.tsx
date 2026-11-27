@@ -12,6 +12,8 @@ import { PromoCabecera } from "@/components/promo/promo-cabecera";
 import { PromoCondicionesForm } from "../retencion/promo-condiciones-form";
 import { PromoImagenCampo } from "../retencion/promo-imagen-campo";
 import { ServiciosPromo } from "./servicios-promo";
+import { ResultadosPromo } from "./resultados-promo";
+import type { ResultadoPromo } from "@/lib/promo-resultados";
 
 interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; personas: 1 | 2; politicas: string; servicios: string[]; condiciones: CondicionesPromo }
 const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, personas: 1, politicas: "", servicios: [], condiciones: SIN_CONDICIONES };
@@ -26,6 +28,7 @@ export default function PromocionesPage() {
   const { tenant } = useTenant();
   const { showToast } = useToast();
   const [cupones, setCupones] = useState<any[]>([]);
+  const [resultados, setResultados] = useState<Record<string, ResultadoPromo>>({});
   const [pros, setPros] = useState<Array<{ id: string; name: string }>>([]);
   const [editando, setEditando] = useState<string>(""); // id del cupón; "" = promoción nueva
   const [form, setForm] = useState<Form>(VACIA);
@@ -40,9 +43,11 @@ export default function PromocionesPage() {
   const { borrar } = useBorrador<Form>(t && !editando ? `rb_borrador_promocion_${t}` : null, form, (g) => setForm({ ...VACIA, ...(g || {}), condiciones: { ...SIN_CONDICIONES, ...(g?.condiciones || {}) } }));
 
   const cargar = () => fetch(`/api/cupones${t ? `?tenantId=${t}` : ""}`).then((r) => r.json()).then((d) => setCupones(Array.isArray(d) ? d : [])).catch(() => {});
+  const medir = () => { fetch(`/api/cupones/stats?tenantId=${t}`).then((r) => (r.ok ? r.json() : {})).then((d) => setResultados(d || {})).catch(() => {}); };
   useEffect(() => {
     if (!t) return;
     cargar();
+    medir();
     fetch(`/api/barberos?tenantId=${t}`).then((r) => r.json()).then((d) => setPros(Array.isArray(d) ? d.map((p: any) => ({ id: p.id, name: String(p.name || "").trim() })) : [])).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [t]);
@@ -114,9 +119,12 @@ export default function PromocionesPage() {
         {cupones.map((c) => (
           <button key={c.id} type="button" onClick={() => editar(c)} className={`flex-shrink-0 rounded-full border px-4 py-2 text-sm font-semibold ${editando === c.id ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 bg-white text-brand-gray"}`}>
             {c.code}{c.active === false ? " · pausada" : ""}
+            {(resultados[c.id]?.reservas || 0) > 0 && <span className="ml-1.5 rounded-full bg-black/10 px-1.5 text-xs">{resultados[c.id].reservas}</span>}
           </button>
         ))}
       </div>
+
+      {actual && <ResultadosPromo dato={resultados[actual.id]} usos={Number(actual.used_count) || 0} maximo={actual.max_uses || null} onActualizar={() => { medir(); cargar(); }} />}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_420px]">
         <div className="space-y-4 rounded-2xl border border-gray-100 bg-white p-4 shadow-sm">

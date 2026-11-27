@@ -1,19 +1,26 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole, resolveTenantForRequest } from "@/lib/supabase/server";
 import { fetchAllRows } from "@/lib/accounting";
+import { resumirPromos } from "@/lib/promo-resultados";
 
-// Medición por cupón: reservas hechas con el código, atendidas y ventas cobradas con él.
-export async function GET() {
+export const dynamic = "force-dynamic";
+
+// Medición por cupón: reservas hechas con el código, servicios tomados, atendidas y ventas cobradas con él.
+export async function GET(req: NextRequest) {
   const g = await requireRole(["admin", "super_admin"]);
   if (!g.ok) return g.response;
-  const { tenantId } = await resolveTenantForRequest(null);
+  // El negocio pedido solo vale para el super admin; el resto siempre ve el suyo.
+  const { tenantId } = await resolveTenantForRequest(new URL(req.url).searchParams.get("tenantId"));
   if (!tenantId || tenantId === "ALL") return NextResponse.json({});
   const sb = createAdminSupabase();
-  const out: Record<string, { reservas: number; atendidas: number; ventas: number; monto: number }> = {};
-  const de = (id: string) => (out[id] ||= { reservas: 0, atendidas: 0, ventas: 0, monto: 0 });
   const citas = await fetchAllRows<any>(() => sb.from("appointments").select("id, coupon_id, status").eq("tenant_id", tenantId).not("coupon_id", "is", null)).catch(() => [] as any[]);
-  for (const a of citas) { if (a.status === "cancelled") continue; const e = de(a.coupon_id); e.reservas++; if (a.status === "completed") e.atendidas++; }
+  const lineas: any[] = [];
+  for (let i = 0; i < citas.length; i += 150) {
+    const ids = citas.slice(i, i + 150).map((c) => c.id);
+    lineas.push(...(await fetchAllRows<any>(() => sb.from("appointment_services").select("id, appointment_id, service_id, services(name)").in("appointment_id", ids)).catch(() => [] as any[])));
+  }
   const txs = await fetchAllRows<any>(() => sb.from("transactions").select("id, coupon_id, total").eq("tenant_id", tenantId).eq("type", "income").eq("status", "completed").not("coupon_id", "is", null)).catch(() => [] as any[]);
-  for (const t of txs) { const e = de(t.coupon_id); e.ventas++; e.monto += Number(t.total) || 0; }
-  return NextResponse.json(out);
+  const { data: cupones } = await sb.from("coupons").select("*").eq("tenant_id", tenantId);
+  const incluidos = Object.fromEntries(((cupones || []) as any[]).map((c) => [c.id, c.conditions?.servicioIds]));
+  return NextResponse.json(resumirPromos(citas, lineas, txs, incluidos));
 }
