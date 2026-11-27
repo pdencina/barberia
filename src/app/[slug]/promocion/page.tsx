@@ -12,7 +12,7 @@ interface Pro { id: string; nombre: string; foto: string | null }
 interface Servicio { id: string; name: string; price: number; duration: number }
 interface Datos {
   negocio: { id: string; nombre: string; slug: string; logo: string | null };
-  promo: null | { codigo: string; personas: number; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
+  promo: null | { codigo: string; personas: number; politicas: string | null; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
   motivo?: string;
 }
 
@@ -43,6 +43,7 @@ export default function PromocionPage() {
   const [horas, setHoras] = useState<Record<string, string[]>>({});
   const [cargandoHoras, setCargandoHoras] = useState(false);
   const [acepta, setAcepta] = useState(false);
+  const [conforme, setConforme] = useState(false); // aceptó las políticas de la promoción
   const [enviando, setEnviando] = useState(false);
   const [listo, setListo] = useState<Array<{ total: number; descuento: number }> | null>(null);
   const [recarga, setRecarga] = useState(0);
@@ -112,7 +113,7 @@ export default function PromocionPage() {
   const completo = turnosListos && grupo.every((g, i) => g.nombre.trim() && g.celular.replace(/\D/g, "").length >= 8 && (i === 0 ? correoValido(g.correo) : !g.correo.trim() || correoValido(g.correo)));
 
   const reservar = async () => {
-    if (!promo || !completo) return;
+    if (!promo || !completo || (promo.politicas && !conforme)) return;
     setEnviando(true); setError("");
     try {
       const datosDe = (g: Persona) => ({ serviceIds: g.elegidos, barberId: g.turno!.pro.id, startTime: g.turno!.slot, clientName: g.nombre.trim(), clientEmail: g.correo.trim(), clientPhone: g.celular.trim() });
@@ -249,8 +250,15 @@ export default function PromocionPage() {
                 ))}
                 <label className="flex items-start gap-2 text-xs font-light text-white/65"><input type="checkbox" className="mt-0.5" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} /> Quiero recibir promociones y novedades (opcional).</label>
                 <p className="text-xs font-light text-white/45">Usamos tus datos para gestionar tu cita. <a href="/privacidad/clientes" target="_blank" rel="noopener noreferrer" className="underline">Aviso de privacidad</a></p>
+                {promo.politicas && (
+                  <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
+                    <p className="mb-2 text-sm font-extrabold uppercase">Antes de confirmar</p>
+                    <p className="whitespace-pre-line text-sm font-light text-white/85">{promo.politicas}</p>
+                    <label className="mt-3 flex items-start gap-2 text-sm font-bold"><input type="checkbox" className="mt-1 h-4 w-4" checked={conforme} onChange={(e) => setConforme(e.target.checked)} /> Leí y acepto estas condiciones.</label>
+                  </div>
+                )}
                 {error && <p role="alert" className="rounded-xl bg-red-500/15 px-4 py-3 text-sm text-red-200">{error}</p>}
-                <button type="button" onClick={reservar} disabled={!completo || enviando} className="w-full rounded-full bg-white py-4 text-base font-extrabold uppercase italic text-black disabled:opacity-40">{enviando ? "Confirmando…" : cuantos === 2 ? "Confirmar las 2 reservas" : "Confirmar reserva"}</button>
+                <button type="button" onClick={reservar} disabled={!completo || enviando || (!!promo.politicas && !conforme)} className="w-full rounded-full bg-white py-4 text-base font-extrabold uppercase italic text-black disabled:opacity-40">{enviando ? "Confirmando…" : cuantos === 2 ? "Confirmar las 2 reservas" : "Confirmar reserva"}</button>
               </section>
             )}
 

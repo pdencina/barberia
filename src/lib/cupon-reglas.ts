@@ -9,6 +9,7 @@ export interface ReglasCupon {
   imagen?: string;                         // página de la promoción (imagen propia del negocio)
   titulo?: string;                         // página de la promoción
   personas?: number;                       // 2 = solo si reservan 2 personas juntas
+  politicas?: string;                      // se aceptan antes de reservar en el link de la promoción
 }
 
 export interface CuponFila { active?: boolean | null; max_uses?: number | null; used_count?: number | null; valid_until?: string | null; conditions?: ReglasCupon | null }
@@ -20,7 +21,8 @@ export function limpiarReglas(r: any): ReglasCupon | null {
   const ids = Array.isArray(r?.profesionalIds) ? r.profesionalIds.filter((x: unknown) => typeof x === "string" && /^[0-9a-f-]{36}$/i.test(x)).slice(0, 50) : [];
   const pagos = limpiarPagos(r?.pagos);
   const personas = Number(r?.personas) === 2 ? 2 : undefined;
-  const out: ReglasCupon = { personas, desde: f(r?.desde), hasta: f(r?.hasta), horaDesde: h(r?.horaDesde), horaHasta: h(r?.horaHasta), profesionalIds: ids.length ? ids : undefined, pagos: pagos.length ? pagos : undefined,
+  const politicas = typeof r?.politicas === "string" && r.politicas.trim() ? r.politicas.trim().slice(0, 800) : undefined;
+  const out: ReglasCupon = { personas, politicas, desde: f(r?.desde), hasta: f(r?.hasta), horaDesde: h(r?.horaDesde), horaHasta: h(r?.horaHasta), profesionalIds: ids.length ? ids : undefined, pagos: pagos.length ? pagos : undefined,
     titulo: typeof r?.titulo === "string" && r.titulo.trim() ? r.titulo.trim().slice(0, 80) : undefined,
     imagen: typeof r?.imagen === "string" && /^https:\/\/[^\s"'<>]+$/.test(r.imagen) ? r.imagen : undefined };
   return Object.values(out).some(Boolean) ? JSON.parse(JSON.stringify(out)) : null;

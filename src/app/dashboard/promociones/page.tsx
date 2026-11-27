@@ -12,8 +12,10 @@ import { PromoCabecera } from "@/components/promo/promo-cabecera";
 import { PromoCondicionesForm } from "../retencion/promo-condiciones-form";
 import { PromoImagenCampo } from "../retencion/promo-imagen-campo";
 
-interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; personas: 1 | 2; condiciones: CondicionesPromo }
-const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, personas: 1, condiciones: SIN_CONDICIONES };
+interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; personas: 1 | 2; politicas: string; condiciones: CondicionesPromo }
+const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, personas: 1, politicas: "", condiciones: SIN_CONDICIONES };
+// Punto de partida; el negocio lo ajusta a sus reglas.
+const POLITICAS_DOS = "• La promoción es solo para 2 personas que reservan juntas, el mismo día.\n• La primera persona en llegar debe pagar a su hora; si no, se paga el precio normal.\n• Si una de las dos cancela o no llega, se paga el precio normal.";
 const ETIQUETAS: Record<string, string> = { cash: "Efectivo", transfer: "Transferencia", debit_card: "Débito", credit_card: "Crédito" };
 const campo = "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-brand-dark outline-none focus:border-brand-blue";
 const rotulo = "mb-1.5 block text-xs font-semibold text-brand-gray";
@@ -49,7 +51,7 @@ export default function PromocionesPage() {
     setEditando(c.id);
     setForm({
       codigo: c.code, tipo: c.discount_type, valor: String(Number(c.discount_value) || ""), titulo: r.titulo || "", descripcion: c.description || "", imagen: r.imagen || "",
-      maxUsos: c.max_uses ? String(c.max_uses) : "", activa: c.active !== false, personas: r.personas === 2 ? 2 : 1,
+      maxUsos: c.max_uses ? String(c.max_uses) : "", activa: c.active !== false, personas: r.personas === 2 ? 2 : 1, politicas: r.politicas || "",
       condiciones: {
         ...SIN_CONDICIONES, desde: r.desde || "", hasta: r.hasta || "", horaDesde: r.horaDesde || "", horaHasta: r.horaHasta || "",
         pagos: (r.pagos || []).map((p: string) => ETIQUETAS[p]).filter(Boolean),
@@ -62,7 +64,7 @@ export default function PromocionesPage() {
 
   const reglas = () => {
     const c = form.condiciones;
-    return { desde: c.desde, hasta: c.hasta, horaDesde: c.horaDesde, horaHasta: c.horaHasta, profesionalIds: c.profesionalIds || [], pagos: c.todosLosPagos ? [] : codigosDePago(c.pagos), imagen: form.imagen, titulo: form.titulo, personas: form.personas };
+    return { desde: c.desde, hasta: c.hasta, horaDesde: c.horaDesde, horaHasta: c.horaHasta, profesionalIds: c.profesionalIds || [], pagos: c.todosLosPagos ? [] : codigosDePago(c.pagos), imagen: form.imagen, titulo: form.titulo, personas: form.personas, politicas: form.politicas };
   };
 
   const guardar = async () => {
@@ -139,6 +141,11 @@ export default function PromocionesPage() {
             {form.personas === 2 && <p className="mt-1.5 text-[11px] text-brand-gray">El link pide los datos y la hora de las 2 personas (mismo día, con profesionales de la promoción). Si una cancela, la otra paga el precio normal.</p>}
           </div>
           <PromoCondicionesForm value={form.condiciones} onChange={(condiciones) => set({ condiciones })} tenantId={t} hayCupon inputClass={campo} />
+          <div>
+            <label className="block"><span className={rotulo}>Políticas (el cliente debe aceptarlas antes de reservar)</span>
+              <textarea rows={5} maxLength={800} value={form.politicas} onChange={(e) => set({ politicas: e.target.value })} placeholder="Ej: Llega a tu hora. Si no puedes venir, cancela con anticipación." className={campo} /></label>
+            {form.personas === 2 && !form.politicas.trim() && <button type="button" onClick={() => set({ politicas: POLITICAS_DOS })} className="mt-1.5 text-xs font-semibold text-brand-blue hover:underline">Usar un texto sugerido para 2 personas</button>}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <label><span className={rotulo}>Máximo de usos (vacío = sin límite)</span><input type="number" min="1" value={form.maxUsos} onChange={(e) => set({ maxUsos: e.target.value })} className={campo} /></label>
             {editando && <label className="flex items-end gap-2 pb-2.5 text-sm text-brand-dark"><input type="checkbox" checked={form.activa} onChange={(e) => set({ activa: e.target.checked })} /> Promoción activa</label>}
@@ -164,6 +171,7 @@ export default function PromocionesPage() {
               {logo && <img src={logo} alt="" className="mx-auto mb-4 h-12 w-auto max-w-[200px] object-contain" />}
               <PromoCabecera imagen={form.imagen || null} titulo={titulo} descripcion={form.descripcion || null} detalles={detalles} codigo={form.codigo} />
               <p className="mt-6 text-center text-[11px] font-light italic uppercase tracking-[0.32em] text-white/50">Abajo: servicio, día y hora</p>
+              {form.politicas.trim() && <div className="mt-4 rounded-2xl border border-white/20 bg-white/5 p-3 text-xs"><p className="mb-1 font-bold uppercase">Antes de confirmar</p><p className="whitespace-pre-line font-light text-white/75">{form.politicas}</p><p className="mt-2 font-bold">☐ Acepto estas condiciones</p></div>}
             </div>
           </div>
         </div>
