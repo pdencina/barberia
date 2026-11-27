@@ -12,7 +12,7 @@ const ETIQUETAS: { clave: Etiqueta; titulo: string; corto: string; color: string
   { clave: "consulta", titulo: "Dudas y consultas hoy", corto: "Consulta", color: "bg-sky-100 text-sky-800" },
   { clave: "confirmacion", titulo: "De confirmación hoy", corto: "Confirmación", color: "bg-emerald-100 text-emerald-700" },
 ];
-interface Conv { etiquetas?: Etiqueta[]; contacto: string; telefono: string | null; cliente: string | null; total: number; entrantes: number; ultimo: { texto: string; direccion: "entrante" | "saliente"; created_at: string } }
+interface Conv { porConfirmar?: string | null; etiquetas?: Etiqueta[]; contacto: string; telefono: string | null; cliente: string | null; total: number; entrantes: number; ultimo: { texto: string; direccion: "entrante" | "saliente"; created_at: string } }
 interface Msg { id: string; direccion: "entrante" | "saliente"; tipo: string; texto: string; created_at: string }
 
 const telefonoBonito = (t: string | null) => { if (!t) return "Sin número"; const d = t.replace(/\D/g, ""); return d.startsWith("56") && d.length === 11 ? `+56 ${d[2]} ${d.slice(3, 7)} ${d.slice(7)}` : `+${d}`; };
@@ -52,6 +52,15 @@ export default function WhatsappChatsPage() {
   useEffect(() => { const el = hilo.current; if (el) el.scrollTop = el.scrollHeight; }, [mensajes]);
 
   useEffect(() => { setRevision(null); setAviso(""); setNuevo(""); }, [elegida?.contacto]);
+  const [accion, setAccion] = useState<string | null>(null);
+  const [resultado, setResultado] = useState<{ contacto: string; texto: string; ok: boolean } | null>(null);
+  async function ejecutar(c: Conv, tipo: "cerrar" | "redisparar") {
+    setAccion(c.contacto); setResultado(null);
+    const r = await fetch(`/api/agente/chats/${tipo}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(tipo === "cerrar" ? { contacto: c.contacto } : { cita: c.porConfirmar }) });
+    const j = await r.json().catch(() => ({})); setAccion(null);
+    setResultado({ contacto: c.contacto, ok: r.ok, texto: r.ok ? (tipo === "cerrar" ? "Caso cerrado" : "Confirmación reenviada") : (j.error ?? "No se pudo") });
+    if (r.ok) { await cargar(); if (elegida?.contacto === c.contacto) cargarHilo(c); }
+  }
   async function enviar() {
     if (!elegida || !nuevo.trim()) return;
     setEnviando(true); setAviso("");
@@ -123,12 +132,21 @@ export default function WhatsappChatsPage() {
             <div className="-mx-2 max-h-[60vh] space-y-1 overflow-y-auto px-2">
               {filtro && convs && !convs.some((c) => c.etiquetas?.includes(filtro)) && <p className="py-6 text-center text-sm text-brand-gray">No hay ninguna.</p>}
               {(convs ?? []).filter((c) => !filtro || c.etiquetas?.includes(filtro)).map((c) => (
-                <button key={c.contacto} onClick={() => setElegida(c)} className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${elegida?.contacto === c.contacto ? "border-brand-blue bg-brand-blue/5" : "border-gray-100 hover:border-brand-blue/40 dark:border-white/10"}`}>
+                <div key={c.contacto}>
+                <button onClick={() => setElegida(c)} className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${elegida?.contacto === c.contacto ? "border-brand-blue bg-brand-blue/5" : "border-gray-100 hover:border-brand-blue/40 dark:border-white/10"}`}>
                   <div className="flex items-baseline justify-between gap-2"><span className="truncate text-sm font-semibold text-brand-dark">{c.cliente ?? telefonoBonito(c.telefono)}</span><span className="flex-shrink-0 text-[11px] text-brand-gray">{hace(c.ultimo.created_at)}</span></div>
                   {c.cliente && <p className="text-[11px] text-brand-gray">{telefonoBonito(c.telefono)}</p>}
                   <p className="mt-0.5 truncate text-xs text-brand-gray">{c.ultimo.direccion === "saliente" ? "🤖 " : ""}{c.ultimo.texto}</p>
                   {c.etiquetas && c.etiquetas.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{ETIQUETAS.filter((e) => c.etiquetas?.includes(e.clave)).map((e) => <span key={e.clave} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${e.color}`}>{e.corto}</span>)}</div>}
                 </button>
+                {(c.porConfirmar || c.etiquetas?.includes("persona")) && (
+                  <div className="flex flex-wrap justify-end gap-2 px-1 pt-1">
+                    {c.porConfirmar && <button disabled={accion === c.contacto} onClick={() => ejecutar(c, "redisparar")} className="rounded-lg border border-brand-blue/40 px-3 py-1 text-xs font-semibold text-brand-blue hover:bg-brand-blue/5 disabled:opacity-50">Re-disparar</button>}
+                    {c.etiquetas?.includes("persona") && <button disabled={accion === c.contacto} onClick={() => ejecutar(c, "cerrar")} className="rounded-lg border border-gray-200 px-3 py-1 text-xs font-semibold text-brand-dark hover:border-brand-blue/50 disabled:opacity-50">Cerrar caso</button>}
+                  </div>
+                )}
+                {resultado?.contacto === c.contacto && <p role="status" className={`px-2 pt-1 text-right text-xs ${resultado.ok ? "text-emerald-700" : "text-red-600"}`}>{resultado.texto}</p>}
+                </div>
               ))}
             </div>
           </Panel>
@@ -153,6 +171,7 @@ export default function WhatsappChatsPage() {
                     const agente = m.direccion === "saliente";
                     const manual = agente && m.texto.startsWith("[manual] ");
                     const texto = manual ? m.texto.slice(9) : m.texto;
+                    if (m.texto === "[cerrado]") return <p key={m.id} className="text-center text-[11px] text-brand-gray">Caso cerrado · {hora(m.created_at)}</p>;
                     return (
                       <div key={m.id} className={`flex ${agente ? "justify-end" : "justify-start"}`}>
                         <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm shadow-sm ${agente ? "bg-brand-blue text-white" : "bg-white text-brand-dark dark:bg-brand-white"}`}>
