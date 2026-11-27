@@ -12,7 +12,7 @@ interface Pro { id: string; nombre: string; foto: string | null }
 interface Servicio { id: string; name: string; price: number; duration: number }
 interface Datos {
   negocio: { id: string; nombre: string; slug: string; logo: string | null };
-  promo: null | { codigo: string; personas: number; politicas: string | null; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
+  promo: null | { codigo: string; personas: number; politicas: string | null; servicios: string[] | null; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
   motivo?: string;
 }
 
@@ -74,8 +74,9 @@ export default function PromocionPage() {
   const catalogo = useMemo(() => {
     const m = new Map<string, Servicio>();
     for (const l of Object.values(servicios)) for (const s of l) { const y = m.get(s.id); if (!y || s.price < y.price) m.set(s.id, s); }
-    return Array.from(m.values());
-  }, [servicios]);
+    // Solo los servicios que entran en la promoción.
+    return Array.from(m.values()).filter((s) => !promo?.servicios || promo.servicios.includes(s.id));
+  }, [servicios, promo]);
   const conDescuento = (n: number) => (!promo || promo.valor <= 0 ? n : promo.tipo === "percentage" ? n - Math.round((n * promo.valor) / 100) : Math.max(0, n - promo.valor));
   // Lo que cobra cada profesional por esos servicios (null = no hace alguno).
   const deProfesional = (id: string, lista: string[] = elegidos) => {

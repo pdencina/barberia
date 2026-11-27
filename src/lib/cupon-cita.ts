@@ -2,7 +2,7 @@
 // El vencimiento y los usos se revisaron al reservar; aquí solo se comprueba que la cita siga cumpliendo las reglas
 // (por si la cambiaron de profesional, día u hora) y, en promociones de 2 personas, que siga habiendo acompañante.
 import { computeCouponDiscount } from "@/lib/coupon";
-import { horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
+import { baseConDescuento, horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
 import { pagoNoPermitido } from "@/lib/cupon-pagos";
 import { tieneAcompanante } from "@/lib/promo-grupo";
 
@@ -24,7 +24,14 @@ export async function cuponDeCita(sb: any, appointmentId: string, totalServicios
     const otros = (grupo || []).filter((g: any) => g.coupon_id === a.coupon_id).map((g: any) => ({ ...g, cumple: cumple(g) }));
     if (!tieneAcompanante({ id: appointmentId, date: a.date }, otros)) return null;
   }
-  const discount = Math.max(0, Math.min(Math.round(totalServicios), computeCouponDiscount(c, totalServicios)));
+  // Si la promoción es solo para algunos servicios, el descuento se calcula sobre ellos.
+  let base = totalServicios;
+  if (c.conditions?.servicioIds?.length) {
+    const { data: lineas } = await sb.from("appointment_services").select("service_id, price").eq("appointment_id", appointmentId);
+    base = baseConDescuento(c.conditions, (lineas || []).map((l: any) => ({ id: l.service_id, price: l.price })), totalServicios);
+    if (base <= 0) return null;
+  }
+  const discount = Math.max(0, Math.min(Math.round(base), computeCouponDiscount(c, base)));
   return { couponId: c.id, code: c.code, discount, description: c.description || null, pagos: c.conditions?.pagos || [], dosPersonas };
 }
 

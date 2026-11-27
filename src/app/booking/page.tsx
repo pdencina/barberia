@@ -184,7 +184,7 @@ export default function BookingPage() {
   useEffect(() => { setPromoEstado(null); }, [codigoPromo, selectedSlot, selectedBarber?.id, totalPrice]);
   const revisarPromo = async () => {
     if (!codigoPromo.trim() || !selectedBarber || !selectedSlot) return;
-    const d = await fetch("/api/public/coupon", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: codigoPromo, barberId: selectedBarber.id, startTime: selectedSlot, total: totalPrice }) }).then((r) => r.json()).catch(() => null);
+    const d = await fetch("/api/public/coupon", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: codigoPromo, barberId: selectedBarber.id, startTime: selectedSlot, total: totalPrice, serviceIds: selectedServices.map((s) => s.id) }) }).then((r) => r.json()).catch(() => null);
     if (!d) setPromoEstado({ ok: false, texto: "No pudimos revisar el código. Intenta de nuevo." });
     else if (!d.valid) setPromoEstado({ ok: false, texto: d.message });
     else setPromoEstado({ ok: true, texto: d.discount > 0 ? `Código aplicado: pagas ${formatCurrency(totalPrice - d.discount)} en el local (antes ${formatCurrency(totalPrice)}).` : `Código aplicado${d.description ? `: ${d.description}` : ""}.` });

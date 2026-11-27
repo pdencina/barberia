@@ -57,6 +57,12 @@ const ok = (c: boolean, m: string) => { console.log((c ? "OK    " : "FALLA ") + 
     ok(dos?.length === 2 && dos[0].coupon_group && dos[0].coupon_group === dos[1].coupon_group && dos[0].client_id !== dos[1].client_id, "7. quedan unidas y son dos clientes distintos");
     const precio = Number(svc.price), desc = Math.round(precio * 0.2);
     ok((await cuponDeCita(sb, id1, precio))?.discount === desc && (await cuponDeCita(sb, id2, precio))?.discount === desc, "8. las dos tienen el 20% al cobrar");
+    await sb.from("coupons").update({ conditions: { personas: 2, profesionalIds: [A, B], servicioIds: ["33333333-3333-3333-3333-333333333333"] } }).eq("id", cupon.id);
+    ok((await cuponDeCita(sb, id1, precio)) === null, "8b. un servicio que no entra no tiene descuento");
+    const otro = await pedir("book", { ...P(1, A, libresA[0]), date: fecha, couponCode: codigo });
+    ok(otro.status === 409 && /servicio/.test(otro.d.error), "8c. no se puede reservar la promoción con otro servicio");
+    await sb.from("coupons").update({ conditions: { personas: 2, profesionalIds: [A, B], servicioIds: [svc.id] } }).eq("id", cupon.id);
+    ok((await cuponDeCita(sb, id1, precio + 5000))?.discount === desc, "8d. con un extra, el descuento es solo sobre el servicio incluido");
     await sb.from("appointments").update({ status: "cancelled" }).eq("id", id2);
     ok((await cuponDeCita(sb, id1, precio)) === null, "9. si una cancela, la otra paga normal");
     await sb.from("appointments").update({ status: "completed" }).eq("id", id2);
