@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { respuestaDeAtraso } from "../src/lib/agente/atraso";
 
-const regla = "Gracias por avisarnos 🙌 Podemos esperarte *máximo 10 minutos*. Pasado ese tiempo, queda sujeto a disponibilidad.";
+const regla = "Gracias por avisarnos 🙌\nPodemos esperarte *máximo 10 minutos*. Pasado ese tiempo, queda sujeto a disponibilidad.";
 const datos: any = { personalizadas: [{ claves: ["aviso de atraso"], respuesta: regla }] };
 for (const t of ["Voy algo atrasado, pero llego", "voy un poco tarde", "Estoy atrasada", "llegaré 10 minutos tarde", "me atrasé, perdón", "Voy a llegar un poco atrasado", "si llego tarde me esperan?", "llego en 10 minutos tarde"])
   assert.equal(respuestaDeAtraso(t, datos), regla, t);

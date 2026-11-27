@@ -25,5 +25,5 @@ export function respuestaDeAtraso(texto: string, datos: DatosFaq | null): string
   if (OTRA_COSA.test(t)) return null;
   if (AVISA.test(t)) return propia.respuesta.trim();
   // La frase del negocio que dice los minutos sirve de recordatorio corto.
-  return CAUSA.test(t) ? `Entendido, gracias por avisar. ${propia.respuesta.split(/(?<=\.)\s+/).find((f) => /minutos/i.test(f)) ?? ""}`.trim() : null;
+  return CAUSA.test(t) ? `Entendido, gracias por avisar. ${propia.respuesta.split(/(?<=\.)\s+|\n+/).find((f) => /minutos/i.test(f)) ?? ""}`.trim() : null;
 }
