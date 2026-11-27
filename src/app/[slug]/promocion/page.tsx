@@ -84,6 +84,12 @@ export default function PromocionPage() {
   const solo = promo?.profesionales.length === 1 ? promo.profesionales[0].id : "";
   const miPro = yo.pro || solo;
   const catalogo = useMemo(() => (servicios[miPro] || []).filter((s) => !promo?.servicios || promo.servicios.includes(s.id)), [servicios, miPro, promo]);
+  // Cambiar de profesional conserva los servicios que el nuevo también hace; la hora se vuelve a elegir.
+  const elegirPro = (id: string) => {
+    if (miPro === id) return;
+    cambiar(activa, { pro: id, elegidos: elegidos.filter((x) => servicios[id]?.some((s) => s.id === x)), turno: null });
+    setError("");
+  };
   // Se ofrecen los profesionales que hacen al menos un servicio de la promoción.
   const disponibles = (promo?.profesionales || []).filter((p) => !servicios[p.id] || servicios[p.id].some((s) => !promo?.servicios || promo.servicios.includes(s.id)));
   const conDescuento = (n: number) => (!promo || promo.valor <= 0 ? n : promo.tipo === "percentage" ? n - Math.round((n * promo.valor) / 100) : Math.max(0, n - promo.valor));
@@ -214,7 +220,7 @@ export default function PromocionPage() {
                 <h2 className={`mb-2 ${titulo}`}>1 · {cuantos === 2 ? `Profesional de la persona ${activa + 1}` : "Elige profesional"}</h2>
                 <div className="grid grid-cols-3 gap-2">
                   {disponibles.map((p) => (
-                    <button key={p.id} type="button" aria-pressed={miPro === p.id} onClick={() => { if (miPro !== p.id) cambiar(activa, { pro: p.id, elegidos: [], turno: null }); }}
+                    <button key={p.id} type="button" aria-pressed={miPro === p.id} onClick={() => elegirPro(p.id)}
                       className={`${chip(miPro === p.id)} flex flex-col items-center gap-1.5 py-3 text-center`}>
                       {p.foto ? <img src={p.foto} alt="" className="h-14 w-14 rounded-full object-cover" /> : <span className="flex h-14 w-14 items-center justify-center rounded-full bg-promo-tinta/15 text-lg font-bold">{p.nombre.charAt(0)}</span>}
                       <span className="text-xs leading-tight">{p.nombre}</span>
@@ -252,6 +258,20 @@ export default function PromocionPage() {
                       <span className="block text-[10px] font-light uppercase">{f.dia}</span><span className="block text-xl leading-tight">{f.num}</span><span className="block text-[10px] font-light uppercase">{f.mes}</span>
                     </button>); })}
                 </div>
+                {/* Se puede cambiar de profesional aquí mismo, sin volver arriba. */}
+                {!solo && disponibles.length > 1 && (
+                  <div className="mt-3">
+                    <p className="mb-1.5 text-xs font-bold">¿Otro profesional?</p>
+                    <div className="flex gap-2 overflow-x-auto pb-1">
+                      {disponibles.map((p) => (
+                        <button key={p.id} type="button" aria-pressed={miPro === p.id} onClick={() => elegirPro(p.id)} className={`${chip(miPro === p.id)} flex flex-shrink-0 items-center gap-2 py-1.5 pl-1.5`}>
+                          {p.foto ? <img src={p.foto} alt="" className="h-8 w-8 rounded-full object-cover" /> : <span className="flex h-8 w-8 items-center justify-center rounded-full bg-promo-tinta/15 text-xs font-bold">{p.nombre.charAt(0)}</span>}
+                          <span className="whitespace-nowrap text-xs">{p.nombre.split(" ")[0]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="mt-3 space-y-3">
                   {cargandoHoras && <p className="text-sm text-promo-tinta/70">Buscando horas…</p>}
                   {!cargandoHoras && !(horas[miPro] || []).length && <p className="rounded-xl border border-promo-tinta/15 bg-promo-tinta/5 px-4 py-3 text-sm text-promo-tinta/70">No quedan horas de la promoción ese día. Prueba otro.</p>}
