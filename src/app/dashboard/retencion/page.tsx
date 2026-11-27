@@ -9,7 +9,9 @@ import { SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPr
 import { PromoCondicionesForm } from "./promo-condiciones-form";
 import { PromoImagenCampo } from "./promo-imagen-campo";
 import { VistaCorreo } from "./vista-correo";
-import { useState, useEffect } from "react";
+import { ResultadoCampana } from "./resultado-campana";
+import { clavePendiente, correrEnvio, guardarPendiente, leerPendiente, TANDA, type EnvioPendiente } from "@/lib/envio-pendiente";
+import { useState, useEffect, useRef } from "react";
 import { useToast } from "@/components/ui/toast";
 import { Spinner } from "@/components/ui/spinner";
 import { Users, UserMinus, Percent, Mail, MessageCircle, HeartHandshake, Send, Eye, History, Download } from "lucide-react";
@@ -77,6 +79,13 @@ export default function RetencionPage() {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [bulkSending, setBulkSending] = useState(false);
   const [progreso, setProgreso] = useState(""); // avance del envío por tandas
+  const [pendiente, setPendiente] = useState<EnvioPendiente | null>(null); // envío a medias (se puede reanudar)
+  const [deteniendo, setDeteniendo] = useState(false);
+  const [descartarArmado, setDescartarArmado] = useState(false);
+  const [cambios, setCambios] = useState(0); // para refrescar el resultado de la campaña
+  const detener = useRef(false);
+  // Al salir de esta pantalla el envío se detiene después de la tanda en curso (queda para reanudar).
+  useEffect(() => () => { detener.current = true; }, []);
   // Mientras se envía, se avisa antes de cerrar o recargar la página.
   useEffect(() => {
     if (!progreso) return;
@@ -104,6 +113,7 @@ export default function RetencionPage() {
   });
   const { showToast } = useToast();
   const { tenant } = useTenant();
+  useEffect(() => { setPendiente(tenant?.id ? leerPendiente(clavePendiente(tenant.id)) : null); }, [tenant?.id]);
   // Borrador automático: lo armado queda guardado en este equipo y vuelve al entrar de nuevo.
   const borrador = {
     days, maxDays, rangos, includeNever, selectedCoupon, customMessage, condiciones, imageUrl, design, subject, title, logoFondo,
@@ -163,29 +173,56 @@ export default function RetencionPage() {
       const pendientes = shown.filter((r: any) => !fuera.has(r.id) && !(selectedCoupon && r.last && r.last.coupon === selectedCoupon && new Date(r.last.at).toDateString() === hoy)).map((r) => r.id);
       const yaEnviados = shown.filter((r) => !fuera.has(r.id)).length - pendientes.length;
       if (!pendientes.length) { showToast("Todos los marcados ya recibieron este cupón hoy", "info"); return; }
-      let enviados = 0, intentados = 0, campaignId: string | null = null;
-      for (let i = 0; i < pendientes.length; i += 60) {
-        const soloIds = pendientes.slice(i, i + 60);
-        setProgreso(`Enviando ${Math.min(i + 60, pendientes.length)} de ${pendientes.length}…`);
-        const res: Response = await fetch("/api/retention/bulk", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...bulkBody("email", choice.ids, choice.name), soloIds, campaignId }),
-        });
-        const data: any = await res.json().catch(() => ({}));
-        if (!res.ok) { showToast(`${data.error || "Error al enviar"} — van ${enviados} correos enviados.`, "error"); return; }
-        enviados += data.sent || 0; intentados += data.total || 0; campaignId = data.campaignId || campaignId;
-        if (data.quotaExceeded) { showToast(`Se enviaron ${enviados} de ${pendientes.length}: se agotó tu cupo de correos de este ciclo.`, "info"); return; }
-        if (data.total > 0 && !data.sent) { showToast(`El proveedor de correo dejó de aceptar envíos. Van ${enviados} de ${pendientes.length}.`, "error"); return; }
-      }
-      showToast(`${enviados} de ${intentados} correos enviados${yaEnviados ? ` (${yaEnviados} ya lo habían recibido hoy)` : ""}`, "success");
+      await continuarEnvio({
+        cuerpo: bulkBody("email", choice.ids, choice.name), pendientes, enviados: 0, total: pendientes.length, campaignId: null, creado: new Date().toISOString(),
+      }, yaEnviados);
     } catch {
-      showToast("Se cortó el envío. Vuelve a tocar «Email masivo»: quienes ya lo recibieron hoy se saltan.", "error");
+      showToast("No se pudo preparar el envío", "error");
+    } finally {
+      setBulkSending(false);
+    }
+  };
+
+  // Envía lo que falta, tanda por tanda. Se puede detener; lo pendiente queda guardado para reanudar.
+  const continuarEnvio = async (envio: EnvioPendiente, yaEnviados = 0) => {
+    const clave = tenant?.id ? clavePendiente(tenant.id) : "";
+    detener.current = false;
+    setDeteniendo(false);
+    setBulkSending(true);
+    if (clave) guardarPendiente(clave, envio);
+    setPendiente(envio);
+    try {
+      const r = await correrEnvio(envio, {
+        pedir: async (cuerpo) => {
+          const res: Response = await fetch("/api/retention/bulk", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(cuerpo) });
+          return { ok: res.ok, data: await res.json().catch(() => ({})) };
+        },
+        detener: () => detener.current,
+        guardar: (e) => { if (clave) guardarPendiente(clave, e); setPendiente(e.pendientes.length ? e : null); setCambios((k) => k + 1); },
+        avance: (e) => setProgreso(`Enviando ${Math.min(e.total - e.pendientes.length + TANDA, e.total)} de ${e.total}…`),
+      });
+      const van = `${r.envio.enviados} de ${r.envio.total}`;
+      if (r.fin === "completo") { setPendiente(null); showToast(`${van} correos enviados${yaEnviados ? ` (${yaEnviados} ya lo habían recibido hoy)` : ""}`, "success"); }
+      else if (r.fin === "detenido") showToast(`Envío detenido. Van ${van}. Puedes reanudarlo cuando quieras.`, "info");
+      else if (r.fin === "sin_cupo") showToast(`Se agotó tu cupo de correos. Van ${van}.`, "info");
+      else if (r.fin === "proveedor") showToast(`El proveedor de correo dejó de aceptar envíos. Van ${van}.`, "error");
+      else showToast(`${r.error || "Se cortó el envío"} Van ${van}; toca «Reanudar envío».`, "error");
     } finally {
       setProgreso("");
+      setDeteniendo(false);
       setBulkSending(false);
       setQuotaRefresh((k) => k + 1);
+      setCambios((k) => k + 1);
     }
+  };
+
+  const detenerEnvio = () => { detener.current = true; setDeteniendo(true); };
+  const descartarEnvio = () => {
+    if (!descartarArmado) { setDescartarArmado(true); setTimeout(() => setDescartarArmado(false), 4000); return; }
+    setDescartarArmado(false);
+    if (tenant?.id) guardarPendiente(clavePendiente(tenant.id), null);
+    setPendiente(null);
+    showToast("Envío cancelado. Lo ya enviado no se puede deshacer.", "info");
   };
 
   // Copiar lista para una Lista de difusion de WhatsApp. Primero se pide una vista previa
@@ -378,7 +415,7 @@ export default function RetencionPage() {
                 <button onClick={copyForBroadcast} disabled={bulkSending || withPhone === 0} className={ghostButton}>
                   <MessageCircle className="h-4 w-4 text-emerald-500" strokeWidth={2} /> Copiar para difusión ({withPhone})
                 </button>
-                <button onClick={sendBulkEmail} disabled={bulkSending || withEmail === 0} className={primaryButton}>
+                <button onClick={sendBulkEmail} disabled={bulkSending || !!pendiente || withEmail === 0} className={primaryButton}>
                   <Send className="h-4 w-4" strokeWidth={2} /> {progreso || (bulkSending ? "Procesando..." : `Email masivo (${withEmail})`)}
                 </button>
               </>
@@ -399,8 +436,27 @@ export default function RetencionPage() {
         <StatCard label="Contactables" value={stats.contactable} Icon={HeartHandshake} tone="green" hint="Con correo o teléfono" />
       </div>
 
+      {(progreso || pendiente) && (
+        <div role="status" className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3">
+          <p className="text-sm font-semibold text-amber-900">
+            {progreso ? (deteniendo ? "Deteniendo al terminar esta tanda…" : `${progreso} No cierres esta pantalla.`) : `Envío a medias: ${pendiente!.enviados} enviados, faltan ${pendiente!.pendientes.length}.`}
+          </p>
+          <div className="flex gap-2">
+            {progreso ? (
+              <button type="button" onClick={detenerEnvio} disabled={deteniendo} className="rounded-full bg-red-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Detener envío</button>
+            ) : (
+              <>
+                <button type="button" onClick={() => void continuarEnvio(pendiente!)} disabled={bulkSending} className="rounded-full bg-brand-blue px-4 py-2 text-sm font-semibold text-white disabled:opacity-50">Reanudar envío</button>
+                <button type="button" onClick={descartarEnvio} className="rounded-full border border-amber-300 bg-white px-4 py-2 text-sm font-semibold text-amber-900">{descartarArmado ? "Toca otra vez para cancelar" : "Cancelar envío"}</button>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ResultadoCampana cupon={selectedCoupon} tenantId={tenant?.id} refrescar={cambios} />
+
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(380px,480px)]">
-      {progreso && <p className="col-span-full rounded-xl bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{progreso} No cierres esta pantalla ni cambies de sección.</p>}
       {/* Filtros y mensaje */}
       <Panel title="A quién y qué decirles">
         <div className="space-y-4">

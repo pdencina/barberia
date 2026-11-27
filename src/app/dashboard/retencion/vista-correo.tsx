@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Maximize2, Monitor, Smartphone, X } from "lucide-react";
 
 type Equipo = "celular" | "computador";
@@ -60,6 +61,15 @@ function Marco({ equipo, asunto, html, maxAlto }: { equipo: Equipo; asunto: stri
 export function VistaCorreo({ asunto, html }: { asunto: string; html: string }) {
   const [equipo, setEquipo] = useState<Equipo>("celular");
   const [grande, setGrande] = useState(false);
+  // Alto disponible en la ventana, para que la vista grande quepa entera.
+  const [altoVentana, setAltoVentana] = useState(800);
+  useEffect(() => {
+    if (!grande) return;
+    const medir = () => setAltoVentana(window.innerHeight);
+    medir();
+    window.addEventListener("resize", medir);
+    return () => window.removeEventListener("resize", medir);
+  }, [grande]);
   useEffect(() => {
     if (!grande) return;
     const cerrar = (e: KeyboardEvent) => { if (e.key === "Escape") setGrande(false); };
@@ -87,16 +97,18 @@ export function VistaCorreo({ asunto, html }: { asunto: string; html: string }) 
       <div className={equipo === "celular" ? "mx-auto max-w-[340px]" : ""}>
         <Marco key={equipo} equipo={equipo} asunto={asunto} html={html} />
       </div>
-      {grande && (
-        <div role="dialog" aria-modal="true" aria-label="Vista previa del correo" className="fixed inset-0 z-[100] flex flex-col items-center gap-3 overflow-auto bg-black/70 p-4" onClick={() => setGrande(false)}>
-          <div className="flex w-full max-w-5xl items-center justify-between" onClick={(e) => e.stopPropagation()}>
+      {/* Sobre toda la página (fuera del contenido), para que el menú no la tape ni la recorte. */}
+      {grande && createPortal(
+        <div role="dialog" aria-modal="true" aria-label="Vista previa del correo" className="fixed inset-0 z-[1000] flex flex-col items-center gap-3 overflow-auto bg-black/80 p-4" style={{ paddingTop: "max(16px, env(safe-area-inset-top, 0px))" }} onClick={() => setGrande(false)}>
+          <div className="mx-auto flex w-full max-w-5xl flex-shrink-0 items-center justify-between" onClick={(e) => e.stopPropagation()}>
             {selector}
-            <button type="button" onClick={() => setGrande(false)} aria-label="Cerrar" className="rounded-full bg-white p-2 text-gray-700"><X className="h-4 w-4" /></button>
+            <button type="button" onClick={() => setGrande(false)} aria-label="Cerrar" className="rounded-full bg-white p-2 text-gray-700"><X className="h-5 w-5" /></button>
           </div>
-          <div className={`w-full ${equipo === "celular" ? "max-w-[420px]" : "max-w-5xl"}`} onClick={(e) => e.stopPropagation()}>
-            <Marco key={`g-${equipo}`} equipo={equipo} asunto={asunto} html={html} />
+          <div className={`mx-auto w-full flex-shrink-0 ${equipo === "celular" ? "max-w-[440px]" : "max-w-5xl"}`} onClick={(e) => e.stopPropagation()}>
+            <Marco key={`g-${equipo}`} equipo={equipo} asunto={asunto} html={html} maxAlto={Math.max(360, altoVentana - 110)} />
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
