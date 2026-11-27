@@ -1,0 +1,14 @@
+import { detallesPromo, diasDePromo, horasDePromo } from "../src/lib/promo-link";
+import { dateStrOffset } from "../src/lib/utils";
+let f = 0;
+const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
+const d = diasDePromo("2026-11-27", { hasta: "2026-11-30" }, "2026-12-01T02:59:59Z", dateStrOffset);
+ok(d.join() === "2026-11-27,2026-11-28,2026-11-29,2026-11-30", "días: " + d.join());
+ok(diasDePromo("2026-12-01", { hasta: "2026-11-30" }, null, dateStrOffset).length === 0, "ya terminó");
+ok(diasDePromo("2026-11-27", {}, null, dateStrOffset).length === 14, "sin fechas: dos semanas");
+const s = ["2026-11-28T09:00:00", "2026-11-28T10:00:00", "2026-11-28T15:00:00", "2026-11-28T15:45:00"];
+ok(horasDePromo(s, "10:00", "15:00").length === 2, "solo dentro del horario (15:00 incluida)");
+const x = detallesPromo({ hasta: "2026-11-30", horaDesde: "10:00", horaHasta: "15:00", pagos: ["cash", "transfer"], profesionalIds: ["a"] }, ["Pablo Yañez", "Dylan Perez"]);
+ok(x.length === 4 && x[2].valor === "efectivo y transferencia" && x[3].valor === "Pablo y Dylan", "detalles");
+console.log(f ? "HAY FALLAS" : "OK link de promoción");
+process.exit(f ? 1 : 0);

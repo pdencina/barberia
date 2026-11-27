@@ -139,7 +139,7 @@ export default function RetencionPage() {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
     const cupon: any = coupons.find((c: any) => c.code === selectedCoupon);
     if (!cupon?.id) return;
-    const reglas = { desde: condiciones.desde, hasta: condiciones.hasta, horaDesde: condiciones.horaDesde, horaHasta: condiciones.horaHasta, profesionalIds: condiciones.profesionalIds || [], pagos: condiciones.todosLosPagos ? [] : codigosDePago(condiciones.pagos) };
+    const reglas = { desde: condiciones.desde, hasta: condiciones.hasta, horaDesde: condiciones.horaDesde, horaHasta: condiciones.horaHasta, profesionalIds: condiciones.profesionalIds || [], pagos: condiciones.todosLosPagos ? [] : codigosDePago(condiciones.pagos), imagen: imageUrl, titulo: title };
     const res = await fetch(`/api/cupones/${cupon.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conditions: reglas }) });
     const d = await res.json().catch(() => ({}));
     showToast(res.ok ? `Reglas guardadas en ${selectedCoupon}` : d.error || "No se pudieron guardar", res.ok ? "success" : "error");
@@ -510,6 +510,7 @@ export default function RetencionPage() {
             <PromoCondicionesForm value={condiciones} onChange={setCondiciones} tenantId={tenant?.id} hayCupon={!!selectedCoupon} inputClass={inputClass} />
             {selectedCoupon && (
               <div className="rounded-xl bg-brand-blue/5 px-3 py-2.5">
+                {tenant?.slug && <a href={`/${tenant.slug}/promocion?cupon=${encodeURIComponent(selectedCoupon)}`} target="_blank" rel="noopener noreferrer" className="mb-2 block text-xs font-semibold text-brand-blue underline">Ver la página de la promoción</a>}
                 <button type="button" onClick={guardarReglas} className="rounded-full bg-brand-blue px-3.5 py-1.5 text-xs font-semibold text-white">Exigir estas reglas en el código {selectedCoupon}</button>
                 <p className="mt-1 text-[11px] text-brand-gray">Al reservar y al cobrar, el código solo se aceptará en las fechas, horario, profesionales y medios de pago marcados arriba. Sin nada marcado, vale siempre.</p>
               </div>
