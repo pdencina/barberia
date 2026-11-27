@@ -1,0 +1,10 @@
+import { mediosDelTotem } from "../src/lib/totem-medios";
+let f = 0;
+const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
+const libre = mediosDelTotem([{ promo: null }]);
+ok(!libre.limitado && libre.debito && libre.credito && libre.qr && libre.efectivo, "sin promo, todo");
+ok(mediosDelTotem([{ promo: { pagos: [] } }]).qr, "promo sin límite de pago, todo");
+const l = mediosDelTotem([{ promo: null }, { promo: { pagos: ["cash", "transfer"] } }]);
+ok(l.limitado && !l.debito && !l.credito && !l.qr && l.efectivo && l.transferencia, "con promo: solo efectivo y transferencia");
+console.log(f ? `${f} FALLAS` : "OK medios del tótem");
+process.exit(f ? 1 : 0);
