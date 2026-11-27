@@ -115,6 +115,9 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const [clientPoints, setClientPoints] = useState(0);
   const [redeemedPoints, setRedeemedPoints] = useState(0);
   const [couponCode, setCouponCode] = useState("");
+  // Medios de pago que permite la promoción aplicada (vacío = cualquiera). `promoRechazada`: se decidió cobrar sin ella.
+  const [promoPagos, setPromoPagos] = useState<string[]>([]);
+  const promoRechazada = useRef("");
   const [discount, setDiscount] = useState(0);
   const [couponError, setCouponError] = useState("");
   // Cupon valido pero SIN monto (solo codigo y texto, p. ej. "cejas gratis"): no descuenta dinero; se muestra su descripcion para aplicar el beneficio.
@@ -325,7 +328,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const totalServicios = cart.filter((c) => c.type === "service").reduce((sum, c) => sum + Number(c.price) * c.quantity, 0);
   const promoPuesta = useRef("");
   useEffect(() => {
-    const quitar = () => { if (promoPuesta.current) { promoPuesta.current = ""; setDiscount(0); setCouponCode(""); setCouponNote(""); } };
+    const quitar = () => { if (promoPuesta.current) { promoPuesta.current = ""; setPromoPagos([]); setDiscount(0); setCouponCode(""); setCouponNote(""); } };
     if (!(selectedClient || appointmentId) || totalServicios <= 0) { quitar(); return; }
     let vigente = true;
     const q = new URLSearchParams({ amount: String(totalServicios), ...(appointmentId ? { appointmentId } : {}), ...(selectedClient ? { clientId: selectedClient } : {}), ...(selectedBarber ? { barberId: selectedBarber } : {}) });
@@ -333,6 +336,8 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
       if (!vigente) return;
       const c = d?.cupon;
       if (!c) { quitar(); return; }
+      if (promoRechazada.current === `${selectedClient}|${c.code}`) return;
+      setPromoPagos(c.pagos || []);
       setCouponCode(c.code);
       setDiscount(c.discount);
       setCouponNote(`Reservó con el código ${c.code}: ${c.discount > 0 ? `descuento de $${Number(c.discount).toLocaleString("es-CL")} aplicado` : c.description || "aplica el beneficio al cobrar"}.`);
@@ -350,6 +355,22 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
   const [tipInput, setTipInput] = useState("");
   const [lastTransactionId, setLastTransactionId] = useState<string | null>(null);
 
+  const limitado = promoPagos.length > 0 && discount > 0;
+  const permitido = (m: string) => !limitado || promoPagos.includes(m);
+  const textoPagos = promoPagos.map((m) => ({ cash: "efectivo", transfer: "transferencia", debit_card: "débito", credit_card: "crédito" } as Record<string, string>)[m] || m).join(" o ");
+  // Si entra una promoción limitada, se desmarca un medio que ya no vale.
+  useEffect(() => {
+    if (!limitado) return;
+    if (paymentMethod && !promoPagos.includes(paymentMethod)) setPaymentMethod("");
+    setSplitPayments((l) => (l.every((x) => promoPagos.includes(x.method)) ? l : l.map((x) => (promoPagos.includes(x.method) ? x : { ...x, method: promoPagos[0] }))));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [limitado, promoPagos]);
+  const quitarPromo = () => {
+    promoRechazada.current = `${selectedClient}|${couponCode}`;
+    promoPuesta.current = "";
+    setDiscount(0); setCouponCode(""); setCouponNote(""); setPromoPagos([]);
+  };
+
   const applyCoupon = async () => {
     setCouponError("");
     setCouponNote("");
@@ -359,6 +380,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
       const data = await res.json();
       if (data.valid) {
         setDiscount(data.discount);
+        setPromoPagos(data.pagos || []);
         if (data.noDiscount) {
           setCouponNote(`Cupón válido${data.description ? `: ${data.description}` : ""}. No descuenta dinero: aplica el beneficio al cobrar.`);
           showToast("Cupón válido (sin monto)", "success");
@@ -673,6 +695,8 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
         setSplitMode(false);
         setSplitPayments([{ method: "debit_card", amount: "" }, { method: "cash", amount: "" }]);
         setSelectedClient("");
+        setPromoPagos([]);
+        promoRechazada.current = "";
         setClientPoints(0);
         setRedeemedPoints(0);
         setMpPaymentStatus("idle");
@@ -1208,7 +1232,7 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                 <Lock className="h-3.5 w-3.5" strokeWidth={1.75} /> Descuento manual (PIN admin)
               </button>
               {discount > 0 && (
-                <button onClick={() => setDiscount(0)} className="text-xs font-medium text-red-500 hover:underline">
+                <button onClick={quitarPromo} className="text-xs font-medium text-red-500 hover:underline">
                   Quitar descuento
                 </button>
               )}
@@ -1249,6 +1273,12 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
 
           {/* Payment Methods */}
           <div>
+            {limitado && (
+              <div className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+                Promoción {couponCode}: se paga solo con {textoPagos}.{" "}
+                <button type="button" onClick={quitarPromo} className="underline">Cobrar sin promoción (precio normal)</button>
+              </div>
+            )}
             <div className="flex items-center justify-between mb-2">
               <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-brand-gray">Método de pago</span>
               <button onClick={() => setSplitMode(!splitMode)}
@@ -1270,6 +1300,9 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                     <button
                       key={m.key}
                       onClick={() => setPaymentMethod(m.key)}
+                      disabled={!permitido(m.key)}
+                      title={permitido(m.key) ? undefined : `La promoción solo permite ${textoPagos}`}
+                      style={permitido(m.key) ? undefined : { opacity: 0.35, cursor: "not-allowed" }}
                       className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm font-semibold transition-all ${
                         selected
                           ? "border-brand-blue bg-brand-blue/10 text-brand-blue ring-1 ring-brand-blue/40"
@@ -1295,8 +1328,8 @@ function PosScreenInner({ standby, onLock, belowBar }: { standby?: StandbyCtx; o
                       }}
                       className="border rounded-lg px-2 py-1.5 text-sm flex-1">
                       <option value="cash">Efectivo</option>
-                      <option value="debit_card">Debito</option>
-                      <option value="credit_card">Credito</option>
+                      <option value="debit_card" disabled={!permitido("debit_card")}>Debito</option>
+                      <option value="credit_card" disabled={!permitido("credit_card")}>Credito</option>
                       <option value="transfer">Transfer</option>
                     </select>
                     <input type="number" placeholder="$" value={sp.amount}

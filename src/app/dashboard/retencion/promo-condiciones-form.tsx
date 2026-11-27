@@ -79,7 +79,7 @@ export function PromoCondicionesForm({ value, onChange, tenantId, hayCupon, inpu
           </div>
           {error && <p className="rounded-xl bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">{error}</p>}
           <div className="flex items-center justify-between gap-3">
-            <p className="text-[11px] text-brand-gray">Se informan en el mensaje. Las fechas, el horario y los profesionales se pueden exigir guardándolos en el cupón.</p>
+            <p className="text-[11px] text-brand-gray">Se informan en el mensaje. Fechas, horario, profesionales y medios de pago se pueden exigir guardándolos en el cupón.</p>
             {activas > 0 && <button type="button" onClick={() => onChange(SIN_CONDICIONES)} className="flex-shrink-0 text-xs font-semibold text-brand-blue hover:underline">Borrar todas</button>}
           </div>
         </div>

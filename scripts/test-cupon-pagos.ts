@@ -1,0 +1,13 @@
+import { codigosDePago, limpiarPagos, pagoNoPermitido } from "../src/lib/cupon-pagos";
+import { limpiarReglas } from "../src/lib/cupon-reglas";
+let f = 0;
+const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
+const p = codigosDePago(["Efectivo", "Transferencia"]);
+ok(p.join() === "cash,transfer", "códigos");
+ok(pagoNoPermitido(p, ["cash"]) === null && pagoNoPermitido(p, ["cash", "transfer"]) === null, "permitidos");
+ok(!!pagoNoPermitido(p, ["debit_card"]) && !!pagoNoPermitido(p, ["cash", "credit_card"]), "tarjeta y mixto bloqueados");
+ok(pagoNoPermitido([], ["debit_card"]) === null, "sin restricción");
+ok(limpiarPagos(["cash", "x", "cash"]).join() === "cash" && limpiarPagos(["cash", "transfer", "debit_card", "credit_card"]).length === 0, "limpieza");
+ok(limpiarReglas({ pagos: ["cash"] })?.pagos?.[0] === "cash", "se guarda en las reglas");
+console.log(f ? "HAY FALLAS" : "OK pagos del cupón");
+process.exit(f ? 1 : 0);
