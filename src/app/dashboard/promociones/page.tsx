@@ -107,7 +107,7 @@ export default function PromocionesPage() {
   const link = actual && tenant?.slug ? `${typeof window !== "undefined" ? window.location.origin : ""}/${tenant.slug}/promocion?cupon=${encodeURIComponent(actual.code)}` : "";
   const elegidos = pros.filter((p) => (form.condiciones.profesionalIds || []).includes(p.id)).map((p) => p.name);
   const detalles = detallesPromo({ ...reglas(), horaDesde: form.condiciones.horaDesde || undefined, horaHasta: form.condiciones.horaHasta || undefined }, elegidos.length ? elegidos : []);
-  const titulo = form.titulo.trim() || (form.tipo === "percentage" && Number(form.valor) ? `${Number(form.valor)}% de descuento` : "Promoción");
+  const titulo = form.titulo.trim() || (Number(form.valor) ? (form.tipo === "percentage" ? `${Number(form.valor)}% de descuento` : `$${Number(form.valor).toLocaleString("es-CL")} de descuento`) : "Promoción");
 
   return (
     <div className="space-y-4 p-3 md:p-6">

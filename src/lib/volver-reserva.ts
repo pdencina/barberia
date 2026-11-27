@@ -8,5 +8,7 @@ export function enlaceDeVuelta(search: string): { href: string; ref: string | nu
   const n = q.get("n") || "", p = q.get("p") || "", r = q.get("r") || "";
   const negocio = SLUG.test(n) && n.length >= 3 && n.length <= 40 ? n : null;
   const prof = negocio && SLUG.test(p) && p.length >= 3 && p.length <= 40 ? p : null;
+  const cupon = q.get("c") || "";
+  if (negocio && /^[A-Z0-9_-]{3,40}$/.test(cupon)) return { href: `/${negocio}/promocion?cupon=${cupon}`, ref: UUID.test(r) ? r : null };
   return { href: negocio ? `/${negocio}${prof ? `/${prof}` : ""}` : "/booking", ref: UUID.test(r) ? r : null };
 }

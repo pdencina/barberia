@@ -258,6 +258,14 @@ export async function POST(req: NextRequest) {
         }
       } catch (e) { console.error("Deposit webhook: no se pudo revisar el cruce de horarios", e); }
     }
+    // Cupón con el que se reservó (migración 182) y aceptación de promociones. Si algo falta, la cita queda igual.
+    if (appointment && bookingData.cuponId) {
+      const { error: ec } = await supabase.from("appointments").update({ coupon_id: bookingData.cuponId }).eq("id", appointment.id).eq("tenant_id", tenantId);
+      if (ec) console.error("Deposit webhook: no se pudo anotar el cupón", ec.message);
+    }
+    if (clientId && bookingData.marketingConsent === true) {
+      await supabase.from("clients").update({ marketing_consent: true, marketing_consent_at: new Date().toISOString() }).eq("id", clientId).then(() => {}, () => {});
+    }
     if (appointment) {
       await marcarResultado(supabase, paymentData.external_reference, bookingData, { resultado: "pagado", appointmentId: appointment.id });
       enCurso = null;
@@ -274,7 +282,8 @@ export async function POST(req: NextRequest) {
         .select("id, price")
         .in("id", serviceIds);
 
-      const serviceInserts = (serviceDetails || []).map((s) => ({
+      // El precio es el del profesional (el mismo con el que se calculó el total y el abono).
+      const serviceInserts = (resuelto?.servicios || serviceDetails || []).map((s: any) => ({
         appointment_id: appointment.id,
         service_id: s.id,
         price: s.price,

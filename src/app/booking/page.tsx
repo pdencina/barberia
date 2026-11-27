@@ -1,6 +1,8 @@
 "use client";
 
 import { calcularAbono } from "@/lib/deposit-calc";
+import { resumenAbono } from "@/lib/resumen-abono";
+import { DesgloseAbono } from "@/components/booking/desglose-abono";
 import { useState, useEffect, useRef } from "react";
 import ResenasCarrusel from "@/components/booking/resenas-carrusel";
 import BusinessProfile, { type BusinessInfo } from "@/components/booking/business-profile";
@@ -180,16 +182,18 @@ export default function BookingPage() {
   // Código promocional (también llega en el link: ?cupon=CODIGO, como el del correo de la promoción).
   const [codigoPromo, setCodigoPromo] = useState("");
   const [promoEstado, setPromoEstado] = useState<{ ok: boolean; texto: string } | null>(null);
+  const [promoDescuento, setPromoDescuento] = useState(0);
   useEffect(() => { const c = new URLSearchParams(window.location.search).get("cupon"); if (c) setCodigoPromo(c.toUpperCase().slice(0, 40)); }, []);
-  useEffect(() => { setPromoEstado(null); }, [codigoPromo, selectedSlot, selectedBarber?.id, totalPrice]);
+  useEffect(() => { setPromoEstado(null); setPromoDescuento(0); }, [codigoPromo, selectedSlot, selectedBarber?.id, totalPrice]);
   const revisarPromo = async () => {
     if (!codigoPromo.trim() || !selectedBarber || !selectedSlot) return;
     const d = await fetch("/api/public/coupon", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ code: codigoPromo, barberId: selectedBarber.id, startTime: selectedSlot, total: totalPrice, serviceIds: selectedServices.map((s) => s.id) }) }).then((r) => r.json()).catch(() => null);
     if (!d) setPromoEstado({ ok: false, texto: "No pudimos revisar el código. Intenta de nuevo." });
     else if (!d.valid) setPromoEstado({ ok: false, texto: d.message });
-    else setPromoEstado({ ok: true, texto: d.discount > 0 ? `Código aplicado: pagas ${formatCurrency(totalPrice - d.discount)} en el local (antes ${formatCurrency(totalPrice)}).` : `Código aplicado${d.description ? `: ${d.description}` : ""}.` });
+    else { setPromoDescuento(d.discount || 0); setPromoEstado({ ok: true, texto: d.discount > 0 ? `Código aplicado: pagas ${formatCurrency(totalPrice - d.discount)} en el local (antes ${formatCurrency(totalPrice)}).` : `Código aplicado${d.description ? `: ${d.description}` : ""}.` }); }
   };
   const totalDuration = Math.max(5, selectedServices.reduce((sum, s) => sum + s.duration, 0));
+  useEffect(() => { if (depositRequired && codigoPromo && selectedSlot) revisarPromo(); }, [depositRequired, selectedSlot, selectedBarber?.id, totalPrice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [closedDays, setClosedDays] = useState<number[]>([]);
   // Fechas puntuales en que el profesional esta de vacaciones.
@@ -443,6 +447,8 @@ export default function BookingPage() {
           clientPhone: clientPhone || null,
           notes: notes || null,
           totalPrice,
+          marketingConsent,
+          couponCode: codigoPromo.trim() || null,
         }),
       });
 
@@ -1018,8 +1024,9 @@ export default function BookingPage() {
                 <div className="mt-3 rounded-xl border border-brand-blue/20 bg-brand-blue/5 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-semibold text-brand-dark">Abono para confirmar{depositMode === "percent" ? ` (${depositPercentage}%)` : ""}</span>
-                    <span className="text-base font-bold text-brand-blue">{formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}</span>
+                    <span className="text-base font-bold text-brand-blue">{formatCurrency(resumenAbono(totalPrice, promoDescuento, calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed })).abono)}</span>
                   </div>
+                  {promoDescuento > 0 && <div className="mt-2 text-brand-dark"><DesgloseAbono r={resumenAbono(totalPrice, promoDescuento, calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))} codigo={codigoPromo} /></div>}
                   <p className="mt-1 text-[11px] leading-relaxed text-brand-gray">{depositMessage || "Se cobra al confirmar la reserva. El resto se paga en el local."}</p>
                   {depositPolicy && <p className="mt-1 text-[10px] leading-snug text-brand-gray/80">{depositPolicy}</p>}
                 </div>
@@ -1115,7 +1122,6 @@ export default function BookingPage() {
               </div>
             </div>
 
-            {!depositRequired && (
               <div className="mt-4">
                 <label className="text-sm text-brand-gray mb-1 block">¿Tienes un cupón? (opcional)</label>
                 <div className="flex gap-2">
@@ -1123,9 +1129,9 @@ export default function BookingPage() {
                     className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-brand-light/50 px-4 py-2.5 font-mono text-brand-dark placeholder:font-sans placeholder:text-brand-gray focus:border-brand-blue focus:outline-none" />
                   <button type="button" onClick={revisarPromo} disabled={!codigoPromo.trim()} className="rounded-xl border border-brand-blue px-4 text-sm font-semibold text-brand-blue disabled:opacity-40">Aplicar</button>
                 </div>
+                {depositRequired && codigoPromo.trim() && <p className="mt-1.5 text-xs text-brand-gray">El descuento se aplica a tu cita; el abono se descuenta de lo que pagas en el local.</p>}
                 {promoEstado && <p className={`mt-1.5 text-xs font-medium ${promoEstado.ok ? "text-emerald-600" : "text-red-500"}`}>{promoEstado.texto}</p>}
               </div>
-            )}
 
             <label className="mt-4 flex items-start gap-2 text-sm text-brand-gray">
               <input type="checkbox" checked={marketingConsent} onChange={(e) => setMarketingConsent(e.target.checked)} className="mt-0.5 h-4 w-4" />
@@ -1143,7 +1149,7 @@ export default function BookingPage() {
               disabled={!clientName.trim() || !clientPhone.trim() || !/^\S+@\S+\.\S+$/.test(clientEmail.trim()) || submitting}
               className="w-full mt-6 py-4 rounded-xl bg-brand-blue text-white font-bold text-lg hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              {submitting ? "Procesando..." : depositRequired ? `Pagar abono ${formatCurrency(calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed }))}` : "Confirmar Cita"}
+              {submitting ? "Procesando..." : depositRequired ? `Pagar abono ${formatCurrency(resumenAbono(totalPrice, promoDescuento, calcularAbono(totalPrice, { mode: depositMode, percent: depositPercentage, fixed: depositFixed })).abono)}` : "Confirmar Cita"}
             </button>
           </div>
         )}
