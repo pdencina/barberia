@@ -22,7 +22,8 @@ export async function GET(req: NextRequest) {
   // maxDays (opcional): rango "entre N y M dias sin venir".
   const maxRaw = parseInt(searchParams.get("maxDays") || "");
   const maxDays = Number.isFinite(maxRaw) && maxRaw >= days ? maxRaw : null;
-  const { total, inactive: all, neverVisited } = await getInactiveClients(supabase, tenantId, days, { includeNever, maxDays, rangos: parseRangos(searchParams.get("rangos")) });
+  const includeUpcoming = searchParams.get("includeUpcoming") === "1";
+  const { total, inactive: all, neverVisited, optedOut } = await getInactiveClients(supabase, tenantId, days, { includeNever, includeUpcoming, maxDays, rangos: parseRangos(searchParams.get("rangos")) });
 
   // Una fila por persona: dos fichas con el mismo correo (o el mismo telefono, si no tienen correo) se muestran una sola vez.
   const digits = (t: string | null) => (t || "").replace(/\D/g, "");
@@ -36,6 +37,8 @@ export async function GET(req: NextRequest) {
       inactive: inactive.length,
       percentage: total > 0 ? Math.round((inactive.length / total) * 100) : 0,
       contactable: inactive.filter((c) => c.email || c.phone).length,
+      optedOut, // pidieron no recibir promociones (nunca se les escribe)
+      repetidos: all.length - inactive.length, // fichas que comparten correo o teléfono
       neverVisited, // clientes sin ninguna visita registrada que cumplen los dias (fuera de la lista salvo includeNever=1)
     },
   });

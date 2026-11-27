@@ -88,8 +88,9 @@ export async function getInactiveClients(
   // importados): su reloj parte en la fecha de registro y no significa que "dejaron de venir". La pantalla de Retencion y el
   // envio masivo piden false para hablarle solo a quien SI vino alguna vez, y avisan cuantos quedan fuera.
   // rangos: varios grupos a la vez; si viene, la persona debe caer en alguno (ademas de days/maxDays).
-  opts: { includeNever?: boolean; maxDays?: number | null; rangos?: Rango[] } = {}
-): Promise<{ total: number; inactive: RetentionClient[]; neverVisited: number }> {
+  // includeUpcoming: «Toda mi base» (una promoción para todos) también incluye a quien ya tiene una cita por venir.
+  opts: { includeNever?: boolean; maxDays?: number | null; rangos?: Rango[]; includeUpcoming?: boolean } = {}
+): Promise<{ total: number; inactive: RetentionClient[]; neverVisited: number; optedOut: number }> {
   const includeNever = opts.includeNever !== false;
   // Ley 21.719: no se escribe a quien pidio no ser contactado ni a quien rechazo las promociones (migracion 101).
   // Si la migracion aun no esta, se trabaja como antes (sin esa marca).
@@ -104,7 +105,7 @@ export async function getInactiveClients(
     // Falta la migracion 101: se trabaja como antes (sin esa marca).
     clients = await fetchAllRows(() => supabase.from("clients").select("id, name, email, phone, created_at").eq("tenant_id", tenantId));
   }
-  if (!clients || clients.length === 0) return { total: 0, inactive: [], neverVisited: 0 };
+  if (!clients || clients.length === 0) return { total: 0, inactive: [], neverVisited: 0, optedOut: 0 };
 
   const { retentionStartDate, lastVisitMap, visitCountMap, upcoming } = await loadVisitInfo(supabase, tenantId);
 
@@ -124,11 +125,11 @@ export async function getInactiveClients(
         hasUpcoming: upcoming.has(client.id),
       };
     })
-    .filter((c) => !c.hasUpcoming && c.daysSinceVisit >= days && (!opts.maxDays || c.daysSinceVisit <= opts.maxDays) && (!opts.rangos?.length || enRangos(c.daysSinceVisit, opts.rangos)) && !optedOut.has(c.id))
+    .filter((c) => (opts.includeUpcoming || !c.hasUpcoming) && c.daysSinceVisit >= days && (!opts.maxDays || c.daysSinceVisit <= opts.maxDays) && (!opts.rangos?.length || enRangos(c.daysSinceVisit, opts.rangos)) && !optedOut.has(c.id))
     .sort((a, b) => b.daysSinceVisit - a.daysSinceVisit);
 
   const neverVisited = inactive.filter((c) => !c.lastVisit).length;
-  return { total: clients.length, inactive: includeNever ? inactive : inactive.filter((c) => !!c.lastVisit), neverVisited };
+  return { total: clients.length, inactive: includeNever ? inactive : inactive.filter((c) => !!c.lastVisit), neverVisited, optedOut: optedOut.size };
 }
 
 /**

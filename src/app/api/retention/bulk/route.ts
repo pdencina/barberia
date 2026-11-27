@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
   // "Quien esta inactivo" sale de la MISMA funcion que usa la pantalla de Retencion
   // (lib/retention): mismo corte de dias, misma ventana desde el inicio real del negocio y
   // sin clientes que ya tienen una cita por venir.
-  const { inactive: allInactive } = await getInactiveClients(supabase, tenantId, Number.isFinite(Number(days)) ? Math.max(0, Number(days)) : 30, { includeNever: includeNever === true, maxDays: Number(maxDays) > 0 ? Number(maxDays) : null, rangos: parseRangos(body.rangos) });
+  const { inactive: allInactive } = await getInactiveClients(supabase, tenantId, Number.isFinite(Number(days)) ? Math.max(0, Number(days)) : 30, { includeNever: includeNever === true, includeUpcoming: body.includeUpcoming === true, maxDays: Number(maxDays) > 0 ? Number(maxDays) : null, rangos: parseRangos(body.rangos) });
   // Quienes se desmarcaron en la pantalla (casilla de cada cliente) no reciben el mensaje ni el cupon.
   // Clientes agregados a mano (buscados en la pantalla): se suman a la lista aunque no esten en el rango, solo si son de este negocio y aceptan promociones.
   const includeIds = parseIdSet(body.includeClientIds, 500);

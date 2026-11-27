@@ -46,7 +46,8 @@ type SortKey = "days_desc" | "days_asc" | "name";
 
 export default function RetencionPage() {
   const [clients, setClients] = useState<InactiveClient[]>([]);
-  const [stats, setStats] = useState({ total: 0, inactive: 0, percentage: 0, contactable: 0, neverVisited: 0 });
+  const [stats, setStats] = useState<{ total: number; inactive: number; percentage: number; contactable: number; neverVisited: number; optedOut?: number; repetidos?: number }>({ total: 0, inactive: 0, percentage: 0, contactable: 0, neverVisited: 0 });
+  const [todaBase, setTodaBase] = useState(false); // todos los registrados, sin importar su última visita
   // Por defecto solo clientes que SI vinieron alguna vez. Los que nunca tuvieron una visita registrada (nuevos o importados)
   // no "dejaron de venir": se suman solo si se pide. Lo que se ve en pantalla es lo mismo que recibe el envio masivo.
   const [includeNever, setIncludeNever] = useState(false);
@@ -116,7 +117,7 @@ export default function RetencionPage() {
   const suggestCampaignName = () => `Campaña ${new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "America/Santiago" }).format(new Date())} · ${rangeLabel}`;
   // Cuerpo comun de los envios masivos: quienes se desmarcaron no reciben; los agregados a mano se suman.
   const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = [], campaignName?: string) => ({
-    days, includeNever, maxDays, rangos, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, colores, subject, title, logoFondo: recuadroLogo, type, campaignName: campaignName || null,
+    ...(todaBase ? { days: 0, maxDays: null, rangos: [], includeNever: true, includeUpcoming: true } : { days, maxDays, rangos, includeNever }), couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, colores, subject, title, logoFondo: recuadroLogo, type, campaignName: campaignName || null,
     excludeClientIds: [...Array.from(excluded), ...extraExcluded],
     includeClientIds: manualClients.map((m) => m.id),
   });
@@ -126,14 +127,14 @@ export default function RetencionPage() {
   useEffect(() => { setPendiente(tenant?.id ? leerPendiente(clavePendiente(tenant.id)) : null); }, [tenant?.id]);
   // Borrador automático: lo armado queda guardado en este equipo y vuelve al entrar de nuevo.
   const borrador = {
-    days, maxDays, rangos, includeNever, selectedCoupon, customMessage, condiciones, imageUrl, design, colores, subject, title, logoFondo,
+    days, maxDays, rangos, includeNever, todaBase, selectedCoupon, customMessage, condiciones, imageUrl, design, colores, subject, title, logoFondo,
     excluidos: Array.from(excluded), agregados: manualClients,
   };
   const { hayBorrador, borrar: borrarBorrador } = useBorrador(tenant?.id ? `rb_borrador_retencion_${tenant.id}` : null, borrador, (g) => {
     const d = g?.days ?? 15;
     const m = g ? (g.maxDays ?? null) : 30;
     setDays(d); setMinInput(String(d)); setMaxDays(m); setMaxInput(m ? String(m) : "");
-    setIncludeNever(!!g?.includeNever); setRangos(g?.rangos || []);
+    setIncludeNever(!!g?.includeNever); setRangos(g?.rangos || []); setTodaBase(!!g?.todaBase);
     setSelectedCoupon(g?.selectedCoupon || ""); setCustomMessage(g?.customMessage || "");
     setCondiciones({ ...SIN_CONDICIONES, ...(g?.condiciones || {}) });
     setImageUrl(g?.imageUrl || ""); setSubject(g?.subject || ""); setTitle(g?.title || "");
@@ -290,7 +291,7 @@ export default function RetencionPage() {
   const fetchData = async () => {
     setLoading(true);
     const [retRes, coupRes] = await Promise.all([
-      fetch(`/api/retention?days=${days}${maxDays ? `&maxDays=${maxDays}` : ""}${includeNever ? "&includeNever=1" : ""}${rangos.length ? `&rangos=${rangosATexto(rangos)}` : ""}`),
+      fetch(todaBase ? "/api/retention?days=0&includeNever=1&includeUpcoming=1" : `/api/retention?days=${days}${maxDays ? `&maxDays=${maxDays}` : ""}${includeNever ? "&includeNever=1" : ""}${rangos.length ? `&rangos=${rangosATexto(rangos)}` : ""}`),
       fetch("/api/cupones"),
     ]);
     const retData = await retRes.json();
@@ -302,7 +303,7 @@ export default function RetencionPage() {
     setLoading(false);
   };
 
-  useEffect(() => { fetchData(); }, [days, maxDays, includeNever, rangos]);
+  useEffect(() => { fetchData(); }, [days, maxDays, includeNever, rangos, todaBase]);
   // Si "desde" pasa a ser mayor que "hasta", se quita el tope.
   useEffect(() => { if (maxDays && maxDays < days) { setMaxDays(null); setMaxInput(""); } }, [days, maxDays]);
 
@@ -356,16 +357,17 @@ export default function RetencionPage() {
 
   const sortedClients = [...clients].sort((a, b) =>
     sortBy === "name" ? a.name.localeCompare(b.name, "es") : sortBy === "days_asc" ? a.daysSinceVisit - b.daysSinceVisit : b.daysSinceVisit - a.daysSinceVisit);
-  const rangeLabel = rangos.length ? etiquetaRangos(rangos) : maxDays != null ? `${days}–${maxDays} días` : `${days}+ días`;
-  const todos = !rangos.length && days === 0 && maxDays === null;
+  const rangeLabel = todaBase ? "toda tu base" : rangos.length ? etiquetaRangos(rangos) : maxDays != null ? `${days}–${maxDays} días` : `${days}+ días`;
+  const todos = !todaBase && !rangos.length && days === 0 && maxDays === null;
   // Deja marcados esos grupos: days / maxDays quedan cubriendo desde el menor hasta el mayor.
   const elegirRangos = (lista: Rango[]) => {
+    setTodaBase(false);
     const min = Math.min(...lista.map((r) => r[0]));
     const max = lista.some((r) => r[1] === null) ? null : Math.max(...lista.map((r) => r[1] as number));
     setRangos(lista.length > 1 ? lista : []);
     setDays(min); setMaxDays(max); setMinInput(String(min)); setMaxInput(max ? String(max) : "");
   };
-  const marcados: Rango[] = rangos.length ? rangos : RANGE_PRESETS.filter((r) => days === r.min && r.max === maxDays).map((r) => [r.min, r.max]);
+  const marcados: Rango[] = todaBase ? [] : rangos.length ? rangos : RANGE_PRESETS.filter((r) => days === r.min && r.max === maxDays).map((r) => [r.min, r.max]);
   const alternarRango = (min: number, max: number | null) => {
     const esta = marcados.some((r) => r[0] === min && r[1] === max);
     const lista: Rango[] = esta ? marcados.filter((r) => !(r[0] === min && r[1] === max)) : [...marcados, [min, max]];
@@ -443,7 +445,7 @@ export default function RetencionPage() {
       {/* Metricas */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard label="Total de clientes" value={stats.total} Icon={Users} tone="teal" hint="Registrados en tu negocio" />
-        <StatCard label={`Sin venir (${rangeLabel})`} value={stats.inactive} Icon={UserMinus} tone="amber" hint="Sin visita ni cita por venir" />
+        <StatCard label={todaBase ? "Pueden recibirlo" : `Sin venir (${rangeLabel})`} value={stats.inactive} Icon={UserMinus} tone="amber" hint={todaBase ? "Toda tu base" : "Sin visita ni cita por venir"} />
         <StatCard label="% del total" value={`${stats.percentage}%`} Icon={Percent} tone={stats.percentage >= 30 ? "red" : "green"} hint="Del total de clientes" />
         <StatCard label="Contactables" value={stats.contactable} Icon={HeartHandshake} tone="green" hint="Con correo o teléfono" />
       </div>
@@ -475,6 +477,10 @@ export default function RetencionPage() {
           <div>
             <p className="mb-2 text-xs font-semibold text-brand-gray">Días sin venir (marca uno o varios grupos, o escríbelo)</p>
             <div className="-mx-1 flex flex-wrap items-center gap-2 px-1">
+              <button type="button" aria-pressed={todaBase} onClick={() => setTodaBase((x) => !x)}
+                className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${todaBase ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-brand-blue/50 bg-white text-brand-blue"}`}>
+                Toda mi base
+              </button>
               <button type="button" aria-pressed={todos} onClick={() => elegirRangos([[0, null]])}
                 className={`rounded-full border px-3.5 py-2 text-sm font-semibold transition-all ${todos ? "border-transparent bg-brand-blue text-white shadow-lg shadow-brand-blue/25" : "border-gray-200 bg-white text-brand-gray hover:border-brand-blue/40"}`}>
                 Todos
@@ -490,15 +496,22 @@ export default function RetencionPage() {
                 );
               })}
             </div>
+            {/* Contador: cuántos de los registrados entran y por qué no el resto. */}
+            <p role="status" className="mt-3 rounded-xl bg-brand-blue/5 px-3 py-2 text-xs text-brand-dark">
+              <b>Entran {stats.inactive} de {stats.total} clientes registrados.</b>{" "}
+              {todaBase
+                ? `Fuera: ${stats.optedOut || 0} que pidieron no recibir promociones${stats.repetidos ? ` y ${stats.repetidos} fichas con un correo o teléfono repetido` : ""}.`
+                : "Con este filtro quedan fuera quienes tienen una cita por venir, no calzan en los días o pidieron no recibir promociones. Para escribirles a todos toca «Toda mi base»."}
+            </p>
             <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-brand-gray">
               Entre
               <input type="number" min={0} max={999} value={minInput} onChange={(e) => setMinInput(e.target.value)}
-                onBlur={() => { const v = parseInt(minInput); if (v >= 0) { if (v !== days) setRangos([]); setDays(v); if (maxDays && maxDays < v) { setMaxDays(null); setMaxInput(""); } } else setMinInput(String(days)); }}
+                onBlur={() => { const v = parseInt(minInput); if (v >= 0) { if (v !== days) { setRangos([]); setTodaBase(false); } setDays(v); if (maxDays && maxDays < v) { setMaxDays(null); setMaxInput(""); } } else setMinInput(String(days)); }}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                 className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue" />
               y
               <input type="number" min={days} max={999} placeholder="sin tope" value={maxInput} onChange={(e) => setMaxInput(e.target.value)}
-                onBlur={() => { const v = parseInt(maxInput); if ((v >= days ? v : null) !== maxDays) setRangos([]); if (v >= days) setMaxDays(v); else { setMaxDays(null); setMaxInput(""); } }}
+                onBlur={() => { const v = parseInt(maxInput); if ((v >= days ? v : null) !== maxDays) { setRangos([]); setTodaBase(false); } if (v >= days) setMaxDays(v); else { setMaxDays(null); setMaxInput(""); } }}
                 onKeyDown={(e) => { if (e.key === "Enter") (e.target as HTMLInputElement).blur(); }}
                 className="w-24 rounded-full border border-gray-200 bg-white px-3.5 py-2 text-sm outline-none focus:border-brand-blue" />
               días sin venir
@@ -609,7 +622,7 @@ export default function RetencionPage() {
       </div>
 
       {/* Lista */}
-      <Panel title={`Clientes en este rango (${clients.length})`} subtitle={`${rangeLabel} sin venir${manualRows.length > 0 ? ` · ${manualRows.length} agregado${manualRows.length === 1 ? "" : "s"} a mano` : ""}`} flush
+      <Panel title={`Clientes en este rango (${clients.length})`} subtitle={`${todaBase ? "Toda tu base" : `${rangeLabel} sin venir`}${manualRows.length > 0 ? ` · ${manualRows.length} agregado${manualRows.length === 1 ? "" : "s"} a mano` : ""}`} flush
         action={
           <label className="flex items-center gap-2 text-xs font-semibold text-brand-gray">
             Ordenar
