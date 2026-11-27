@@ -8,6 +8,7 @@ import { useToast } from "@/components/ui/toast";
 import { todayInChile } from "@/lib/utils";
 import { SUPPORT_AREAS } from "@/lib/support";
 import { buscarAyuda } from "@/lib/oti/buscar";
+import { entenderQuitarBloqueo } from "@/lib/oti/quitar-bloqueo";
 import { entenderBloqueo, etiquetaFecha, type MiembroEquipo, type PedidoBloqueo } from "@/lib/oti/bloqueo";
 import { CATALOGO, type EntradaOti } from "@/lib/oti/catalogo";
 import { norm } from "@/lib/oti/texto";
@@ -24,6 +25,7 @@ type Mensaje =
   | { de: "oti"; tipo: "ayuda"; entrada: EntradaOti }
   | { de: "oti"; tipo: "confirmar"; pedido: Extract<PedidoBloqueo, { ok: true }>; estado: "pendiente" | "hecho" | "cancelado" }
   | { de: "oti"; tipo: "soporte"; pregunta: string }
+  | { de: "oti"; tipo: "quitar"; profesional: MiembroEquipo; total: number; hasta: string; horario: string[]; estado: "pendiente" | "hecho" | "cancelado" | "deshecho"; respaldo?: string }
   | { de: "oti"; tipo: "personal"; mov: MovimientoPersonal; estado: "pendiente" | "hecho" | "cancelado"; destino?: "personal" | "negocio"; medio?: string }
   | { de: "oti"; tipo: "nota"; texto: string; dia: number | null; estado: "pendiente" | "hecho" | "cancelado" }
   | { de: "oti"; tipo: "borrarNota"; notas: NotaOti[]; sel?: string; estado: "pendiente" | "hecho" | "cancelado" }
@@ -33,6 +35,7 @@ const formatCLP = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 // Atajos genéricos: al tocarlos se escribe la frase en la caja de texto (no se envía) para que la persona la complete.
 const SUGERENCIAS = [
   { titulo: "Cerrar mi agenda", frase: "Cierra mi agenda el " },
+  { titulo: "Quitar mis bloqueos", frase: "Elimina todos mis bloqueos" },
   { titulo: "Anotar un gasto personal", frase: "Gasté $ en " },
   { titulo: "Anotar un ingreso personal", frase: "Recibí $ por " },
   { titulo: "Ver mis gastos del mes", frase: "¿Cuánto gasté este mes?" },
@@ -223,6 +226,25 @@ export function OtiWidget() {
     setMsgs((m) => [...m, { de: "yo", tipo: "texto", texto: pregunta }]);
     setOcupado(true);
     try {
+      // -3) Quitar bloqueos: de quien escribe o del profesional que nombre. Muestra cuántos son y cómo queda; siempre pide confirmar.
+      if (/bloque/.test(norm(pregunta))) {
+        const quitar = entenderQuitarBloqueo(pregunta, await cargarEquipo(), user?.id);
+        if (quitar) {
+          setFaltaMonto(null);
+          const dice = (texto: string) => setMsgs((m) => [...m, { de: "oti", tipo: "texto", texto }]);
+          if (!quitar.ok) { dice(quitar.falta === "ambiguo" ? `Hay más de un profesional con ese nombre (${(quitar.candidatos || []).map((c) => c.name).join(", ")}). Escribe el nombre completo.` : "¿De qué profesional? Escribe su nombre completo, o «mis bloqueos» si son los tuyos."); return; }
+          if (r === "barber" && quitar.profesional.id !== user?.id) { dice("Con tu cuenta solo puedo quitar tus propios bloqueos."); return; }
+          try {
+            const res = await fetch(`/api/oti/bloqueos?barberId=${quitar.profesional.id}`, { cache: "no-store" });
+            const d = await res.json().catch(() => ({}));
+            if (!res.ok) { dice(d?.error || "No pude revisar los bloqueos. Intenta de nuevo."); return; }
+            if (!d.total) { dice(`${quitar.profesional.name} no tiene bloqueos desde hoy. Se puede reservar según su horario: ${d.horario.join("; ")}.`); return; }
+            setMsgs((m) => [...m, { de: "oti", tipo: "quitar", profesional: quitar.profesional, total: d.total, hasta: d.hasta, horario: d.horario, estado: "pendiente" }]);
+          } catch { dice("No pude conectar. Revisa tu conexión e intenta de nuevo."); }
+          return;
+        }
+      }
+
       // -2) Notas del administrador (Dashboard): «recuérdame pagar la luz el 5», «ver mis notas», «borra la nota de la luz». Solo administrador;
       // el servidor valida la sesión. Crear y borrar siempre piden confirmar.
       const pedidoNota = esAdmin ? entenderNota(pregunta) : null;
@@ -401,6 +423,21 @@ export function OtiWidget() {
     finally { setOcupado(false); }
   };
 
+  const quitarBloqueos = async (i: number, m: Extract<Mensaje, { tipo: "quitar" }>, accion: "quitar" | "deshacer") => {
+    setOcupado(true);
+    try {
+      const res = await fetch("/api/oti/bloqueos", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ barberId: m.profesional.id, accion, respaldo: m.respaldo }) });
+      const d = await res.json().catch(() => ({}));
+      const dice = (texto: string, cambio: Partial<Extract<Mensaje, { tipo: "quitar" }>>) => setMsgs((l) => l.map((x, k) => (k === i && x.tipo === "quitar" ? { ...x, ...cambio } : x)).concat([{ de: "oti", tipo: "texto", texto }]));
+      if (!res.ok) { dice(`No pude hacerlo: ${d?.error || "intenta de nuevo"}`, d?.respaldo ? { estado: "hecho", respaldo: d.respaldo } : {}); return; }
+      if (accion === "quitar") dice(`Listo. Quité ${d.quitados} bloqueos de ${m.profesional.name}. Ahora se puede reservar según su horario. Revisa el Calendario.`, { estado: "hecho", respaldo: d.respaldo });
+      else dice(`Listo, devolví los ${d.restaurados} bloqueos de ${m.profesional.name}.`, { estado: "deshecho" });
+      try { window.dispatchEvent(new Event("bloqueos-changed")); } catch {}
+      router.refresh();
+    } catch { setMsgs((l) => [...l, { de: "oti", tipo: "texto", texto: "No pude conectar. Revisa tu conexión e intenta de nuevo." }]); }
+    finally { setOcupado(false); }
+  };
+
   const confirmar = async (i: number, pedido: Extract<PedidoBloqueo, { ok: true }>) => {
     setOcupado(true);
     try {
@@ -566,6 +603,25 @@ export function OtiWidget() {
                       </div>
                     ))}
                     {m.notas.length === 0 && <p className="text-xs text-brand-gray">Sin más notas por borrar.</p>}
+                  </div>
+                );
+                if (m.tipo === "quitar") return (
+                  <div key={i} className="max-w-[92%] space-y-2 rounded-2xl border border-brand-blue/30 bg-white px-3 py-3 text-sm dark:bg-gray-900">
+                    <p className="font-bold text-brand-dark dark:text-gray-100">¿Quito los bloqueos?</p>
+                    <p className="text-brand-dark dark:text-gray-200"><b>{m.profesional.name}</b> tiene <b>{m.total} bloqueos</b> desde hoy (el último, {m.hasta.split("-").reverse().join("/")}).</p>
+                    <div className="rounded-xl bg-brand-light/70 px-3 py-2 text-xs text-brand-dark dark:bg-gray-800 dark:text-gray-200">
+                      <p className="font-semibold">Sin ellos, se podrá reservar en su horario:</p>
+                      {m.horario.map((h) => <p key={h}>• {h}</p>)}
+                    </div>
+                    <p className="text-xs text-brand-gray">No se tocan las citas ni las vacaciones. Después puedes deshacerlo.</p>
+                    {m.estado === "pendiente" ? (
+                      <div className="flex gap-2">
+                        <button type="button" disabled={ocupado} onClick={() => quitarBloqueos(i, m, "quitar")} className="rounded-xl bg-red-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">{ocupado ? "Quitando…" : `Sí, quitar ${m.total}`}</button>
+                        <button type="button" disabled={ocupado} onClick={() => setMsgs((x) => x.map((y, k) => (k === i && y.tipo === "quitar" ? { ...y, estado: "cancelado" as const } : y)).concat([{ de: "oti", tipo: "texto", texto: "Listo, no quité nada." }]))} className="rounded-xl border border-gray-200 px-3 py-1.5 text-xs font-semibold text-brand-gray">Cancelar</button>
+                      </div>
+                    ) : m.estado === "hecho" && m.respaldo ? (
+                      <button type="button" disabled={ocupado} onClick={() => quitarBloqueos(i, m, "deshacer")} className="rounded-xl border border-brand-blue/40 px-3 py-1.5 text-xs font-semibold text-brand-blue disabled:opacity-50">Deshacer</button>
+                    ) : <p className="text-xs text-brand-gray">{m.estado === "deshecho" ? "Deshecho." : "Sin cambios."}</p>}
                   </div>
                 );
                 if (m.tipo === "confirmar") return (
