@@ -36,7 +36,11 @@ export async function POST(req: NextRequest) {
   const extraIds = [...cc.extraIds, ...otras.extraIds];
   // Reserva con promoción de «solo efectivo o transferencia»: no se cobra con tarjeta ni QR.
   const bloqueo = await bloqueoPorPromo(supabase, [cc.primeraId, ...extraIds], ["qr"]);
-  if (bloqueo) return NextResponse.json({ error: `${bloqueo} Elige «Pagar en efectivo».` }, { status: 409 });
+  if (bloqueo) {
+    // Solo se manda a «Pagar en efectivo» si ese botón existe en este local.
+    const { data: ef } = await supabase.from("tenants").select("kiosk_cash_enabled").eq("id", t.id).maybeSingle();
+    return NextResponse.json({ error: `${bloqueo} ${(ef as any)?.kiosk_cash_enabled ? "Elige «Pagar en efectivo»." : "Paga en caja; el equipo te ayuda."}` }, { status: 409 });
+  }
 
   // Cuenta de Mercado Pago a la que entra el pago: la del profesional de la cita si trabaja en arriendo (como el POS); si no, la del negocio.
   const cred = { token: (await tokensMercadoPago(supabase, t.id, (a as any).barber_id))[0] || null };
