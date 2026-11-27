@@ -38,11 +38,17 @@ export async function POST(req: NextRequest) {
 
   // Lo que falta pagar de cada cita (para ofrecer pagar varias juntas). Siempre calculado en el servidor.
   const saldos = new Map<string, number>();
-  for (const a of visibles) { const s = await saldoCita(supabase, (a as any).id); saldos.set((a as any).id, s?.saldo || 0); }
+  const promos = new Map<string, { codigo: string; descuento: number; pagos: string[] }>();
+  for (const a of visibles) {
+    const s = await saldoCita(supabase, (a as any).id);
+    saldos.set((a as any).id, s?.saldo || 0);
+    if (s?.promo) promos.set((a as any).id, { ...s.promo, descuento: s.descuento });
+  }
 
   const citas = visibles.filter((a: any) => a.status !== "completed" || (saldos.get(a.id) || 0) > 0).map((a: any) => ({
     id: a.id,
     saldo: saldos.get(a.id) || 0,
+    promo: promos.get(a.id) || null,
     barberId: a.barber_id || null,
     fecha: a.date === hoyChile() ? null : a.date,
     hora: String(a.start_time || "").slice(11, 16), // hora de Chile escrita como UTC

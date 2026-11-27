@@ -3,13 +3,14 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Qr } from "@/components/totem/qr";
+import { mediosDelTotem } from "@/lib/totem-medios";
 
 // Tótem de autoatención: pantalla HORIZONTAL táctil en el local (pensado para 1920x1080; todo escala con el tamaño de la pantalla).
 // Sin sesión: todo pasa por /api/totem/* con el código corto de la cita. Vuelve solo al inicio tras 60 s sin tocarlo.
 // En pantallas angostas (celular vertical) las columnas se apilan, pero el diseño es horizontal.
 
-type Pantalla = "efectivo" | "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "otro" | "info" | "contacto" | "gracias";
-interface Cita { saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; completada?: boolean; code: string | null }
+type Pantalla = "cupon" | "efectivo" | "inicio" | "codigo" | "vincular" | "cita" | "pagoqr" | "pagoterm" | "nohora" | "reservar" | "pagar" | "productos" | "quien" | "pagoprod" | "servicios" | "upsell" | "otro" | "info" | "contacto" | "gracias";
+interface Cita { promo?: { codigo: string; descuento: number; pagos: string[] } | null; saldo?: number; barberId?: string | null; id: string; fecha?: string | null; hora: string; servicio: string; profesional: string; cliente: string; llego: boolean; completada?: boolean; code: string | null }
 interface Producto { id: string; name: string; price: number; category: string | null; cosmetico?: boolean }
 interface Info { pagoEfectivo?: boolean; modulos?: number; whatsapp?: string | null; web?: string | null; negocio: { name: string; logo_url: string | null }; reserva: string | null; reservaPantalla: string | null; productos: Producto[]; profesionales?: { id: string; name: string }[]; pagoQr?: boolean; pagoTerminal?: boolean; tarjetaElige?: boolean; info: { title: string; body: string }[] }
 
@@ -36,6 +37,10 @@ function Opcion({ n, t, d }: { n?: string; t: string; d: string }) {
     </>
   );
 }
+
+// Botón de «caja» cuando la promoción limita los medios de pago: el equipo recibe el aviso y cobra.
+const textoCaja = (m: { efectivo: boolean; transferencia: boolean }, hayEfectivo: boolean) =>
+  `${hayEfectivo ? "Pagar con transferencia" : `Pagar ${[m.efectivo && "en efectivo", m.transferencia && "con transferencia"].filter(Boolean).join(" o ") || "en caja"}`} (avisamos al equipo)`;
 
 // Elementos gráficos y flotantes del sitio de re-booking: tarjetas y círculos que flotan despacio, en blanco con baja opacidad sobre negro.
 function Fondo() {
@@ -76,13 +81,13 @@ function Fondo() {
 // no escriben nada, pero se mantienen en su lugar para que el teclado sea el de siempre. Se usa para el código del cliente y el del negocio.
 const FILAS_TECLADO = ["1234567890", "QWERTYUIOP", "ASDFGHJKL", "ZXCVBNM"];
 const TECLAS_VALIDAS = new Set([...LETRAS, ...NUMEROS]);
-function Teclado({ onTecla, onBorrar }: { onTecla: (k: string) => void; onBorrar: () => void }) {
+function Teclado({ onTecla, onBorrar, todas }: { onTecla: (k: string) => void; onBorrar: () => void; todas?: boolean }) {
   return (
     <div className="space-y-3">
       {FILAS_TECLADO.map((fila, i) => (
         <div key={fila} className="flex justify-center gap-3" style={{ paddingInline: i === 2 ? "3.2%" : i === 3 ? "8%" : 0 }}>
           {fila.split("").map((k) => {
-            const valida = TECLAS_VALIDAS.has(k);
+            const valida = todas || TECLAS_VALIDAS.has(k);
             return (
               <button key={k} disabled={!valida} onClick={() => onTecla(k)} aria-label={k}
                 className={`flex-1 rounded-xl border py-5 text-4xl font-bold ${valida ? "border-white/[0.12] bg-white/[0.04] active:bg-white/15" : "border-white/[0.05] bg-transparent text-white/15"}`}>{k}</button>
@@ -139,6 +144,9 @@ function Totem() {
   // Otra persona (otro cliente, otro código) que paga en el mismo cobro; cada una queda con su propia venta.
   const [otros, setOtros] = useState<{ code: string; cliente: string; citas: Cita[] }[]>([]);
   const [codigoOtro, setCodigoOtro] = useState("");
+  // Código de promoción escrito en el tótem; `puesto` = el que se aplicó en esta atención (se puede quitar).
+  const [promoEscrita, setPromoEscrita] = useState("");
+  const [promoPuesta, setPromoPuesta] = useState("");
   const [extra, setExtra] = useState<Record<string, number>>({});
   const pendienteRef = useRef<((pr: { id: string; cantidad: number }[]) => void) | null>(null);
   const [vinculo, setVinculo] = useState<{ token: string; url: string; code?: string; nombre?: string } | null>(null); // «Ver mi código»: QR → correo en el celular
@@ -149,7 +157,7 @@ function Totem() {
   useEffect(() => { pantallaRef.current = pantalla; }, [pantalla]);
 
   const inicio = useCallback(() => {
-    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setPagoEfe(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita"); setUpsellHecho(false); setOtros([]); setCodigoOtro(""); setExtra({}); pendienteRef.current = null;
+    setPantalla("inicio"); setCode(""); setCitas([]); setMsg(""); setCarrito({}); setGracias(""); setModo("llegue"); setPagoQr(null); setPagoTerm(null); setPagoEfe(null); setVinculo(null); setSinCita(false); setVendedor(null); setCodigoProd(""); setOrigenPago("cita"); setUpsellHecho(false); setOtros([]); setCodigoOtro(""); setExtra({}); setPromoEscrita(""); setPromoPuesta(""); pendienteRef.current = null;
   }, []);
 
   // Reinicio por inactividad (60 s) y reloj de toque.
@@ -295,6 +303,15 @@ function Totem() {
     if (!validas.length) { setMsg(`Esa persona no tiene una cita para pagar hoy con ${citas[0]?.profesional || "el mismo profesional"}.`); return; }
     setOtros((l) => [...l, { code: codigoOtro, cliente: validas[0].cliente, citas: validas }]);
     setCodigoOtro(""); setMsg(""); setPantalla("cita");
+  };
+
+  const aplicarPromo = async (cupon: string, quitar = false) => {
+    setCargando(true); setMsg("");
+    const { ok, d } = await post("cupon", { code, appointmentIds: citas.map((x) => x.id), cupon, quitar });
+    if (!ok) { setCargando(false); setMsg(d.error || "No pudimos aplicar el código"); return; }
+    setPromoPuesta(quitar ? "" : d.cupon); setPromoEscrita("");
+    await buscar(code); // vuelve a leer la cita con el monto nuevo
+    setCargando(false);
   };
 
   const abrirServicios = async (c: Cita) => {
@@ -612,6 +629,7 @@ function Totem() {
             const ids = principales.map((x) => x.id);
             const otrosPay = otros.map((o) => ({ code: o.code, appointmentIds: o.citas.map((x) => x.id) }));
             const todas = [...principales, ...otros.flatMap((o) => o.citas)];
+            const m = mediosDelTotem(todas);
             return (
               <>
                 {juntas && (
@@ -627,13 +645,15 @@ function Totem() {
                     </div>
                     <div className="space-y-4">
                       {info.pagoTerminal && (info.tarjetaElige ? (
-                        <div className="grid grid-cols-2 gap-4">
-                          <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", ids, pr, otrosPay))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>
-                          <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "credito", ids, pr, otrosPay))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>
+                        <div className="grid grid-cols-2 gap-4 empty:hidden">
+                          {m.debito && <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", ids, pr, otrosPay))}>{cargando ? "Enviando…" : "Pagar todo con débito"}</button>}
+                          {m.credito && <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "credito", ids, pr, otrosPay))}>{cargando ? "Enviando…" : "Pagar todo con crédito"}</button>}
                         </div>
-                      ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", ids, pr, otrosPay))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
-                      {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(citas[0], ids, pr, otrosPay))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
-                      {info.pagoEfectivo && <button className={secundario} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoEfectivo(citas[0], ids, pr, otrosPay))}>Pagar todo en efectivo</button>}
+                      ) : m.debito && <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(citas[0], "debito", ids, pr, otrosPay))}>{cargando ? "Enviando a la máquina…" : "Pagar todo con tarjeta aquí"}</button>)}
+                      {info.pagoQr && m.qr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(citas[0], ids, pr, otrosPay))}>{cargando ? "Creando QR…" : "Pagar todo desde mi celular (QR)"}</button>}
+                      {info.pagoEfectivo && m.efectivo && <button className={m.limitado ? principal : secundario} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoEfectivo(citas[0], ids, pr, otrosPay))}>Pagar todo en efectivo</button>}
+                      {m.limitado && (m.transferencia || !info.pagoEfectivo) && <button className={info.pagoEfectivo ? secundario : principal} disabled={cargando} onClick={() => pedirPagar()}>{textoCaja(m, !!info.pagoEfectivo)}</button>}
+                      {m.limitado && <p className="text-center text-xl text-white/70">Con tu promoción se paga solo con {[m.efectivo && "efectivo", m.transferencia && "transferencia", m.debito && "débito", m.credito && "crédito"].filter(Boolean).join(" o ")}.</p>}
                     </div>
                   </div>
                 )}
@@ -643,6 +663,12 @@ function Totem() {
               </>
             );
           })()}
+          {modo === "pagar" && citas.some((x) => (x.saldo || 0) > 0 && !x.promo) && (
+            <button className={`${secundario} mb-5`} onClick={() => { setMsg(""); setPromoEscrita(""); setPantalla("cupon"); }}>Tengo un código de promoción</button>
+          )}
+          {modo === "pagar" && promoPuesta && citas.some((x) => x.promo?.codigo === promoPuesta) && (
+            <button className={`${secundario} mb-5`} disabled={cargando} onClick={() => aplicarPromo(promoPuesta, true)}>Quitar el código {promoPuesta}</button>
+          )}
           <div className="space-y-5">
             {citas.map((c) => (
               <div key={c.id} className={`${caja} grid items-center gap-x-12 gap-y-6 p-8 md:grid-cols-[1fr_1.2fr]`}>
@@ -651,19 +677,24 @@ function Totem() {
                   <p className="tt-display text-8xl font-semibold">{c.hora}</p>
                   <p className="mt-3 text-3xl font-semibold">{c.servicio}</p>
                   <p className="mt-1 text-2xl text-white/65">con {c.profesional || "tu profesional"} · {c.cliente}</p>
+                  {modo === "pagar" && (c.saldo || 0) > 0 && <p className="tt-display mt-4 text-6xl font-semibold">{plata(c.saldo || 0)}</p>}
+                  {modo === "pagar" && c.promo && c.promo.descuento > 0 && <p className="mt-2 inline-block rounded-xl bg-white px-4 py-2 text-xl font-bold text-[#0A0A0A]">{c.promo.codigo}: descuento de {plata(c.promo.descuento)}</p>}
                 </div>
                 <div>
                   {modo === "pagar"
                     ? <div className="space-y-4">
-                        {info.pagoTerminal && (info.tarjetaElige ? (
-                          <div className="grid grid-cols-2 gap-4">
-                            <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando…" : "Pagar con débito"}</button>
-                            <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "credito", undefined, pr))}>{cargando ? "Enviando…" : "Pagar con crédito"}</button>
-                          </div>
-                        ) : <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
-                        {info.pagoQr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(c, undefined, pr))}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
-                        {info.pagoEfectivo && <button className={secundario} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoEfectivo(c, undefined, pr))}>Pagar en efectivo</button>}
-                        {!info.pagoEfectivo && <button className={(info.pagoQr || info.pagoTerminal) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar()}>{(info.pagoQr || info.pagoTerminal) ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>}
+                        {(() => { const m = mediosDelTotem([c]); const caja = m.limitado ? (m.transferencia || !info.pagoEfectivo) : !info.pagoEfectivo; const conOtros = (info.pagoQr || info.pagoTerminal) && !m.limitado; return (<>
+                          {info.pagoTerminal && (info.tarjetaElige ? (
+                            <div className="grid grid-cols-2 gap-4 empty:hidden">
+                              {m.debito && <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando…" : "Pagar con débito"}</button>}
+                              {m.credito && <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "credito", undefined, pr))}>{cargando ? "Enviando…" : "Pagar con crédito"}</button>}
+                            </div>
+                          ) : m.debito && <button className={principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoTerminal(c, "debito", undefined, pr))}>{cargando ? "Enviando a la máquina…" : "Pagar con tarjeta aquí"}</button>)}
+                          {info.pagoQr && m.qr && <button className={info.pagoTerminal ? secundario : principal} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoQr(c, undefined, pr))}>{cargando ? "Creando QR…" : "Pagar desde mi celular (QR)"}</button>}
+                          {info.pagoEfectivo && m.efectivo && <button className={m.limitado ? principal : secundario} disabled={cargando} onClick={() => conUpsell((pr) => crearPagoEfectivo(c, undefined, pr))}>Pagar en efectivo</button>}
+                          {caja && <button className={conOtros || (m.limitado && info.pagoEfectivo) ? secundario : principal} disabled={cargando} onClick={() => pedirPagar()}>{m.limitado ? textoCaja(m, !!info.pagoEfectivo) : conOtros ? "Prefiero pagar en caja (avisamos al equipo)" : "Quiero pagar en caja (avisamos al equipo)"}</button>}
+                          {m.limitado && <p className="text-center text-xl text-white/70">Con tu promoción se paga solo con {[m.efectivo && "efectivo", m.transferencia && "transferencia", m.debito && "débito", m.credito && "crédito"].filter(Boolean).join(" o ")}.</p>}
+                        </>); })()}
                         {!c.completada && <button className={secundario} disabled={cargando} onClick={() => abrirServicios(c)}>{cargando ? "Cargando…" : "Agregar o cambiar servicio"}</button>}
                         {!info.pagoEfectivo && <p className="pt-1 text-center text-xl text-white/60">Si pagas en caja, le avisamos a {c.profesional || "tu profesional"} y al equipo para que te atiendan.</p>}
                       </div>
@@ -677,6 +708,22 @@ function Totem() {
                 </div>
               </div>
             ))}
+          </div>
+        </section>
+      )}
+
+      {pantalla === "cupon" && (
+        <section className="flex flex-1 flex-col">
+          <button onClick={() => { setMsg(""); setPantalla("cita"); }} className="tt-mono mb-6 self-start rounded-xl border border-white/[0.12] px-5 py-3 text-base uppercase tracking-[0.12em] text-white/60">← Volver a mi cita</button>
+          <div className="grid flex-1 items-center gap-x-16 gap-y-8 md:grid-cols-2">
+            <div>
+              <h2 className="tt-display mb-3 text-6xl font-semibold">Tu código de promoción</h2>
+              <p className="mb-8 text-2xl text-white/65">Escríbelo sin espacios ni guiones. El descuento se aplica solo.</p>
+              <div className="mb-8 flex min-h-[7rem] items-center rounded-xl border border-white/[0.12] bg-white/[0.04] px-6 text-5xl font-semibold tracking-widest">{promoEscrita}</div>
+              {msg && <p className={`mb-6 ${aviso}`}>{msg}</p>}
+              <button className={principal} disabled={promoEscrita.length < 3 || cargando} onClick={() => aplicarPromo(promoEscrita)}>{cargando ? "Revisando…" : "Aplicar código"}</button>
+            </div>
+            <Teclado todas onTecla={(k) => { setMsg(""); setPromoEscrita((c) => (c.length < 30 ? c + k : c)); }} onBorrar={() => setPromoEscrita((c) => c.slice(0, -1))} />
           </div>
         </section>
       )}

@@ -3,15 +3,16 @@
 import { cuponDeCita } from "@/lib/cupon-cita";
 
 // Lo que falta por pagar de una cita, calculado SIEMPRE en el servidor: precios guardados al reservar menos el descuento del código y el abono ya pagado.
-export async function saldoCita(supabase: any, appointmentId: string): Promise<{ total: number; abono: number; saldo: number; descuento: number } | null> {
+export async function saldoCita(supabase: any, appointmentId: string): Promise<{ total: number; abono: number; saldo: number; descuento: number; promo: { codigo: string; pagos: string[] } | null } | null> {
   const { data: a } = await supabase.from("appointments").select("id, deposit_amount, deposit_status").eq("id", appointmentId).maybeSingle();
   if (!a) return null;
   const { data: items } = await supabase.from("appointment_services").select("price").eq("appointment_id", appointmentId);
   const total = Math.round((items || []).reduce((s: number, i: any) => s + (Number(i.price) || 0), 0));
   const abono = a.deposit_status === "paid" ? Math.max(0, Math.round(Number(a.deposit_amount) || 0)) : 0;
   // Código con el que se reservó (migración 182): su descuento se aplica solo al cobrar.
-  const descuento = (await cuponDeCita(supabase, appointmentId, total))?.discount || 0;
-  return { total, abono, descuento, saldo: Math.max(0, total - descuento - abono) };
+  const cupon = await cuponDeCita(supabase, appointmentId, total);
+  const descuento = cupon?.discount || 0;
+  return { total, abono, descuento, promo: cupon ? { codigo: cupon.code, pagos: cupon.pagos } : null, saldo: Math.max(0, total - descuento - abono) };
 }
 
 // Marca un cobro del totem como PAGADO (solo si seguia sin pagar), avisa al profesional y a administración y deja constancia.
