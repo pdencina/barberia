@@ -30,7 +30,7 @@ export const REGLAS: ReglaPlan[] = [
   { min: "starter", nombre: "Ingresos, egresos y proveedores", paginas: ["/dashboard/finanzas", "/dashboard/proveedores"], apis: ["/api/finanzas", "/api/proveedores"] },
   { min: "pro", nombre: "Abonos, pagos en línea y boletas electrónicas (integración con sistemas de pago)", paginas: ["/dashboard/abonos", "/dashboard/pagos", "/dashboard/boletas"], apis: ["/api/abonos", "/api/boletas"] },
   { min: "starter", nombre: "Mensajes masivos", paginas: ["/dashboard/whatsapp"], apis: ["/api/whatsapp"] },
-  { min: "starter", nombre: "Cupones de descuento", paginas: ["/dashboard/cupones"], apis: ["/api/cupones"] },
+  { min: "starter", nombre: "Cupones de descuento", paginas: ["/dashboard/cupones", "/dashboard/promociones"], apis: ["/api/cupones"] },
   { min: "starter", nombre: "Retención de clientes", paginas: ["/dashboard/retencion"], apis: ["/api/retention"] },
   { min: "starter", nombre: "Reportes avanzados (demanda y ocupación)", paginas: ["/dashboard/demanda", "/dashboard/ocupacion"], apis: ["/api/reportes/demanda", "/api/ocupacion"] },
   { min: "pro", nombre: "Módulo de caja", paginas: ["/dashboard/caja"], apis: ["/api/caja"] },

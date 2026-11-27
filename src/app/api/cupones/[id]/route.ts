@@ -32,8 +32,10 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.active !== undefined) update.active = body.active;
   if (body.conditions !== undefined) {
     // La imagen solo puede ser una subida por el mismo negocio del cupón.
-    const { data: dueno } = await supabase.from("coupons").select("tenant_id").eq("id", params.id).maybeSingle();
-    update.conditions = limpiarReglas({ ...body.conditions, imagen: imagenDelNegocio(body.conditions?.imagen, (dueno as any)?.tenant_id) });
+    const { data: dueno } = await supabase.from("coupons").select("tenant_id, conditions").eq("id", params.id).maybeSingle();
+    // La regla de «2 personas» se conserva si quien guarda no la manda (ej. desde Retención).
+    const personas = body.conditions?.personas ?? (dueno as any)?.conditions?.personas;
+    update.conditions = limpiarReglas({ ...body.conditions, personas, imagen: imagenDelNegocio(body.conditions?.imagen, (dueno as any)?.tenant_id) });
   }
 
   const { data, error } = await supabase

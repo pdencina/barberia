@@ -43,6 +43,7 @@ export async function GET(req: NextRequest) {
       codigo: cupon.code, descripcion: cupon.description || null,
       tipo: cupon.discount_type, valor: Number(cupon.discount_value) || 0,
       titulo: reglas.titulo || null, imagen: reglas.imagen || null,
+      personas: Number(reglas.personas) === 2 ? 2 : 1,
       horaDesde: reglas.horaDesde || null, horaHasta: reglas.horaHasta || null,
       dias, detalles: detallesPromo(reglas, profesionales.map((p: any) => p.nombre)),
       profesionales,
