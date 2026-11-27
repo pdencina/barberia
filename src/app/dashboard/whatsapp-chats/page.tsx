@@ -4,7 +4,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { MessageCircle, ArrowLeft, Bot, UserRound, RefreshCw, Send, Sparkles, Image as ImagenIcono } from "lucide-react";
 import { PageHeader, Panel } from "@/components/ui/premium";
 
-interface Conv { contacto: string; telefono: string | null; cliente: string | null; total: number; entrantes: number; ultimo: { texto: string; direccion: "entrante" | "saliente"; created_at: string } }
+interface Resumen { conversaciones: number; persona: number; confuso: number; confirmacion: number; consulta: number; confirmacionesEnviadas: number; confirmadas: number; canceladas: number; salud: { clientesNuevos: number; reservasAgente: number; mensajesFallidos: number; enviosFallidos: number; ultimoEntrante: string | null } | null }
+type Etiqueta = "persona" | "confuso" | "confirmacion" | "consulta";
+const ETIQUETAS: { clave: Etiqueta; titulo: string; corto: string; color: string }[] = [
+  { clave: "persona", titulo: "Esperan a una persona", corto: "Responder", color: "bg-red-100 text-red-700" },
+  { clave: "confuso", titulo: "No entendidas hoy", corto: "No entendida", color: "bg-amber-100 text-amber-800" },
+  { clave: "consulta", titulo: "Dudas y consultas hoy", corto: "Consulta", color: "bg-sky-100 text-sky-800" },
+  { clave: "confirmacion", titulo: "De confirmación hoy", corto: "Confirmación", color: "bg-emerald-100 text-emerald-700" },
+];
+interface Conv { etiquetas?: Etiqueta[]; contacto: string; telefono: string | null; cliente: string | null; total: number; entrantes: number; ultimo: { texto: string; direccion: "entrante" | "saliente"; created_at: string } }
 interface Msg { id: string; direccion: "entrante" | "saliente"; tipo: string; texto: string; created_at: string }
 
 const telefonoBonito = (t: string | null) => { if (!t) return "Sin número"; const d = t.replace(/\D/g, ""); return d.startsWith("56") && d.length === 11 ? `+56 ${d[2]} ${d.slice(3, 7)} ${d.slice(7)}` : `+${d}`; };
@@ -13,6 +21,8 @@ const hace = (iso: string) => { const m = Math.max(0, Math.round((Date.now() - n
 
 export default function WhatsappChatsPage() {
   const [convs, setConvs] = useState<Conv[] | null>(null);
+  const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [filtro, setFiltro] = useState<Etiqueta | null>(null);
   const [registrando, setRegistrando] = useState(false);
   const [dias, setDias] = useState(14);
   const [error, setError] = useState("");
@@ -30,7 +40,7 @@ export default function WhatsappChatsPage() {
   const cargar = useCallback(async () => {
     const r = await fetch("/api/agente/chats", { cache: "no-store" }); const j = await r.json().catch(() => ({}));
     if (!r.ok) { setError(j.error ?? "No se pudo cargar"); return; }
-    setError(""); setConvs(j.conversaciones ?? []); setRegistrando(!!j.registrando); setDias(j.dias ?? 14);
+    setError(""); setConvs(j.conversaciones ?? []); setResumen(j.resumen ?? null); setRegistrando(!!j.registrando); setDias(j.dias ?? 14);
   }, []);
   const cargarHilo = useCallback(async (c: Conv) => {
     const r = await fetch(`/api/agente/chats?contacto=${c.contacto}`, { cache: "no-store" }); const j = await r.json().catch(() => ({}));
@@ -89,16 +99,35 @@ export default function WhatsappChatsPage() {
         {!registrando && <p className="mt-2 text-xs text-brand-gray">Al encenderlo se empiezan a guardar los mensajes desde ese momento. Los clientes deberían saber que los atiende un asistente y que la conversación se guarda para mejorar el servicio.</p>}
       </Panel>
 
+      {resumen && (
+        <Panel title="Resumen de hoy" subtitle="Toca un recuadro para ver solo esas conversaciones">
+          <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+            {ETIQUETAS.map((e) => (
+              <button key={e.clave} onClick={() => { setFiltro(filtro === e.clave ? null : e.clave); setElegida(null); }} aria-pressed={filtro === e.clave} className={`rounded-xl border px-3 py-2 text-left ${filtro === e.clave ? "border-brand-blue bg-brand-blue/5" : "border-gray-100 hover:border-brand-blue/40 dark:border-white/10"}`}>
+                <p className={`text-2xl font-bold ${e.clave === "persona" && resumen.persona > 0 ? "text-red-600" : "text-brand-dark"}`}>{resumen[e.clave]}</p>
+                <p className="text-xs text-brand-gray">{e.titulo}</p>
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 text-sm text-brand-dark">Confirmaciones enviadas: <b>{resumen.confirmacionesEnviadas}</b> · confirmadas: <b>{resumen.confirmadas}</b> · canceladas: <b>{resumen.canceladas}</b></p>
+          {resumen.salud && (
+            <p className="mt-1 text-sm text-brand-dark">Clientes nuevos: <b>{resumen.salud.clientesNuevos}</b> · reservas del agente: <b>{resumen.salud.reservasAgente}</b> · {resumen.salud.mensajesFallidos + resumen.salud.enviosFallidos === 0 ? <span className="text-emerald-700">sin fallas registradas</span> : <span className="font-semibold text-red-600">{resumen.salud.mensajesFallidos} mensajes sin procesar, {resumen.salud.enviosFallidos} envíos fallidos</span>}{resumen.salud.ultimoEntrante ? ` · último mensaje recibido ${hace(resumen.salud.ultimoEntrante)}` : ""}</p>
+          )}
+        </Panel>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
         <div className={`${elegida ? "hidden lg:block" : ""}`}>
-          <Panel title="Conversaciones" subtitle={convs ? `${convs.length} en los últimos ${dias} días` : "Cargando…"}>
+          <Panel title="Conversaciones" subtitle={convs ? (filtro ? `${ETIQUETAS.find((e) => e.clave === filtro)?.titulo} · toca de nuevo el recuadro para ver todas` : `${convs.length} en los últimos ${dias} días`) : "Cargando…"}>
             {convs && convs.length === 0 && <p className="py-6 text-center text-sm text-brand-gray">Todavía no hay conversaciones guardadas.</p>}
             <div className="-mx-2 max-h-[60vh] space-y-1 overflow-y-auto px-2">
-              {(convs ?? []).map((c) => (
+              {filtro && convs && !convs.some((c) => c.etiquetas?.includes(filtro)) && <p className="py-6 text-center text-sm text-brand-gray">No hay ninguna.</p>}
+              {(convs ?? []).filter((c) => !filtro || c.etiquetas?.includes(filtro)).map((c) => (
                 <button key={c.contacto} onClick={() => setElegida(c)} className={`w-full rounded-xl border px-3 py-2 text-left transition-colors ${elegida?.contacto === c.contacto ? "border-brand-blue bg-brand-blue/5" : "border-gray-100 hover:border-brand-blue/40 dark:border-white/10"}`}>
                   <div className="flex items-baseline justify-between gap-2"><span className="truncate text-sm font-semibold text-brand-dark">{c.cliente ?? telefonoBonito(c.telefono)}</span><span className="flex-shrink-0 text-[11px] text-brand-gray">{hace(c.ultimo.created_at)}</span></div>
                   {c.cliente && <p className="text-[11px] text-brand-gray">{telefonoBonito(c.telefono)}</p>}
                   <p className="mt-0.5 truncate text-xs text-brand-gray">{c.ultimo.direccion === "saliente" ? "🤖 " : ""}{c.ultimo.texto}</p>
+                  {c.etiquetas && c.etiquetas.length > 0 && <div className="mt-1 flex flex-wrap gap-1">{ETIQUETAS.filter((e) => c.etiquetas?.includes(e.clave)).map((e) => <span key={e.clave} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${e.color}`}>{e.corto}</span>)}</div>}
                 </button>
               ))}
             </div>
