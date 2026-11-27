@@ -1,4 +1,5 @@
 import { limpiarReglas } from "@/lib/cupon-reglas";
+import { imagenDelNegocio } from "@/lib/promo-imagen";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
 
@@ -29,7 +30,11 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   if (body.max_uses !== undefined) update.max_uses = body.max_uses;
   if (body.valid_until !== undefined) update.valid_until = body.valid_until;
   if (body.active !== undefined) update.active = body.active;
-  if (body.conditions !== undefined) update.conditions = limpiarReglas(body.conditions);
+  if (body.conditions !== undefined) {
+    // La imagen solo puede ser una subida por el mismo negocio del cupón.
+    const { data: dueno } = await supabase.from("coupons").select("tenant_id").eq("id", params.id).maybeSingle();
+    update.conditions = limpiarReglas({ ...body.conditions, imagen: imagenDelNegocio(body.conditions?.imagen, (dueno as any)?.tenant_id) });
+  }
 
   const { data, error } = await supabase
     .from("coupons")
