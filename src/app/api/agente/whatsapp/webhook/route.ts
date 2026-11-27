@@ -333,7 +333,7 @@ const handlers = () => crearManejadoresWebhook({
               return true;
             }
             const abiertas = await db.from("agent_consultas").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);
-            if (abiertas.error || (abiertas.count ?? 0) >= 10) return false; // tope: no inundar al dueño
+            if (abiertas.error || (abiertas.count ?? 0) >= 25) return false; // tope: no inundar al dueño
             const ins = await db.from("agent_consultas").insert({ tenant_id: tenantId, contact_hash: contactHash, telefono: tel, pregunta: medio ? "📎 Imagen del cliente" : texto, ...(medio ? { tipo: "imagen" } : {}) }).select("id,numero").single();
             if (ins.error || !ins.data) return false;
             await anotarMedio(ins.data.id);

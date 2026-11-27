@@ -382,8 +382,8 @@ async function pruebasConsultas(){
   { // una pregunta corta con signo de pregunta que cae en el menú también se consulta; un saludo o texto sin pregunta no
     const x=armar(false);await enviar(x.f,"¿Hacen cejas con hilo?");
     check("consultas: la pregunta corta con ? se consulta",x.abiertas.length===1&&x.f.sent[0].includes("Déjame confirmarlo"));
-    const y=armar(false);await enviar(y.f,"hola");await enviar(y.f,"asdf qwer zxcv");
-    check("consultas: saludos y texto sin pregunta siguen yendo al menú, sin consulta",y.abiertas.length===0&&y.f.sent.length===2&&y.f.sent.every(t=>!t.includes("Déjame confirmarlo")));
+    const y=armar(false);await enviar(y.f,"hola");await enviar(y.f,"asdf");
+    check("consultas: saludos y palabras sueltas siguen yendo al menú, sin consulta",y.abiertas.length===0&&y.f.sent.length===2&&y.f.sent.every(t=>!t.includes("Déjame confirmarlo")));
   }
   { // si no se puede consultar (sin ventana de 24 h, sin migración), se deriva como antes
     const x=armar(false,false);await enviar(x.f,larga);

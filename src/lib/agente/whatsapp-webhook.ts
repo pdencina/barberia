@@ -103,8 +103,8 @@ export interface DependenciasWebhook {
   archivos?: { pedidos: (consulta: string, linkReserva: string | null | undefined) => unknown[]; enviar: (negocio: NegocioWebhook, para: string, archivo: any) => Promise<unknown> };
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
 }
-/** ¿Vale la pena preguntarle al dueño? Una pregunta de verdad (con "?" y 3 palabras o más) o un mensaje largo; nunca un saludo ni texto suelto. */
-const esConsultable = (t: string) => !esSaludo(t) && (esConsultaLarga(t) || (/\?/.test(t) && t.trim().split(/\s+/).length >= 3));
+/** ¿Se le pregunta al dueño? Todo lo que el agente no entendió y diga algo (2 palabras o más); nunca un saludo, un número ni una palabra suelta. */
+export const esConsultable = (t: string) => !esSaludo(t) && (t.match(/[a-záéíóúüñ]{2,}/gi)?.length ?? 0) >= 2;
 export class MigracionWebhookPendiente extends Error { constructor() { super("Falta aplicar la migración del webhook"); } }
 const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store" } });
 const hour = 60 * 60 * 1000;
