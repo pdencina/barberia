@@ -18,6 +18,8 @@ import { crearRepositorioAccionesCita, HORAS_MIN_CANCELAR } from "@/lib/agente/a
 import { anticipacionCita } from "@/lib/agente/recordatorios-whatsapp";
 import { textoDeFecha } from "@/lib/agente/disponibilidad";
 import { registrarChat, purgarChats } from "@/lib/agente/chats";
+import { avisoDeAtencion } from "@/lib/agente/aviso-atencion";
+import { notify } from "@/lib/notify";
 import { resolverRemitente } from "@/lib/agente/informe-diario-email";
 
 import { fetchAllRows } from "@/lib/accounting";
@@ -28,6 +30,8 @@ const handlers = () => crearManejadoresWebhook({
   tokenVerificacion: process.env.WHATSAPP_VERIFY_TOKEN,
   salHashes: process.env.AGENTE_CONTACT_HASH_SALT,
   crearDependencias: () => {
+    const avisados = new Set<string>(); // negocios ya avisados en la app durante esta solicitud (evita avisar dos veces)
+    const avisarEnApp = async (tenantId: string, caso?: { telefono?: string; pregunta?: string; imagen?: boolean }) => { avisados.add(tenantId); await notify(avisoDeAtencion(tenantId, caso)); };
     const db = createAdminSupabase();
     return {
       repo: crearRepositorioWebhook(db, process.env.AGENTE_CONTACT_HASH_SALT!), ahora: Date.now,
@@ -283,6 +287,9 @@ const handlers = () => crearManejadoresWebhook({
             const tenantId = n.tenantId as string, tel = String(telefono).replace(/\D/g, "");
             const texto = pregunta.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_PREGUNTA);
             if (!texto || !/^[0-9]{8,15}$/.test(tel)) return false;
+            // Aviso en la app (consulta nueva o imagen nueva), aunque el WhatsApp al dueño no se pueda entregar.
+            const yaAbierta = await db.from("agent_consultas").select("id").eq("tenant_id", tenantId).eq("contact_hash", contactHash).gte("created_at", new Date(Date.now() - 48 * 3600000).toISOString()).limit(1).maybeSingle();
+            if (medio || !yaAbierta.data) await avisarEnApp(tenantId, { telefono: tel, pregunta: texto, imagen: !!medio });
             const admin = await db.from("agent_admin_contacts").select("telefono").eq("tenant_id", tenantId).limit(1).maybeSingle();
             if (admin.error || !admin.data?.telefono) return false;
             await db.from("agent_consultas").delete().eq("tenant_id", tenantId).lt("created_at", new Date(Date.now() - 48 * 3600000).toISOString()); // limpieza
@@ -364,6 +371,7 @@ const handlers = () => crearManejadoresWebhook({
         },
       },
       avisarAdministrador: async tenantId => {
+        if (!avisados.has(tenantId)) await avisarEnApp(tenantId);
         // Apagado: los avisos van a la app del super admin. Para volver al correo, AGENTE_AVISO_CORREO=1 en Vercel.
         if (process.env.AGENTE_AVISO_CORREO !== "1") return;
         const profiles = await fetchAllRows<{id: string; email: string}>(() =>
