@@ -258,7 +258,7 @@ export default function PromocionPage() {
                   {!cargandoHoras && promo.profesionales.filter((p) => p.id === miPro && (horas[p.id] || []).length > 0).map((p) => (
                     <div key={p.id} className="rounded-2xl border border-promo-tinta/15 bg-promo-tinta/5 p-3">
                       <div className="mb-2 flex items-center gap-2.5">
-                        {p.foto ? <img src={p.foto} alt="" className="h-10 w-10 rounded-full object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-promo-tinta/15 font-bold">{p.nombre.charAt(0)}</span>}
+                        {p.foto ? <img src={p.foto} alt="" className="h-10 w-10 rounded-full object-cover" /> : solo && datos?.negocio.logo ? <img src={datos.negocio.logo} alt="" className="h-10 w-10 rounded-full border border-promo-tinta/15 bg-[#fff] object-contain" /> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-promo-tinta/15 font-bold">{p.nombre.charAt(0)}</span>}
                         <span className="text-sm font-bold">{p.nombre}</span>
                         <span className="ml-auto text-sm font-extrabold">{pesos(conDescuento(deProfesional(p.id)?.total || 0))}</span>
                       </div>
