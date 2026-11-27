@@ -434,6 +434,8 @@ interface SendRetentionEmailParams {
   title?: string;
   /** Fondo blanco detrás del logo del negocio en el diseño oscuro. */
   logoFondo?: boolean;
+  /** Colores propios («Mis colores»), ya validados. */
+  colores?: { fondo: string; texto: string; boton: string } | null;
 }
 
 // Arma el correo de retencion (asunto + HTML). Lo usa el envio real y la vista previa de Retencion.
@@ -455,6 +457,7 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
       html: plantillaOscura({
         logoNegocio: params.businessLogoUrl ? esc(params.businessLogoUrl) : null,
         logoFondo: params.logoFondo,
+        colores: params.colores,
         titulo: esc((params.title || "").trim()),
         saludo: `Hola, ${esc(nombrePila(params.clientName))}`,
         textoHtml: esc(texto).replace(/\r?\n/g, "<br>"),

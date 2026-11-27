@@ -9,6 +9,9 @@ import { SIN_CONDICIONES, errorCondiciones, textoCondiciones, type CondicionesPr
 import { PromoCondicionesForm } from "./promo-condiciones-form";
 import { PromoImagenCampo } from "./promo-imagen-campo";
 import { VistaCorreo } from "./vista-correo";
+import { ColoresCorreoCampo } from "./colores-correo-campo";
+import { PALETAS, coloresLegibles } from "@/lib/correo-colores";
+import { useFondoLogo } from "@/lib/use-fondo-logo";
 import { ResultadoCampana } from "./resultado-campana";
 import { clavePendiente, correrEnvio, guardarPendiente, leerPendiente, TANDA, type EnvioPendiente } from "@/lib/envio-pendiente";
 import { useState, useEffect, useRef } from "react";
@@ -66,13 +69,19 @@ export default function RetencionPage() {
   const [condiciones, setCondiciones] = useState<CondicionesPromo>(SIN_CONDICIONES);
   const [imageUrl, setImageUrl] = useState("");
   // Diseño, asunto y titular del correo. El diseño elegido se recuerda en este equipo.
-  const [design, setDesign] = useState<"clasico" | "oscuro">("clasico");
+  const [design, setDesign] = useState<"clasico" | "oscuro" | "colores">("clasico");
+  const [colores, setColores] = useState(PALETAS[0].colores);
+  const [logo, setLogo] = useState<string | null>(null);
   const [subject, setSubject] = useState("");
   const [title, setTitle] = useState("");
   const [logoFondo, setLogoFondo] = useState(false); // fondo blanco detrás del logo (para logos oscuros)
   useEffect(() => { try { setLogoFondo(localStorage.getItem("rb_correo_logo_fondo") === "1"); } catch { /* sin almacenamiento */ } }, []);
-  useEffect(() => { try { if (localStorage.getItem("rb_diseno_correo") === "oscuro") setDesign("oscuro"); } catch { /* sin almacenamiento */ } }, []);
-  const elegirDiseno = (d: "clasico" | "oscuro") => { setDesign(d); try { localStorage.setItem("rb_diseno_correo", d); } catch { /* sin almacenamiento */ } };
+  useEffect(() => { try { const d = localStorage.getItem("rb_diseno_correo"); if (d === "oscuro" || d === "colores") setDesign(d); const c = coloresLegibles(JSON.parse(localStorage.getItem("rb_correo_colores") || "null")); if (c) setColores(c); } catch { /* sin almacenamiento */ } }, []);
+  const elegirDiseno = (d: "clasico" | "oscuro" | "colores") => { setDesign(d); try { localStorage.setItem("rb_diseno_correo", d); } catch { /* sin almacenamiento */ } };
+  const elegirColores = (c: typeof colores) => { setColores(c); try { localStorage.setItem("rb_correo_colores", JSON.stringify(c)); } catch { /* sin almacenamiento */ } };
+  // Si el logo se pierde sobre el fondo elegido, se le pone un recuadro aunque no se haya marcado.
+  const logoNecesitaFondo = useFondoLogo(design === "clasico" ? null : logo, design === "colores" ? (coloresLegibles(colores)?.fondo || "#000000") : "#000000");
+  const recuadroLogo = logoFondo || !!logoNecesitaFondo;
   const conditions = textoCondiciones(condiciones, !!selectedCoupon);
   const conCondiciones = (m: string) => [m, conditions].filter(Boolean).join("\n\n");
   const [borrarArmado, setBorrarArmado] = useState(false);
@@ -107,16 +116,17 @@ export default function RetencionPage() {
   const suggestCampaignName = () => `Campaña ${new Intl.DateTimeFormat("es-CL", { day: "numeric", month: "short", timeZone: "America/Santiago" }).format(new Date())} · ${rangeLabel}`;
   // Cuerpo comun de los envios masivos: quienes se desmarcaron no reciben; los agregados a mano se suman.
   const bulkBody = (type: "email" | "whatsapp", extraExcluded: string[] = [], campaignName?: string) => ({
-    days, includeNever, maxDays, rangos, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, logoFondo, type, campaignName: campaignName || null,
+    days, includeNever, maxDays, rangos, couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, colores, subject, title, logoFondo: recuadroLogo, type, campaignName: campaignName || null,
     excludeClientIds: [...Array.from(excluded), ...extraExcluded],
     includeClientIds: manualClients.map((m) => m.id),
   });
   const { showToast } = useToast();
   const { tenant } = useTenant();
+  useEffect(() => { if (tenant?.slug) fetch(`/api/public/business-info?slug=${tenant.slug}`).then((r) => r.json()).then((d) => setLogo(d?.logo_url || null)).catch(() => {}); }, [tenant?.slug]);
   useEffect(() => { setPendiente(tenant?.id ? leerPendiente(clavePendiente(tenant.id)) : null); }, [tenant?.id]);
   // Borrador automático: lo armado queda guardado en este equipo y vuelve al entrar de nuevo.
   const borrador = {
-    days, maxDays, rangos, includeNever, selectedCoupon, customMessage, condiciones, imageUrl, design, subject, title, logoFondo,
+    days, maxDays, rangos, includeNever, selectedCoupon, customMessage, condiciones, imageUrl, design, colores, subject, title, logoFondo,
     excluidos: Array.from(excluded), agregados: manualClients,
   };
   const { hayBorrador, borrar: borrarBorrador } = useBorrador(tenant?.id ? `rb_borrador_retencion_${tenant.id}` : null, borrador, (g) => {
@@ -128,6 +138,7 @@ export default function RetencionPage() {
     setCondiciones({ ...SIN_CONDICIONES, ...(g?.condiciones || {}) });
     setImageUrl(g?.imageUrl || ""); setSubject(g?.subject || ""); setTitle(g?.title || "");
     if (g?.design) setDesign(g.design);
+    const guardados = coloresLegibles(g?.colores); if (guardados) setColores(guardados);
     if (typeof g?.logoFondo === "boolean") setLogoFondo(g.logoFondo);
     setExcluded(new Set(g?.excluidos || [])); setManualClients(g?.agregados || []);
   });
@@ -300,12 +311,12 @@ export default function RetencionPage() {
   const PREVIEW_NAME = "[nombre del cliente]";
   useEffect(() => {
     const t = setTimeout(() => {
-      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, subject, title, logoFondo, clientName: PREVIEW_NAME }) })
+      fetch("/api/retention/preview", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ couponCode: selectedCoupon || null, message: customMessage || null, conditions, imageUrl, design, colores, subject, title, logoFondo: recuadroLogo, clientName: PREVIEW_NAME }) })
         .then((r) => (r.ok ? r.json() : null)).then((d) => { if (d?.whatsapp) setMsgPreview(d); }).catch(() => {});
     }, 350);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedCoupon, customMessage, conditions, imageUrl, design, subject, title, logoFondo]);
+  }, [selectedCoupon, customMessage, conditions, imageUrl, design, colores, subject, title, recuadroLogo]);
 
   const notifyClient = async (clientId: string, type: "email" | "whatsapp") => {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
@@ -321,9 +332,10 @@ export default function RetencionPage() {
         conditions,
         imageUrl,
         design,
+        colores,
         subject,
         title,
-        logoFondo,
+        logoFondo: recuadroLogo,
       }),
     });
     const data = await res.json();
@@ -518,16 +530,18 @@ export default function RetencionPage() {
             <div className="space-y-3">
               <div>
                 <span className="mb-1.5 block text-xs font-semibold text-brand-gray">Diseño del correo</span>
-                <div className="flex gap-1.5">
-                  {([["clasico", "Clásico (blanco)"], ["oscuro", "Oscuro (blanco y negro)"]] as const).map(([k, t]) => (
+                <div className="flex flex-wrap gap-1.5">
+                  {([["clasico", "Clásico (blanco)"], ["oscuro", "Oscuro (blanco y negro)"], ["colores", "Mis colores"]] as const).map(([k, t]) => (
                     <button key={k} type="button" aria-pressed={design === k} onClick={() => elegirDiseno(k)} className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${design === k ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 bg-white text-brand-gray"}`}>{t}</button>
                   ))}
                 </div>
               </div>
-              {design === "oscuro" && (
+              {design === "colores" && <ColoresCorreoCampo colores={colores} onChange={elegirColores} />}
+              {design !== "clasico" && logoNecesitaFondo && <p className="text-xs text-brand-gray">✓ Tu logo no se veía sobre ese fondo: le pusimos un recuadro automáticamente.</p>}
+              {design !== "clasico" && !logoNecesitaFondo && (
                 <label className="flex items-center gap-2 text-xs text-brand-gray">
                   <input type="checkbox" checked={logoFondo} onChange={(e) => { setLogoFondo(e.target.checked); try { localStorage.setItem("rb_correo_logo_fondo", e.target.checked ? "1" : "0"); } catch { /* sin almacenamiento */ } }} />
-                  Poner fondo blanco detrás de mi logo (si tu logo es oscuro)
+                  Poner un recuadro detrás de mi logo
                 </label>
               )}
               <label className="block"><span className="mb-1.5 block text-xs font-semibold text-brand-gray">Asunto (opcional)</span>

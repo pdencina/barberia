@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Copy, ExternalLink, Plus } from "lucide-react";
 import { useTenant } from "@/lib/tenant-context";
 import { useToast } from "@/components/ui/toast";
+import { useFondoLogo } from "@/lib/use-fondo-logo";
 import { useBorrador } from "@/lib/use-borrador";
 import { SIN_CONDICIONES, errorCondiciones, type CondicionesPromo } from "@/lib/promo-condiciones";
 import { codigosDePago } from "@/lib/cupon-pagos";
@@ -37,6 +38,7 @@ export default function PromocionesPage() {
   const [logo, setLogo] = useState<string | null>(null);
   useEffect(() => { if (tenant?.slug) fetch(`/api/public/business-info?slug=${tenant.slug}`).then((r) => r.json()).then((d) => setLogo(d?.logo_url || null)).catch(() => {}); }, [tenant?.slug]);
   const t = tenant?.id;
+  const recuadro = useFondoLogo(logo, "#000000");
   const set = (p: Partial<Form>) => setForm((f) => ({ ...f, ...p }));
 
   // La promoción nueva a medio armar queda como borrador en este equipo.
@@ -178,7 +180,7 @@ export default function PromocionesPage() {
           <div className="mx-auto max-w-[390px] overflow-hidden rounded-[34px] border-[10px] border-[#111] bg-black">
             <div className="max-h-[720px] overflow-y-auto px-4 pb-8 pt-6 text-white" style={{ fontFamily: "Montserrat, -apple-system, Roboto, sans-serif", backgroundImage: "url('/correo/fondo-oscuro.png')", backgroundSize: "100% auto" }}>
               <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;700;800&display=swap" rel="stylesheet" />
-              {logo && <img src={logo} alt="" className="mx-auto mb-4 h-12 w-auto max-w-[200px] object-contain" />}
+              {logo && <img src={logo} alt="" className={`mx-auto mb-4 h-12 w-auto max-w-[200px] object-contain ${recuadro ? "rounded-xl px-3 py-1" : ""}`} style={recuadro ? { backgroundColor: recuadro } : undefined} />}
               <PromoCabecera imagen={form.imagen || null} titulo={titulo} descripcion={form.descripcion || null} detalles={detalles} codigo={form.codigo} />
               <p className="mt-6 text-center text-[11px] font-light italic uppercase tracking-[0.32em] text-white/50">Abajo: servicio, día y hora</p>
               {form.politicas.trim() && <div className="mt-4 rounded-2xl border border-white/20 bg-white/5 p-3 text-xs"><p className="mb-1 font-bold uppercase">Antes de confirmar</p><p className="whitespace-pre-line font-light text-white/75">{form.politicas}</p><p className="mt-2 font-bold">☐ Acepto estas condiciones</p></div>}
