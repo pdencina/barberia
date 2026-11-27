@@ -13,11 +13,14 @@ import { PromoCabecera } from "@/components/promo/promo-cabecera";
 import { PromoCondicionesForm } from "../retencion/promo-condiciones-form";
 import { PromoImagenCampo } from "../retencion/promo-imagen-campo";
 import { ServiciosPromo } from "./servicios-promo";
+import { ColoresCorreoCampo } from "../retencion/colores-correo-campo";
+import { PALETAS, type ColoresCorreo } from "@/lib/correo-colores";
+import { temaPromo } from "@/lib/tema-promo";
 import { ResultadosPromo } from "./resultados-promo";
 import type { ResultadoPromo } from "@/lib/promo-resultados";
 
-interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; personas: 1 | 2; politicas: string; servicios: string[]; condiciones: CondicionesPromo }
-const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, personas: 1, politicas: "", servicios: [], condiciones: SIN_CONDICIONES };
+interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; personas: 1 | 2; politicas: string; servicios: string[]; colores: ColoresCorreo | null; condiciones: CondicionesPromo }
+const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, personas: 1, politicas: "", servicios: [], colores: null, condiciones: SIN_CONDICIONES };
 // Punto de partida; el negocio lo ajusta a sus reglas.
 const POLITICAS_DOS = "• La promoción es solo para 2 personas que reservan juntas, el mismo día.\n• La primera persona en llegar debe pagar a su hora; si no, se paga el precio normal.\n• Si una de las dos cancela o no llega, se paga el precio normal.";
 const ETIQUETAS: Record<string, string> = { cash: "Efectivo", transfer: "Transferencia", debit_card: "Débito", credit_card: "Crédito" };
@@ -38,8 +41,9 @@ export default function PromocionesPage() {
   const [logo, setLogo] = useState<string | null>(null);
   useEffect(() => { if (tenant?.slug) fetch(`/api/public/business-info?slug=${tenant.slug}`).then((r) => r.json()).then((d) => setLogo(d?.logo_url || null)).catch(() => {}); }, [tenant?.slug]);
   const t = tenant?.id;
-  const recuadro = useFondoLogo(logo, "#000000");
   const set = (p: Partial<Form>) => setForm((f) => ({ ...f, ...p }));
+  const tema = temaPromo(form.colores);
+  const recuadro = useFondoLogo(logo, tema.papel);
 
   // La promoción nueva a medio armar queda como borrador en este equipo.
   const { borrar } = useBorrador<Form>(t && !editando ? `rb_borrador_promocion_${t}` : null, form, (g) => setForm({ ...VACIA, ...(g || {}), condiciones: { ...SIN_CONDICIONES, ...(g?.condiciones || {}) } }));
@@ -59,7 +63,7 @@ export default function PromocionesPage() {
     setEditando(c.id);
     setForm({
       codigo: c.code, tipo: c.discount_type, valor: String(Number(c.discount_value) || ""), titulo: r.titulo || "", descripcion: c.description || "", imagen: r.imagen || "",
-      maxUsos: c.max_uses ? String(c.max_uses) : "", activa: c.active !== false, personas: r.personas === 2 ? 2 : 1, politicas: r.politicas || "", servicios: r.servicioIds || [],
+      maxUsos: c.max_uses ? String(c.max_uses) : "", activa: c.active !== false, personas: r.personas === 2 ? 2 : 1, politicas: r.politicas || "", servicios: r.servicioIds || [], colores: r.colores || null,
       condiciones: {
         ...SIN_CONDICIONES, desde: r.desde || "", hasta: r.hasta || "", horaDesde: r.horaDesde || "", horaHasta: r.horaHasta || "",
         pagos: (r.pagos || []).map((p: string) => ETIQUETAS[p]).filter(Boolean),
@@ -72,7 +76,7 @@ export default function PromocionesPage() {
 
   const reglas = () => {
     const c = form.condiciones;
-    return { desde: c.desde, hasta: c.hasta, horaDesde: c.horaDesde, horaHasta: c.horaHasta, profesionalIds: c.profesionalIds || [], pagos: c.todosLosPagos ? [] : codigosDePago(c.pagos), imagen: form.imagen, titulo: form.titulo, personas: form.personas, politicas: form.politicas, servicioIds: form.servicios };
+    return { desde: c.desde, hasta: c.hasta, horaDesde: c.horaDesde, horaHasta: c.horaHasta, profesionalIds: c.profesionalIds || [], pagos: c.todosLosPagos ? [] : codigosDePago(c.pagos), imagen: form.imagen, titulo: form.titulo, personas: form.personas, politicas: form.politicas, servicioIds: form.servicios, colores: form.colores };
   };
 
   const guardar = async () => {
@@ -106,7 +110,7 @@ export default function PromocionesPage() {
   const actual = cupones.find((c) => c.id === editando);
   const link = actual && tenant?.slug ? `${typeof window !== "undefined" ? window.location.origin : ""}/${tenant.slug}/promocion?cupon=${encodeURIComponent(actual.code)}` : "";
   const elegidos = pros.filter((p) => (form.condiciones.profesionalIds || []).includes(p.id)).map((p) => p.name);
-  const detalles = detallesPromo({ ...reglas(), horaDesde: form.condiciones.horaDesde || undefined, horaHasta: form.condiciones.horaHasta || undefined }, elegidos.length ? elegidos : []);
+  const detalles = detallesPromo({ ...reglas(), colores: undefined, horaDesde: form.condiciones.horaDesde || undefined, horaHasta: form.condiciones.horaHasta || undefined }, elegidos.length ? elegidos : []);
   const titulo = form.titulo.trim() || (Number(form.valor) ? (form.tipo === "percentage" ? `${Number(form.valor)}% de descuento` : `$${Number(form.valor).toLocaleString("es-CL")} de descuento`) : "Promoción");
 
   return (
@@ -152,6 +156,15 @@ export default function PromocionesPage() {
             {form.personas === 2 && <p className="mt-1.5 text-[11px] text-brand-gray">El link pide los datos y la hora de las 2 personas (mismo día, con profesionales de la promoción). Si una cancela, la otra paga el precio normal.</p>}
           </div>
           <PromoCondicionesForm value={form.condiciones} onChange={(condiciones) => set({ condiciones })} tenantId={t} hayCupon inputClass={campo} />
+          <div>
+            <span className={rotulo}>Colores del link</span>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {([[false, "Negro (el de siempre)"], [true, "Mis colores"]] as const).map(([k, texto]) => (
+                <button key={texto} type="button" aria-pressed={!!form.colores === k} onClick={() => set({ colores: k ? form.colores || PALETAS[0].colores : null })} className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${!!form.colores === k ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 bg-white text-brand-gray"}`}>{texto}</button>
+              ))}
+            </div>
+            {form.colores && <ColoresCorreoCampo colores={form.colores} onChange={(colores) => set({ colores })} />}
+          </div>
           <ServiciosPromo tenantId={t} elegidos={form.servicios} onChange={(servicios) => set({ servicios })} />
           <div>
             <label className="block"><span className={rotulo}>Políticas (el cliente debe aceptarlas antes de reservar)</span>
@@ -177,13 +190,13 @@ export default function PromocionesPage() {
 
         <div className="xl:sticky xl:top-4">
           <p className="mb-2 text-xs font-semibold text-brand-gray">Así se verá (cambia mientras escribes){guardado ? " · guardado" : ""}</p>
-          <div className="mx-auto max-w-[390px] overflow-hidden rounded-[34px] border-[10px] border-[#111] bg-black">
-            <div className="max-h-[720px] overflow-y-auto px-4 pb-8 pt-6 text-white" style={{ fontFamily: "Montserrat, -apple-system, Roboto, sans-serif", backgroundImage: "url('/correo/fondo-oscuro.png')", backgroundSize: "100% auto" }}>
+          <div className="mx-auto max-w-[390px] overflow-hidden rounded-[34px] border-[10px] border-[#111] bg-promo-papel" style={tema.vars}>
+            <div className="max-h-[720px] overflow-y-auto px-4 pb-8 pt-6 text-promo-tinta" style={{ fontFamily: "Montserrat, -apple-system, Roboto, sans-serif", ...(tema.formas ? { backgroundImage: "url('/correo/fondo-oscuro.png')", backgroundSize: "100% auto" } : {}) }}>
               <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;700;800&display=swap" rel="stylesheet" />
               {logo && <img src={logo} alt="" className={`mx-auto mb-4 h-12 w-auto max-w-[200px] object-contain ${recuadro ? "rounded-xl px-3 py-1" : ""}`} style={recuadro ? { backgroundColor: recuadro } : undefined} />}
               <PromoCabecera imagen={form.imagen || null} titulo={titulo} descripcion={form.descripcion || null} detalles={detalles} codigo={form.codigo} />
-              <p className="mt-6 text-center text-[11px] font-light italic uppercase tracking-[0.32em] text-white/50">Abajo: servicio, día y hora</p>
-              {form.politicas.trim() && <div className="mt-4 rounded-2xl border border-white/20 bg-white/5 p-3 text-xs"><p className="mb-1 font-bold uppercase">Antes de confirmar</p><p className="whitespace-pre-line font-light text-white/75">{form.politicas}</p><p className="mt-2 font-bold">☐ Acepto estas condiciones</p></div>}
+              <p className="mt-6 text-center text-[11px] font-light italic uppercase tracking-[0.32em] text-promo-tinta/50">Abajo: servicio, día y hora</p>
+              {form.politicas.trim() && <div className="mt-4 rounded-2xl border border-promo-tinta/20 bg-promo-tinta/5 p-3 text-xs"><p className="mb-1 font-bold uppercase">Antes de confirmar</p><p className="whitespace-pre-line font-light text-promo-tinta/75">{form.politicas}</p><p className="mt-2 font-bold">☐ Acepto estas condiciones</p></div>}
             </div>
           </div>
         </div>

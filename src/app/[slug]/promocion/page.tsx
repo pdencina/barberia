@@ -8,6 +8,7 @@ import { resumenAbono } from "@/lib/resumen-abono";
 import { DesgloseAbono } from "@/components/booking/desglose-abono";
 import { calcularAbono } from "@/lib/deposit-calc";
 import { textoPoliticaAbono } from "@/lib/deposit-policy";
+import { temaPromo } from "@/lib/tema-promo";
 import { useFondoLogo } from "@/lib/use-fondo-logo";
 import { PromoCabecera } from "@/components/promo/promo-cabecera";
 
@@ -17,12 +18,12 @@ interface Pro { id: string; nombre: string; foto: string | null }
 interface Servicio { id: string; name: string; price: number; duration: number }
 interface Datos {
   negocio: { id: string; nombre: string; slug: string; logo: string | null };
-  promo: null | { codigo: string; personas: number; politicas: string | null; servicios: string[] | null; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
+  promo: null | { codigo: string; personas: number; colores: { fondo: string; texto: string; boton: string } | null; politicas: string | null; servicios: string[] | null; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
   motivo?: string;
 }
 
-interface Persona { elegidos: string[]; turno: { pro: Pro; slot: string } | null; nombre: string; correo: string; celular: string }
-const PERSONA = (): Persona => ({ elegidos: [], turno: null, nombre: "", correo: "", celular: "" });
+interface Persona { pro: string; elegidos: string[]; turno: { pro: Pro; slot: string } | null; nombre: string; correo: string; celular: string }
+const PERSONA = (): Persona => ({ pro: "", elegidos: [], turno: null, nombre: "", correo: "", celular: "" });
 
 const pesos = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 const fechaCorta = (d: string) => {
@@ -77,14 +78,14 @@ export default function PromocionPage() {
   }, [slug]);
 
   const promo = datos?.promo || null;
-  const recuadro = useFondoLogo(datos?.negocio.logo, "#000000");
-  // Lista de servicios: la unión de los que hacen los profesionales de la promoción (con el menor precio como referencia).
-  const catalogo = useMemo(() => {
-    const m = new Map<string, Servicio>();
-    for (const l of Object.values(servicios)) for (const s of l) { const y = m.get(s.id); if (!y || s.price < y.price) m.set(s.id, s); }
-    // Solo los servicios que entran en la promoción.
-    return Array.from(m.values()).filter((s) => !promo?.servicios || promo.servicios.includes(s.id));
-  }, [servicios, promo]);
+  const tema = temaPromo(promo?.colores);
+  const recuadro = useFondoLogo(datos?.negocio.logo, tema.papel);
+  // Primero se elige profesional y recién ahí se muestran SUS servicios (con uno solo, ya viene elegido).
+  const solo = promo?.profesionales.length === 1 ? promo.profesionales[0].id : "";
+  const miPro = yo.pro || solo;
+  const catalogo = useMemo(() => (servicios[miPro] || []).filter((s) => !promo?.servicios || promo.servicios.includes(s.id)), [servicios, miPro, promo]);
+  // Se ofrecen los profesionales que hacen al menos un servicio de la promoción.
+  const disponibles = (promo?.profesionales || []).filter((p) => !servicios[p.id] || servicios[p.id].some((s) => !promo?.servicios || promo.servicios.includes(s.id)));
   const conDescuento = (n: number) => (!promo || promo.valor <= 0 ? n : promo.tipo === "percentage" ? n - Math.round((n * promo.valor) / 100) : Math.max(0, n - promo.valor));
   // Lo que cobra cada profesional por esos servicios (null = no hace alguno).
   const deProfesional = (id: string, lista: string[] = elegidos) => {
@@ -92,12 +93,12 @@ export default function PromocionPage() {
     return l.every(Boolean) && l.length ? { total: l.reduce((n, s) => n + s!.price, 0), minutos: l.reduce((n, s) => n + s!.duration, 0) } : null;
   };
 
-  const clave = `${dia}|${activa}|${elegidos.join(",")}|${Object.keys(servicios).length}|${recarga}`;
+  const clave = `${dia}|${activa}|${miPro}|${elegidos.join(",")}|${Object.keys(servicios).length}|${recarga}`;
   useEffect(() => {
     if (!promo || !dia || !elegidos.length) { setHoras({}); return; }
     let vigente = true;
     setCargandoHoras(true);
-    Promise.all(promo.profesionales.map(async (p) => {
+    Promise.all(promo.profesionales.filter((p) => p.id === miPro).map(async (p) => {
       const x = deProfesional(p.id);
       if (!x) return [p.id, []] as const;
       const d = await fetch(`/api/public/availability?barberId=${p.id}&date=${dia}&duration=${Math.max(5, x.minutos)}`).then((r) => r.json()).catch(() => ({}));
@@ -156,41 +157,41 @@ export default function PromocionPage() {
   // Al cambiar de día, las horas ya elegidas dejan de servir (las dos reservas son del mismo día).
   const elegirDia = (d: string) => { setDia(d); setGente((l) => l.map((x) => ({ ...x, turno: null }))); };
 
-  const titulo = "text-[11px] font-light italic uppercase tracking-[0.32em] text-white/60";
-  const campo = "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:border-white focus:outline-none";
-  const chip = (on: boolean) => `rounded-xl border px-3 py-2 text-sm font-bold transition ${on ? "border-white bg-white text-black" : "border-white/20 bg-white/5 text-white hover:border-white/60"}`;
+  const titulo = "text-[11px] font-light italic uppercase tracking-[0.32em] text-promo-tinta/75";
+  const campo = "w-full rounded-xl border border-promo-tinta/15 bg-promo-tinta/5 px-4 py-3 text-promo-tinta placeholder:text-promo-tinta/70 focus:border-promo-tinta focus:outline-none";
+  const chip = (on: boolean) => `rounded-xl border px-3 py-2 text-sm font-bold transition ${on ? "border-promo-boton bg-promo-boton text-promo-sobre" : "border-promo-tinta/20 bg-promo-tinta/5 text-promo-tinta hover:border-promo-tinta/60"}`;
 
   return (
-    <main className="min-h-screen bg-black text-white" style={{ fontFamily: "Montserrat, -apple-system, Roboto, sans-serif", colorScheme: "dark" }}>
+    <main className="min-h-screen bg-promo-papel text-promo-tinta" style={{ ...tema.vars, fontFamily: "Montserrat, -apple-system, Roboto, sans-serif", colorScheme: tema.claro ? "light" : "dark" }}>
       <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,500;0,700;0,800;1,300;1,800&display=swap" rel="stylesheet" />
-      <div className="mx-auto min-h-screen max-w-xl px-4 pb-16 pt-6" style={{ backgroundImage: "url('/correo/fondo-oscuro.png')", backgroundSize: "100% auto", backgroundRepeat: "repeat-y" }}>
+      <div className="mx-auto min-h-screen max-w-xl px-4 pb-16 pt-6" style={tema.formas ? { backgroundImage: "url('/correo/fondo-oscuro.png')", backgroundSize: "100% auto", backgroundRepeat: "repeat-y" } : undefined}>
         {datos?.negocio.logo && <img src={datos.negocio.logo} alt={datos.negocio.nombre} className={`mx-auto mb-5 h-14 w-auto max-w-[220px] object-contain ${recuadro ? "rounded-xl px-3 py-1" : ""}`} style={recuadro ? { backgroundColor: recuadro } : undefined} />}
-        {!datos && !error && <p className="py-20 text-center text-sm text-white/60">Cargando promoción…</p>}
-        {!datos && error && <p className="py-20 text-center text-sm text-white/70">{error}</p>}
+        {!datos && !error && <p className="py-20 text-center text-sm text-promo-tinta/75">Cargando promoción…</p>}
+        {!datos && error && <p className="py-20 text-center text-sm text-promo-tinta/70">{error}</p>}
 
         {datos && !promo && (
           <div className="py-16 text-center">
             <p className="text-lg font-extrabold uppercase">{datos.motivo}</p>
-            <a href={normal} className="mt-6 inline-block rounded-full bg-white px-8 py-3 text-sm font-extrabold uppercase italic text-black">Reservar sin promoción</a>
+            <a href={normal} className="mt-6 inline-block rounded-full bg-promo-boton px-8 py-3 text-sm font-extrabold uppercase italic text-promo-sobre">Reservar sin promoción</a>
           </div>
         )}
 
         {promo && listo && (
-          <div className="rounded-2xl border border-white/15 bg-white/5 p-6 text-center">
-            <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white text-black"><Check className="h-7 w-7" strokeWidth={3} /></span>
+          <div className="rounded-2xl border border-promo-tinta/15 bg-promo-tinta/5 p-6 text-center">
+            <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-promo-boton text-promo-sobre"><Check className="h-7 w-7" strokeWidth={3} /></span>
             <h1 className="text-2xl font-extrabold uppercase">¡Reserva confirmada!</h1>
-            <p className="mt-3 font-light text-white/80"><b className="font-bold text-white">{fechaCorta(dia).largo}</b></p>
+            <p className="mt-3 font-light text-promo-tinta/80"><b className="font-bold text-promo-tinta">{fechaCorta(dia).largo}</b></p>
             {grupo.map((g, i) => (
-              <div key={i} className="mt-4 rounded-xl border border-white/15 p-3">
-                <p className="text-sm font-light text-white/80">{cuantos === 2 && <b className="font-bold text-white">{g.nombre} · </b>}<b className="font-bold text-white">{g.turno?.slot.slice(11, 16)}</b> con <b className="font-bold text-white">{g.turno?.pro.nombre}</b></p>
-                {(listo[i]?.descuento || 0) > 0 && <p className="mt-2 text-sm text-white/60 line-through">{pesos(listo[i].total)}</p>}
+              <div key={i} className="mt-4 rounded-xl border border-promo-tinta/15 p-3">
+                <p className="text-sm font-light text-promo-tinta/80">{cuantos === 2 && <b className="font-bold text-promo-tinta">{g.nombre} · </b>}<b className="font-bold text-promo-tinta">{g.turno?.slot.slice(11, 16)}</b> con <b className="font-bold text-promo-tinta">{g.turno?.pro.nombre}</b></p>
+                {(listo[i]?.descuento || 0) > 0 && <p className="mt-2 text-sm text-promo-tinta/75 line-through">{pesos(listo[i].total)}</p>}
                 <p className="text-2xl font-extrabold">{pesos((listo[i]?.total || 0) - (listo[i]?.descuento || 0))}</p>
               </div>
             ))}
             <p className={`mt-3 ${titulo}`}>Pagas en el local · cupón {promo.codigo}</p>
-            {cuantos === 2 && <p className="mt-2 text-sm font-light text-white/70">El descuento vale si vienen las 2 personas. Si una cancela, la otra paga el precio normal.</p>}
+            {cuantos === 2 && <p className="mt-2 text-sm font-light text-promo-tinta/70">El descuento vale si vienen las 2 personas. Si una cancela, la otra paga el precio normal.</p>}
             {promo.detalles.filter((x) => x.etiqueta.startsWith("Pago")).map((x) => <p key={x.etiqueta} className="mt-3 text-sm font-bold">{x.etiqueta}: {x.valor}</p>)}
-            <p className="mt-4 text-sm font-light text-white/60">Te enviamos los datos a {grupo[0].correo}.</p>
+            <p className="mt-4 text-sm font-light text-promo-tinta/75">Te enviamos los datos a {grupo[0].correo}.</p>
           </div>
         )}
 
@@ -208,26 +209,43 @@ export default function PromocionPage() {
                 ))}
               </div>
             )}
+            {!solo && (
+              <section>
+                <h2 className={`mb-2 ${titulo}`}>1 · {cuantos === 2 ? `Profesional de la persona ${activa + 1}` : "Elige profesional"}</h2>
+                <div className="grid grid-cols-3 gap-2">
+                  {disponibles.map((p) => (
+                    <button key={p.id} type="button" aria-pressed={miPro === p.id} onClick={() => { if (miPro !== p.id) cambiar(activa, { pro: p.id, elegidos: [], turno: null }); }}
+                      className={`${chip(miPro === p.id)} flex flex-col items-center gap-1.5 py-3 text-center`}>
+                      {p.foto ? <img src={p.foto} alt="" className="h-14 w-14 rounded-full object-cover" /> : <span className="flex h-14 w-14 items-center justify-center rounded-full bg-promo-tinta/15 text-lg font-bold">{p.nombre.charAt(0)}</span>}
+                      <span className="text-xs leading-tight">{p.nombre}</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {miPro && (
             <section>
-              <h2 className={`mb-2 ${titulo}`}>1 · {cuantos === 2 ? `Servicio de la persona ${activa + 1}` : "Elige tu servicio"}</h2>
-              {!catalogo.length && <p className="text-sm text-white/50">Cargando servicios…</p>}
+              <h2 className={`mb-2 ${titulo}`}>{solo ? 1 : 2} · {cuantos === 2 ? `Servicio de la persona ${activa + 1}` : "Elige tu servicio"}</h2>
+              {!catalogo.length && <p className="text-sm text-promo-tinta/70">Cargando servicios…</p>}
               <div className="space-y-2">
                 {catalogo.map((s) => {
                   const on = elegidos.includes(s.id);
                   return (
                     <button key={s.id} type="button" aria-pressed={on} onClick={() => setElegidos((l) => (on ? l.filter((x) => x !== s.id) : [...l, s.id]))}
-                      className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left ${on ? "border-white bg-white text-black" : "border-white/15 bg-white/5"}`}>
-                      <span className="min-w-0"><span className="block text-sm font-bold">{s.name}</span><span className={`text-xs font-light ${on ? "text-black/60" : "text-white/55"}`}>{s.duration} min</span></span>
-                      <span className="flex-shrink-0 text-right"><span className={`block text-xs line-through ${on ? "text-black/45" : "text-white/40"}`}>{conDescuento(s.price) < s.price ? pesos(s.price) : ""}</span><span className="text-base font-extrabold">{pesos(conDescuento(s.price))}</span></span>
+                      className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left ${on ? "border-promo-boton bg-promo-boton text-promo-sobre" : "border-promo-tinta/15 bg-promo-tinta/5"}`}>
+                      <span className="min-w-0"><span className="block text-sm font-bold">{s.name}</span><span className={`text-xs font-light ${on ? "text-promo-sobre/60" : "text-promo-tinta/70"}`}>{s.duration} min</span></span>
+                      <span className="flex-shrink-0 text-right"><span className={`block text-xs line-through ${on ? "text-promo-sobre/60" : "text-promo-tinta/70"}`}>{conDescuento(s.price) < s.price ? pesos(s.price) : ""}</span><span className="text-base font-extrabold">{pesos(conDescuento(s.price))}</span></span>
                     </button>
                   );
                 })}
               </div>
             </section>
+            )}
 
             {elegidos.length > 0 && (
               <section>
-                <h2 className={`mb-2 ${titulo}`}>2 · {cuantos === 2 ? `Hora de la persona ${activa + 1} (mismo día para ambas)` : "Elige día y hora"}</h2>
+                <h2 className={`mb-2 ${titulo}`}>{solo ? 2 : 3} · {cuantos === 2 ? `Hora de la persona ${activa + 1} (mismo día para ambas)` : "Elige día y hora"}</h2>
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {promo.dias.map((d) => { const f = fechaCorta(d); return (
                     <button key={d} type="button" aria-pressed={dia === d} onClick={() => elegirDia(d)} className={`${chip(dia === d)} min-w-[4.5rem] flex-shrink-0 text-center`}>
@@ -235,12 +253,12 @@ export default function PromocionPage() {
                     </button>); })}
                 </div>
                 <div className="mt-3 space-y-3">
-                  {cargandoHoras && <p className="text-sm text-white/50">Buscando horas…</p>}
-                  {!cargandoHoras && promo.profesionales.every((p) => !(horas[p.id] || []).length) && <p className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm text-white/70">No quedan horas de la promoción ese día. Prueba otro.</p>}
-                  {!cargandoHoras && promo.profesionales.filter((p) => (horas[p.id] || []).length > 0).map((p) => (
-                    <div key={p.id} className="rounded-2xl border border-white/15 bg-white/5 p-3">
+                  {cargandoHoras && <p className="text-sm text-promo-tinta/70">Buscando horas…</p>}
+                  {!cargandoHoras && !(horas[miPro] || []).length && <p className="rounded-xl border border-promo-tinta/15 bg-promo-tinta/5 px-4 py-3 text-sm text-promo-tinta/70">No quedan horas de la promoción ese día. Prueba otro.</p>}
+                  {!cargandoHoras && promo.profesionales.filter((p) => p.id === miPro && (horas[p.id] || []).length > 0).map((p) => (
+                    <div key={p.id} className="rounded-2xl border border-promo-tinta/15 bg-promo-tinta/5 p-3">
                       <div className="mb-2 flex items-center gap-2.5">
-                        {p.foto ? <img src={p.foto} alt="" className="h-10 w-10 rounded-full object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 font-bold">{p.nombre.charAt(0)}</span>}
+                        {p.foto ? <img src={p.foto} alt="" className="h-10 w-10 rounded-full object-cover" /> : <span className="flex h-10 w-10 items-center justify-center rounded-full bg-promo-tinta/15 font-bold">{p.nombre.charAt(0)}</span>}
                         <span className="text-sm font-bold">{p.nombre}</span>
                         <span className="ml-auto text-sm font-extrabold">{pesos(conDescuento(deProfesional(p.id)?.total || 0))}</span>
                       </div>
@@ -261,39 +279,39 @@ export default function PromocionPage() {
 
             {turnosListos && (
               <section id="tus-datos" className="space-y-3">
-                <h2 className={titulo}>3 · {cuantos === 2 ? "Datos de las 2 personas" : "Tus datos"}</h2>
+                <h2 className={titulo}>{solo ? 3 : 4} · {cuantos === 2 ? "Datos de las 2 personas" : "Tus datos"}</h2>
                 {grupo.map((g, i) => (
                   <div key={i} className="space-y-2">
-                    <p className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-light">{cuantos === 2 && <b className="font-bold">Persona {i + 1}: </b>}<b className="font-bold">{fechaCorta(dia).largo}, {g.turno!.slot.slice(11, 16)}</b> con <b className="font-bold">{g.turno!.pro.nombre}</b> · <b className="font-extrabold">{pesos(conDescuento(precioDe(g)))}</b></p>
+                    <p className="rounded-xl border border-promo-tinta/15 bg-promo-tinta/5 px-4 py-3 text-sm font-light">{cuantos === 2 && <b className="font-bold">Persona {i + 1}: </b>}<b className="font-bold">{fechaCorta(dia).largo}, {g.turno!.slot.slice(11, 16)}</b> con <b className="font-bold">{g.turno!.pro.nombre}</b> · <b className="font-extrabold">{pesos(conDescuento(precioDe(g)))}</b></p>
                     <input className={campo} placeholder="Nombre y apellido" autoComplete={i === 0 ? "name" : "off"} value={g.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} />
                     <input className={campo} type="tel" placeholder="Celular (WhatsApp)" autoComplete={i === 0 ? "tel" : "off"} value={g.celular} onChange={(e) => cambiar(i, { celular: e.target.value })} />
                     <input className={campo} type="email" placeholder={i === 0 ? "Correo" : "Correo (opcional)"} autoComplete={i === 0 ? "email" : "off"} value={g.correo} onChange={(e) => cambiar(i, { correo: e.target.value })} />
                   </div>
                 ))}
-                <label className="flex items-start gap-2 text-xs font-light text-white/65"><input type="checkbox" className="mt-0.5" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} /> Quiero recibir promociones y novedades (opcional).</label>
-                <p className="text-xs font-light text-white/45">Usamos tus datos para gestionar tu cita. <a href="/privacidad/clientes" target="_blank" rel="noopener noreferrer" className="underline">Aviso de privacidad</a></p>
+                <label className="flex items-start gap-2 text-xs font-light text-promo-tinta/65"><input type="checkbox" className="mt-0.5" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} /> Quiero recibir promociones y novedades (opcional).</label>
+                <p className="text-xs font-light text-promo-tinta/75">Usamos tus datos para gestionar tu cita. <a href="/privacidad/clientes" target="_blank" rel="noopener noreferrer" className="underline">Aviso de privacidad</a></p>
                 {promo.politicas && (
-                  <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
+                  <div className="rounded-2xl border border-promo-tinta/30 bg-promo-tinta/10 p-4">
                     <p className="mb-2 text-sm font-extrabold uppercase">Antes de confirmar</p>
-                    <p className="whitespace-pre-line text-sm font-light text-white/85">{promo.politicas}</p>
+                    <p className="whitespace-pre-line text-sm font-light text-promo-tinta/85">{promo.politicas}</p>
                     <label className="mt-3 flex items-start gap-2 text-sm font-bold"><input type="checkbox" className="mt-1 h-4 w-4" checked={conforme} onChange={(e) => setConforme(e.target.checked)} /> Leí y acepto estas condiciones.</label>
                   </div>
                 )}
                 {abono && !abonoSinOnline && (
-                  <div className="rounded-2xl border border-white/30 bg-white/10 p-4">
+                  <div className="rounded-2xl border border-promo-tinta/30 bg-promo-tinta/10 p-4">
                     <p className="mb-2 text-sm font-extrabold uppercase">Abono para confirmar</p>
                     <DesgloseAbono r={cuenta} codigo={promo.codigo} />
-                    <p className="mt-3 text-sm font-light text-white/80">Tienes 5 minutos para pagar el abono con Mercado Pago.</p>
-                    {textoPoliticaAbono(abono.deposit_refund_policy, abono.deposit_refund_hours) && <p className="mt-1 text-xs font-light text-white/60">{textoPoliticaAbono(abono.deposit_refund_policy, abono.deposit_refund_hours)}</p>}
+                    <p className="mt-3 text-sm font-light text-promo-tinta/80">Tienes 5 minutos para pagar el abono con Mercado Pago.</p>
+                    {textoPoliticaAbono(abono.deposit_refund_policy, abono.deposit_refund_hours) && <p className="mt-1 text-xs font-light text-promo-tinta/75">{textoPoliticaAbono(abono.deposit_refund_policy, abono.deposit_refund_hours)}</p>}
                   </div>
                 )}
-                {abonoSinOnline && <p className="rounded-xl border border-white/20 bg-white/5 px-4 py-3 text-sm">Esta promoción se reserva directamente con el local. Escríbenos para tomar tu hora.</p>}
-                {error && <p role="alert" className="rounded-xl bg-red-500/15 px-4 py-3 text-sm text-red-200">{error}</p>}
-                <button type="button" onClick={reservar} disabled={!completo || enviando || revisandoAbono || abonoSinOnline || (!!promo.politicas && !conforme)} className="w-full rounded-full bg-white py-4 text-base font-extrabold uppercase italic text-black disabled:opacity-40">{enviando ? (abono ? "Abriendo el pago…" : "Confirmando…") : abono ? `Pagar abono ${pesos(montoAbono)}` : cuantos === 2 ? "Confirmar las 2 reservas" : "Confirmar reserva"}</button>
+                {abonoSinOnline && <p className="rounded-xl border border-promo-tinta/20 bg-promo-tinta/5 px-4 py-3 text-sm">Esta promoción se reserva directamente con el local. Escríbenos para tomar tu hora.</p>}
+                {error && <p role="alert" className="rounded-xl bg-red-600 px-4 py-3 text-sm font-semibold text-[#fff]">{error}</p>}
+                <button type="button" onClick={reservar} disabled={!completo || enviando || revisandoAbono || abonoSinOnline || (!!promo.politicas && !conforme)} className="w-full rounded-full bg-promo-boton py-4 text-base font-extrabold uppercase italic text-promo-sobre disabled:opacity-40">{enviando ? (abono ? "Abriendo el pago…" : "Confirmando…") : abono ? `Pagar abono ${pesos(montoAbono)}` : cuantos === 2 ? "Confirmar las 2 reservas" : "Confirmar reserva"}</button>
               </section>
             )}
 
-            <p className="text-center"><a href={normal} className="inline-flex items-center gap-1 text-xs font-light text-white/50 underline"><ChevronLeft className="h-3 w-3" /> Reservar sin promoción</a></p>
+            <p className="text-center"><a href={normal} className="inline-flex items-center gap-1 text-xs font-light text-promo-tinta/70 underline"><ChevronLeft className="h-3 w-3" /> Reservar sin promoción</a></p>
           </div>
         )}
       </div>

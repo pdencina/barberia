@@ -152,7 +152,7 @@ export default function RetencionPage() {
     if (errorCondiciones(condiciones)) { showToast(errorCondiciones(condiciones)!, "error"); return; }
     const cupon: any = coupons.find((c: any) => c.code === selectedCoupon);
     if (!cupon?.id) return;
-    const reglas = { desde: condiciones.desde, hasta: condiciones.hasta, horaDesde: condiciones.horaDesde, horaHasta: condiciones.horaHasta, profesionalIds: condiciones.profesionalIds || [], pagos: condiciones.todosLosPagos ? [] : codigosDePago(condiciones.pagos), imagen: imageUrl, titulo: title };
+    const reglas = { desde: condiciones.desde, hasta: condiciones.hasta, horaDesde: condiciones.horaDesde, horaHasta: condiciones.horaHasta, profesionalIds: condiciones.profesionalIds || [], pagos: condiciones.todosLosPagos ? [] : codigosDePago(condiciones.pagos), imagen: imageUrl, titulo: title, ...(design === "colores" ? { colores: coloresLegibles(colores) } : {}) };
     const res = await fetch(`/api/cupones/${cupon.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conditions: reglas }) });
     const d = await res.json().catch(() => ({}));
     showToast(res.ok ? `Reglas guardadas en ${selectedCoupon}` : d.error || "No se pudieron guardar", res.ok ? "success" : "error");
@@ -162,7 +162,7 @@ export default function RetencionPage() {
   const sincronizarCodigo = async (): Promise<boolean> => {
     const cupon: any = coupons.find((c: any) => c.code === selectedCoupon);
     if (!cupon?.id) return true;
-    const conditionsNuevas = reglasDeCampana(cupon.conditions, condiciones, imageUrl, title);
+    const conditionsNuevas = reglasDeCampana(cupon.conditions, condiciones, imageUrl, title, design === "colores" ? coloresLegibles(colores) : null);
     if (!conditionsNuevas) return true;
     const res = await fetch(`/api/cupones/${cupon.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ conditions: conditionsNuevas }) });
     if (!res.ok) { showToast((await res.json().catch(() => ({}))).error || "No se pudieron guardar las condiciones del código; no se envió nada.", "error"); return false; }

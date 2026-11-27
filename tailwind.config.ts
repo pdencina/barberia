@@ -27,6 +27,13 @@ const config: Config = {
         // tema oscuro por negocio (Configuracion > Tema) recolore automaticamente todas
         // las paginas que ya usan text-brand-dark/bg-brand-light/etc, sin tocarlas una
         // por una.
+        // Link de promoción: colores que elige el negocio (por defecto blanco sobre negro). Ver lib/tema-promo.
+        promo: {
+          papel: "rgb(var(--promo-papel, 0 0 0) / <alpha-value>)",
+          tinta: "rgb(var(--promo-tinta, 255 255 255) / <alpha-value>)",
+          boton: "rgb(var(--promo-boton, 255 255 255) / <alpha-value>)",
+          sobre: "rgb(var(--promo-sobre, 0 0 0) / <alpha-value>)",
+        },
         brand: {
           blue: "hsl(var(--brand-blue))",
           dark: "hsl(var(--brand-dark))",

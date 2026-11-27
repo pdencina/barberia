@@ -22,8 +22,9 @@ export async function POST(req: NextRequest) {
     }
     if (String(p.startTime).slice(0, 10) !== fecha) return NextResponse.json({ error: "Las dos reservas deben ser el mismo día" }, { status: 400 });
   }
-  if (telefono9(a.clientPhone) === telefono9(b.clientPhone) && claveNombre(a.clientName) === claveNombre(b.clientName)) {
-    return NextResponse.json({ error: "Deben ser 2 personas distintas" }, { status: 400 });
+  // El mismo nombre dos veces es una sola persona, aunque cambie el celular. El mismo celular con otro nombre (familia) sí vale.
+  if (claveNombre(a.clientName) === claveNombre(b.clientName)) {
+    return NextResponse.json({ error: "Deben ser 2 personas distintas: escribe el nombre y apellido de cada una." }, { status: 400 });
   }
   if (a.barberId === b.barberId && a.startTime === b.startTime) return NextResponse.json({ error: "Esa hora no puede ser para las dos personas con el mismo profesional" }, { status: 409 });
 
@@ -34,7 +35,7 @@ export async function POST(req: NextRequest) {
     const res = await reservar(new NextRequest(new URL("/api/public/book", req.url), {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ serviceIds: p.serviceIds, barberId: p.barberId, date: fecha, startTime: p.startTime, clientName: p.clientName, clientPhone: p.clientPhone,
-        clientEmail: String(p.clientEmail || "").trim() || correo, marketingConsent: body.marketingConsent === true, couponCode: cupon, grupoPromo: grupo }),
+        clientEmail: String(p.clientEmail || "").trim() || correo, correoPrestado: !String(p.clientEmail || "").trim(), marketingConsent: body.marketingConsent === true, couponCode: cupon, grupoPromo: grupo }),
     }));
     return { status: res.status, d: await res.json().catch(() => ({})) };
   };

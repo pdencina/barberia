@@ -13,7 +13,8 @@ export async function GET(req: NextRequest) {
   const { tenantId } = await resolveTenantForRequest(new URL(req.url).searchParams.get("tenantId"));
   if (!tenantId || tenantId === "ALL") return NextResponse.json({});
   const sb = createAdminSupabase();
-  const citas = await fetchAllRows<any>(() => sb.from("appointments").select("id, coupon_id, status").eq("tenant_id", tenantId).not("coupon_id", "is", null)).catch(() => [] as any[]);
+  const pedir = (extra: string) => fetchAllRows<any>(() => sb.from("appointments").select(`id, coupon_id, status, date, start_time, client:clients(name, phone, email), barber:profiles!barber_id(name)${extra}`).eq("tenant_id", tenantId).not("coupon_id", "is", null));
+  const citas = await pedir(", coupon_group").catch(() => pedir("")).catch(() => [] as any[]); // sin la migración 185 no hay grupos
   const lineas: any[] = [];
   for (let i = 0; i < citas.length; i += 150) {
     const ids = citas.slice(i, i + 150).map((c) => c.id);

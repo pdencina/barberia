@@ -50,6 +50,8 @@ const ok = (c: boolean, m: string) => { console.log((c ? "OK    " : "FALLA ") + 
     const fuera = await pedir("promo/reservar", { date: fecha, couponCode: codigo, personas: [P(1, A, libresA[0]), P(2, FUERA, `${fecha}T12:00:00`)] });
     const { data: tras } = await sb.from("appointments").select("status").eq("coupon_id", cupon.id);
     ok(fuera.status !== 200 && (tras || []).every((x: any) => x.status === "cancelled"), `5. si la 2ª no cumple, no queda ninguna reserva (${fuera.d.error})`);
+    const doble = await pedir("promo/reservar", { date: fecha, couponCode: codigo, personas: [P(1, A, libresA[1]), { ...P(2, B, libresB[2]), clientName: "Zeta Uno" }] });
+    ok(doble.status === 400 && /distintas/.test(doble.d.error), "5b. la misma persona no puede reservar por las dos");
     const bien = await pedir("promo/reservar", { date: fecha, couponCode: codigo, personas: [P(1, A, libresA[1]), P(2, B, libresB[2])] });
     ok(bien.status === 200 && bien.d.reservas?.length === 2, `6. reserva de 2 personas ${bien.d.error || ""}`);
     const [id1, id2] = (bien.d.reservas || []).map((r: any) => r.appointmentId);

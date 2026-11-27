@@ -1,4 +1,5 @@
 // Reglas de un cupón (coupons.conditions, migración 182): fechas y horario de la ATENCIÓN y profesionales que lo aceptan.
+import { coloresLegibles } from "@/lib/correo-colores";
 import { limpiarPagos } from "@/lib/cupon-pagos";
 
 export interface ReglasCupon {
@@ -11,6 +12,7 @@ export interface ReglasCupon {
   titulo?: string;                         // página de la promoción
   personas?: number;                       // 2 = solo si reservan 2 personas juntas
   politicas?: string;                      // se aceptan antes de reservar en el link de la promoción
+  colores?: { fondo: string; texto: string; boton: string }; // link de la promoción; sin esto, blanco sobre negro
 }
 
 export interface CuponFila { active?: boolean | null; max_uses?: number | null; used_count?: number | null; valid_until?: string | null; conditions?: ReglasCupon | null }
@@ -24,7 +26,8 @@ export function limpiarReglas(r: any): ReglasCupon | null {
   const pagos = limpiarPagos(r?.pagos);
   const personas = Number(r?.personas) === 2 ? 2 : undefined;
   const politicas = typeof r?.politicas === "string" && r.politicas.trim() ? r.politicas.trim().slice(0, 800) : undefined;
-  const out: ReglasCupon = { personas, politicas, desde: f(r?.desde), hasta: f(r?.hasta), horaDesde: h(r?.horaDesde), horaHasta: h(r?.horaHasta), profesionalIds: ids.length ? ids : undefined, servicioIds: serv.length ? serv : undefined, pagos: pagos.length ? pagos : undefined,
+  const colores = coloresLegibles(r?.colores) || undefined;
+  const out: ReglasCupon = { personas, politicas, colores, desde: f(r?.desde), hasta: f(r?.hasta), horaDesde: h(r?.horaDesde), horaHasta: h(r?.horaHasta), profesionalIds: ids.length ? ids : undefined, servicioIds: serv.length ? serv : undefined, pagos: pagos.length ? pagos : undefined,
     titulo: typeof r?.titulo === "string" && r.titulo.trim() ? r.titulo.trim().slice(0, 80) : undefined,
     imagen: typeof r?.imagen === "string" && /^https:\/\/[^\s"'<>]+$/.test(r.imagen) ? r.imagen : undefined };
   return Object.values(out).some(Boolean) ? JSON.parse(JSON.stringify(out)) : null;
