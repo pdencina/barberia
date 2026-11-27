@@ -20,7 +20,7 @@ import { textoDeFecha } from "@/lib/agente/disponibilidad";
 import { registrarChat, purgarChats } from "@/lib/agente/chats";
 import { resumenParaDueno } from "@/lib/agente/resumen-datos";
 import { avisoDeAtencion } from "@/lib/agente/aviso-atencion";
-import { avisarDueno, ventanaAbierta, PLANTILLA_CONSULTA, IDIOMA_PLANTILLA_CONSULTA } from "@/lib/agente/aviso-dueno";
+import { avisarDueno, conRespaldo, preguntaParaPlantilla, ventanaAbierta, PLANTILLA_CONSULTA, PLANTILLA_CONSULTA_TEXTO, IDIOMA_PLANTILLA_CONSULTA } from "@/lib/agente/aviso-dueno";
 import { notify } from "@/lib/notify";
 import { resolverRemitente } from "@/lib/agente/informe-diario-email";
 
@@ -309,7 +309,13 @@ const handlers = () => crearManejadoresWebhook({
             await db.from("agent_consultas").delete().eq("tenant_id", tenantId).lt("created_at", new Date(Date.now() - 48 * 3600000).toISOString()); // limpieza
             const ultimo = await db.from("agent_chats").select("created_at").eq("tenant_id", tenantId).eq("telefono", String(admin.data.telefono)).eq("direccion", "entrante").order("created_at", { ascending: false }).limit(1).maybeSingle();
             const abiertaVentana = ventanaAbierta(ultimo.data?.created_at, Date.now()); // sin registro: se asume cerrada (la plantilla llega igual)
-            const plantilla = async (num: number) => enviarPlantilla({ para: String(admin.data!.telefono), plantilla: PLANTILLA_CONSULTA, idioma: IDIOMA_PLANTILLA_CONSULTA, variables: [(await db.from("tenants").select("name").eq("id", tenantId).maybeSingle()).data?.name || "tu negocio", String(num)] }, meta(n));
+            const plantilla = async (num: number) => {
+              const negocio = (await db.from("tenants").select("name").eq("id", tenantId).maybeSingle()).data?.name || "tu negocio";
+              const enviar = (nombre: string, variables: string[]) => enviarPlantilla({ para: String(admin.data!.telefono), plantilla: nombre, idioma: IDIOMA_PLANTILLA_CONSULTA, variables }, meta(n));
+              return conRespaldo(
+                () => enviar(PLANTILLA_CONSULTA_TEXTO, [negocio, String(num), preguntaParaPlantilla(texto, !!medio)]),
+                () => enviar(PLANTILLA_CONSULTA, [negocio, String(num)]));
+            };
             // La imagen queda anotada (migración 184) para reenviarla cuando el dueño escriba «consultas».
             const anotarMedio = async (id: string) => {
               if (!medio) return;

@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { avisarDueno, ventanaAbierta } from "../src/lib/agente/aviso-dueno";
+import { avisarDueno, conRespaldo, preguntaParaPlantilla, ventanaAbierta } from "../src/lib/agente/aviso-dueno";
 
 async function main() {
   const ahora = Date.parse("2026-11-26T22:36:00Z");
@@ -12,6 +12,10 @@ async function main() {
   assert.equal((await avisarDueno(false, { normal, plantilla: ok })).porPlantilla, true);
   assert.equal((await avisarDueno(false, { normal, plantilla: async () => ({ estado: "fallido" }) })).porPlantilla, false);
   assert.equal((await avisarDueno(false, { normal, plantilla: async () => ({ estado: "incierto" }) })).porPlantilla, true); // no duplicar
+  assert.equal(preguntaParaPlantilla("hola\n\ntienen   estacionamiento?", false), "hola tienen estacionamiento?");
+  assert.match(preguntaParaPlantilla("imagen", true), /consultas/);
+  assert.deepEqual(await conRespaldo(async () => ({ estado: "fallido" }), ok), { estado: "aceptado", id: "p" });
+  assert.deepEqual(await conRespaldo(normal, ok), { estado: "aceptado", id: "n" });
   console.log("aviso al dueño: OK");
 }
 main();
