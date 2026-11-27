@@ -13,7 +13,7 @@ import { responderServicioProfesional, type ServiciosPorProfesional } from "./se
 import { responderHorarioProfesional, type HorariosProfesionales } from "./horario-profesional";
 import { responderDisponibilidad, ahoraChile, sumar, textoDeFecha, type DependenciasDisponibilidad } from "./disponibilidad";
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
-import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
+import { manejarConsultaAdmin, botonesDeConsulta, esBotonDeConsulta, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
 import { respuestaDeAtraso } from "./atraso";
 import { responderAviso, tipoDeAviso } from "./aviso-cliente";
 import { esPedidoGeneral, preguntaPreferencia, consultaDePreferencia } from "./pedir-hora";
@@ -101,6 +101,8 @@ export interface DependenciasWebhook {
   // Archivos (malla del curso, folletos): se envían después del texto cuando el cliente los pide. Opcional.
   // Menú como lista de WhatsApp (botón). Si falla o no existe, se envía el menú numerado de siempre.
   responderLista?: (negocio: NegocioWebhook, para: string, lista: ReturnType<typeof listaDeMenu>) => Promise<unknown>;
+  /** Mensaje con botones para el dueño (opciones de una consulta). Sin esto sale el texto solo. */
+  responderBotones?: (negocio: NegocioWebhook, para: string, cuerpo: string, botones: { id: string; title: string }[]) => Promise<unknown>;
   archivos?: { pedidos: (consulta: string, linkReserva: string | null | undefined) => unknown[]; enviar: (negocio: NegocioWebhook, para: string, archivo: any) => Promise<unknown> };
   avisarAdministrador: (tenantId: string) => Promise<unknown>;
 }
@@ -188,7 +190,7 @@ export function crearManejadoresWebhook(config: {
               await guardar("saliente","texto",body);
             };
             // Número administrador (solo el registrado): sus comandos claros (ayuda, reporte, aviso:, avisos, borrar, guardar) los atiende manejarAdmin; lo demás se responde como a cualquier cliente.
-            if (deps.admin && typeof text === "string" && (p.tipo === "text" || esBoton)) {
+            if (deps.admin && typeof text === "string" && (p.tipo === "text" || esBoton || esBotonDeConsulta(text))) {
               let esAdmin = false;
               try { esAdmin = await deps.admin.esAdmin(n.tenantId,para); } catch { /* sin tabla o falla: se atiende como cliente */ }
               if (esAdmin) {
@@ -200,7 +202,15 @@ export function crearManejadoresWebhook(config: {
                 catch { respuestaAdmin = null; /* sin tabla o falla: se atiende como cliente */ }
                 }
                 // null = no es un comando de administrador: el mensaje sigue el camino normal de cualquier cliente.
-                if (respuestaAdmin !== null) { await responder(respuestaAdmin); await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++; continue; }
+                if (respuestaAdmin !== null) {
+                  const botones = botonesDeConsulta(respuestaAdmin);
+                  let conBotones = false;
+                  if (botones && deps.responderBotones && await habilitado(false)) {
+                    try { const r: any = await deps.responderBotones(n,para,respuestaAdmin,botones); conBotones = r?.estado === "aceptado"; } catch { /* sale como texto */ }
+                    if (conBotones) await guardar("saliente","texto",respuestaAdmin);
+                  }
+                  if (!conBotones) await responder(respuestaAdmin);
+                  await deps.repo.terminar(n.tenantId,key,"procesado"); totals.procesados++; continue; }
               }
             }
             if (tipo === "no_quiero_mensajes") {

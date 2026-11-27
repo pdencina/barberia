@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { responderPersonalizadas } from "../src/lib/agente/faq-extra";
 import { normalizar } from "../src/lib/agente/faq-fija";
-import { manejarConsultaAdmin, leerRedaccion, avisoDeConsulta, avisoDeImagen, TEXTO_ABONO_OK, type OperacionesConsulta, type Consulta } from "../src/lib/agente/consultas";
+import { manejarConsultaAdmin, botonesDeConsulta, leerRedaccion, avisoDeConsulta, avisoDeImagen, TEXTO_ABONO_OK, type OperacionesConsulta, type Consulta } from "../src/lib/agente/consultas";
 
 const CONTEXTO = "El curso cuesta $390.000. Abono de $100.000. Horario: martes y miércoles de 19:00 a 22:30. Atendemos en Juan de Dios Malebrán 1889.";
 let casos = 0;
@@ -145,6 +145,52 @@ const LISTO = JSON.stringify({ estado: "listo", respuesta: "Sí, puedes pagar el
     assert.equal(r("quiero reservar visos"), "ABONO", "solo el abono, sin los visos"); assert.equal(r("quiero reservar color global"), "ABONO");
     assert.equal(r("qué largo necesito para un rizo permanente"), "RIZO"); assert.equal(r("hola"), null);
     assert.equal(r("cuánto cuestan los visos y el color global"), "COLOR\n\nVISOS", "si preguntan por dos, responde las dos");
+  });
+  const conBorradores = (salida: string | null) => {
+    const a = armar(salida), pend = new Map<number, any>();
+    a.ops.borradores = { guardar: async (b) => { pend.set(b.numero, b); return true; }, tomar: async (n) => { const b = pend.get(n) ?? null; pend.delete(n); return b; } };
+    return { ...a, pend };
+  };
+  const ids = (t: string) => (botonesDeConsulta(t) ?? []).map((b) => b.id);
+  await caso("Aviso al dueño con botones; 'Sugerir con IA' deja un borrador sin enviar", async () => {
+    assert.deepEqual(ids(avisoDeConsulta({ numero: 3, pregunta: "¿Hay cuotas?" })), ["cq_sugerir_3", "cq_descartar_3"]);
+    const a = conBorradores(LISTO);
+    const r = (await manejarConsultaAdmin("cq_sugerir_3", undefined, a.ops)) ?? "";
+    assert.deepEqual(ids(r), ["cq_aprobar_3", "cq_soloenviar_3", "cq_cancelar_3"], r);
+    assert.equal(a.e.enviados.length, 0); assert.equal(a.e.consultas[0].notas, null);
+  });
+  await caso("Borrador: 'Enviar y guardar' envía una sola vez y guarda", async () => {
+    const a = conBorradores(LISTO);
+    assert.ok(((await manejarConsultaAdmin("3: dile que sí, el saldo en cuotas", undefined, a.ops)) ?? "").startsWith("📝 Borrador"));
+    assert.equal(a.e.enviados.length, 0);
+    assert.ok(((await manejarConsultaAdmin("cq_aprobar_3", undefined, a.ops)) ?? "").includes("La guardé"));
+    assert.ok(((await manejarConsultaAdmin("cq_aprobar_3", undefined, a.ops)) ?? "").includes("no tiene nada pendiente"));
+    assert.equal(a.e.enviados.length, 1); assert.equal(a.e.saber.length, 1); assert.equal(a.e.consultas.length, 0);
+  });
+  await caso("Borrador: 'Solo enviar' no guarda; 'Cancelar' no envía; sin 24 h se conserva", async () => {
+    const a = conBorradores(LISTO);
+    await manejarConsultaAdmin("3: dile que sí, el saldo en cuotas", undefined, a.ops);
+    assert.ok(((await manejarConsultaAdmin("cq_cancelar_3", undefined, a.ops)) ?? "").includes("no envié nada"));
+    assert.equal(a.e.consultas.length, 1); assert.equal(a.e.enviados.length, 0);
+    await manejarConsultaAdmin("3: dile que sí, el saldo en cuotas", undefined, a.ops);
+    await manejarConsultaAdmin("3: solo enviar", undefined, a.ops);
+    assert.equal(a.e.enviados.length, 1); assert.equal(a.e.saber.length, 0);
+    const b = conBorradores(LISTO); b.ops.enviarAlCliente = async () => false;
+    await manejarConsultaAdmin("3: dile que sí, el saldo en cuotas", undefined, b.ops);
+    assert.ok(((await manejarConsultaAdmin("cq_aprobar_3", undefined, b.ops)) ?? "").includes("24 horas")); assert.equal(b.pend.size, 1);
+  });
+  await caso("Texto propio: se envía al tiro y pregunta si guardar (con o sin IA)", async () => {
+    for (const salida of [LISTO, null]) {
+      const a = conBorradores(salida);
+      const r = (await manejarConsultaAdmin("3: enviar: Sí, se puede pagar en cuotas.", undefined, a.ops)) ?? "";
+      assert.deepEqual(ids(r), ["cq_guardar_3", "cq_noguardar_3"], r); assert.equal(a.e.enviados.length, 1);
+      assert.ok(((await manejarConsultaAdmin("cq_guardar_3", undefined, a.ops)) ?? "").includes("La guardé"));
+      assert.equal(a.e.saber[0].respuesta, "Sí, se puede pagar en cuotas."); assert.equal(a.e.enviados.length, 1);
+    }
+    const b = conBorradores(null);
+    await manejarConsultaAdmin("3: enviar: Voy en seguida.", undefined, b.ops);
+    assert.ok(((await manejarConsultaAdmin("3: no guardar", undefined, b.ops)) ?? "").startsWith("Ok, no guardé"));
+    assert.equal(b.e.saber.length, 0);
   });
   console.log(`OK ${casos} casos de consultas difíciles; sin red, base ni llaves.`);
 })().catch((e) => { console.error(e instanceof Error ? e.message : e); process.exit(1); });

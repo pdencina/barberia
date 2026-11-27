@@ -218,6 +218,22 @@ export async function enviarMedioPorId(args: { para: string; tipo: "image" | "do
 }
 
 /** Mensaje de lista de WhatsApp: botón que abre hasta 10 opciones; la respuesta llega como interactive/list_reply con el id de la fila. */
+export async function enviarBotones(args: { para: string; cuerpo: string; botones: readonly { id: string; title: string }[] }, deps: DependenciasWhatsAppMeta): Promise<ResultadoEnvioPlantilla> {
+  try {
+    if (!deps || typeof deps.fetch !== "function" || typeof deps.token !== "string" || !deps.token.trim() || /[\r\n]/.test(deps.token)
+      || !/^v[0-9]+\.[0-9]+$/.test(deps.version) || !numero(deps.phone_number_id) || !args || !numero(args.para)
+      || typeof args.cuerpo !== "string" || !args.cuerpo.trim() || args.cuerpo.length > 1024
+      || !Array.isArray(args.botones) || args.botones.length < 1 || args.botones.length > 3
+      || args.botones.some(b => !b || !/^[A-Za-z0-9_-]{1,200}$/.test(b.id) || typeof b.title !== "string" || !b.title.trim() || b.title.length > 20)) return { estado: "fallido" };
+    return enviarPeticionMeta(`https://graph.facebook.com/${deps.version}/${deps.phone_number_id}/messages`, {
+      method: "POST", redirect: "error", headers: { Authorization: `Bearer ${deps.token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ messaging_product: "whatsapp", to: args.para, type: "interactive", interactive: { type: "button", body: { text: args.cuerpo },
+        action: { buttons: args.botones.map(b => ({ type: "reply", reply: { id: b.id, title: b.title } })) } } }),
+    }, deps);
+  } catch { return { estado: "fallido" }; }
+}
+
+/** Mensaje con lista de opciones (solo dentro de las 24 h). */
 export async function enviarLista(args: { para: string; cuerpo: string; boton: string; filas: readonly { id: string; title: string; description?: string }[] }, deps: DependenciasWhatsAppMeta): Promise<ResultadoEnvioPlantilla> {
   try {
     if (!deps || typeof deps.fetch !== "function" || typeof deps.token !== "string" || !deps.token.trim() || /[\r\n]/.test(deps.token)
