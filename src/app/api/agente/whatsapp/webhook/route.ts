@@ -18,6 +18,7 @@ import { crearRepositorioAccionesCita, HORAS_MIN_CANCELAR } from "@/lib/agente/a
 import { anticipacionCita } from "@/lib/agente/recordatorios-whatsapp";
 import { textoDeFecha } from "@/lib/agente/disponibilidad";
 import { registrarChat, purgarChats } from "@/lib/agente/chats";
+import { resumenParaDueno } from "@/lib/agente/resumen-datos";
 import { avisoDeAtencion } from "@/lib/agente/aviso-atencion";
 import { avisarDueno, ventanaAbierta, PLANTILLA_CONSULTA, IDIOMA_PLANTILLA_CONSULTA } from "@/lib/agente/aviso-dueno";
 import { notify } from "@/lib/notify";
@@ -170,6 +171,7 @@ const handlers = () => crearManejadoresWebhook({
             return (r.data ?? []) as any;
           },
           borrar: async (id) => { await db.from("agent_avisos").delete().eq("tenant_id", tenantId).eq("id", id); },
+          resumen: () => resumenParaDueno(db, tenantId, Date.now()),
           reporte: async (desde, hasta) => {
             const r = await db.from("agent_whatsapp_indicadores").select("campo,total").eq("tenant_id", tenantId).gte("dia", desde).lte("dia", hasta);
             if (r.error) throw new Error("indicadores");

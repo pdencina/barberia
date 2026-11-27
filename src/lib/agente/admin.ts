@@ -25,12 +25,14 @@ export interface OperacionesAdmin {
   borrar: (id: string) => Promise<void>;
   /** Suma de cada indicador entre dos días (YYYY-MM-DD, ambos incluidos). */
   reporte: (desde: string, hasta: string) => Promise<Record<string, number>>;
+  /** Resumen de hoy: clientes nuevos, conversaciones por tipo y fallas. */
+  resumen?: () => Promise<string>;
 }
 
 const GUARDAR = /^(?:guardar|guardalo|guardala)$/;
 const DESCARTAR = /^(?:descartar|descartalo|descartala)$/;
 const INSTRUCCION = /^(?:aviso|avisar|instrucci[oó]n|anota|anotar)\s*:?\s+([\s\S]+)$/i;
-const AYUDA = "Modo administrador de Estudio Levels (solo tu número lo ve):\n\n• *reporte*: resumen de los últimos 7 días (también *reporte hoy* o *reporte mes*)\n• *aviso: el viernes 27 cerramos a las 13:00*: te lo muestro y lo guardo cuando escribas *guardar* (o *descartar*)\n• *avisos*: lista de avisos vigentes\n• *borrar 2*: quita el aviso 2\n\nLos avisos solo informan a los clientes que preguntan por horarios u horas; no bloquean la agenda. Todo lo demás que escribas, el agente lo responde como a un cliente.";
+const AYUDA = "Modo administrador de Estudio Levels (solo tu número lo ve):\n\n• *resumen*: lo de hoy (clientes nuevos, pendientes, no entendidos y fallas)\n• *reporte*: resumen de los últimos 7 días (también *reporte hoy* o *reporte mes*)\n• *aviso: el viernes 27 cerramos a las 13:00*: te lo muestro y lo guardo cuando escribas *guardar* (o *descartar*)\n• *avisos*: lista de avisos vigentes\n• *borrar 2*: quita el aviso 2\n\nLos avisos solo informan a los clientes que preguntan por horarios u horas; no bloquean la agenda. Todo lo demás que escribas, el agente lo responde como a un cliente.";
 
 const limpiar = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
 
@@ -48,6 +50,8 @@ export async function manejarAdmin(texto: string, ops: OperacionesAdmin, ahoraMs
   const original = limpiar(texto);
 
   if (/^(?:ayuda|ayuda admin|admin)$/.test(t)) return AYUDA;
+
+  if (/^resumen(?: de)?(?: hoy)?$/.test(t) && ops.resumen) return ops.resumen();
 
   // ---- reporte (solo cuando lo pide)
   if (/^reporte\b/.test(t)) {
