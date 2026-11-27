@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { esUnicoProfesional } from "@/lib/profesional-unico";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
 import { leerServiciosPublicos } from "@/lib/servicios-internos";
@@ -36,7 +37,7 @@ export async function POST(req: NextRequest) {
   const { data: servicios } = await leerServiciosPublicos((cols) => supabase.from("services").select(cols).eq("active", true).eq("tenant_id", t.id).order("sort_order"), "id, name, price, duration, sort_order");
   const { data: propios } = await supabase.from("barber_services").select("service_id, custom_price, custom_duration").eq("barber_id", barberId);
   const { data: asignados } = await supabase.from("barber_service_assignments").select("service_id").eq("barber_id", barberId);
-  const idsAsignados = (asignados || []).map((x: any) => x.service_id);
+  const idsAsignados = (await esUnicoProfesional(supabase, t.id)) ? [] : (asignados || []).map((x: any) => x.service_id);
   const propiosMap = new Map((propios || []).map((c: any) => [c.service_id, c]));
   const ofrecidos = (servicios || [])
     .filter((s: any) => idsAsignados.length === 0 || idsAsignados.includes(s.id))

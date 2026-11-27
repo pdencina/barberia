@@ -1,3 +1,4 @@
+import { esUnicoProfesional } from "@/lib/profesional-unico";
 import { crearRepositorioDatosNegocio } from "@/lib/agente/datos-negocio";
 // Se reutiliza la MISMA función que calcula las horas de la reserva web (en el servidor, solo lectura): una sola regla.
 import { GET as disponibilidadPublica } from "@/app/api/public/availability/route";
@@ -196,6 +197,7 @@ const handlers = () => crearManejadoresWebhook({
         const r = await db.from("barber_service_assignments").select("barber_id,service_id").in("barber_id", ids);
         if (r.error) throw new Error("sin servicios por profesional");
         const m: Record<string, string[] | null> = Object.fromEntries(ids.map((i) => [i, null]));
+        if (await esUnicoProfesional(db, tenantId)) return m; // negocio independiente
         for (const x of (r.data ?? []) as any[]) { const a = m[x.barber_id]; if (a === null) m[x.barber_id] = [String(x.service_id)]; else if (a) a.push(String(x.service_id)); }
         return m;
       },

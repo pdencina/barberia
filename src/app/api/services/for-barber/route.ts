@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { esUnicoProfesional } from "@/lib/profesional-unico";
 import { createAdminSupabase, getCurrentUserRoleAndTenant } from "@/lib/supabase/server";
 
 // GET ?barberId=: servicios que ese profesional ofrece, del mas pedido al menos pedido.
@@ -27,7 +28,8 @@ export async function GET(req: NextRequest) {
       .limit(5000),
   ]);
 
-  const assignedIds = new Set((assigned || []).map((a: any) => a.service_id));
+  const unico = await esUnicoProfesional(supabase, barber.tenant_id);
+  const assignedIds = new Set(unico ? [] : (assigned || []).map((a: any) => a.service_id));
   // Los servicios internos (extras de POS) no se asignan a profesionales ni se reservan.
   const servicesPublicos = (services || []).filter((x: any) => !x.internal_only);
   const counts = new Map<string, number>();

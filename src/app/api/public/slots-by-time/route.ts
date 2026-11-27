@@ -1,5 +1,6 @@
 import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
+import { esUnicoProfesional } from "@/lib/profesional-unico";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
 // GET: horas disponibles de TODO el equipo para un día y unos servicios ("vista por horario").
@@ -35,10 +36,11 @@ export async function GET(req: NextRequest) {
     supabase.from("barber_services").select("barber_id, service_id, custom_price, custom_duration").in("barber_id", ids),
   ]);
 
+  const unico = await esUnicoProfesional(supabase, tenant.id); // negocio independiente: hace todos sus servicios
   // Por profesional: ¿hace todos los servicios pedidos? (sin asignaciones = hace todos) y su precio/duración.
   const barberInfo: Record<string, any> = {};
   for (const b of barbers) {
-    const assigned = new Set((assignments || []).filter((a) => a.barber_id === b.id).map((a) => a.service_id));
+    const assigned = new Set((unico ? [] : assignments || []).filter((a) => a.barber_id === b.id).map((a) => a.service_id));
     if (assigned.size > 0 && !serviceIds.every((id) => assigned.has(id))) continue;
     const list = services.map((s) => {
       const c = (customs || []).find((x) => x.barber_id === b.id && x.service_id === s.id);

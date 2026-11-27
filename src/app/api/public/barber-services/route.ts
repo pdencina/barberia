@@ -1,5 +1,6 @@
 import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
+import { esUnicoProfesional } from "@/lib/profesional-unico";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
 // GET: Services available for a specific barber, with custom prices/duration
@@ -39,7 +40,8 @@ export async function GET(req: NextRequest) {
     .select("service_id")
     .eq("barber_id", barberId);
 
-  const assignedIds = (assignments || []).map((a) => a.service_id);
+  // Negocio independiente: salen todos sus servicios.
+  const assignedIds = (await esUnicoProfesional(supabase, barberProfile?.tenant_id)) ? [] : (assignments || []).map((a) => a.service_id);
 
   // Merge: apply custom prices where they exist
   const customMap = new Map((customPrices || []).map((c) => [c.service_id, c]));
