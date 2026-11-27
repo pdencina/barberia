@@ -15,6 +15,7 @@ import { responderDisponibilidad, ahoraChile, sumar, textoDeFecha, type Dependen
 import { manejarAdmin, pideHorario, conAvisos, type OperacionesAdmin } from "./admin";
 import { manejarConsultaAdmin, TEXTO_AL_CLIENTE, TEXTO_IMAGEN_CLIENTE, type OperacionesConsulta } from "./consultas";
 import { respuestaDeAtraso } from "./atraso";
+import { responderAviso, tipoDeAviso } from "./aviso-cliente";
 import { esPedidoGeneral, preguntaPreferencia, consultaDePreferencia } from "./pedir-hora";
 import { respuestaManicure, textoManicure, esTextoManicure, esRespuestaManicure, listaDeManicure, TITULO_MANICURE_SEGUIR } from "./manicure";
 import { fetchAllRows } from "../accounting";
@@ -282,6 +283,20 @@ export function crearManejadoresWebhook(config: {
                         respuestaFaq = mani; reiniciado = true;
                         await contar("respuestas_automaticas");
                       }
+                    }
+                    // El cliente cuenta algo ("ya reagendé para más tarde"): se le agradece y se le confirma; no es una consulta de horas.
+                    if (!reiniciado && tipo === "desconocido" && entradaTexto && !esBoton && tipoDeAviso(text)) {
+                      try {
+                        const estadoAviso = chat ? await chat.leerEstado(n.tenantId,p.remitenteHash,deps.ahora()) : null;
+                        if (estadoAviso?.etapa !== "datos") {
+                          const av = await responderAviso(text,ahoraChile(deps.ahora()).fecha,para,deps.buscarCitas ? (id) => deps.buscarCitas!(n.tenantId,id) : undefined);
+                          if (av) {
+                            respuestaFaq = av; reiniciado = true;
+                            if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria */ } }
+                            await contar("respuestas_automaticas");
+                          }
+                        }
+                      } catch { /* sin memoria: sigue el camino de siempre */ }
                     }
                     // 0c) "¿Quedó agendada mi hora?" / "no me llegó el correo": pide correo o código y revisa la agenda. No interviene mientras entrega sus datos para reservar.
                     if (!reiniciado && deps.buscarCitas && tipo === "desconocido" && entradaTexto && !esBoton) {
