@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { EmptyIcons, SuccessMark } from "@/components/ui/empty-state";
 import { BookingReschedule } from "@/components/booking-reschedule";
-import { MOTIVOS_CLIENTE } from "@/lib/cancel-reasons";
+import { MOTIVOS_CLIENTE, NOTA_MINIMA } from "@/lib/cancel-reasons";
 
 export default function CancelPage() {
   const params = useParams();
@@ -19,7 +19,10 @@ export default function CancelPage() {
   }, [params.id]);
   const urlReservar = negocio ? `/booking?tenant=${encodeURIComponent(negocio.slug)}` : null;
 
+  const [aviso, setAviso] = useState("");
   const handleCancel = async () => {
+    setAviso("");
+    if (motivo === "otro" && nota.trim().length < NOTA_MINIMA) { setAviso(`Cuéntanos brevemente el motivo (al menos ${NOTA_MINIMA} letras) o elige otra opción.`); return; }
     setStatus("loading");
 
     const res = await fetch("/api/public/cancel", {
@@ -33,6 +36,9 @@ export default function CancelPage() {
     if (res.ok) {
       if (data.negocio) setNegocio(data.negocio);
       setStatus("success");
+    } else if (res.status === 400) {
+      setAviso(data.error || "Revisa los datos e intenta de nuevo."); // se puede corregir sin salir
+      setStatus("confirm");
     } else {
       setErrorMsg(data.error || "Error al cancelar");
       setStatus("error");
@@ -66,6 +72,7 @@ export default function CancelPage() {
                   className="mt-2 w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm text-brand-dark" />
               )}
             </div>
+            {aviso && <p role="alert" className="mb-3 rounded-xl bg-red-50 px-3 py-2 text-sm text-red-600">{aviso}</p>}
             <div className="flex gap-3">
               {urlReservar && (
                 <a href={urlReservar} className="flex-1 py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50 flex items-center justify-center">
@@ -110,7 +117,8 @@ export default function CancelPage() {
               <EmptyIcons.error className="w-6 h-6 text-red-500" strokeWidth={1.75} />
             </div>
             <h2 className="text-lg font-bold text-brand-dark">No se pudo cancelar</h2>
-            <p className="text-sm text-red-500 mt-2 mb-6">{errorMsg}</p>
+            <p className="text-sm text-red-500 mt-2 mb-4">{errorMsg}</p>
+            <button onClick={() => setStatus("confirm")} className="mb-2 block w-full rounded-xl bg-brand-blue py-2.5 text-sm font-medium text-white">Volver a intentar</button>
             {urlReservar && (
               <a href={urlReservar} className="block w-full py-2.5 border border-gray-200 rounded-xl text-sm text-brand-gray hover:bg-gray-50">
                 Reservar otra hora

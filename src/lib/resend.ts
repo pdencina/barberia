@@ -281,6 +281,24 @@ async function bloqueCodigoTotem(appointmentId?: string | null): Promise<string>
   } catch { return ""; }
 }
 
+// Fila(s) del precio en los correos de la cita: si se reservó con cupón, muestra el valor normal, el descuento y lo que se paga.
+async function filasPrecio(appointmentId: string | null | undefined, price: number): Promise<string> {
+  const fila = (etiqueta: string, valor: string, destacada = false) => `<tr><td style="padding:10px 0;font-size:13px;color:#6B7280;">${etiqueta}</td><td align="right" style="padding:10px 0;font-size:${destacada ? 18 : 14}px;color:${destacada ? MAIL_ACCENT : "#111827"};font-weight:${destacada ? 800 : 600};">${valor}</td></tr>`;
+  const pesos = (n: number) => `$${n.toLocaleString("es-CL")}`;
+  if (appointmentId) {
+    try {
+      const { createAdminSupabase } = await import("@/lib/supabase/server");
+      const { cuponDeCita } = await import("@/lib/cupon-cita");
+      const c = await cuponDeCita(createAdminSupabase(), appointmentId, price);
+      if (c && c.discount > 0) {
+        return fila("Precio normal", `<s style="color:#9CA3AF;">${pesos(price)}</s>`) + fila(`Cupón ${c.code}`, `-${pesos(c.discount)}`) + fila("Pagas en el local", pesos(price - c.discount), true);
+      }
+      if (c) return fila("Precio", pesos(price), true) + fila(`Cupón ${c.code}`, "Se aplica al pagar");
+    } catch { /* sin cupón: precio normal */ }
+  }
+  return fila("Precio", pesos(price), true);
+}
+
 export async function sendBookingConfirmation(params: SendBookingConfirmationParams) {
   const { to, clientName, barberName, serviceName, date, duration, price, appointmentId, businessLogoUrl, changeHours, businessPhone } = params;
 
@@ -309,7 +327,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
       ${mailRow("Fecha", dateStr)}
       ${mailRow("Hora", timeStr, true)}
       ${mailRow("Duración", `${duration} minutos`)}
-      <tr><td style="padding:10px 0;font-size:13px;color:#6B7280;">Precio</td><td align="right" style="padding:10px 0;font-size:18px;color:${MAIL_ACCENT};font-weight:800;">$${price.toLocaleString("es-CL")}</td></tr>
+      ${await filasPrecio(appointmentId, price)}
     </table>
     ${bloqueCodigo}
     ${appointmentId ? `<div style="text-align:center;margin:26px 0 6px;"><a href="https://www.re-booking.cl/cancel/${appointmentId}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Cancelar o modificar cita</a></div>` : ""}
@@ -376,7 +394,7 @@ export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParam
       ${mailRow("Fecha", dateStr)}
       ${mailRow("Hora", timeStr, true)}
       ${mailRow("Duración", `${duration} minutos`)}
-      <tr><td style="padding:10px 0;font-size:13px;color:#6B7280;">Precio</td><td align="right" style="padding:10px 0;font-size:18px;color:${MAIL_ACCENT};font-weight:800;">$${price.toLocaleString("es-CL")}</td></tr>
+      ${await filasPrecio(appointmentId, price)}
     </table>
     ${bloqueCodigo}
     ${appointmentId ? `<div style="text-align:center;margin:26px 0 6px;"><a href="https://www.re-booking.cl/cancel/${appointmentId}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:12px 28px;border-radius:10px;font-weight:700;font-size:14px;">Cancelar o modificar cita</a></div>` : ""}

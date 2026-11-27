@@ -39,7 +39,7 @@ t("WhatsApp sin monto: trae el codigo y el texto", /CEJAS GRATIS/.test(w1) && /n
 t("WhatsApp sin monto: NO dice '$0' ni 'de descuento'", !/\$0|de descuento/.test(w1), JSON.stringify(w1.split("\n").slice(-4)));
 t("WhatsApp con monto: igual que antes (con el monto, sin repetir el texto)", /CEJAS GRATIS \(\$1\.000 de descuento\)/.test(w2) && !/no pagas las cejas/.test(w2));
 t("WhatsApp sin cupon: no cambia", !/cupón/.test(w3) && /Agenda aquí/.test(w3));
-t("WhatsApp: sigue incluyendo el link de reserva", w1.endsWith(`Agenda aquí: ${url}`));
+t("WhatsApp: sigue incluyendo el link de reserva (con el cupón puesto)", w1.includes(`Agenda aquí: ${url}`) && /[?&]cupon=/.test(w1));
 t("texto de descuento: sin monto = vacio", couponDiscountText(sinMonto) === "" && couponDiscountText(conMonto) === "$1.000 de descuento");
 t("sin monto y sin descripcion: solo el codigo", buildRetentionWhatsApp({ coupon: { code: "HOLA", description: "", discount_value: 0 }, bookingUrl: url }).includes("cupón para ti: HOLA\n\nAgenda aquí"));
 

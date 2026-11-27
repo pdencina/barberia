@@ -100,6 +100,7 @@ export default function BookingPage() {
   const [error, setError] = useState("");
   const [clientFound, setClientFound] = useState(false);
   const [appointmentId, setAppointmentId] = useState("");
+  const [promoFinal, setPromoFinal] = useState<{ code: string; discount: number } | null>(null); // cupón con el que quedó la reserva
   const [checkinCode, setCheckinCode] = useState<string | null>(null);
   // Pago del abono: el horario queda reservado 5 minutos mientras se paga (contador). Si no se paga a tiempo, se libera y no se toma la hora.
   const [pago, setPago] = useState<null | { ref: string | null; url: string; expira: number; monto: number; estado: "esperando" | "vencido" | "conflicto" }>(null);
@@ -486,6 +487,7 @@ export default function BookingPage() {
 
     if (res.ok) {
       setAppointmentId(data.appointmentId || "");
+      setPromoFinal(data.promo || null);
       setStep("confirmed");
     } else {
       setError(data.error || "Error al agendar. Intenta de nuevo.");
@@ -1177,10 +1179,18 @@ export default function BookingPage() {
                 {selectedSlot ? new Date(selectedSlot).toLocaleTimeString("es-CL", { hour: "2-digit", minute: "2-digit" }) : "—"}
               </p>
 
-              <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between">
-                <span className="text-sm text-brand-gray">Total</span>
-                <span className="text-brand-dark font-bold">{formatCurrency(totalPrice)}</span>
-              </div>
+              {promoFinal && promoFinal.discount > 0 ? (
+                <div className="mt-4 pt-4 border-t border-gray-100 space-y-1">
+                  <div className="flex justify-between text-sm text-brand-gray"><span>Precio normal</span><span className="line-through">{formatCurrency(totalPrice)}</span></div>
+                  <div className="flex justify-between text-sm font-medium text-emerald-600"><span>Cupón {promoFinal.code}</span><span>-{formatCurrency(promoFinal.discount)}</span></div>
+                  <div className="flex justify-between"><span className="text-sm text-brand-gray">Pagas en el local</span><span className="text-lg text-brand-dark font-extrabold">{formatCurrency(totalPrice - promoFinal.discount)}</span></div>
+                </div>
+              ) : (
+                <div className="mt-4 pt-4 border-t border-gray-100 flex justify-between">
+                  <span className="text-sm text-brand-gray">Total{promoFinal ? ` (cupón ${promoFinal.code})` : ""}</span>
+                  <span className="text-brand-dark font-bold">{formatCurrency(totalPrice)}</span>
+                </div>
+              )}
             </div>
 
             {checkinCode && (
