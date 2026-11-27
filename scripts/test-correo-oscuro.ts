@@ -1,5 +1,5 @@
 import { writeFileSync } from "fs";
-import { estiloCorreo, separarCondiciones } from "../src/lib/correo-oscuro";
+import { estiloCorreo, separarCondiciones, negritas, nombrePila } from "../src/lib/correo-oscuro";
 import { buildRetentionEmail } from "../src/lib/resend";
 let f = 0;
 const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
@@ -11,6 +11,9 @@ const o = buildRetentionEmail({ ...base, design: "oscuro", title: "<b>Cuando pag
 ok(o.subject === "Mi asunto", "asunto");
 ok(o.html.includes("&lt;b&gt;") && !o.html.includes("<b>Cuando"), "título escapado");
 ok(o.html.includes("cupon=CUANDO-PAGAN") && o.html.includes("20% de descuento"), "cupón y link");
+ok(nombrePila("nicolas perez") === "Nicolas" && nombrePila("[nombre del cliente]") === "[nombre del cliente]", "nombre de pila");
+ok(negritas("hasta *el lunes*").includes(">el lunes</b>") && negritas("2 * 3 = 6") === "2 * 3 = 6", "negritas");
+ok(o.html.includes("fondo-oscuro.png") && o.html.includes("Montserrat"), "fondo y fuente");
 const c = buildRetentionEmail(base);
 ok(c.subject === "Te extrañamos Ana! | re-booking" && c.html.includes("Agendar ahora"), "clásico igual que antes");
 if (process.argv[2]) writeFileSync(process.argv[2], buildRetentionEmail({ ...base, design: "oscuro", title: "¡¡Cuando pagan!!", imageUrl: null }).html);

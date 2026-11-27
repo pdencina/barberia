@@ -1,7 +1,7 @@
 import { fraseCorreoPlazo } from "@/lib/cambio-cliente";
 import { lineaContactoHtml } from "@/lib/contacto-negocio";
 import { getResendClient } from "@/lib/resend-client";
-import { plantillaOscura, separarCondiciones, type DisenoCorreo } from "@/lib/correo-oscuro";
+import { plantillaOscura, separarCondiciones, negritas, nombrePila, type DisenoCorreo } from "@/lib/correo-oscuro";
 import { couponDiscountText, linkConCupon } from "@/lib/retention-message";
 import { receiptThanksHtml } from "@/lib/receipt-thanks";
 import type { CorreoLinks } from "@/lib/post-service-links";
@@ -438,7 +438,7 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
         logoNegocio: params.businessLogoUrl ? esc(params.businessLogoUrl) : null,
         logoFondo: params.logoFondo,
         titulo: esc((params.title || "").trim()),
-        saludo: `Hola ${clientName}!`,
+        saludo: `Hola, ${esc(nombrePila(params.clientName))}`,
         textoHtml: esc(texto).replace(/\r?\n/g, "<br>"),
         imagen: params.imageUrl ? esc(params.imageUrl) : null,
         datosHtml: datos.map(esc),
@@ -482,7 +482,7 @@ export function buildRetentionEmail(params: SendRetentionEmailParams): { subject
     inner: `
     ${(params.title || "").trim() ? `<p style="font-size:24px;line-height:1.2;color:#111827;font-weight:800;margin:12px 0 4px;">${esc((params.title || "").trim())}</p>` : ""}
     <p style="font-size:18px;color:#111827;font-weight:700;margin:12px 0 8px;">Hola ${clientName}!</p>
-    <p style="font-size:15px;line-height:1.6;color:#374151;margin:0 0 8px;">${message}</p>
+    <p style="font-size:15px;line-height:1.6;color:#374151;margin:0 0 8px;">${negritas(message)}</p>
     ${params.imageUrl ? `<img src="${esc(params.imageUrl)}" alt="Promoción" width="100%" style="display:block;width:100%;max-width:100%;height:auto;border-radius:12px;margin:16px 0 4px;">` : ""}
     ${couponBox}
     <div style="text-align:center;margin:26px 0 4px;"><a href="${linkConCupon(bookingUrl, couponCode)}" style="display:inline-block;background:${MAIL_ACCENT};color:#FFFFFF;text-decoration:none;padding:13px 32px;border-radius:10px;font-weight:700;font-size:15px;">Agendar ahora</a></div>`,
