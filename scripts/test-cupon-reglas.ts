@@ -1,4 +1,4 @@
-import { motivoCuponNoValido as m, limpiarReglas, cuponVencido } from "../src/lib/cupon-reglas";
+import { motivoCuponNoValido as m, limpiarReglas, cuponVencido, baseConDescuento } from "../src/lib/cupon-reglas";
 let f = 0;
 const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
 const p = "91bede52-f11a-46b0-970a-91b83cb6227e", otro = "08dfa271-6ede-45bf-b79c-ff9eaeba19a1";
@@ -16,6 +16,12 @@ const fecha = "2026-11-30T00:00:00+00:00"; // «válido hasta 30/11»
 ok(!cuponVencido(fecha, new Date("2026-11-30T23:30:00-03:00")), "vale todo el día 30 en Chile");
 ok(cuponVencido(fecha, new Date("2026-12-01T00:30:00-03:00")), "vencido el 1");
 ok(cuponVencido("2026-12-01T02:59:59Z", new Date("2026-12-01T03:00:30Z")), "con hora, al instante");
+const S = "11111111-1111-1111-1111-111111111111", O = "22222222-2222-2222-2222-222222222222";
+const porServ = limpiarReglas({ servicioIds: [S, "x"] })!;
+ok(porServ.servicioIds?.length === 1, "servicios");
+ok(!!m({ conditions: porServ }, { barberId: "", fecha: "2026-11-28", hora: "11:00", serviceIds: [O] }), "otro servicio no");
+ok(!m({ conditions: porServ }, { barberId: "", fecha: "2026-11-28", hora: "11:00", serviceIds: [O, S] }), "incluido sí");
+ok(baseConDescuento(porServ, [{ id: S, price: 10000 }, { id: O, price: 5000 }], 15000) === 10000, "descuento solo sobre los incluidos");
 ok(limpiarReglas({ politicas: "  Llega a tu hora  " })?.politicas === "Llega a tu hora", "políticas");
 ok(limpiarReglas({ desde: "x", profesionalIds: ["a'; drop"] }) === null, "limpia basura");
 console.log(f ? "HAY FALLAS" : "OK reglas cupón"); process.exit(f ? 1 : 0);

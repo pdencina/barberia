@@ -48,12 +48,16 @@ export async function GET(req: NextRequest) {
   }
 
   // Promoción de 2 personas: solo sobre una cita que reservó con acompañante (y el acompañante sigue en pie).
-  if (Number(coupon.conditions?.personas) === 2) {
+  const dos = Number(coupon.conditions?.personas) === 2;
+  const porServicio = !!coupon.conditions?.servicioIds?.length;
+  let deCita: number | null = null;
+  if (dos || porServicio) {
     const c = apptId ? await cuponDeCita(supabase, apptId, amount) : null;
-    if (!c || c.couponId !== coupon.id) return NextResponse.json({ valid: false, message: MENSAJE_DOS_PERSONAS });
+    if (!c || c.couponId !== coupon.id) return NextResponse.json({ valid: false, message: dos ? MENSAJE_DOS_PERSONAS : "Ese código vale solo para algunos servicios: se aplica a la cita que se reservó con él." });
+    deCita = c.discount;
   }
 
-  const discount = computeCouponDiscount(coupon, amount);
+  const discount = deCita ?? computeCouponDiscount(coupon, amount);
 
   // noDiscount: cupon sin monto (solo codigo y texto, p. ej. "cejas gratis"): es valido pero no descuenta dinero; el POS muestra
   // su descripcion para que quien cobra aplique el beneficio.

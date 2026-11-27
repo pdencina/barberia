@@ -11,9 +11,10 @@ import { detallesPromo } from "@/lib/promo-link";
 import { PromoCabecera } from "@/components/promo/promo-cabecera";
 import { PromoCondicionesForm } from "../retencion/promo-condiciones-form";
 import { PromoImagenCampo } from "../retencion/promo-imagen-campo";
+import { ServiciosPromo } from "./servicios-promo";
 
-interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; personas: 1 | 2; politicas: string; condiciones: CondicionesPromo }
-const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, personas: 1, politicas: "", condiciones: SIN_CONDICIONES };
+interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; personas: 1 | 2; politicas: string; servicios: string[]; condiciones: CondicionesPromo }
+const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, personas: 1, politicas: "", servicios: [], condiciones: SIN_CONDICIONES };
 // Punto de partida; el negocio lo ajusta a sus reglas.
 const POLITICAS_DOS = "• La promoción es solo para 2 personas que reservan juntas, el mismo día.\n• La primera persona en llegar debe pagar a su hora; si no, se paga el precio normal.\n• Si una de las dos cancela o no llega, se paga el precio normal.";
 const ETIQUETAS: Record<string, string> = { cash: "Efectivo", transfer: "Transferencia", debit_card: "Débito", credit_card: "Crédito" };
@@ -51,7 +52,7 @@ export default function PromocionesPage() {
     setEditando(c.id);
     setForm({
       codigo: c.code, tipo: c.discount_type, valor: String(Number(c.discount_value) || ""), titulo: r.titulo || "", descripcion: c.description || "", imagen: r.imagen || "",
-      maxUsos: c.max_uses ? String(c.max_uses) : "", activa: c.active !== false, personas: r.personas === 2 ? 2 : 1, politicas: r.politicas || "",
+      maxUsos: c.max_uses ? String(c.max_uses) : "", activa: c.active !== false, personas: r.personas === 2 ? 2 : 1, politicas: r.politicas || "", servicios: r.servicioIds || [],
       condiciones: {
         ...SIN_CONDICIONES, desde: r.desde || "", hasta: r.hasta || "", horaDesde: r.horaDesde || "", horaHasta: r.horaHasta || "",
         pagos: (r.pagos || []).map((p: string) => ETIQUETAS[p]).filter(Boolean),
@@ -64,7 +65,7 @@ export default function PromocionesPage() {
 
   const reglas = () => {
     const c = form.condiciones;
-    return { desde: c.desde, hasta: c.hasta, horaDesde: c.horaDesde, horaHasta: c.horaHasta, profesionalIds: c.profesionalIds || [], pagos: c.todosLosPagos ? [] : codigosDePago(c.pagos), imagen: form.imagen, titulo: form.titulo, personas: form.personas, politicas: form.politicas };
+    return { desde: c.desde, hasta: c.hasta, horaDesde: c.horaDesde, horaHasta: c.horaHasta, profesionalIds: c.profesionalIds || [], pagos: c.todosLosPagos ? [] : codigosDePago(c.pagos), imagen: form.imagen, titulo: form.titulo, personas: form.personas, politicas: form.politicas, servicioIds: form.servicios };
   };
 
   const guardar = async () => {
@@ -141,6 +142,7 @@ export default function PromocionesPage() {
             {form.personas === 2 && <p className="mt-1.5 text-[11px] text-brand-gray">El link pide los datos y la hora de las 2 personas (mismo día, con profesionales de la promoción). Si una cancela, la otra paga el precio normal.</p>}
           </div>
           <PromoCondicionesForm value={form.condiciones} onChange={(condiciones) => set({ condiciones })} tenantId={t} hayCupon inputClass={campo} />
+          <ServiciosPromo tenantId={t} elegidos={form.servicios} onChange={(servicios) => set({ servicios })} />
           <div>
             <label className="block"><span className={rotulo}>Políticas (el cliente debe aceptarlas antes de reservar)</span>
               <textarea rows={5} maxLength={800} value={form.politicas} onChange={(e) => set({ politicas: e.target.value })} placeholder="Ej: Llega a tu hora. Si no puedes venir, cancela con anticipación." className={campo} /></label>

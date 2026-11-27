@@ -36,7 +36,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     // La regla de «2 personas» se conserva si quien guarda no la manda (ej. desde Retención).
     const personas = body.conditions?.personas ?? (dueno as any)?.conditions?.personas;
     const politicas = body.conditions?.politicas ?? (dueno as any)?.conditions?.politicas;
-    update.conditions = limpiarReglas({ ...body.conditions, personas, politicas, imagen: imagenDelNegocio(body.conditions?.imagen, (dueno as any)?.tenant_id) });
+    const servicioIds = body.conditions?.servicioIds ?? (dueno as any)?.conditions?.servicioIds;
+    update.conditions = limpiarReglas({ ...body.conditions, personas, politicas, servicioIds, imagen: imagenDelNegocio(body.conditions?.imagen, (dueno as any)?.tenant_id) });
   }
 
   const { data, error } = await supabase

@@ -1,6 +1,6 @@
 import { grupoValido, MENSAJE_DOS_PERSONAS } from "@/lib/promo-grupo";
 import { computeCouponDiscount } from "@/lib/coupon";
-import { horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
+import { baseConDescuento, horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
 import { buscarClienteExistente } from "@/lib/cliente-existente";
 import { getPlazoCambios } from "@/lib/cambio-cliente";
 import { getClientColorTheme } from "@/lib/client-theme";
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
   const codigoPromo = String(body.couponCode || "").trim().toUpperCase().slice(0, 40);
   if (codigoPromo) {
     const { data: c } = await supabase.from("coupons").select("*").eq("code", codigoPromo).eq("tenant_id", barberForCap?.tenant_id).maybeSingle();
-    const motivo = c ? motivoCuponNoValido(c as any, { barberId, fecha: date, hora: horaDeCita(start.toISOString()) }) : "Código no encontrado.";
+    const motivo = c ? motivoCuponNoValido(c as any, { barberId, fecha: date, hora: horaDeCita(start.toISOString()), serviceIds: resolvedServices.map((s) => s.id) }) : "Código no encontrado.";
     if (motivo) return NextResponse.json({ error: `${motivo} Quítalo o cámbialo para confirmar.`, code: "coupon" }, { status: 409 });
     const grupoId = grupoValido(body.grupoPromo);
     if (Number((c as any).conditions?.personas) === 2 && !grupoId) return NextResponse.json({ error: MENSAJE_DOS_PERSONAS, code: "coupon" }, { status: 409 });
@@ -306,9 +306,10 @@ export async function POST(req: NextRequest) {
     }
   }
 
+  const baseCupon = cuponFila ? baseConDescuento(cuponFila.conditions, resolvedServices, totalPrice) : 0;
   return NextResponse.json({
     success: true,
-    promo: cuponFila ? { code: cuponFila.code, discount: Math.min(totalPrice, computeCouponDiscount(cuponFila, totalPrice)) } : null,
+    promo: cuponFila ? { code: cuponFila.code, discount: Math.min(baseCupon, computeCouponDiscount(cuponFila, baseCupon)) } : null,
     appointmentId: appointment!.id,
     message: "Cita agendada exitosamente",
   });
