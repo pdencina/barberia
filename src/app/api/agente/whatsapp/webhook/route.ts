@@ -3,7 +3,7 @@ import { crearRepositorioDatosNegocio } from "@/lib/agente/datos-negocio";
 // Se reutiliza la MISMA función que calcula las horas de la reserva web (en el servidor, solo lectura): una sola regla.
 import { GET as disponibilidadPublica } from "@/app/api/public/availability/route";
 import { crearManejadoresWebhook, crearRepositorioWebhook, accionesDesdeBase } from "@/lib/agente/whatsapp-webhook";
-import { enviarTexto, enviarArchivo, enviarLista, enviarMedioPorId, enviarPlantilla } from "@/lib/agente/whatsapp-meta";
+import { enviarBotones, enviarTexto, enviarArchivo, enviarLista, enviarMedioPorId, enviarPlantilla } from "@/lib/agente/whatsapp-meta";
 import { archivosPedidos } from "@/lib/agente/archivos";
 import { leerTema, guardarTema } from "@/lib/agente/tema";
 import { readFileSync } from "node:fs";
@@ -14,7 +14,7 @@ import { formatPhoneCL } from "@/lib/phone";
 import { responderConIA, TOPE_IA_POR_DEFECTO, MODELO_IA } from "@/lib/agente/ia-respuesta";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { getResendClient } from "@/lib/resend-client";
-import { avisoDeConsulta, avisoDeImagen, sistemaRedactor, ORDEN_SABER_CHAT, MAX_PREGUNTA } from "@/lib/agente/consultas";
+import { botonesDeConsulta, avisoDeConsulta, avisoDeImagen, sistemaRedactor, ORDEN_SABER_CHAT, MAX_PREGUNTA } from "@/lib/agente/consultas";
 import { crearRepositorioAccionesCita, HORAS_MIN_CANCELAR } from "@/lib/agente/acciones-cita";
 import { anticipacionCita } from "@/lib/agente/recordatorios-whatsapp";
 import { textoDeFecha } from "@/lib/agente/disponibilidad";
@@ -286,6 +286,16 @@ const handlers = () => crearManejadoresWebhook({
                 return !r.error;
               },
               cerrar: async (id: string) => { await db.from("agent_consultas").delete().eq("tenant_id", tenantId).eq("id", id); },
+              borradores: {
+                guardar: async (b: any) => {
+                  const r = await db.from("agent_consulta_borradores").upsert({ tenant_id: tenantId, ...b, created_at: new Date().toISOString() }, { onConflict: "tenant_id,numero" });
+                  return !r.error; // sin la migración 186: se responde como antes
+                },
+                tomar: async (numero: number) => {
+                  const r = await db.from("agent_consulta_borradores").delete().eq("tenant_id", tenantId).eq("numero", numero).gte("created_at", new Date(Date.now() - 48 * 3600000).toISOString()).select("numero,pregunta,respuesta,titulo,claves,enviada").maybeSingle();
+                  return r.error || !r.data ? null : ({ ...r.data, numero: Number(r.data.numero) } as any);
+                },
+              },
               reenviarImagenes: async () => {
                 const dueno = await db.from("agent_admin_contacts").select("telefono").eq("tenant_id", tenantId).limit(1).maybeSingle();
                 const q = await db.from("agent_consultas").select("numero,medios").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 48 * 3600000).toISOString()).order("created_at", { ascending: true }).limit(10);
@@ -315,6 +325,7 @@ const handlers = () => crearManejadoresWebhook({
             const admin = await db.from("agent_admin_contacts").select("telefono").eq("tenant_id", tenantId).limit(1).maybeSingle();
             if (admin.error || !admin.data?.telefono) return false;
             await db.from("agent_consultas").delete().eq("tenant_id", tenantId).lt("created_at", new Date(Date.now() - 48 * 3600000).toISOString()); // limpieza
+            await db.from("agent_consulta_borradores").delete().eq("tenant_id", tenantId).lt("created_at", new Date(Date.now() - 48 * 3600000).toISOString());
             const ultimo = await db.from("agent_chats").select("created_at").eq("tenant_id", tenantId).eq("telefono", String(admin.data.telefono)).eq("direccion", "entrante").order("created_at", { ascending: false }).limit(1).maybeSingle();
             const abiertaVentana = ventanaAbierta(ultimo.data?.created_at, Date.now()); // sin registro: se asume cerrada (la plantilla llega igual)
             const plantilla = async (num: number) => {
@@ -349,7 +360,11 @@ const handlers = () => crearManejadoresWebhook({
               plantilla: () => plantilla(Number(ins.data.numero)),
               normal: () => medio
                 ? enviarMedioPorId({ para: String(admin.data!.telefono), tipo: medio.tipo, id: medio.id, caption: avisoDeImagen(Number(ins.data.numero)) }, meta(n))
-                : enviarTexto({ para: String(admin.data!.telefono), texto: avisoDeConsulta({ numero: Number(ins.data.numero), pregunta: texto }) }, meta(n)),
+                : (async () => {
+                    const para = String(admin.data!.telefono), cuerpo = avisoDeConsulta({ numero: Number(ins.data.numero), pregunta: texto });
+                    const conBotones = await enviarBotones({ para, cuerpo, botones: botonesDeConsulta(cuerpo)! }, meta(n));
+                    return conBotones.estado === "aceptado" ? conBotones : enviarTexto({ para, texto: cuerpo }, meta(n));
+                  })(),
             });
             if (env.estado !== "aceptado") { await db.from("agent_consultas").delete().eq("id", ins.data.id); return false; } // sin ventana de 24 h: se deriva como antes
             await db.from("agent_consultas").update({ aviso_wamid: env.id }).eq("id", ins.data.id);
@@ -397,6 +412,10 @@ const handlers = () => crearManejadoresWebhook({
       responder: (negocio, para, texto) => enviarTexto({ para, texto }, {
         token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "",
         phone_number_id: negocio.phoneNumberId,
+        fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
+      }),
+      responderBotones: (negocio, para, cuerpo, botones) => enviarBotones({ para, cuerpo, botones }, {
+        token: process.env.WHATSAPP_ACCESS_TOKEN ?? "", version: process.env.WHATSAPP_API_VERSION ?? "", phone_number_id: negocio.phoneNumberId,
         fetch: (url, options) => fetch(url, { ...options, signal: AbortSignal.timeout(5000) }),
       }),
       responderLista: (negocio, para, l) => enviarLista({ para, ...l }, {
