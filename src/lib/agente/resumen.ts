@@ -2,6 +2,8 @@
 // Determinista (sin IA), sobre las conversaciones guardadas. Se usa en la pantalla de conversaciones y en el comando «resumen».
 import { ahoraChile } from "./disponibilidad";
 
+/** Marca que deja el botón «Cerrar caso»: la conversación deja de esperar a una persona. */
+export const MARCA_CERRADO = "[cerrado]";
 export type Etiqueta = "persona" | "confuso" | "confirmacion" | "consulta";
 export interface MensajeResumen { contact_hash: string; direccion: "entrante" | "saliente"; tipo: string; texto: string; created_at: string }
 export interface Conteos {
@@ -27,7 +29,7 @@ export function etiquetasDe(mensajes: MensajeResumen[], consultaAbierta: boolean
   let pendiente = false;
   for (const m of orden) {
     if (m.direccion !== "saliente") continue;
-    if (m.texto.startsWith("[manual] ")) pendiente = false;
+    if (m.texto.startsWith("[manual] ") || m.texto === MARCA_CERRADO) pendiente = false;
     else if (DERIVA.test(m.texto) && ahora - Date.parse(m.created_at) < PLAZO_PERSONA_MS) pendiente = true;
   }
   if (pendiente || consultaAbierta) e.add("persona");
@@ -45,7 +47,7 @@ export function resumirDia(mensajes: MensajeResumen[], abiertas: ReadonlySet<str
   for (const m of mensajes) { const l = porContacto.get(m.contact_hash); if (l) l.push(m); else porContacto.set(m.contact_hash, [m]); }
   const c: Conteos = { conversaciones: 0, persona: 0, confuso: 0, confirmacion: 0, consulta: 0, confirmacionesEnviadas: 0, confirmadas: 0, canceladas: 0 };
   for (const [hash, lista] of Array.from(porContacto)) {
-    const hoy = lista.filter((m) => ahoraChile(Date.parse(m.created_at)).fecha === dia);
+    const hoy = lista.filter((m) => m.texto !== MARCA_CERRADO && ahoraChile(Date.parse(m.created_at)).fecha === dia);
     const e = etiquetasDe(lista, abiertas.has(hash), ahora, dia);
     if (e.includes("persona")) c.persona++;
     if (hoy.length === 0) continue;

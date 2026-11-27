@@ -13,6 +13,8 @@ export function tocaConfirmar(inicio: number, creada: number | null, ahora: numb
   if (!(inicio > ahora)) return false;
   // Reservada de noche (21:00 a 06:00) para esa misma jornada o la siguiente: al momento.
   if (creada !== null && deNoche(creada) && dia(inicio) <= dia(creada) + (hora(creada) >= 21 ? 24 * H : 0)) return inicio - ahora <= HORAS_VENTANA_CONFIRMACION * H;
+  // De 16:00 a 20:59, reservada en un día anterior: la confirmación sale ese mismo día a las 10:00.
+  if (creada !== null && dia(creada) < dia(inicio) && hora(inicio) >= 16 && hora(inicio) < 21) return ahora >= dia(inicio) + 10 * H;
   // Citas entre 05:00 y 14:00: las 8 horas caerían de noche, así que salen el día anterior a las 21:00.
   if (hora(inicio) >= 5 && hora(inicio) < 14) return ahora >= dia(inicio) - 3 * H;
   return inicio - ahora <= HORAS_ENVIO_CONFIRMACION * H;

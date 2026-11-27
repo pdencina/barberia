@@ -5,6 +5,10 @@ import { formatPhoneCL } from "@/lib/phone";
 import { etiquetasDe, resumirDia, type MensajeResumen } from "@/lib/agente/resumen";
 import { consultasAbiertas, saludDelDia } from "@/lib/agente/resumen-datos";
 import { ahoraChile } from "@/lib/agente/disponibilidad";
+import { MARCA_CERRADO } from "@/lib/agente/resumen";
+import { PROPOSITO_RECORDATORIO_CITA } from "@/lib/agente/acciones-cita";
+import { paredSantiago } from "@/lib/agente/recordatorios-whatsapp";
+import { normalizarTelefonoWhatsApp } from "@/lib/agente/whatsapp-meta";
 
 // Conversaciones del agente de WhatsApp para el dueño. Solo administración; siempre del negocio de la sesión.
 export const dynamic = "force-dynamic";
@@ -37,6 +41,7 @@ export async function GET(req: NextRequest) {
   const grupos = new Map<string, { contacto: string; telefono: string | null; ultimo: any; total: number; entrantes: number }>();
   for (const m of (r.data ?? []) as any[]) {
     const g = grupos.get(m.contact_hash) ?? { contacto: m.contact_hash, telefono: m.telefono ?? null, ultimo: m, total: 0, entrantes: 0 };
+    if (g.ultimo.texto === MARCA_CERRADO && m.texto !== MARCA_CERRADO) g.ultimo = m; // la marca de cierre no es el último mensaje
     g.total++; if (m.direccion === "entrante") g.entrantes++; if (!g.telefono && m.telefono) g.telefono = m.telefono;
     grupos.set(m.contact_hash, g);
   }
@@ -59,7 +64,17 @@ export async function GET(req: NextRequest) {
     const cl = await db.from("clients").select("name,phone").eq("tenant_id", c.tenantId).in("phone", variantes).limit(300);
     for (const x of (cl.data ?? []) as any[]) { const d = String(x.phone ?? "").replace(/\D/g, ""); nombres.set(d, x.name); nombres.set(d.replace(/^56/, ""), x.name); }
   }
-  const conversaciones = lista.map((g) => ({ ...g, etiquetas: duenos.has(String(g.telefono)) ? [] : etiquetasDe(porContacto.get(g.contacto) ?? [], abiertas.has(g.contacto), ahora, dia), ultimo: { texto: String(g.ultimo.texto).slice(0, 140), direccion: g.ultimo.direccion, created_at: g.ultimo.created_at }, cliente: g.telefono ? (nombres.get(g.telefono) ?? nombres.get(g.telefono.replace(/^56/, "")) ?? null) : null }));
+  // Citas futuras con la confirmación enviada y sin respuesta (para «Re-disparar»), por número de cliente.
+  const porConfirmar = new Map<string, string>();
+  const pend = await db.from("agent_reminder_deliveries")
+    .select("appointment_id,appointment:appointments!appointment_id!inner(status,start_time,client:clients!client_id(phone))")
+    .eq("tenant_id", c.tenantId).eq("channel", "whatsapp").eq("purpose", PROPOSITO_RECORDATORIO_CITA).eq("status", "aceptado_proveedor")
+    .eq("appointment.status", "scheduled").gte("appointment.start_time", paredSantiago(ahora)).limit(300);
+  for (const x of [...((pend.data ?? []) as any[])].sort((p, q) => String(q.appointment.start_time).localeCompare(String(p.appointment.start_time)))) {
+    const tel = normalizarTelefonoWhatsApp(x.appointment?.client?.phone);
+    if (tel) porConfirmar.set(tel, x.appointment_id); // queda la cita más próxima
+  }
+  const conversaciones = lista.map((g) => ({ ...g, porConfirmar: g.telefono ? (porConfirmar.get(g.telefono) ?? null) : null, etiquetas: duenos.has(String(g.telefono)) ? [] : etiquetasDe(porContacto.get(g.contacto) ?? [], abiertas.has(g.contacto), ahora, dia), ultimo: { texto: String(g.ultimo.texto).slice(0, 140), direccion: g.ultimo.direccion, created_at: g.ultimo.created_at }, cliente: g.telefono ? (nombres.get(g.telefono) ?? nombres.get(g.telefono.replace(/^56/, "")) ?? null) : null }));
   return NextResponse.json({ registrando, dias: DIAS_CONSERVAR_CHATS, conversaciones, resumen });
 }
 
