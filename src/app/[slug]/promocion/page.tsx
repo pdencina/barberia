@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Check, ChevronLeft } from "lucide-react";
 import { horasDePromo } from "@/lib/promo-link";
+import { useFondoLogo } from "@/lib/use-fondo-logo";
 import { PromoCabecera } from "@/components/promo/promo-cabecera";
 
 // re-booking.cl/<negocio>/promocion — reserva con los criterios de la promoción ya puestos: solo sus profesionales, días y horas.
@@ -70,6 +71,7 @@ export default function PromocionPage() {
   }, [slug]);
 
   const promo = datos?.promo || null;
+  const recuadro = useFondoLogo(datos?.negocio.logo, "#000000");
   // Lista de servicios: la unión de los que hacen los profesionales de la promoción (con el menor precio como referencia).
   const catalogo = useMemo(() => {
     const m = new Map<string, Servicio>();
@@ -143,7 +145,7 @@ export default function PromocionPage() {
     <main className="min-h-screen bg-black text-white" style={{ fontFamily: "Montserrat, -apple-system, Roboto, sans-serif", colorScheme: "dark" }}>
       <link href="https://fonts.googleapis.com/css2?family=Montserrat:ital,wght@0,300;0,500;0,700;0,800;1,300;1,800&display=swap" rel="stylesheet" />
       <div className="mx-auto min-h-screen max-w-xl px-4 pb-16 pt-6" style={{ backgroundImage: "url('/correo/fondo-oscuro.png')", backgroundSize: "100% auto", backgroundRepeat: "repeat-y" }}>
-        {datos?.negocio.logo && <img src={datos.negocio.logo} alt={datos.negocio.nombre} className="mx-auto mb-5 h-14 w-auto max-w-[220px] object-contain" />}
+        {datos?.negocio.logo && <img src={datos.negocio.logo} alt={datos.negocio.nombre} className={`mx-auto mb-5 h-14 w-auto max-w-[220px] object-contain ${recuadro ? "rounded-xl px-3 py-1" : ""}`} style={recuadro ? { backgroundColor: recuadro } : undefined} />}
         {!datos && !error && <p className="py-20 text-center text-sm text-white/60">Cargando promoción…</p>}
         {!datos && error && <p className="py-20 text-center text-sm text-white/70">{error}</p>}
 

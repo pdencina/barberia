@@ -1,5 +1,6 @@
 import { writeFileSync } from "fs";
 import { estiloCorreo, separarCondiciones, negritas, nombrePila } from "../src/lib/correo-oscuro";
+import { PALETAS, coloresLegibles, fondoParaLogo } from "../src/lib/correo-colores";
 import { buildRetentionEmail } from "../src/lib/resend";
 let f = 0;
 const ok = (c: boolean, t: string) => { if (!c) { f++; console.log("FALLA", t); } };
@@ -16,6 +17,17 @@ ok(negritas("hasta *el lunes*").includes(">el lunes</b>") && negritas("2 * 3 = 6
 ok(o.html.includes("fondo-oscuro.png") && o.html.includes("Montserrat"), "fondo y fuente");
 const c = buildRetentionEmail(base);
 ok(c.subject === "Te extrañamos Ana! | re-booking" && c.html.includes("Agendar ahora"), "clásico igual que antes");
-if (process.argv[2]) writeFileSync(process.argv[2], buildRetentionEmail({ ...base, design: "oscuro", title: "¡¡Cuando pagan!!", imageUrl: null }).html);
+const mios = { fondo: "#F6EDE8", texto: "#3B1F28", boton: "#8E3B55" };
+const est = estiloCorreo({ design: "colores", colores: mios });
+ok(est.design === "oscuro" && est.colores?.boton === "#8E3B55", "mis colores");
+ok(estiloCorreo({ design: "colores", colores: { fondo: "red;x", texto: "#000000", boton: "#000000" } }).design === "clasico", "color inválido no entra");
+ok(coloresLegibles({ fondo: "#000000", texto: "#111111", boton: "#050505" })?.texto === "#FFFFFF" && coloresLegibles({ fondo: "#000000", texto: "#111111", boton: "#050505" })?.boton === "#FFFFFF", "corrige lo ilegible");
+for (const p of PALETAS) ok(coloresLegibles(p.colores)?.texto === p.colores.texto && coloresLegibles(p.colores)?.boton === p.colores.boton, `paleta legible ${p.nombre}`);
+const m = buildRetentionEmail({ ...base, ...est, title: "Regalo", businessLogoUrl: "https://x.cl/l.png" }).html;
+ok(m.includes("#F6EDE8") && m.includes("#8E3B55") && !m.includes("fondo-oscuro") && !m.includes("#FFFFFF;font-size:28px") && !m.includes("logo-horizontal-white"), "correo claro sin restos del oscuro");
+// logo oscuro con transparencia: se pierde en negro y necesita recuadro blanco; en blanco no necesita nada
+const px = new Uint8ClampedArray(400); for (let i = 0; i < 100; i += 4) px.set([20, 20, 20, 255], i);
+ok(fondoParaLogo(px, "#000000") === "#FFFFFF" && fondoParaLogo(px, "#FFFFFF") === null, "logo oscuro");
+if (process.argv[2]) writeFileSync(process.argv[2], m);
 console.log(f ? "HAY FALLAS" : "OK correo oscuro");
 process.exit(f ? 1 : 0);

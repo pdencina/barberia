@@ -31,21 +31,21 @@ function Marco({ equipo, asunto, html, maxAlto }: { equipo: Equipo; asunto: stri
   return (
     <div ref={caja} className="w-full">
       {escala > 0 && (
-        <div className={`mx-auto overflow-hidden bg-white text-[#202124] shadow-xl ${celular ? "rounded-[38px] border-[10px] border-[#111]" : "rounded-xl border border-gray-300"}`}
-          style={{ width: ancho * escala + borde }}>
+        <div className={`mx-auto overflow-hidden shadow-xl ${celular ? "rounded-[38px] border-[10px] border-[#111]" : "rounded-xl border border-gray-300"}`}
+          style={{ width: ancho * escala + borde, background: "#FFFFFF", color: "#202124" }}>
           {celular ? (
-            <div className="flex justify-center bg-white py-1.5"><span className="h-4 w-20 rounded-full bg-[#111]" /></div>
+            <div className="flex justify-center py-1.5"><span className="h-4 w-20 rounded-full bg-[#111]" /></div>
           ) : (
-            <div className="flex items-center gap-1.5 border-b border-gray-200 bg-[#f1f3f4] px-3 py-2">
+            <div className="flex items-center gap-1.5 px-3 py-2" style={{ background: "#F1F3F4" }}>
               {["#ff5f57", "#febc2e", "#28c840"].map((c) => <span key={c} className="h-2.5 w-2.5 rounded-full" style={{ background: c }} />)}
-              <span className="ml-2 text-[10px] text-gray-500">Bandeja de entrada</span>
+              <span className="ml-2 text-[10px]" style={{ color: "#5F6368" }}>Bandeja de entrada</span>
             </div>
           )}
-          <div className="border-b border-gray-100 px-3 py-2.5">
-            <p className="text-[13px] font-semibold leading-snug">{asunto}</p>
+          <div className="px-3 py-2.5" style={{ borderBottom: "1px solid #EEEEEE" }}>
+            <p className="text-[13px] font-semibold leading-snug" style={{ color: "#202124" }}>{asunto}</p>
             <div className="mt-1.5 flex items-center gap-2">
               <span className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-full bg-[#111] text-[11px] font-bold text-white">r</span>
-              <span className="min-w-0 text-[11px] leading-tight text-gray-500"><b className="block text-[#202124]">re-booking</b>para ti · ahora</span>
+              <span className="min-w-0 text-[11px] leading-tight" style={{ color: "#5F6368" }}><b className="block" style={{ color: "#202124" }}>re-booking</b>para ti · ahora</span>
             </div>
           </div>
           <div style={{ width: ancho * escala, height: alto * escala }} className="overflow-hidden">
