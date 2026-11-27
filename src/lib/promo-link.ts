@@ -32,5 +32,6 @@ export function detallesPromo(r: ReglasCupon, profesionales: string[]): Array<{ 
   if (r.horaDesde || r.horaHasta) l.push({ etiqueta: "Horario", valor: r.horaDesde && r.horaHasta ? `de ${r.horaDesde} a ${r.horaHasta} hrs` : r.horaDesde ? `desde las ${r.horaDesde} hrs` : `hasta las ${r.horaHasta} hrs` });
   if (r.pagos?.length) l.push({ etiqueta: "Pago solo con", valor: unir(r.pagos.map((p) => PAGOS[p] || p)) });
   if (r.profesionalIds?.length && profesionales.length) l.push({ etiqueta: "Con", valor: unir(nombresCortos(profesionales)) });
+  if (r.personas === 2) l.push({ etiqueta: "Reserva", valor: "solo 2 personas juntas, el mismo día" });
   return l;
 }

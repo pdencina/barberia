@@ -1,3 +1,5 @@
+import { cuponDeCita } from "@/lib/cupon-cita";
+import { MENSAJE_DOS_PERSONAS } from "@/lib/promo-grupo";
 import { cuponVencido, horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, requireRole } from "@/lib/supabase/server";
@@ -43,6 +45,12 @@ export async function GET(req: NextRequest) {
     // El vencimiento y el uso ya se revisaron arriba; aquí interesan las reglas.
     const motivo = motivoCuponNoValido({ conditions: coupon.conditions }, { barberId, fecha, hora });
     if (motivo) return NextResponse.json({ valid: false, message: motivo });
+  }
+
+  // Promoción de 2 personas: solo sobre una cita que reservó con acompañante (y el acompañante sigue en pie).
+  if (Number(coupon.conditions?.personas) === 2) {
+    const c = apptId ? await cuponDeCita(supabase, apptId, amount) : null;
+    if (!c || c.couponId !== coupon.id) return NextResponse.json({ valid: false, message: MENSAJE_DOS_PERSONAS });
   }
 
   const discount = computeCouponDiscount(coupon, amount);

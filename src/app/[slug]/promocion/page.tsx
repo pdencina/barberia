@@ -12,9 +12,12 @@ interface Pro { id: string; nombre: string; foto: string | null }
 interface Servicio { id: string; name: string; price: number; duration: number }
 interface Datos {
   negocio: { id: string; nombre: string; slug: string; logo: string | null };
-  promo: null | { codigo: string; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
+  promo: null | { codigo: string; personas: number; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
   motivo?: string;
 }
+
+interface Persona { elegidos: string[]; turno: { pro: Pro; slot: string } | null; nombre: string; correo: string; celular: string }
+const PERSONA = (): Persona => ({ elegidos: [], turno: null, nombre: "", correo: "", celular: "" });
 
 const pesos = (n: number) => `$${Math.round(n).toLocaleString("es-CL")}`;
 const fechaCorta = (d: string) => {
@@ -29,17 +32,19 @@ export default function PromocionPage() {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [error, setError] = useState("");
   const [servicios, setServicios] = useState<Record<string, Servicio[]>>({});
-  const [elegidos, setElegidos] = useState<string[]>([]);
+  // Una ficha por persona (1, o 2 en las promos «2 personas juntas»). `activa` = a quién se le está eligiendo.
+  const [gente, setGente] = useState<Persona[]>([PERSONA(), PERSONA()]);
+  const [activa, setActiva] = useState(0);
+  const cambiar = (i: number, p: Partial<Persona>) => setGente((l) => l.map((x, j) => (j === i ? { ...x, ...p } : x)));
+  const yo = gente[activa];
+  const elegidos = yo.elegidos;
+  const setElegidos = (fn: (l: string[]) => string[]) => cambiar(activa, { elegidos: fn(gente[activa].elegidos), turno: null });
   const [dia, setDia] = useState("");
   const [horas, setHoras] = useState<Record<string, string[]>>({});
   const [cargandoHoras, setCargandoHoras] = useState(false);
-  const [turno, setTurno] = useState<{ pro: Pro; slot: string } | null>(null);
-  const [nombre, setNombre] = useState("");
-  const [correo, setCorreo] = useState("");
-  const [celular, setCelular] = useState("");
   const [acepta, setAcepta] = useState(false);
   const [enviando, setEnviando] = useState(false);
-  const [listo, setListo] = useState<{ total: number; descuento: number } | null>(null);
+  const [listo, setListo] = useState<Array<{ total: number; descuento: number }> | null>(null);
   const [recarga, setRecarga] = useState(0);
 
   const normal = `/${encodeURIComponent(slug)}?normal=1`;
@@ -71,17 +76,17 @@ export default function PromocionPage() {
     return Array.from(m.values());
   }, [servicios]);
   const conDescuento = (n: number) => (!promo || promo.valor <= 0 ? n : promo.tipo === "percentage" ? n - Math.round((n * promo.valor) / 100) : Math.max(0, n - promo.valor));
-  // Lo que cobra cada profesional por lo elegido (null = no hace alguno de esos servicios).
-  const deProfesional = (id: string) => {
-    const l = elegidos.map((x) => servicios[id]?.find((s) => s.id === x));
+  // Lo que cobra cada profesional por esos servicios (null = no hace alguno).
+  const deProfesional = (id: string, lista: string[] = elegidos) => {
+    const l = lista.map((x) => servicios[id]?.find((s) => s.id === x));
     return l.every(Boolean) && l.length ? { total: l.reduce((n, s) => n + s!.price, 0), minutos: l.reduce((n, s) => n + s!.duration, 0) } : null;
   };
 
-  const clave = `${dia}|${elegidos.join(",")}|${Object.keys(servicios).length}|${recarga}`;
+  const clave = `${dia}|${activa}|${elegidos.join(",")}|${Object.keys(servicios).length}|${recarga}`;
   useEffect(() => {
     if (!promo || !dia || !elegidos.length) { setHoras({}); return; }
     let vigente = true;
-    setCargandoHoras(true); setTurno(null);
+    setCargandoHoras(true);
     Promise.all(promo.profesionales.map(async (p) => {
       const x = deProfesional(p.id);
       if (!x) return [p.id, []] as const;
@@ -92,24 +97,41 @@ export default function PromocionPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clave]);
 
-  const precio = turno ? deProfesional(turno.pro.id)?.total || 0 : 0;
-  const completo = nombre.trim() && /^\S+@\S+\.\S+$/.test(correo.trim()) && celular.replace(/\D/g, "").length >= 8;
+  const cuantos = promo?.personas === 2 ? 2 : 1;
+  const grupo = gente.slice(0, cuantos);
+  // La otra persona ya tomó ese rato con ese profesional: no se ofrece.
+  const choca = (proId: string, slot: string) => grupo.some((g, i) => {
+    if (i === activa || !g.turno || g.turno.pro.id !== proId) return false;
+    const min = (t: string) => Number(t.slice(11, 13)) * 60 + Number(t.slice(14, 16));
+    const a = min(slot), b = min(g.turno.slot), mio = deProfesional(proId)?.minutos || 5, suyo = deProfesional(proId, g.elegidos)?.minutos || 5;
+    return a < b + suyo && b < a + mio;
+  });
+  const precioDe = (g: Persona) => (g.turno ? deProfesional(g.turno.pro.id, g.elegidos)?.total || 0 : 0);
+  const turnosListos = grupo.every((g) => g.turno);
+  const correoValido = (c: string) => /^\S+@\S+\.\S+$/.test(c.trim());
+  const completo = turnosListos && grupo.every((g, i) => g.nombre.trim() && g.celular.replace(/\D/g, "").length >= 8 && (i === 0 ? correoValido(g.correo) : !g.correo.trim() || correoValido(g.correo)));
 
   const reservar = async () => {
-    if (!promo || !turno || !completo) return;
+    if (!promo || !completo) return;
     setEnviando(true); setError("");
     try {
-      const res = await fetch("/api/public/book", {
+      const datosDe = (g: Persona) => ({ serviceIds: g.elegidos, barberId: g.turno!.pro.id, startTime: g.turno!.slot, clientName: g.nombre.trim(), clientEmail: g.correo.trim(), clientPhone: g.celular.trim() });
+      const res = await fetch(cuantos === 2 ? "/api/public/promo/reservar" : "/api/public/book", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ serviceIds: elegidos, barberId: turno.pro.id, date: dia, startTime: turno.slot, clientName: nombre.trim(), clientEmail: correo.trim(), clientPhone: celular.trim(), marketingConsent: acepta, couponCode: promo.codigo }),
+        body: JSON.stringify(cuantos === 2
+          ? { date: dia, couponCode: promo.codigo, marketingConsent: acepta, personas: grupo.map(datosDe) }
+          : { ...datosDe(grupo[0]), date: dia, marketingConsent: acepta, couponCode: promo.codigo }),
       });
       const d = await res.json().catch(() => ({}));
       if (!res.ok) { setError(d.error || "No pudimos confirmar. Intenta de nuevo."); if (res.status === 409) setRecarga((k) => k + 1); return; }
-      setListo({ total: precio, descuento: d.promo?.discount || 0 });
+      const descuentos: number[] = cuantos === 2 ? (d.reservas || []).map((x: any) => x.promo?.discount || 0) : [d.promo?.discount || 0];
+      setListo(grupo.map((g, i) => ({ total: precioDe(g), descuento: descuentos[i] || 0 })));
       window.scrollTo({ top: 0 });
     } catch { setError("Se cortó la conexión. Intenta de nuevo."); }
     finally { setEnviando(false); }
   };
+  // Al cambiar de día, las horas ya elegidas dejan de servir (las dos reservas son del mismo día).
+  const elegirDia = (d: string) => { setDia(d); setGente((l) => l.map((x) => ({ ...x, turno: null }))); };
 
   const titulo = "text-[11px] font-light italic uppercase tracking-[0.32em] text-white/60";
   const campo = "w-full rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-white placeholder:text-white/35 focus:border-white focus:outline-none";
@@ -130,16 +152,22 @@ export default function PromocionPage() {
           </div>
         )}
 
-        {promo && listo && turno && (
+        {promo && listo && (
           <div className="rounded-2xl border border-white/15 bg-white/5 p-6 text-center">
             <span className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-full bg-white text-black"><Check className="h-7 w-7" strokeWidth={3} /></span>
             <h1 className="text-2xl font-extrabold uppercase">¡Reserva confirmada!</h1>
-            <p className="mt-3 font-light text-white/80"><b className="font-bold text-white">{fechaCorta(dia).largo}</b> a las <b className="font-bold text-white">{turno.slot.slice(11, 16)}</b><br />con <b className="font-bold text-white">{turno.pro.nombre}</b></p>
-            {listo.descuento > 0 && <p className="mt-4 text-white/60 line-through">{pesos(listo.total)}</p>}
-            <p className="text-3xl font-extrabold">{pesos(listo.total - listo.descuento)}</p>
-            <p className={`mt-1 ${titulo}`}>Pagas en el local · cupón {promo.codigo}</p>
+            <p className="mt-3 font-light text-white/80"><b className="font-bold text-white">{fechaCorta(dia).largo}</b></p>
+            {grupo.map((g, i) => (
+              <div key={i} className="mt-4 rounded-xl border border-white/15 p-3">
+                <p className="text-sm font-light text-white/80">{cuantos === 2 && <b className="font-bold text-white">{g.nombre} · </b>}<b className="font-bold text-white">{g.turno?.slot.slice(11, 16)}</b> con <b className="font-bold text-white">{g.turno?.pro.nombre}</b></p>
+                {(listo[i]?.descuento || 0) > 0 && <p className="mt-2 text-sm text-white/60 line-through">{pesos(listo[i].total)}</p>}
+                <p className="text-2xl font-extrabold">{pesos((listo[i]?.total || 0) - (listo[i]?.descuento || 0))}</p>
+              </div>
+            ))}
+            <p className={`mt-3 ${titulo}`}>Pagas en el local · cupón {promo.codigo}</p>
+            {cuantos === 2 && <p className="mt-2 text-sm font-light text-white/70">El descuento vale si vienen las 2 personas. Si una cancela, la otra paga el precio normal.</p>}
             {promo.detalles.filter((x) => x.etiqueta.startsWith("Pago")).map((x) => <p key={x.etiqueta} className="mt-3 text-sm font-bold">{x.etiqueta}: {x.valor}</p>)}
-            <p className="mt-4 text-sm font-light text-white/60">Te enviamos los datos a {correo}.</p>
+            <p className="mt-4 text-sm font-light text-white/60">Te enviamos los datos a {grupo[0].correo}.</p>
           </div>
         )}
 
@@ -147,8 +175,18 @@ export default function PromocionPage() {
           <div className="space-y-7">
             <PromoCabecera imagen={promo.imagen} titulo={promo.titulo || (promo.tipo === "percentage" && promo.valor ? `${promo.valor}% de descuento` : "Promoción")} descripcion={promo.descripcion} detalles={promo.detalles} codigo={promo.codigo} />
 
+            {cuantos === 2 && (
+              <div className="grid grid-cols-2 gap-2" role="tablist" aria-label="Persona">
+                {grupo.map((g, i) => (
+                  <button key={i} type="button" role="tab" aria-selected={activa === i} onClick={() => setActiva(i)} className={`${chip(activa === i)} text-left`}>
+                    <span className="block text-[10px] font-light uppercase tracking-widest">Persona {i + 1}</span>
+                    <span className="block text-sm">{g.turno ? `✓ ${g.turno.slot.slice(11, 16)} · ${g.turno.pro.nombre.split(" ")[0]}` : "Por elegir"}</span>
+                  </button>
+                ))}
+              </div>
+            )}
             <section>
-              <h2 className={`mb-2 ${titulo}`}>1 · Elige tu servicio</h2>
+              <h2 className={`mb-2 ${titulo}`}>1 · {cuantos === 2 ? `Servicio de la persona ${activa + 1}` : "Elige tu servicio"}</h2>
               {!catalogo.length && <p className="text-sm text-white/50">Cargando servicios…</p>}
               <div className="space-y-2">
                 {catalogo.map((s) => {
@@ -166,10 +204,10 @@ export default function PromocionPage() {
 
             {elegidos.length > 0 && (
               <section>
-                <h2 className={`mb-2 ${titulo}`}>2 · Elige día y hora</h2>
+                <h2 className={`mb-2 ${titulo}`}>2 · {cuantos === 2 ? `Hora de la persona ${activa + 1} (mismo día para ambas)` : "Elige día y hora"}</h2>
                 <div className="flex gap-2 overflow-x-auto pb-1">
                   {promo.dias.map((d) => { const f = fechaCorta(d); return (
-                    <button key={d} type="button" aria-pressed={dia === d} onClick={() => setDia(d)} className={`${chip(dia === d)} min-w-[4.5rem] flex-shrink-0 text-center`}>
+                    <button key={d} type="button" aria-pressed={dia === d} onClick={() => elegirDia(d)} className={`${chip(dia === d)} min-w-[4.5rem] flex-shrink-0 text-center`}>
                       <span className="block text-[10px] font-light uppercase">{f.dia}</span><span className="block text-xl leading-tight">{f.num}</span><span className="block text-[10px] font-light uppercase">{f.mes}</span>
                     </button>); })}
                 </div>
@@ -184,7 +222,13 @@ export default function PromocionPage() {
                         <span className="ml-auto text-sm font-extrabold">{pesos(conDescuento(deProfesional(p.id)?.total || 0))}</span>
                       </div>
                       <div className="grid grid-cols-4 gap-2">
-                        {(horas[p.id] || []).map((h) => <button key={h} type="button" onClick={() => { setTurno({ pro: p, slot: h }); setError(""); setTimeout(() => document.getElementById("tus-datos")?.scrollIntoView({ behavior: "smooth" }), 50); }} className={chip(turno?.slot === h && turno?.pro.id === p.id)}>{h.slice(11, 16)}</button>)}
+                        {(horas[p.id] || []).filter((h) => !choca(p.id, h)).map((h) => <button key={h} type="button" onClick={() => {
+                          cambiar(activa, { turno: { pro: p, slot: h } }); setError("");
+                          // Con 2 personas: al elegir la primera hora se pasa a la que falta; con todo listo, a los datos.
+                          const falta = grupo.findIndex((g, i) => i !== activa && !g.turno);
+                          if (falta >= 0) { setActiva(falta); setTimeout(() => window.scrollTo({ top: document.body.scrollHeight / 4, behavior: "smooth" }), 50); }
+                          else setTimeout(() => document.getElementById("tus-datos")?.scrollIntoView({ behavior: "smooth" }), 80);
+                        }} className={chip(yo.turno?.slot === h && yo.turno?.pro.id === p.id)}>{h.slice(11, 16)}</button>)}
                       </div>
                     </div>
                   ))}
@@ -192,17 +236,21 @@ export default function PromocionPage() {
               </section>
             )}
 
-            {turno && (
+            {turnosListos && (
               <section id="tus-datos" className="space-y-3">
-                <h2 className={titulo}>3 · Tus datos</h2>
-                <p className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-light"><b className="font-bold">{fechaCorta(dia).largo}, {turno.slot.slice(11, 16)}</b> con <b className="font-bold">{turno.pro.nombre}</b> · <b className="font-extrabold">{pesos(conDescuento(precio))}</b></p>
-                <input className={campo} placeholder="Nombre y apellido" autoComplete="name" value={nombre} onChange={(e) => setNombre(e.target.value)} />
-                <input className={campo} type="email" placeholder="Correo" autoComplete="email" value={correo} onChange={(e) => setCorreo(e.target.value)} />
-                <input className={campo} type="tel" placeholder="Celular (WhatsApp)" autoComplete="tel" value={celular} onChange={(e) => setCelular(e.target.value)} />
+                <h2 className={titulo}>3 · {cuantos === 2 ? "Datos de las 2 personas" : "Tus datos"}</h2>
+                {grupo.map((g, i) => (
+                  <div key={i} className="space-y-2">
+                    <p className="rounded-xl border border-white/15 bg-white/5 px-4 py-3 text-sm font-light">{cuantos === 2 && <b className="font-bold">Persona {i + 1}: </b>}<b className="font-bold">{fechaCorta(dia).largo}, {g.turno!.slot.slice(11, 16)}</b> con <b className="font-bold">{g.turno!.pro.nombre}</b> · <b className="font-extrabold">{pesos(conDescuento(precioDe(g)))}</b></p>
+                    <input className={campo} placeholder="Nombre y apellido" autoComplete={i === 0 ? "name" : "off"} value={g.nombre} onChange={(e) => cambiar(i, { nombre: e.target.value })} />
+                    <input className={campo} type="tel" placeholder="Celular (WhatsApp)" autoComplete={i === 0 ? "tel" : "off"} value={g.celular} onChange={(e) => cambiar(i, { celular: e.target.value })} />
+                    <input className={campo} type="email" placeholder={i === 0 ? "Correo" : "Correo (opcional)"} autoComplete={i === 0 ? "email" : "off"} value={g.correo} onChange={(e) => cambiar(i, { correo: e.target.value })} />
+                  </div>
+                ))}
                 <label className="flex items-start gap-2 text-xs font-light text-white/65"><input type="checkbox" className="mt-0.5" checked={acepta} onChange={(e) => setAcepta(e.target.checked)} /> Quiero recibir promociones y novedades (opcional).</label>
                 <p className="text-xs font-light text-white/45">Usamos tus datos para gestionar tu cita. <a href="/privacidad/clientes" target="_blank" rel="noopener noreferrer" className="underline">Aviso de privacidad</a></p>
                 {error && <p role="alert" className="rounded-xl bg-red-500/15 px-4 py-3 text-sm text-red-200">{error}</p>}
-                <button type="button" onClick={reservar} disabled={!completo || enviando} className="w-full rounded-full bg-white py-4 text-base font-extrabold uppercase italic text-black disabled:opacity-40">{enviando ? "Confirmando…" : "Confirmar reserva"}</button>
+                <button type="button" onClick={reservar} disabled={!completo || enviando} className="w-full rounded-full bg-white py-4 text-base font-extrabold uppercase italic text-black disabled:opacity-40">{enviando ? "Confirmando…" : cuantos === 2 ? "Confirmar las 2 reservas" : "Confirmar reserva"}</button>
               </section>
             )}
 

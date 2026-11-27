@@ -12,8 +12,8 @@ import { PromoCabecera } from "@/components/promo/promo-cabecera";
 import { PromoCondicionesForm } from "../retencion/promo-condiciones-form";
 import { PromoImagenCampo } from "../retencion/promo-imagen-campo";
 
-interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; condiciones: CondicionesPromo }
-const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, condiciones: SIN_CONDICIONES };
+interface Form { codigo: string; tipo: "percentage" | "fixed_amount"; valor: string; titulo: string; descripcion: string; imagen: string; maxUsos: string; activa: boolean; personas: 1 | 2; condiciones: CondicionesPromo }
+const VACIA: Form = { codigo: "", tipo: "percentage", valor: "20", titulo: "", descripcion: "", imagen: "", maxUsos: "", activa: true, personas: 1, condiciones: SIN_CONDICIONES };
 const ETIQUETAS: Record<string, string> = { cash: "Efectivo", transfer: "Transferencia", debit_card: "Débito", credit_card: "Crédito" };
 const campo = "w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-sm text-brand-dark outline-none focus:border-brand-blue";
 const rotulo = "mb-1.5 block text-xs font-semibold text-brand-gray";
@@ -49,7 +49,7 @@ export default function PromocionesPage() {
     setEditando(c.id);
     setForm({
       codigo: c.code, tipo: c.discount_type, valor: String(Number(c.discount_value) || ""), titulo: r.titulo || "", descripcion: c.description || "", imagen: r.imagen || "",
-      maxUsos: c.max_uses ? String(c.max_uses) : "", activa: c.active !== false,
+      maxUsos: c.max_uses ? String(c.max_uses) : "", activa: c.active !== false, personas: r.personas === 2 ? 2 : 1,
       condiciones: {
         ...SIN_CONDICIONES, desde: r.desde || "", hasta: r.hasta || "", horaDesde: r.horaDesde || "", horaHasta: r.horaHasta || "",
         pagos: (r.pagos || []).map((p: string) => ETIQUETAS[p]).filter(Boolean),
@@ -62,7 +62,7 @@ export default function PromocionesPage() {
 
   const reglas = () => {
     const c = form.condiciones;
-    return { desde: c.desde, hasta: c.hasta, horaDesde: c.horaDesde, horaHasta: c.horaHasta, profesionalIds: c.profesionalIds || [], pagos: c.todosLosPagos ? [] : codigosDePago(c.pagos), imagen: form.imagen, titulo: form.titulo };
+    return { desde: c.desde, hasta: c.hasta, horaDesde: c.horaDesde, horaHasta: c.horaHasta, profesionalIds: c.profesionalIds || [], pagos: c.todosLosPagos ? [] : codigosDePago(c.pagos), imagen: form.imagen, titulo: form.titulo, personas: form.personas };
   };
 
   const guardar = async () => {
@@ -129,6 +129,15 @@ export default function PromocionesPage() {
           <PromoImagenCampo url={form.imagen} onChange={(imagen) => set({ imagen })} tenantId={t} showToast={showToast} />
           <label className="block"><span className={rotulo}>Título grande</span><input value={form.titulo} maxLength={80} onChange={(e) => set({ titulo: e.target.value })} placeholder="Ej: Promoción especial" className={campo} /></label>
           <label className="block"><span className={rotulo}>Texto bajo el título</span><textarea rows={3} maxLength={300} value={form.descripcion} onChange={(e) => set({ descripcion: e.target.value })} placeholder="Cuenta en una o dos líneas de qué se trata" className={campo} /></label>
+          <div>
+            <span className={rotulo}>¿Quién puede usarla?</span>
+            <div className="flex flex-wrap gap-1.5">
+              {([[1, "Cada persona por su cuenta"], [2, "Solo 2 personas que reservan juntas"]] as const).map(([n, texto]) => (
+                <button key={n} type="button" aria-pressed={form.personas === n} onClick={() => set({ personas: n })} className={`rounded-full border px-3.5 py-1.5 text-xs font-semibold ${form.personas === n ? "border-brand-blue bg-brand-blue text-white" : "border-gray-200 bg-white text-brand-gray"}`}>{texto}</button>
+              ))}
+            </div>
+            {form.personas === 2 && <p className="mt-1.5 text-[11px] text-brand-gray">El link pide los datos y la hora de las 2 personas (mismo día, con profesionales de la promoción). Si una cancela, la otra paga el precio normal.</p>}
+          </div>
           <PromoCondicionesForm value={form.condiciones} onChange={(condiciones) => set({ condiciones })} tenantId={t} hayCupon inputClass={campo} />
           <div className="grid gap-3 sm:grid-cols-2">
             <label><span className={rotulo}>Máximo de usos (vacío = sin límite)</span><input type="number" min="1" value={form.maxUsos} onChange={(e) => set({ maxUsos: e.target.value })} className={campo} /></label>

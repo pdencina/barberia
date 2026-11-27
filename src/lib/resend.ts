@@ -289,9 +289,9 @@ async function filasPrecio(appointmentId: string | null | undefined, price: numb
     try {
       const { createAdminSupabase } = await import("@/lib/supabase/server");
       const { cuponDeCita } = await import("@/lib/cupon-cita");
-      const c = await cuponDeCita(createAdminSupabase(), appointmentId, price);
+      const c = await cuponDeCita(createAdminSupabase(), appointmentId, price, { paraAviso: true });
       if (c && c.discount > 0) {
-        return fila("Precio normal", `<s style="color:#9CA3AF;">${pesos(price)}</s>`) + fila(`Cupón ${c.code}`, `-${pesos(c.discount)}`) + fila("Pagas en el local", pesos(price - c.discount), true);
+        return fila("Precio normal", `<s style="color:#9CA3AF;">${pesos(price)}</s>`) + fila(`Cupón ${c.code}${c.dosPersonas ? " (si vienen las 2 personas)" : ""}`, `-${pesos(c.discount)}`) + fila("Pagas en el local", pesos(price - c.discount), true);
       }
       if (c) return fila("Precio", pesos(price), true) + fila(`Cupón ${c.code}`, "Se aplica al pagar");
     } catch { /* sin cupón: precio normal */ }

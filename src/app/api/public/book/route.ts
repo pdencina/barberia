@@ -1,3 +1,4 @@
+import { grupoValido, MENSAJE_DOS_PERSONAS } from "@/lib/promo-grupo";
 import { computeCouponDiscount } from "@/lib/coupon";
 import { horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
 import { buscarClienteExistente } from "@/lib/cliente-existente";
@@ -113,11 +114,15 @@ export async function POST(req: NextRequest) {
   // Código promocional escrito al reservar (migración 182): se valida en el servidor; si no sirve, se avisa antes de crear la cita.
   let cuponId: string | null = null;
   let cuponFila: any = null;
+  let cuponGrupo: string | null = null;
   const codigoPromo = String(body.couponCode || "").trim().toUpperCase().slice(0, 40);
   if (codigoPromo) {
     const { data: c } = await supabase.from("coupons").select("*").eq("code", codigoPromo).eq("tenant_id", barberForCap?.tenant_id).maybeSingle();
     const motivo = c ? motivoCuponNoValido(c as any, { barberId, fecha: date, hora: horaDeCita(start.toISOString()) }) : "Código no encontrado.";
     if (motivo) return NextResponse.json({ error: `${motivo} Quítalo o cámbialo para confirmar.`, code: "coupon" }, { status: 409 });
+    const grupoId = grupoValido(body.grupoPromo);
+    if (Number((c as any).conditions?.personas) === 2 && !grupoId) return NextResponse.json({ error: MENSAJE_DOS_PERSONAS, code: "coupon" }, { status: 409 });
+    cuponGrupo = grupoId;
     cuponId = (c as any).id;
     cuponFila = c;
   }
@@ -198,6 +203,10 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Horario no disponible. Selecciona otro." }, { status: 409 });
   }
 
+  if (cuponId && cuponGrupo) {
+    const { error: eg } = await supabase.from("appointments").update({ coupon_group: cuponGrupo }).eq("id", appointment!.id);
+    if (eg) console.error("[reserva] falta la migración 185:", eg.message);
+  }
   if (cuponId) {
     await supabase.from("appointments").update({ coupon_id: cuponId }).eq("id", appointment!.id); // si falta la migración 182, no pasa nada
   }
