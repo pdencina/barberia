@@ -27,6 +27,8 @@ export interface OperacionesConsulta {
   enviarAlCliente: (c: Consulta, texto: string) => Promise<boolean>;
   guardarSaber: (a: { titulo: string; claves: string[]; respuesta: string }) => Promise<boolean>;
   cerrar: (id: string) => Promise<void>;
+  /** Vuelve a mandar al dueño las imágenes de las consultas abiertas. Devuelve cuántas salieron. */
+  reenviarImagenes?: () => Promise<number>;
   saberLista: () => Promise<SaberGuardado[]>;
   saberBorrar: (id: string) => Promise<void>;
 }
@@ -103,6 +105,7 @@ export async function manejarConsultaAdmin(texto: string, contextId: string | un
   if (/^consultas$/.test(t)) {
     const a = await ops.abiertas();
     if (a.length === 0) return "No hay consultas pendientes.";
+    if (ops.reenviarImagenes) { try { await ops.reenviarImagenes(); } catch { /* la lista sale igual */ } }
     return `Consultas pendientes:\n${a.map((c) => `#${c.numero}: «${limpiar(c.pregunta).slice(0, 120)}»`).join("\n")}\n\nResponde con *N: tu instrucción*.`;
   }
   if (/^saber$/.test(t)) {
