@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import { Check, ChevronLeft } from "lucide-react";
 import { horasDePromo } from "@/lib/promo-link";
+import { PromoCabecera } from "@/components/promo/promo-cabecera";
 
 // re-booking.cl/<negocio>/promocion — reserva con los criterios de la promoción ya puestos: solo sus profesionales, días y horas.
 
@@ -144,17 +145,7 @@ export default function PromocionPage() {
 
         {promo && !listo && (
           <div className="space-y-7">
-            <section className="text-center">
-              {promo.imagen && <img src={promo.imagen} alt={promo.titulo || "Promoción"} className="w-full rounded-2xl" />}
-              <h1 className="mt-5 text-3xl font-extrabold uppercase leading-tight">{promo.titulo || (promo.tipo === "percentage" && promo.valor ? `${promo.valor}% de descuento` : "Promoción")}</h1>
-              {promo.descripcion && <p className="mt-2 text-sm font-light text-white/75">{promo.descripcion}</p>}
-              {promo.detalles.length > 0 && (
-                <ul className="mt-4 divide-y divide-white/10 rounded-2xl border border-white/15 bg-white/5">
-                  {promo.detalles.map((x) => <li key={x.etiqueta} className="px-4 py-2.5 text-sm"><span className="font-light text-white/65">{x.etiqueta}: </span><b className="font-bold">{x.valor}</b></li>)}
-                </ul>
-              )}
-              <p className="mt-3 text-sm font-light text-white/60">Tu cupón <b className="font-mono font-bold text-white">{promo.codigo}</b> ya está puesto.</p>
-            </section>
+            <PromoCabecera imagen={promo.imagen} titulo={promo.titulo || (promo.tipo === "percentage" && promo.valor ? `${promo.valor}% de descuento` : "Promoción")} descripcion={promo.descripcion} detalles={promo.detalles} codigo={promo.codigo} />
 
             <section>
               <h2 className={`mb-2 ${titulo}`}>1 · Elige tu servicio</h2>

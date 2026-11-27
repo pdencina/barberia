@@ -150,6 +150,22 @@ export const PANTALLAS: EntradaOti[] = [
     ruta: "/dashboard/cupones",
   },
   {
+    id: "promociones",
+    titulo: "Promociones",
+    para: "Administrador",
+    claves: ["promocion", "promociones", "link de promocion", "crear una promocion", "black friday", "pagina de la promocion"],
+    resumen: "«Promociones» arma una promocion (imagen, descuento, fechas, horario, profesionales y medios de pago), muestra como se ve y entrega un link donde tus clientes reservan con esos criterios ya puestos.",
+    ruta: "/dashboard/promociones",
+  },
+  {
+    id: "conversaciones-whatsapp",
+    titulo: "Conversaciones de WhatsApp",
+    para: "Administrador",
+    claves: ["conversaciones de whatsapp", "chats del agente", "que escriben los clientes", "respuestas del agente"],
+    resumen: "«Conversaciones de WhatsApp» muestra lo que escriben los clientes y lo que responde el agente automatico.",
+    ruta: "/dashboard/whatsapp-chats",
+  },
+  {
     id: "resenas",
     titulo: "Reseñas",
     para: "Administrador y recepcion",

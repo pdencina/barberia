@@ -96,6 +96,7 @@ const sections: NavSection[] = [
         ],
       },
       { name: "WhatsApp", href: "/dashboard/whatsapp", icon: MessageCircle, minRole: "admin", basicLocked: true },
+      { name: "Promociones", href: "/dashboard/promociones", icon: Tag, minRole: "admin", feature: "coupons", basicLocked: true },
       { name: "Cupones", href: "/dashboard/cupones", icon: Ticket, minRole: "admin", feature: "coupons", basicLocked: true },
       { name: "Reseñas", href: "/dashboard/resenas", icon: Star, minRole: "receptionist", cap: "resenas" },
       { name: "Mapa de demanda", href: "/dashboard/demanda", icon: BarChart3, minRole: "admin", basicLocked: true },
