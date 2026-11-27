@@ -2,7 +2,7 @@ import { crearRepositorioDatosNegocio } from "@/lib/agente/datos-negocio";
 // Se reutiliza la MISMA función que calcula las horas de la reserva web (en el servidor, solo lectura): una sola regla.
 import { GET as disponibilidadPublica } from "@/app/api/public/availability/route";
 import { crearManejadoresWebhook, crearRepositorioWebhook, accionesDesdeBase } from "@/lib/agente/whatsapp-webhook";
-import { enviarTexto, enviarArchivo, enviarLista, enviarMedioPorId } from "@/lib/agente/whatsapp-meta";
+import { enviarTexto, enviarArchivo, enviarLista, enviarMedioPorId, enviarPlantilla } from "@/lib/agente/whatsapp-meta";
 import { archivosPedidos } from "@/lib/agente/archivos";
 import { leerTema, guardarTema } from "@/lib/agente/tema";
 import { readFileSync } from "node:fs";
@@ -19,6 +19,7 @@ import { anticipacionCita } from "@/lib/agente/recordatorios-whatsapp";
 import { textoDeFecha } from "@/lib/agente/disponibilidad";
 import { registrarChat, purgarChats } from "@/lib/agente/chats";
 import { avisoDeAtencion } from "@/lib/agente/aviso-atencion";
+import { avisarDueno, ventanaAbierta, PLANTILLA_CONSULTA, IDIOMA_PLANTILLA_CONSULTA } from "@/lib/agente/aviso-dueno";
 import { notify } from "@/lib/notify";
 import { resolverRemitente } from "@/lib/agente/informe-diario-email";
 
@@ -275,6 +276,17 @@ const handlers = () => crearManejadoresWebhook({
                 return !r.error;
               },
               cerrar: async (id: string) => { await db.from("agent_consultas").delete().eq("tenant_id", tenantId).eq("id", id); },
+              reenviarImagenes: async () => {
+                const dueno = await db.from("agent_admin_contacts").select("telefono").eq("tenant_id", tenantId).limit(1).maybeSingle();
+                const q = await db.from("agent_consultas").select("numero,medios").eq("tenant_id", tenantId).gte("created_at", new Date(Date.now() - 48 * 3600000).toISOString()).order("created_at", { ascending: true }).limit(10);
+                if (dueno.error || !dueno.data?.telefono || q.error) return 0; // sin la migración 184 no hay imágenes guardadas
+                let enviadas = 0;
+                for (const c of (q.data ?? []) as any[]) for (const m of (Array.isArray(c.medios) ? c.medios : []).slice(-3)) {
+                  const e = await enviarMedioPorId({ para: String(dueno.data.telefono), tipo: m.tipo, id: m.id, caption: avisoDeImagen(Number(c.numero)) }, meta(n));
+                  if (e.estado === "aceptado") enviadas++;
+                }
+                return enviadas;
+              },
               saberLista: async () => {
                 const r = await db.from("agent_faq_custom").select("id,titulo").eq("tenant_id", tenantId).eq("orden", ORDEN_SABER_CHAT).order("created_at", { ascending: false }).limit(10);
                 if (r.error) throw new Error("saber");
@@ -293,10 +305,21 @@ const handlers = () => crearManejadoresWebhook({
             const admin = await db.from("agent_admin_contacts").select("telefono").eq("tenant_id", tenantId).limit(1).maybeSingle();
             if (admin.error || !admin.data?.telefono) return false;
             await db.from("agent_consultas").delete().eq("tenant_id", tenantId).lt("created_at", new Date(Date.now() - 48 * 3600000).toISOString()); // limpieza
+            const ultimo = await db.from("agent_chats").select("created_at").eq("tenant_id", tenantId).eq("telefono", String(admin.data.telefono)).eq("direccion", "entrante").order("created_at", { ascending: false }).limit(1).maybeSingle();
+            const abiertaVentana = ventanaAbierta(ultimo.data?.created_at, Date.now()); // sin registro: se asume cerrada (la plantilla llega igual)
+            const plantilla = async (num: number) => enviarPlantilla({ para: String(admin.data!.telefono), plantilla: PLANTILLA_CONSULTA, idioma: IDIOMA_PLANTILLA_CONSULTA, variables: [(await db.from("tenants").select("name").eq("id", tenantId).maybeSingle()).data?.name || "tu negocio", String(num)] }, meta(n));
+            // La imagen queda anotada (migración 184) para reenviarla cuando el dueño escriba «consultas».
+            const anotarMedio = async (id: string) => {
+              if (!medio) return;
+              const f = await db.from("agent_consultas").select("medios").eq("id", id).maybeSingle();
+              if (!f.error) await db.from("agent_consultas").update({ medios: [...(Array.isArray(f.data?.medios) ? f.data!.medios : []), medio].slice(-5) }).eq("id", id);
+            };
             const previa = await db.from("agent_consultas").select("id,numero,pregunta").eq("tenant_id", tenantId).eq("contact_hash", contactHash).limit(1).maybeSingle();
             if (previa.error) return false;
             if (previa.data) {
               // Ya se le avisó al dueño. Una imagen nueva se le reenvía igual (con el mismo número); un texto nuevo se suma a la pregunta.
+              if (medio) await anotarMedio(previa.data.id);
+              if (medio && !abiertaVentana) return true; // ya tiene el aviso de esta consulta: la imagen queda guardada
               if (medio) { const e2 = await enviarMedioPorId({ para: String(admin.data.telefono), tipo: medio.tipo, id: medio.id, caption: avisoDeImagen(Number(previa.data.numero), true) }, meta(n)); return e2.estado === "aceptado"; }
               await db.from("agent_consultas").update({ pregunta: `${previa.data.pregunta} / ${texto}`.slice(0, MAX_PREGUNTA), updated_at: new Date().toISOString() }).eq("id", previa.data.id);
               return true;
@@ -305,9 +328,13 @@ const handlers = () => crearManejadoresWebhook({
             if (abiertas.error || (abiertas.count ?? 0) >= 10) return false; // tope: no inundar al dueño
             const ins = await db.from("agent_consultas").insert({ tenant_id: tenantId, contact_hash: contactHash, telefono: tel, pregunta: medio ? "📎 Imagen del cliente" : texto, ...(medio ? { tipo: "imagen" } : {}) }).select("id,numero").single();
             if (ins.error || !ins.data) return false;
-            const env = medio
-              ? await enviarMedioPorId({ para: String(admin.data.telefono), tipo: medio.tipo, id: medio.id, caption: avisoDeImagen(Number(ins.data.numero)) }, meta(n))
-              : await enviarTexto({ para: String(admin.data.telefono), texto: avisoDeConsulta({ numero: Number(ins.data.numero), pregunta: texto }) }, meta(n));
+            await anotarMedio(ins.data.id);
+            const { envio: env } = await avisarDueno(abiertaVentana, {
+              plantilla: () => plantilla(Number(ins.data.numero)),
+              normal: () => medio
+                ? enviarMedioPorId({ para: String(admin.data!.telefono), tipo: medio.tipo, id: medio.id, caption: avisoDeImagen(Number(ins.data.numero)) }, meta(n))
+                : enviarTexto({ para: String(admin.data!.telefono), texto: avisoDeConsulta({ numero: Number(ins.data.numero), pregunta: texto }) }, meta(n)),
+            });
             if (env.estado !== "aceptado") { await db.from("agent_consultas").delete().eq("id", ins.data.id); return false; } // sin ventana de 24 h: se deriva como antes
             await db.from("agent_consultas").update({ aviso_wamid: env.id }).eq("id", ins.data.id);
             return true;
