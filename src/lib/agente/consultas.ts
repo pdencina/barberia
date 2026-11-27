@@ -15,7 +15,15 @@ export const TEXTO_AL_CLIENTE = "Déjame confirmarlo con el equipo y te respondo
 
 export interface Consulta { id: string; numero: number; telefono: string; pregunta: string; notas: string | null; tipo?: "pregunta" | "imagen" }
 export interface SaberGuardado { id: string; titulo: string }
+/** Respuesta que espera una decisión del dueño: por aprobar (enviada=false) o ya enviada y por guardar (enviada=true). */
+export interface Borrador { numero: number; pregunta: string; respuesta: string; titulo: string | null; claves: string[] | null; enviada: boolean }
 export interface OperacionesConsulta {
+  /** Sin esto (o sin la migración 186) todo funciona como antes: se envía y se guarda sin preguntar. */
+  borradores?: {
+    guardar: (b: Borrador) => Promise<boolean>;
+    /** Lo saca (borra y devuelve): así un doble toque no envía dos veces. */
+    tomar: (numero: number) => Promise<Borrador | null>;
+  };
   /** Por número, o por el id del mensaje de aviso que el dueño citó. Solo consultas abiertas. */
   buscar: (ref: { numero: number } | { wamid: string }) => Promise<Consulta | null>;
   abiertas: () => Promise<Consulta[]>;
@@ -39,6 +47,27 @@ export function avisoDeImagen(numero: number, otra = false): string {
   return `📎 *Consulta #${numero}*${otra ? " (otra imagen del mismo cliente)" : ""}: un cliente envió esta imagen. ¿Es el comprobante del abono o fotos de referencia?\n\nSi llegó el abono, escribe *${numero}: confirmado* y le pido las fotos. Para otra respuesta: *${numero}: tu instrucción*. Para cerrar: *${numero}: listo*.`;
 }
 const CONFIRMADO = /^(?:confirmado|confirmada|llego|abono ok|abono recibido|recibido|ok abono)$/;
+
+// Botones que se ofrecen al dueño. El id vuelve como texto cuando toca uno.
+export interface Boton { id: string; title: string }
+const BOTON = /^cq_(aprobar|soloenviar|cancelar|guardar|noguardar|sugerir|descartar)_(\d{1,9})$/;
+export const esBotonDeConsulta = (id: string) => BOTON.test(id);
+const boton = (accion: string, n: string, title: string): Boton => ({ id: `cq_${accion}_${n}`, title });
+const INICIO_BORRADOR = "📝 Borrador para la consulta #", PREGUNTA_GUARDAR = "¿Guardo esta respuesta para la próxima vez", SIN_GUARDAR = "(es sobre una imagen: no se guarda)";
+const INSTRUCCION_SUGERIR = "Propón la mejor respuesta usando solo el contexto del negocio. Si el contexto no alcanza, pregúntame.";
+
+/** Botones que acompañan un mensaje al dueño (según su texto). null = mensaje sin botones. */
+export function botonesDeConsulta(texto: string): Boton[] | null {
+  if (texto.startsWith(INICIO_BORRADOR)) {
+    const n = /^\d+/.exec(texto.slice(INICIO_BORRADOR.length))?.[0];
+    if (!n) return null;
+    return texto.includes(SIN_GUARDAR) ? [boton("soloenviar", n, "Enviar"), boton("cancelar", n, "Cancelar")]
+      : [boton("aprobar", n, "Enviar y guardar"), boton("soloenviar", n, "Solo enviar"), boton("cancelar", n, "Cancelar")];
+  }
+  if (texto.includes(PREGUNTA_GUARDAR)) { const n = /consulta #(\d+)/.exec(texto)?.[1]; return n ? [boton("guardar", n, "Sí, guardar"), boton("noguardar", n, "No guardar")] : null; }
+  const n = /^❓ \*Consulta #(\d+)\*/.exec(texto)?.[1];
+  return n ? [boton("sugerir", n, "Sugerir con IA"), boton("descartar", n, "Descartar")] : null;
+}
 
 const limpiar = (s: string) => s.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim();
 const CON_NUMERO = /^#?(\d{1,9})\s*[:.)\-]\s*([\s\S]+)$/;
@@ -95,12 +124,60 @@ export function leerRedaccion(salida: unknown, contexto: string, notas: string):
   return claves.length >= 1 ? { tipo: "listo", respuesta, titulo, claves: claves.slice(0, 8) } : null;
 }
 
+function textoBorrador(c: Consulta, respuesta: string): string {
+  const n = c.numero, imagen = c.tipo === "imagen";
+  return `${INICIO_BORRADOR}${n} (aún NO enviado):\n«${respuesta}»\n\n${imagen ? SIN_GUARDAR + "\n" : ""}Elige qué hago, o escribe *${n}: ${imagen ? "solo enviar" : "aprobar"}*. Para cambiarlo, dime de nuevo *${n}: tu corrección*.`;
+}
+
+const FUERA_DE_PLAZO = (n: number) => `No pude enviarlo: WhatsApp solo deja responder dentro de las 24 horas desde el último mensaje del cliente. La consulta #${n} sigue abierta.`;
+
+/** Guarda la respuesta como conocimiento. La IA solo pone el tema y las frases clave; si no puede, se usa la pregunta. */
+async function guardarComoSaber(b: Borrador, ops: OperacionesConsulta): Promise<string> {
+  let titulo = b.titulo, claves = b.claves;
+  if (!titulo || !claves?.length) {
+    let r: Redaccion = null;
+    try { r = leerRedaccion(await ops.redactar({ pregunta: b.pregunta, notas: b.respuesta }), await ops.contexto(), b.respuesta); } catch { r = null; }
+    if (r?.tipo === "listo") { titulo = r.titulo; claves = r.claves; }
+    else {
+      const clave = normalizar(b.pregunta).replace(/[¿?¡!.,;:"«»]/g, "").replace(/\s+/g, " ").trim().slice(0, 60);
+      titulo = limpiar(b.pregunta).slice(0, 60); claves = clave.length >= 3 && !/\d{6,}|@/.test(clave) ? [clave] : [];
+    }
+  }
+  if (!claves?.length || b.respuesta.length > 700) return "No pude guardarla para la próxima vez.";
+  let ok = false;
+  try { ok = await ops.guardarSaber({ titulo, claves, respuesta: b.respuesta }); } catch { ok = false; }
+  return ok ? `📚 La guardé para la próxima vez (tema: ${titulo}). Para quitarla: escribe *saber* y luego *olvidar N*.` : "No pude guardarla para la próxima vez.";
+}
+
+const ACCIONES: Record<string, string> = { aprobar: "aprobar", "enviar y guardar": "aprobar", "solo enviar": "soloenviar", cancelar: "cancelar", guardar: "guardar", "si guardar": "guardar", "no guardar": "noguardar" };
+
+/** Decisión del dueño sobre un borrador o una respuesta ya enviada. null = no había nada pendiente con ese número. */
+async function decidir(numero: number, accion: string, ops: OperacionesConsulta): Promise<string | null> {
+  const b = await ops.borradores?.tomar(numero);
+  if (!b) return null;
+  if (b.enviada) return accion === "guardar" || accion === "aprobar" ? guardarComoSaber(b, ops) : `Ok, no guardé la respuesta de la consulta #${numero}.`;
+  if (accion === "cancelar" || accion === "noguardar") return `Listo, no envié nada. La consulta #${numero} sigue abierta: dime *${numero}: tu instrucción* o *${numero}: descartar*.`;
+  const c = await ops.buscar({ numero });
+  if (!c) return `La consulta #${numero} ya estaba cerrada; no envié nada.`;
+  if (!(await ops.enviarAlCliente(c, b.respuesta))) { await ops.borradores!.guardar(b); return FUERA_DE_PLAZO(numero); }
+  await ops.cerrar(c.id);
+  const guardado = accion !== "soloenviar" && c.tipo !== "imagen" ? `\n\n${await guardarComoSaber(b, ops)}` : "";
+  return `✅ Enviada al cliente (consulta #${numero}).${guardado}`;
+}
+
 const MENSAJE_SIN_IA = (n: number) => `No pude armar la respuesta con seguridad (puede que falte un dato o que la IA no esté disponible). Escríbela completa y yo la envío tal cual: *${n}: enviar: tu texto*.`;
 
 /** null = no es de las consultas (sigue el flujo normal del administrador). */
 export async function manejarConsultaAdmin(texto: string, contextId: string | undefined, ops: OperacionesConsulta, negocio: string | null = null): Promise<string | null> {
   const t = normalizar(texto).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim();
   const original = limpiar(texto);
+
+  const tocado = BOTON.exec(texto.trim());
+  if (tocado) {
+    const [, accion, num] = tocado;
+    if (accion === "sugerir" || accion === "descartar") return (await manejarConsultaAdmin(`${num}: ${accion}`, undefined, ops, negocio)) ?? `La consulta #${num} ya no está abierta.`;
+    return (await decidir(Number(num), accion, ops)) ?? `La consulta #${num} no tiene nada pendiente (ya se resolvió).`;
+  }
 
   if (/^consultas$/.test(t)) {
     const a = await ops.abiertas();
@@ -124,7 +201,11 @@ export async function manejarConsultaAdmin(texto: string, contextId: string | un
   // ¿A qué consulta responde? "N: instrucción" o citando el aviso. Sin ninguna de las dos, es una conversación normal.
   let c: Consulta | null = null, instruccion = "";
   const m = CON_NUMERO.exec(original);
-  if (m) { c = await ops.buscar({ numero: Number(m[1]) }); instruccion = limpiar(m[2]); }
+  if (m) {
+    const orden = ACCIONES[normalizar(m[2]).replace(/[!¡¿?.,]+/g, " ").replace(/\s+/g, " ").trim()];
+    if (orden) { const r = await decidir(Number(m[1]), orden, ops); if (r) return r; }
+    c = await ops.buscar({ numero: Number(m[1]) }); instruccion = limpiar(m[2]);
+  }
   if (!c && contextId) { const q = await ops.buscar({ wamid: contextId }); if (q) { c = q; instruccion = original; } }
   if (!c || !instruccion) return null;
 
@@ -143,17 +224,23 @@ export async function manejarConsultaAdmin(texto: string, contextId: string | un
     if (cuerpo.length < 3 || cuerpo.length > 1000) return "El texto debe tener entre 3 y 1000 caracteres.";
     if (!(await ops.enviarAlCliente(c, cuerpo))) return `No pude enviarlo: WhatsApp solo deja responder dentro de las 24 horas desde el último mensaje del cliente. La consulta #${c.numero} sigue abierta.`;
     await ops.cerrar(c.id);
+    if (c.tipo !== "imagen" && cuerpo.length <= 700 && (await ops.borradores?.guardar({ numero: c.numero, pregunta: c.pregunta, respuesta: cuerpo, titulo: null, claves: null, enviada: true })))
+      return `✅ Envié tu texto al cliente (consulta #${c.numero}).\n\n${PREGUNTA_GUARDAR} que pregunten algo así? Toca un botón o escribe *${c.numero}: guardar*.`;
     return `✅ Envié tu texto al cliente (consulta #${c.numero}). No lo guardé para próximas veces.`;
   }
 
-  const notas = limpiar(`${c.notas ?? ""} ${instruccion}`).slice(-MAX_NOTAS);
-  await ops.guardarNotas(c.id, notas);
+  const sugerir = !!ops.borradores && normalizar(instruccion) === "sugerir";
+  const notas = sugerir ? INSTRUCCION_SUGERIR : limpiar(`${c.notas ?? ""} ${instruccion}`).slice(-MAX_NOTAS);
+  if (!sugerir) await ops.guardarNotas(c.id, notas);
   const contexto = await ops.contexto();
   let salida: string | null = null;
   try { salida = await ops.redactar({ pregunta: c.pregunta, notas }); } catch { salida = null; }
   const r = leerRedaccion(salida, contexto, notas);
   if (!r) return MENSAJE_SIN_IA(c.numero);
   if (r.tipo === "aclarar") return `❔ Consulta #${c.numero}: ${r.pregunta}\n\nRespóndeme con *${c.numero}: ...*`;
+
+  // Con borradores: primero se le muestra al dueño y él decide.
+  if (await ops.borradores?.guardar({ numero: c.numero, pregunta: c.pregunta, respuesta: r.respuesta, titulo: r.titulo, claves: r.claves, enviada: false })) return textoBorrador(c, r.respuesta);
 
   if (!(await ops.enviarAlCliente(c, r.respuesta))) return `No pude enviar la respuesta: WhatsApp solo deja responder dentro de las 24 horas desde el último mensaje del cliente. La consulta #${c.numero} sigue abierta.`;
   await ops.cerrar(c.id);
