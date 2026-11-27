@@ -1,3 +1,4 @@
+import { computeCouponDiscount } from "@/lib/coupon";
 import { horaDeCita, motivoCuponNoValido } from "@/lib/cupon-reglas";
 import { buscarClienteExistente } from "@/lib/cliente-existente";
 import { getPlazoCambios } from "@/lib/cambio-cliente";
@@ -111,12 +112,14 @@ export async function POST(req: NextRequest) {
 
   // Código promocional escrito al reservar (migración 182): se valida en el servidor; si no sirve, se avisa antes de crear la cita.
   let cuponId: string | null = null;
+  let cuponFila: any = null;
   const codigoPromo = String(body.couponCode || "").trim().toUpperCase().slice(0, 40);
   if (codigoPromo) {
     const { data: c } = await supabase.from("coupons").select("*").eq("code", codigoPromo).eq("tenant_id", barberForCap?.tenant_id).maybeSingle();
     const motivo = c ? motivoCuponNoValido(c as any, { barberId, fecha: date, hora: horaDeCita(start.toISOString()) }) : "Código no encontrado.";
     if (motivo) return NextResponse.json({ error: `${motivo} Quítalo o cámbialo para confirmar.`, code: "coupon" }, { status: 409 });
     cuponId = (c as any).id;
+    cuponFila = c;
   }
 
   // Find or create client
@@ -296,6 +299,7 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json({
     success: true,
+    promo: cuponFila ? { code: cuponFila.code, discount: Math.min(totalPrice, computeCouponDiscount(cuponFila, totalPrice)) } : null,
     appointmentId: appointment!.id,
     message: "Cita agendada exitosamente",
   });
