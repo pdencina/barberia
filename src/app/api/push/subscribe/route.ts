@@ -17,10 +17,16 @@ export async function POST(req: NextRequest) {
 
   const { endpoint, keys } = subscription;
 
-  await supabase.from("push_subscriptions").upsert(
+  // La base tiene único solo `endpoint` (un aparato = una suscripción): con otra clave el guardado fallaba siempre.
+  // Si el aparato pasa a otra cuenta, queda a nombre de quien tiene la sesión.
+  const { error } = await supabase.from("push_subscriptions").upsert(
     { user_id: userId, endpoint, p256dh: keys.p256dh, auth: keys.auth },
-    { onConflict: "user_id,endpoint" }
+    { onConflict: "endpoint" }
   );
+  if (error) {
+    console.error("[push] no se pudo guardar la suscripción:", error.message);
+    return NextResponse.json({ error: "No se pudo activar los avisos" }, { status: 500 });
+  }
 
   return NextResponse.json({ success: true });
 }
