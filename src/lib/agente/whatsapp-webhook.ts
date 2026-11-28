@@ -303,7 +303,8 @@ export function crearManejadoresWebhook(config: {
                           if (av) {
                             respuestaFaq = av; reiniciado = true;
                             if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria */ } }
-                            if (tipoDeAviso(text) === "puerta" && deps.consultas) { try { await deps.consultas.abrir(n,p.remitenteHash,para,`🚨 URGENTE, está afuera y no le abren: ${text}`.slice(0,300),undefined,true); } catch { /* el aviso es un extra */ } }
+                            const urgencia = { puerta: "está afuera y no le abren", problema: "tiene un problema con su hora", noasisto: "no va a asistir o quiere cancelar" }[String(tipoDeAviso(text)) as "puerta"];
+                            if (urgencia && deps.consultas) { try { await deps.consultas.abrir(n,p.remitenteHash,para,`🚨 URGENTE, ${urgencia}: ${text}`.slice(0,300),undefined,true); } catch { /* el aviso es un extra */ } }
                             await contar("respuestas_automaticas");
                           }
                         }

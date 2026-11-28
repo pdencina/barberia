@@ -91,8 +91,12 @@ export function interpretarFecha(t: string, hoy: string): { fecha: string; expli
   return { fecha: hoy, explicita: false, resto };
 }
 
+/** "las 1545" o "las 15.45" → "las 15:45". */
+export const separarHora = (t: string) => t.replace(/\b(las?) ([01]?\d|2[0-3])[.h]?([0-5]\d)\b/g, "$1 $2:$3");
+
 // Hora pedida en minutos desde medianoche, o null. Sin am/pm: 1 a 8 se entiende de tarde, 9 a 11 de mañana.
-function interpretarHora(t: string, franja: Franja | null): number | null | "invalida" {
+function interpretarHora(texto: string, franja: Franja | null): number | null | "invalida" {
+  const t = separarHora(texto);
   let h: number | null = null, m = 0, meridiano: string | null = null, hallada = false;
   const palabra = /\ba las? (una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b(?: y (media|cuarto))?/.exec(t);
   const r1 = /\b(?:a la|a las|tipo|como a la|como a las|para la|para las|a eso de las|alrededor de las)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm|hrs|hs|h)?\b/.exec(t);
