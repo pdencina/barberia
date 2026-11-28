@@ -6,14 +6,21 @@ const original = Module._load;
 const id = "11111111-1111-4111-8111-111111111111";
 const base = { id, tenant_id: "tenant-a", barber_id: "professional-a", status: "confirmed", date: "2030-11-10", start_time: "2030-11-10T10:00:00+00:00", end_time: "2030-11-10T11:00:00+00:00", deposit_status: "paid", deposit_amount: 10000, deposit_payment_id: "simulated-payment" };
 let horaTomada = false;
+let sinColumnasRecordatorio = false; // como en producción
 let appointment: any, settings: any, profile: any, loadError: any, saveError: any, raced: boolean, slotError: boolean, slots: string[], calls: any[], emails: number;
 let passed = 0;
-function reset() { horaTomada = false; appointment = { ...base }; settings = { client_change_hours: 24 }; profile = { id: base.barber_id }; loadError = null; saveError = null; raced = false; slotError = false; slots = ["2030-11-12T12:30:00"]; calls = []; emails = 0; }
+function reset() { sinColumnasRecordatorio = false; horaTomada = false; appointment = { ...base }; settings = { client_change_hours: 24 }; profile = { id: base.barber_id }; loadError = null; saveError = null; raced = false; slotError = false; slots = ["2030-11-12T12:30:00"]; calls = []; emails = 0; }
 const db = { from(table: string) {
   const filters: any[] = []; let update: any = null;
   const q: any = {
     select(fields: string) { calls.push({ table, select: fields }); return q; },
     eq(key: string, value: any) { filters.push([key, value]); return q; },
+    // La marca de recordatorio se escribe aparte (sin maybeSingle).
+    then(ok: any, mal: any) {
+      const falta = update && "reminder_sent" in update && sinColumnasRecordatorio;
+      if (update && !falta) Object.assign(appointment, update);
+      return Promise.resolve({ error: falta ? { message: "column appointments.reminder_sent does not exist" } : null }).then(ok, mal);
+    },
     update(value: any) { update = value; calls.push({ table, update, filters }); return q; },
     async maybeSingle() {
       if (table === "tenants") return { data: settings, error: null };
@@ -22,6 +29,7 @@ const db = { from(table: string) {
       if (!update) return { data: appointment, error: loadError };
       if (saveError) return { data: null, error: saveError };
       if (raced) return { data: null, error: null };
+      if (sinColumnasRecordatorio && "reminder_sent" in update) return { data: null, error: { message: "column appointments.reminder_sent does not exist" } };
       Object.assign(appointment, update); return { data: { id }, error: null };
     },
   };
@@ -51,11 +59,13 @@ async function main() {
     const r = await POST(request({ ...valid(), tenantId: "other-tenant", barberId: "other-person", deposit_amount: 0, total: 0 }));
     assert.equal(r.status, 200); assert.equal(appointment.id, id);
     assert.equal(appointment.deposit_amount, 10000); assert.equal(appointment.deposit_status, "paid"); assert.equal(appointment.deposit_payment_id, "simulated-payment");
-    assert.deepEqual(Object.keys(updates()[0].update).sort(), ["date", "end_time", "reminder_sent", "reminder_sent_at", "start_time"].sort());
+    assert.deepEqual(Object.keys(updates()[0].update).sort(), ["date", "end_time", "start_time"].sort());
+    assert.deepEqual(Object.keys(updates()[1].update).sort(), ["reminder_sent", "reminder_sent_at"]);
     assert.equal(appointment.start_time, "2030-11-12T12:30:00Z"); assert.equal(appointment.end_time, "2030-11-12T13:30:00.000Z"); assert.equal(emails, 1);
     for (const pair of [["tenant_id", "tenant-a"], ["barber_id", "professional-a"], ["status", "confirmed"], ["start_time", base.start_time], ["end_time", base.end_time]]) assert.ok(updates()[0].filters.some((f: any) => JSON.stringify(f) === JSON.stringify(pair)));
   });
   await test("si otra persona tomo esa hora justo antes de guardar: 409 y la cita no cambia", async () => { horaTomada = true; const r = await POST(request(valid())); assert.equal(r.status, 409); assert.equal(updates().length, 0); assert.equal(appointment.start_time, base.start_time); });
+  await test("sin las columnas de recordatorio (como en producción) la hora igual cambia", async () => { sinColumnasRecordatorio = true; const r = await POST(request(valid())); assert.equal(r.status, 200); assert.equal(appointment.start_time, "2030-11-12T12:30:00Z"); assert.equal(emails, 1); });
   await test("cita sin abono también cambia sin crear cobros", async () => { appointment.deposit_amount = 0; appointment.deposit_status = null; assert.equal((await POST(request(valid()))).status, 200); assert.equal(appointment.deposit_amount, 0); });
   await test("GET devuelve versión y fecha sin datos personales ni de pago", async () => { const r = await GET(new NextRequest(`https://example.test/api/public/reschedule?id=${id}`)); assert.deepEqual(await r.json(), { start: base.start_time, date: base.date }); assert.equal(r.headers.get("Cache-Control"), "no-store"); });
   await test("GET consulta cupos excluyendo solo la propia cita validada", async () => { const r = await GET(new NextRequest(`https://example.test/api/public/reschedule?id=${id}&date=2030-11-12`)); assert.deepEqual((await r.json()).slots, slots); });
