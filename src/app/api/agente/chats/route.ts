@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminSupabase, resolveTenantForRequest, isManagerLevel } from "@/lib/supabase/server";
+import { createAdminSupabase } from "@/lib/supabase/server";
+import { contextoChats } from "@/lib/agente/chats-acceso";
 import { purgarChats, olvidarFlagChats, DIAS_CONSERVAR_CHATS } from "@/lib/agente/chats";
 import { formatPhoneCL } from "@/lib/phone";
 import { etiquetasDe, resumirDia, type MensajeResumen } from "@/lib/agente/resumen";
@@ -14,16 +15,8 @@ import { normalizarTelefonoWhatsApp } from "@/lib/agente/whatsapp-meta";
 export const dynamic = "force-dynamic";
 const falta = (e: any) => !!e && ["42P01", "42703", "PGRST205", "PGRST204"].includes(e.code);
 
-async function contexto(req: NextRequest) {
-  const g = await isManagerLevel();
-  if (!g.ok || g.role === "receptionist") return { error: NextResponse.json({ error: "Solo administración" }, { status: 403 }) };
-  const { tenantId, denied } = await resolveTenantForRequest(req.nextUrl.searchParams.get("tenantId"));
-  if (denied || !tenantId || tenantId === "ALL") return { error: NextResponse.json({ error: "Negocio no válido" }, { status: 400 }) };
-  return { tenantId };
-}
-
 export async function GET(req: NextRequest) {
-  const c = await contexto(req); if ("error" in c) return c.error;
+  const c = await contextoChats(req); if ("error" in c) return c.error;
   const db = createAdminSupabase();
   await purgarChats(db);
   const ajustes = await db.from("agent_whatsapp_settings").select("registrar_chats").eq("tenant_id", c.tenantId).maybeSingle();
@@ -80,7 +73,7 @@ export async function GET(req: NextRequest) {
 
 // Enciende o apaga el guardado de conversaciones del negocio.
 export async function PATCH(req: NextRequest) {
-  const c = await contexto(req); if ("error" in c) return c.error;
+  const c = await contextoChats(req); if ("error" in c) return c.error;
   const body = await req.json().catch(() => null);
   if (typeof body?.registrar !== "boolean") return NextResponse.json({ error: "Indica registrar: true o false" }, { status: 400 });
   const r = await createAdminSupabase().from("agent_whatsapp_settings").update({ registrar_chats: body.registrar }).eq("tenant_id", c.tenantId).select("tenant_id").maybeSingle();
