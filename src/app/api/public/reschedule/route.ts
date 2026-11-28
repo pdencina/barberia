@@ -79,12 +79,15 @@ export async function POST(req: NextRequest) {
   // Solo se cambia la hora de LA MISMA cita. No se cancela, no se crea otra reserva,
   // no se escriben abonos, descuentos, servicios ni pagos, ni se invoca al proveedor de cobros.
   const { data: saved, error } = await supabase.from("appointments")
-    .update({ date, start_time: `${start}Z`, end_time: end, reminder_sent: false, reminder_sent_at: null })
+    .update({ date, start_time: `${start}Z`, end_time: end })
     .eq("id", a.id).eq("tenant_id", a.tenant_id).eq("barber_id", a.barber_id)
     .eq("status", a.status).eq("start_time", a.start_time).eq("end_time", a.end_time)
     .select("id").maybeSingle();
-  if (error) return fail("No se pudo cambiar la hora. Tu reserva anterior se conserva.", 409);
+  if (error) { console.error("[reagendar] no se pudo guardar:", error.message); return fail("No se pudo cambiar la hora. Tu reserva anterior se conserva.", 409); }
   if (!saved) return fail("La cita cambió. Recarga el enlace antes de continuar.", 409);
+  // La marca de recordatorio va aparte: sus columnas pueden no existir (producción) y eso nunca debe impedir el cambio de hora.
+  const { error: marca } = await supabase.from("appointments").update({ reminder_sent: false, reminder_sent_at: null }).eq("id", a.id).eq("tenant_id", a.tenant_id);
+  if (marca && !/reminder_sent/.test(marca.message || "")) console.error("[reagendar] marca de recordatorio:", marca.message);
   try { await emailClientAboutAppointment(supabase, a.id, "updated"); } catch { /* El cambio guardado sigue siendo válido si falla el correo. */ }
   return NextResponse.json({ ok: true, start, date });
 }
