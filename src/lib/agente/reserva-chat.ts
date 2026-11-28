@@ -3,7 +3,7 @@
 // El nombre, el correo y el servicio se leen del mensaje en memoria y se envían directo a la reserva; si falta algo se vuelve a pedir
 // TODO en un solo mensaje, sin guardar datos a medias. La cita se crea con las mismas reglas de la reserva web (inyectada).
 import { normalizar, mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fija";
-import { ahoraChile, textoDeFecha, interpretarFecha, type Oferta } from "./disponibilidad";
+import { ahoraChile, textoDeFecha, interpretarFecha, separarHora, type Oferta } from "./disponibilidad";
 import { palabraCalza } from "./nombres";
 import { sonido } from "./servicio-profesional";
 import { textoDeAbono } from "./abono";
@@ -189,7 +189,7 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     const op = estado.datos.opciones;
     // Nombra a un profesional que no está entre los ofrecidos ("quiero reservar rizos con Enzo"): no es elegir una de las horas, lo resuelve el resto del agente.
     if ((datos?.profesionales ?? []).some((p) => !op.some((o) => o.id === p.id) && nombreMencionado(t, p.nombre))) return null;
-    const q = horaMencionada(t);
+    const q = horaMencionada(separarHora(t));
     let elegidas: Array<{ id: string; nombre: string; duracionMin: number; fecha: string; hora: string }> = [];
     // Pide un día ("Nicolás el 5 de diciembre") sin decir la hora: se consultan todas las horas de ese día, no solo las ya ofrecidas.
     const dia = interpretarFecha(t, hoy);

@@ -5,11 +5,14 @@ import { textoDeFecha } from "./disponibilidad";
 import { horaAmPm } from "../hora-ampm";
 import type { BuscarCitas } from "./mi-cita";
 
-export type TipoAviso = "agendo" | "cancelo" | "camino" | "puerta";
+export type TipoAviso = "agendo" | "cancelo" | "camino" | "puerta" | "problema" | "noasisto";
 // Está en el local y no le abren: es urgente, aunque venga como pregunta.
 const PUERTA = /\b(no sale nadie|nadie sale|no me (?:abren|abre nadie)|nadie (?:me )?(?:abre|atiende la puerta|contesta (?:la puerta|el timbre))|no abren la puerta)\b/;
 const PREGUNTA = /\b(saber|quisiera|queria|quiero|puedo|pueden|podria|necesito|como|cuando|donde|cual|que hora|correo|mail|codigo|confirmacion|no me|no se|no pude|no puedo|tienen|tiene|hay)\b/;
 // Sin «ya» ni tilde, «reagende mi hora» o «cancele mi cita» son un pedido, no un aviso.
+// Algo pasa con una hora ya tomada: lo ve una persona (no es una búsqueda de horas).
+const PROBLEMA = /\b(?:tengo|tuve|hay) un (?:problema|inconveniente|error)\b.*\b(?:hora|cita|reserva)\b/;
+const NOASISTO = /\bno (?:podre|voy a poder|puedo|voy a) (?:asistir|ir\b)|\bno (?:podre|voy a poder) llegar\b|\b(?:deseo|quiero|necesito) (?:cancelar|anular)\b/;
 const AGENDO = /\bya (?:re ?agende|agende|reserve|cambie (?:mi |la )?(?:hora|cita)|tome (?:otra|una) hora|pedi (?:otra|una) hora)\b/;
 const CANCELO = /\bya (?:cancele|anule)\b/;
 const AGENDO_TILDE = /(?:^|\s)(?:re ?agendé|cambié (?:mi |la )(?:hora|cita))(?=\s|$|[.,!])/i;
@@ -23,6 +26,8 @@ export function tipoDeAviso(texto: string): TipoAviso | null {
   const t = normalizar(texto).replace(/[!¡¿?.,;:]+/g, " ").replace(/\s+/g, " ").trim();
   if (PUERTA.test(t)) return "puerta";
   if (/[?¿]/.test(texto)) return null;
+  if (PROBLEMA.test(t)) return "problema";
+  if (NOASISTO.test(t) && !PAGO.test(t)) return "noasisto";
   if (PREGUNTA.test(t) || PEDIDO.test(t)) return null;
   if (AGENDO.test(t) || AGENDO_TILDE.test(texto)) return "agendo";
   if (CANCELO.test(t) || CANCELO_TILDE.test(texto)) return PAGO.test(t) ? null : "cancelo";
@@ -37,6 +42,10 @@ export async function responderAviso(texto: string, hoy: string, telefono: strin
   let citas: { profesional: string; fecha: string; hora: string }[] | null = null;
   if (buscar) { try { citas = (await buscar({ telefono }))?.citas ?? []; } catch { citas = null; } }
   const lista = (citas ?? []).slice(0, 3).map((c) => `• *${c.profesional}*, ${textoDeFecha(c.fecha, hoy)} a las *${horaAmPm(c.hora)}*`).join("\n");
+  if (tipo === "problema" || tipo === "noasisto") {
+    const inicio = tipo === "problema" ? "Entiendo 🙌 Le aviso al equipo ahora para que revise tu hora y te responda por aquí." : "Gracias por avisarnos 🙌 Le aviso al equipo ahora para que te responda por aquí.";
+    return lista ? `${inicio}\n\nEsto es lo que tengo registrado:\n${lista}` : inicio;
+  }
   if (tipo === "agendo") {
     if (lista) return `¡Perfecto, gracias por avisar! 🙌 Así quedó tu agenda:\n\n${lista}\n\n¡Te esperamos!`;
     return citas ? "¡Perfecto, gracias por avisar! 🙌 No veo la hora con este número; si quieres que la revise, envíame tu *código de reserva*." : "¡Perfecto, gracias por avisar! 🙌 ¡Te esperamos!";
