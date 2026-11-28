@@ -137,7 +137,7 @@ function Totem() {
   const [origenPago, setOrigenPago] = useState<"cita" | "pagoprod">("cita");
   // Agregar o cambiar el servicio de la cita antes de pagar.
   const [svcCita, setSvcCita] = useState<Cita | null>(null);
-  const [svcLista, setSvcLista] = useState<{ id: string; name: string; price: number; duration: number }[]>([]);
+  const [svcLista, setSvcLista] = useState<{ id: string; name: string; price: number; duration: number; publicDuration?: number }[]>([]);
   const [svcSel, setSvcSel] = useState<string[]>([]);
   // Antes de pagar se ofrece un producto para el cabello (solo cosméticos): una sola vez por atención.
   const [upsellHecho, setUpsellHecho] = useState(false);
@@ -786,7 +786,7 @@ function Totem() {
               return (
                 <button key={s.id} onClick={() => setSvcSel((l) => (l.includes(s.id) ? l.filter((x) => x !== s.id) : [...l, s.id].slice(0, 6)))}
                   className={`flex items-center justify-between gap-4 rounded-2xl border p-5 text-left transition active:scale-[0.995] ${on ? "border-white bg-white text-[#0A0A0A]" : "border-white/[0.12] bg-white/[0.04]"}`}>
-                  <span className="min-w-0"><span className="block truncate text-3xl font-bold">{s.name}</span><span className={`block text-2xl ${on ? "text-black/60" : "text-white/65"}`}>{plata(s.price)}{s.duration ? ` · ${s.duration} min` : ""}</span></span>
+                  <span className="min-w-0"><span className="block truncate text-3xl font-bold">{s.name}</span><span className={`block text-2xl ${on ? "text-black/60" : "text-white/65"}`}>{plata(s.price)}{s.duration ? ` · ${s.publicDuration ?? s.duration} min` : ""}</span></span>
                   <span aria-hidden className="text-4xl">{on ? "✓" : "+"}</span>
                 </button>
               );

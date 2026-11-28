@@ -1,3 +1,4 @@
+import { limpiarDuracionPublica, MENSAJE_MIGRACION_187 } from "@/lib/duracion-publica";
 import { errorDuracion } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase } from "@/lib/supabase/server";
@@ -19,6 +20,12 @@ export async function PATCH(
 
   const update: Record<string, unknown> = {};
   for (const k of EDITABLE) if (body && body[k] !== undefined) update[k] = body[k];
+  // Duración que ve el cliente (null = la misma de la agenda).
+  if (body && body.public_duration !== undefined) {
+    const publica = limpiarDuracionPublica(body.public_duration);
+    if (publica === undefined) return NextResponse.json({ error: "La duración que ve el cliente debe ser entre 5 y 600 minutos" }, { status: 400 });
+    update.public_duration = publica;
+  }
   if (Object.keys(update).length === 0) {
     return NextResponse.json({ error: "No hay campos validos para actualizar" }, { status: 400 });
   }
@@ -50,12 +57,19 @@ export async function PATCH(
     });
   }
 
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("services")
     .update(update)
     .eq("id", params.id)
     .select()
     .single();
+
+  // Sin la migración 187: si venía vacía se guarda lo demás; si traía un valor, se avisa.
+  if (error && /public_duration/.test(error.message)) {
+    if (update.public_duration !== null) return NextResponse.json({ error: MENSAJE_MIGRACION_187 }, { status: 409 });
+    delete update.public_duration;
+    ({ data, error } = await supabase.from("services").update(update).eq("id", params.id).select().single());
+  }
 
   if (error && /internal_only/.test(error.message)) return NextResponse.json({ error: "Falta aplicar la migración 141 para usar servicios internos." }, { status: 409 });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

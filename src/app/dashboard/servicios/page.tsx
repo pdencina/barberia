@@ -16,6 +16,7 @@ interface Service {
   description: string | null;
   price: number;
   duration: number;
+  public_duration?: number | null;
   active: boolean;
   sort_order: number;
   image_url?: string | null;
@@ -46,7 +47,7 @@ export default function ServiciosPage() {
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
-  const [form, setForm] = useState({ name: "", description: "", price: "", duration: "", category: "", internal: false });
+  const [form, setForm] = useState({ name: "", description: "", price: "", duration: "", publicDuration: "", category: "", internal: false });
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const { showToast } = useToast();
   const { confirm } = useConfirm();
@@ -128,7 +129,7 @@ export default function ServiciosPage() {
 
   const openNew = () => {
     setEditingService(null);
-    setForm({ name: "", description: "", price: "", duration: "", category: "", internal: false });
+    setForm({ name: "", description: "", price: "", duration: "", publicDuration: "", category: "", internal: false });
     setCreatingCategory(false);
     setNewCategoryName("");
     setShowModal(true);
@@ -141,6 +142,7 @@ export default function ServiciosPage() {
       description: s.description || "",
       price: String(s.price),
       duration: String(s.duration),
+      publicDuration: s.public_duration ? String(s.public_duration) : "",
       category: s.category || "",
       internal: !!s.internal_only,
     });
@@ -211,6 +213,7 @@ export default function ServiciosPage() {
           description: form.description || null,
           price: parseInt(form.price),
           duration: parseInt(form.duration),
+          public_duration: form.internal || !form.publicDuration ? null : parseInt(form.publicDuration),
           category: categoryToSave,
           internal_only: form.internal,
         }),
@@ -230,6 +233,7 @@ export default function ServiciosPage() {
           description: form.description || null,
           price: parseInt(form.price),
           duration: parseInt(form.duration),
+          public_duration: form.internal || !form.publicDuration ? null : parseInt(form.publicDuration),
           category: categoryToSave,
           internal_only: form.internal,
           sort_order: activeServices.length,
@@ -603,6 +607,7 @@ export default function ServiciosPage() {
                                   <option key={m} value={m}>{m} min</option>
                                 ))}
                               </select>
+                              {!s.internal_only && !!s.public_duration && <span className="px-2 py-0.5 bg-amber-50 text-amber-700 rounded text-[10px] md:text-xs font-medium flex-shrink-0" title="Duración que ve el cliente">Cliente ve {s.public_duration} min</span>}
                               {s.internal_only && <span className="px-2 py-0.5 bg-brand-light text-brand-gray rounded text-[10px] md:text-xs font-semibold flex-shrink-0" title="Solo se cobra en el Punto de Venta">Interno</span>}
                             </div>
                             {s.description && (
@@ -807,13 +812,24 @@ export default function ServiciosPage() {
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-brand-gray mb-1">Duracion (min)<span className="font-normal text-gray-400"> · 0 si no suma tiempo</span></label>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">{form.internal ? "Duracion (min)" : "Tiempo en tu agenda (min)"}<span className="font-normal text-gray-400"> · 0 si no suma tiempo</span></label>
                   <input type="number" required min={0} step={form.internal ? 1 : 5} value={form.duration}
                     onChange={(e) => setForm({ ...form, duration: e.target.value })}
                     placeholder={form.internal ? "0" : "30"}
                     className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
                 </div>
               </div>
+              {!form.internal && (
+                <div>
+                  <label className="block text-xs font-medium text-brand-gray mb-1">Duración que ve el cliente (min)<span className="font-normal text-gray-400"> · opcional</span></label>
+                  <input type="number" min={5} max={600} step={5} value={form.publicDuration}
+                    onChange={(e) => setForm({ ...form, publicDuration: e.target.value })}
+                    placeholder={form.duration ? `Igual que la agenda (${form.duration})` : "Igual que la agenda"}
+                    className="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm" />
+                  <p className="mt-1 text-[11px] text-brand-gray">Se muestra en la reserva online y en el correo. Tu agenda sigue ocupando el tiempo de arriba.</p>
+                </div>
+              )}
+
               <div className="flex gap-2 justify-end pt-2">
                 <button type="button" onClick={() => setShowModal(false)}
                   className="px-4 py-2.5 border border-gray-200 rounded-xl hover:bg-gray-50 text-sm">Cancelar</button>

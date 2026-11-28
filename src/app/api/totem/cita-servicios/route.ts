@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { conDuracionPublica } from "@/lib/duracion-publica";
 import { esUnicoProfesional } from "@/lib/profesional-unico";
 import { createAdminSupabase } from "@/lib/supabase/server";
 import { negocioDelTotem, normalizarCodigo, soloDiaDelTotem, primerNombre, demasiadosIntentos, ipDe } from "@/lib/totem";
@@ -50,7 +51,7 @@ export async function POST(req: NextRequest) {
   const actuales = (actualesFilas || []).map((x: any) => x.service_id as string);
 
   // Solo listar
-  if (!Array.isArray(body.serviceIds)) return NextResponse.json({ servicios: ofrecidos, actuales });
+  if (!Array.isArray(body.serviceIds)) return NextResponse.json({ servicios: await conDuracionPublica(supabase, ofrecidos), actuales });
 
   // Cambiar
   const pedidos: string[] = Array.from(new Set((body.serviceIds as unknown[]).map((x) => String(x || "")))).slice(0, 6);

@@ -1,5 +1,6 @@
 import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
+import { duracionesPublicas } from "@/lib/duracion-publica";
 import { esUnicoProfesional } from "@/lib/profesional-unico";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
@@ -39,6 +40,7 @@ export async function GET(req: NextRequest) {
   const unico = await esUnicoProfesional(supabase, tenant.id); // negocio independiente: hace todos sus servicios
   // Por profesional: ¿hace todos los servicios pedidos? (sin asignaciones = hace todos) y su precio/duración.
   const barberInfo: Record<string, any> = {};
+  const publicas = await duracionesPublicas(supabase, serviceIds);
   for (const b of barbers) {
     const assigned = new Set((unico ? [] : assignments || []).filter((a) => a.barber_id === b.id).map((a) => a.service_id));
     if (assigned.size > 0 && !serviceIds.every((id) => assigned.has(id))) continue;
@@ -50,6 +52,7 @@ export async function GET(req: NextRequest) {
         description: s.description,
         price: c?.custom_price ? Number(c.custom_price) : Number(s.price),
         duration: c?.custom_duration || s.duration,
+        publicDuration: publicas.get(s.id) ?? Number(c?.custom_duration || s.duration),
       };
     });
     barberInfo[b.id] = {
@@ -58,6 +61,7 @@ export async function GET(req: NextRequest) {
       avatar_url: b.avatar_url,
       services: list,
       duration: list.reduce((n, s) => n + Number(s.duration), 0),
+      publicDuration: list.reduce((n, s) => n + s.publicDuration, 0),
       price: list.reduce((n, s) => n + s.price, 0),
     };
   }

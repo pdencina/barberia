@@ -6,8 +6,8 @@ import { formatCurrency } from "@/lib/utils";
 
 // "Vista por horario": el cliente elige servicio(s), luego día y hora (de todo el equipo)
 // y al final el profesional disponible en esa hora.
-interface Svc { id: string; name: string; description: string | null; price: number; duration: number; category?: string | null }
-interface BarberOpt { id: string; name: string; avatar_url: string | null; services: Svc[]; duration: number; price: number }
+interface Svc { publicDuration?: number; id: string; name: string; description: string | null; price: number; duration: number; category?: string | null }
+interface BarberOpt { publicDuration?: number; id: string; name: string; avatar_url: string | null; services: Svc[]; duration: number; price: number }
 export interface TimePick { barber: BarberOpt; services: Svc[]; date: string; slot: string; auto?: boolean }
 
 const MONTHS = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"];
@@ -188,7 +188,7 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold">{s.name}</p>
-                      <p className="flex items-center gap-1 text-[11px] text-brand-gray"><Clock className="h-3 w-3" /> {s.duration} min</p>
+                      <p className="flex items-center gap-1 text-[11px] text-brand-gray"><Clock className="h-3 w-3" /> {s.publicDuration ?? s.duration} min</p>
                     </div>
                     <p className="flex-shrink-0 text-sm font-bold">{formatCurrency(s.price)}</p>
                   </div>
@@ -230,7 +230,7 @@ export default function TimeFirstFlow({ tenantSlug, closedWeekdays, windowDays, 
               {b.avatar_url ? <img src={b.avatar_url} alt={b.name} className="h-14 w-14 rounded-full object-cover" /> : (
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-gray-100 font-bold text-brand-gray">{b.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}</div>
               )}
-              <div className="min-w-0 flex-1"><p className="font-semibold">{b.name}</p><p className="text-xs text-brand-gray">{b.duration} min</p></div>
+              <div className="min-w-0 flex-1"><p className="font-semibold">{b.name}</p><p className="text-xs text-brand-gray">{b.publicDuration ?? b.duration} min</p></div>
               <p className="font-bold">{formatCurrency(b.price)}</p>
             </button>
           ))}

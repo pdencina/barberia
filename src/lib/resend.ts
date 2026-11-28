@@ -281,6 +281,16 @@ async function bloqueCodigoTotem(appointmentId?: string | null): Promise<string>
   } catch { return ""; }
 }
 
+// Al cliente se le informa la duración pública del servicio (migración 187), no la que ocupa en la agenda.
+async function duracionCorreo(appointmentId: string | null | undefined, duration: number): Promise<number> {
+  if (!appointmentId) return duration;
+  try {
+    const { createAdminSupabase } = await import("@/lib/supabase/server");
+    const { duracionVisibleDeCita } = await import("@/lib/duracion-publica");
+    return await duracionVisibleDeCita(createAdminSupabase(), appointmentId, duration);
+  } catch { return duration; }
+}
+
 // Fila(s) del precio en los correos de la cita: si se reservó con cupón, muestra el valor normal, el descuento y lo que se paga.
 async function filasPrecio(appointmentId: string | null | undefined, price: number): Promise<string> {
   const fila = (etiqueta: string, valor: string, destacada = false) => `<tr><td style="padding:10px 0;font-size:13px;color:#6B7280;">${etiqueta}</td><td align="right" style="padding:10px 0;font-size:${destacada ? 18 : 14}px;color:${destacada ? MAIL_ACCENT : "#111827"};font-weight:${destacada ? 800 : 600};">${valor}</td></tr>`;
@@ -333,7 +343,7 @@ export async function sendBookingConfirmation(params: SendBookingConfirmationPar
       ${mailRow("Profesional", barberName)}
       ${mailRow("Fecha", dateStr)}
       ${mailRow("Hora", timeStr, true)}
-      ${mailRow("Duración", `${duration} minutos`)}
+      ${mailRow("Duración", `${await duracionCorreo(appointmentId, duration)} minutos`)}
       ${await filasPrecio(appointmentId, price)}
     </table>
     ${bloqueCodigo}
@@ -400,7 +410,7 @@ export async function sendAppointmentUpdated(params: SendAppointmentUpdatedParam
       ${mailRow("Profesional", barberName)}
       ${mailRow("Fecha", dateStr)}
       ${mailRow("Hora", timeStr, true)}
-      ${mailRow("Duración", `${duration} minutos`)}
+      ${mailRow("Duración", `${await duracionCorreo(appointmentId, duration)} minutos`)}
       ${await filasPrecio(appointmentId, price)}
     </table>
     ${bloqueCodigo}

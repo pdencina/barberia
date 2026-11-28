@@ -1,5 +1,6 @@
 import { leerServiciosPublicos } from "@/lib/servicios-internos";
 import { NextRequest, NextResponse } from "next/server";
+import { conDuracionPublica } from "@/lib/duracion-publica";
 import { esUnicoProfesional } from "@/lib/profesional-unico";
 import { createAdminSupabase } from "@/lib/supabase/server";
 
@@ -65,5 +66,5 @@ export async function GET(req: NextRequest) {
       };
     });
 
-  return NextResponse.json(result);
+  return NextResponse.json(await conDuracionPublica(supabase, result)); // `duration` es la de la agenda
 }

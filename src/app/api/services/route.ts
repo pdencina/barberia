@@ -1,3 +1,4 @@
+import { limpiarDuracionPublica, MENSAJE_MIGRACION_187 } from "@/lib/duracion-publica";
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminSupabase, getCurrentTenantId, resolveTenantForRequest } from "@/lib/supabase/server";
 import { errorDuracion } from "@/lib/servicios-internos";
@@ -43,7 +44,11 @@ export async function POST(req: NextRequest) {
   const errDur = errorDuracion(duration, interno);
   if (errDur) return NextResponse.json({ error: errDur }, { status: 400 });
   const fila: Record<string, any> = { name, description, price, duration: Number(duration), sort_order: sort_order || 0, category: category || null, tenant_id: resolved };
+  const publica = limpiarDuracionPublica(body.public_duration);
+  if (publica === undefined) return NextResponse.json({ error: "La duración que ve el cliente debe ser entre 5 y 600 minutos" }, { status: 400 });
+  if (publica !== null) fila.public_duration = publica;
   let { data, error } = await supabase.from("services").insert(interno ? { ...fila, internal_only: true } : fila).select().single();
+  if (error && publica !== null && /public_duration/.test(error.message)) return NextResponse.json({ error: MENSAJE_MIGRACION_187 }, { status: 409 });
   if (error && interno && /internal_only/.test(error.message)) return NextResponse.json({ error: "Falta aplicar la migración 141 para crear servicios internos." }, { status: 409 });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
