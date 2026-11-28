@@ -5,7 +5,9 @@ import { textoDeFecha } from "./disponibilidad";
 import { horaAmPm } from "../hora-ampm";
 import type { BuscarCitas } from "./mi-cita";
 
-export type TipoAviso = "agendo" | "cancelo" | "camino";
+export type TipoAviso = "agendo" | "cancelo" | "camino" | "puerta";
+// Está en el local y no le abren: es urgente, aunque venga como pregunta.
+const PUERTA = /\b(no sale nadie|nadie sale|no me (?:abren|abre nadie)|nadie (?:me )?(?:abre|atiende la puerta|contesta (?:la puerta|el timbre))|no abren la puerta)\b/;
 const PREGUNTA = /\b(saber|quisiera|queria|quiero|puedo|pueden|podria|necesito|como|cuando|donde|cual|que hora|correo|mail|codigo|confirmacion|no me|no se|no pude|no puedo|tienen|tiene|hay)\b/;
 // Sin «ya» ni tilde, «reagende mi hora» o «cancele mi cita» son un pedido, no un aviso.
 const AGENDO = /\bya (?:re ?agende|agende|reserve|cambie (?:mi |la )?(?:hora|cita)|tome (?:otra|una) hora|pedi (?:otra|una) hora)\b/;
@@ -17,8 +19,10 @@ const PAGO = /\b(abono|pago|pague|transfer\w*|luca\w*|plata|deposit\w*|monto|val
 const CAMINO = /\b(?:voy (?:en camino|saliendo|llegando|para alla)|estoy (?:afuera|llegando|en camino|abajo)|ya llegue|ando afuera)\b/;
 
 export function tipoDeAviso(texto: string): TipoAviso | null {
-  if (typeof texto !== "string" || texto.length > 160 || /[?¿]/.test(texto)) return null;
-  const t = normalizar(texto).replace(/[!¡.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+  if (typeof texto !== "string" || texto.length > 160) return null;
+  const t = normalizar(texto).replace(/[!¡¿?.,;:]+/g, " ").replace(/\s+/g, " ").trim();
+  if (PUERTA.test(t)) return "puerta";
+  if (/[?¿]/.test(texto)) return null;
   if (PREGUNTA.test(t) || PEDIDO.test(t)) return null;
   if (AGENDO.test(t) || AGENDO_TILDE.test(texto)) return "agendo";
   if (CANCELO.test(t) || CANCELO_TILDE.test(texto)) return PAGO.test(t) ? null : "cancelo";
@@ -28,6 +32,7 @@ export function tipoDeAviso(texto: string): TipoAviso | null {
 export async function responderAviso(texto: string, hoy: string, telefono: string, buscar?: BuscarCitas): Promise<string | null> {
   const tipo = tipoDeAviso(texto);
   if (!tipo) return null;
+  if (tipo === "puerta") return "¡Disculpa la espera! 🙏 Le estoy avisando al equipo ahora para que te abran.";
   if (tipo === "camino") return "¡Gracias por avisar! 🙌 Te esperamos.";
   let citas: { profesional: string; fecha: string; hora: string }[] | null = null;
   if (buscar) { try { citas = (await buscar({ telefono }))?.citas ?? []; } catch { citas = null; } }

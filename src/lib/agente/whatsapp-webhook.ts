@@ -59,7 +59,7 @@ export interface DependenciasWebhook {
   consultas?: {
     operaciones: (n: NegocioWebhook) => OperacionesConsulta;
     /** true = quedó registrada y el dueño fue avisado. false = no se pudo (sin migración, sin ventana de 24 h...): se deriva como antes. */
-    abrir: (n: NegocioWebhook, contactHash: string, telefono: string, pregunta: string, medio?: { tipo: "image" | "document"; id: string }) => Promise<boolean>;
+    abrir: (n: NegocioWebhook, contactHash: string, telefono: string, pregunta: string, medio?: { tipo: "image" | "document"; id: string }, urgente?: boolean) => Promise<boolean>;
   };
   /** Qué servicios hace cada profesional (Profesionales > Servicios). Sin esto no se responde "¿quién hace rizos?". */
   serviciosPorProfesional?: (tenantId: string, ids: string[]) => Promise<ServiciosPorProfesional>;
@@ -303,6 +303,7 @@ export function crearManejadoresWebhook(config: {
                           if (av) {
                             respuestaFaq = av; reiniciado = true;
                             if (chat) { try { await chat.borrarEstado(n.tenantId,p.remitenteHash); } catch { /* sin memoria */ } }
+                            if (tipoDeAviso(text) === "puerta" && deps.consultas) { try { await deps.consultas.abrir(n,p.remitenteHash,para,`🚨 URGENTE, está afuera y no le abren: ${text}`.slice(0,300),undefined,true); } catch { /* el aviso es un extra */ } }
                             await contar("respuestas_automaticas");
                           }
                         }

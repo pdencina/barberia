@@ -3,7 +3,7 @@
 // El nombre, el correo y el servicio se leen del mensaje en memoria y se envían directo a la reserva; si falta algo se vuelve a pedir
 // TODO en un solo mensaje, sin guardar datos a medias. La cita se crea con las mismas reglas de la reserva web (inyectada).
 import { normalizar, mensajeAdmitido, datoSeguro, type DatosFaq } from "./faq-fija";
-import { ahoraChile, textoDeFecha, type Oferta } from "./disponibilidad";
+import { ahoraChile, textoDeFecha, interpretarFecha, type Oferta } from "./disponibilidad";
 import { palabraCalza } from "./nombres";
 import { sonido } from "./servicio-profesional";
 import { textoDeAbono } from "./abono";
@@ -55,6 +55,7 @@ const mayusculas = (n: string) => n.split(" ").filter(Boolean).map((w) => w.char
 const moneda = new Intl.NumberFormat("es-CL", { maximumFractionDigits: 0 });
 
 // Hora que menciona el cliente: h, minutos y am/pm si los dice. Sin am/pm se compara por reloj de 12 horas contra las horas ofrecidas.
+const HORAS_ESCRITAS = ["una", "dos", "tres", "cuatro", "cinco", "seis", "siete", "ocho", "nueve", "diez", "once", "doce"];
 function horaMencionada(t: string): { h: number; m: number; mer: "am" | "pm" | null } | null {
   const c = /\b(\d{1,2}):(\d{2})\s*(am|pm)?\b/.exec(t);
   if (c) return validar(Number(c[1]), Number(c[2]), (c[3] as "am" | "pm" | undefined) ?? null);
@@ -62,6 +63,9 @@ function horaMencionada(t: string): { h: number; m: number; mer: "am" | "pm" | n
   if (d) return validar(Number(d[1]), 0, d[2] as "am" | "pm");
   const e = /\b(?:las?|de las?|a las?|para las?)\s+(\d{1,2})\b/.exec(t) ?? /^\s*(\d{1,2})\s*(?:por favor|porfa|pls)?\s*$/.exec(t);
   if (e) return validar(Number(e[1]), 0, null);
+  // "La de las seis", "a las diez y media".
+  const f = /\b(?:a las?|de las?|para las|las) (una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce)\b(?: y (media|cuarto))?/.exec(t);
+  if (f) return validar(HORAS_ESCRITAS.indexOf(f[1]) + 1, f[2] === "media" ? 30 : f[2] === "cuarto" ? 15 : 0, null);
   return null;
 }
 function validar(h: number, m: number, mer: "am" | "pm" | null) { return h >= 0 && h <= 23 && m >= 0 && m <= 59 ? { h, m, mer } : null; }
@@ -187,6 +191,9 @@ export async function manejarReservaChat(texto: unknown, telefono: string, datos
     if ((datos?.profesionales ?? []).some((p) => !op.some((o) => o.id === p.id) && nombreMencionado(t, p.nombre))) return null;
     const q = horaMencionada(t);
     let elegidas: Array<{ id: string; nombre: string; duracionMin: number; fecha: string; hora: string }> = [];
+    // Pide un día ("Nicolás el 5 de diciembre") sin decir la hora: se consultan todas las horas de ese día, no solo las ya ofrecidas.
+    const dia = interpretarFecha(t, hoy);
+    if (!q && !estado.datos.horaPendiente && dia !== "invalida" && dia.explicita) return null;
     // "Busco cerca de las 5" es una búsqueda, no una elección: la responde la consulta de disponibilidad (con las horas más cercanas).
     if (q && /\b(cerca|alrededor|aproximad\w*|mas o menos)\b/.test(t)) return null;
     const pend = estado.datos.horaPendiente;
