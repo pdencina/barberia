@@ -22,7 +22,8 @@ interface Service {
   name: string;
   description: string | null;
   price: number;
-  duration: number;
+  duration: number;       // la de la agenda
+  publicDuration?: number; // la que ve el cliente
   imageUrl?: string | null;
 }
 
@@ -193,6 +194,7 @@ export default function BookingPage() {
     else { setPromoDescuento(d.discount || 0); setPromoEstado({ ok: true, texto: d.discount > 0 ? `Código aplicado: pagas ${formatCurrency(totalPrice - d.discount)} en el local (antes ${formatCurrency(totalPrice)}).` : `Código aplicado${d.description ? `: ${d.description}` : ""}.` }); }
   };
   const totalDuration = Math.max(5, selectedServices.reduce((sum, s) => sum + s.duration, 0));
+  const duracionVisible = Math.max(5, selectedServices.reduce((sum, s) => sum + (s.publicDuration ?? s.duration), 0));
   useEffect(() => { if (depositRequired && codigoPromo && selectedSlot) revisarPromo(); }, [depositRequired, selectedSlot, selectedBarber?.id, totalPrice]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const [closedDays, setClosedDays] = useState<number[]>([]);
@@ -536,7 +538,7 @@ export default function BookingPage() {
     preselectSlot.current = p.slot;
     setAutoAssigned(!!p.auto);
     setSelectedBarber({ id: p.barber.id, name: p.barber.name, avatar_url: p.barber.avatar_url, bio: null, specialties: null, intro_video_url: null, years_experience: null });
-    setSelectedServices(p.services.map((sv) => ({ id: sv.id, name: sv.name, description: sv.description, price: sv.price, duration: sv.duration })));
+    setSelectedServices(p.services.map((sv) => ({ id: sv.id, name: sv.name, description: sv.description, price: sv.price, duration: sv.duration, publicDuration: (sv as any).publicDuration })));
     setSelectedDate(p.date);
     setSelectedSlot(p.slot);
     setStep("details");
@@ -714,7 +716,7 @@ export default function BookingPage() {
                         <p className="text-sm font-semibold leading-snug text-brand-dark">{s.name}</p>
                         <p className="flex-shrink-0 text-sm font-bold text-brand-blue">{formatCurrency(Number(s.price))}</p>
                       </div>
-                      <p className="mt-0.5 text-xs text-brand-gray">{s.duration} min</p>
+                      <p className="mt-0.5 text-xs text-brand-gray">{s.publicDuration ?? s.duration} min</p>
                       {s.description && (
                         <p className={`mt-1 whitespace-pre-line text-xs leading-relaxed text-brand-gray ${expanded ? "" : "line-clamp-2"}`}>{s.description}</p>
                       )}
@@ -746,7 +748,7 @@ export default function BookingPage() {
             <div className="max-w-2xl mx-auto px-4 py-3 flex items-center gap-3">
               <div className="min-w-0 flex-1">
                 <p className="text-[11px] text-brand-gray leading-tight">
-                  {selectedServices.length} servicio{selectedServices.length > 1 ? "s" : ""} · {totalDuration} min
+                  {selectedServices.length} servicio{selectedServices.length > 1 ? "s" : ""} · {duracionVisible} min
                 </p>
                 <p className="text-brand-blue font-bold text-lg leading-tight">{formatCurrency(totalPrice)}</p>
               </div>
@@ -1014,7 +1016,7 @@ export default function BookingPage() {
               </div>
               <div className="flex justify-between text-sm mb-2">
                 <span className="text-brand-gray">Duracion</span>
-                <span className="text-brand-dark">{totalDuration} min</span>
+                <span className="text-brand-dark">{duracionVisible} min</span>
               </div>
               <div className="flex justify-between text-sm pt-2 border-t border-gray-200">
                 <span className="text-brand-gray">Total</span>

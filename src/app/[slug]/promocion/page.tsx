@@ -15,7 +15,7 @@ import { PromoCabecera } from "@/components/promo/promo-cabecera";
 // re-booking.cl/<negocio>/promocion — reserva con los criterios de la promoción ya puestos: solo sus profesionales, días y horas.
 
 interface Pro { id: string; nombre: string; foto: string | null }
-interface Servicio { id: string; name: string; price: number; duration: number }
+interface Servicio { id: string; name: string; price: number; duration: number; publicDuration?: number }
 interface Datos {
   negocio: { id: string; nombre: string; slug: string; logo: string | null };
   promo: null | { codigo: string; personas: number; colores: { fondo: string; texto: string; boton: string } | null; politicas: string | null; servicios: string[] | null; descripcion: string | null; tipo: string; valor: number; titulo: string | null; imagen: string | null; horaDesde: string | null; horaHasta: string | null; dias: string[]; detalles: Array<{ etiqueta: string; valor: string }>; profesionales: Pro[] };
@@ -240,7 +240,7 @@ export default function PromocionPage() {
                   return (
                     <button key={s.id} type="button" aria-pressed={on} onClick={() => setElegidos((l) => (on ? l.filter((x) => x !== s.id) : [...l, s.id]))}
                       className={`flex w-full items-center justify-between gap-3 rounded-xl border px-4 py-3 text-left ${on ? "border-promo-boton bg-promo-boton text-promo-sobre" : "border-promo-tinta/15 bg-promo-tinta/5"}`}>
-                      <span className="min-w-0"><span className="block text-sm font-bold">{s.name}</span><span className={`text-xs font-light ${on ? "text-promo-sobre/60" : "text-promo-tinta/70"}`}>{s.duration} min</span></span>
+                      <span className="min-w-0"><span className="block text-sm font-bold">{s.name}</span><span className={`text-xs font-light ${on ? "text-promo-sobre/60" : "text-promo-tinta/70"}`}>{s.publicDuration ?? s.duration} min</span></span>
                       <span className="flex-shrink-0 text-right"><span className={`block text-xs line-through ${on ? "text-promo-sobre/60" : "text-promo-tinta/70"}`}>{conDescuento(s.price) < s.price ? pesos(s.price) : ""}</span><span className="text-base font-extrabold">{pesos(conDescuento(s.price))}</span></span>
                     </button>
                   );
