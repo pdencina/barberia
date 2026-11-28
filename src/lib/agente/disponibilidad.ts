@@ -57,25 +57,32 @@ interface Consulta { fecha: string; fechaExplicita: boolean; hora: number | null
 interface Perfil { id: string; nombre: string; link: string; duracionMin: number }
 
 export function interpretarFecha(t: string, hoy: string): { fecha: string; explicita: boolean; resto: string } | "invalida" {
-  let resto = t;
+  // Errores comunes al escribir el mes ("dieciembre", "diciembe").
+  let resto = t.replace(/\b(?:dieciembre|diciembe|dicimbre|disiembre)\b/g, "diciembre").replace(/\b(?:novienbre|nobiembre|noviembe)\b/g, "noviembre");
+  // Una fecha con mes manda sobre todo lo demás: "sábado 5 de diciembre" es el 5, no el sábado más cercano.
+  const conMes = /\b(?:(?:el )?(?:lunes|martes|miercoles|jueves|viernes|sabado|domingo) )?(?:el )?(\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.exec(resto);
+  if (conMes) {
+    const d = Number(conMes[1]), m = MESES.indexOf(conMes[2] as (typeof MESES)[number]) + 1;
+    let y = Number(hoy.slice(0, 4));
+    if (!fechaValida(y, m, d)) return "invalida";
+    const armar = () => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    if (armar() < hoy) { y += 1; if (!fechaValida(y, m, d)) return "invalida"; }
+    return { fecha: armar(), explicita: true, resto: resto.replace(conMes[0], " ") };
+  }
   if (/\bpasado mañana\b/.test(resto)) return { fecha: sumar(hoy, 2), explicita: true, resto: resto.replace(/\bpasado mañana\b/, " ") };
   if (/\bmañana\b/.test(resto)) return { fecha: sumar(hoy, 1), explicita: true, resto: resto.replace(/\bmañana\b/, " ") };
   if (/\b(hoy|ahora|ahorita)\b/.test(resto)) return { fecha: hoy, explicita: true, resto: resto.replace(/\b(hoy|ahora|ahorita)\b/, " ") };
-  const dia = /\b(?:el |este |proximo |próximo )?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b/.exec(resto);
+  const dia = /\b(?:el |este |(proximo |próximo ))?(lunes|martes|miercoles|jueves|viernes|sabado|domingo)\b( (?:que viene|de la (?:proxima|otra|siguiente) semana|de la semana que viene))?/.exec(resto);
   if (dia) {
-    const objetivo = DIAS_CLAVE[dia[1]], actual = diaSemana(hoy);
-    return { fecha: sumar(hoy, (objetivo - actual + 7) % 7), explicita: true, resto: resto.replace(dia[0], " ") };
+    const objetivo = DIAS_CLAVE[dia[2]], actual = diaSemana(hoy);
+    let faltan = (objetivo - actual + 7) % 7;
+    // "El próximo sábado" dicho un sábado es el de la otra semana, no hoy.
+    if (faltan === 0 && (dia[1] || dia[3])) faltan = 7;
+    return { fecha: sumar(hoy, faltan), explicita: true, resto: resto.replace(dia[0], " ") };
   }
-  const num = /\b(?:el )?(\d{1,2}) de (enero|febrero|marzo|abril|mayo|junio|julio|agosto|septiembre|octubre|noviembre|diciembre)\b/.exec(resto) ?? /\bel (\d{1,2})\b(?! ?(?::|h\b|am\b|pm\b|hrs\b))/.exec(resto);
+  const num = /\bel (\d{1,2})\b(?! ?(?::|h\b|am\b|pm\b|hrs\b))/.exec(resto);
   if (num) {
     const d = Number(num[1]); let [y, m] = hoy.split("-").map(Number);
-    if (num[2]) {
-      m = MESES.indexOf(num[2] as (typeof MESES)[number]) + 1;
-      if (!fechaValida(y, m, d)) return "invalida";
-      let f = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      if (f < hoy) { y += 1; if (!fechaValida(y, m, d)) return "invalida"; f = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`; }
-      return { fecha: f, explicita: true, resto: resto.replace(num[0], " ") };
-    }
     const hoyDia = Number(hoy.split("-")[2]);
     if (d < hoyDia) { m += 1; if (m === 13) { m = 1; y += 1; } }
     if (!fechaValida(y, m, d)) return "invalida";

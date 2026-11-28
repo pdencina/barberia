@@ -315,13 +315,13 @@ const handlers = () => crearManejadoresWebhook({
               saberBorrar: async (id: string) => { await db.from("agent_faq_custom").delete().eq("tenant_id", tenantId).eq("id", id).eq("orden", ORDEN_SABER_CHAT); },
             };
           },
-          abrir: async (n: any, contactHash: string, telefono: string, pregunta: string, medio?: { tipo: "image" | "document"; id: string }) => {
+          abrir: async (n: any, contactHash: string, telefono: string, pregunta: string, medio?: { tipo: "image" | "document"; id: string }, urgente?: boolean) => {
             const tenantId = n.tenantId as string, tel = String(telefono).replace(/\D/g, "");
             const texto = pregunta.replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, MAX_PREGUNTA);
             if (!texto || !/^[0-9]{8,15}$/.test(tel)) return false;
             // Aviso en la app (consulta nueva o imagen nueva), aunque el WhatsApp al dueño no se pueda entregar.
             const yaAbierta = await db.from("agent_consultas").select("id").eq("tenant_id", tenantId).eq("contact_hash", contactHash).gte("created_at", new Date(Date.now() - 48 * 3600000).toISOString()).limit(1).maybeSingle();
-            if (medio || !yaAbierta.data) await avisarEnApp(tenantId, { telefono: tel, pregunta: texto, imagen: !!medio });
+            if (medio || urgente || !yaAbierta.data) await avisarEnApp(tenantId, { telefono: tel, pregunta: texto, imagen: !!medio });
             const admin = await db.from("agent_admin_contacts").select("telefono").eq("tenant_id", tenantId).limit(1).maybeSingle();
             if (admin.error || !admin.data?.telefono) return false;
             await db.from("agent_consultas").delete().eq("tenant_id", tenantId).lt("created_at", new Date(Date.now() - 48 * 3600000).toISOString()); // limpieza
@@ -348,7 +348,9 @@ const handlers = () => crearManejadoresWebhook({
               if (medio) await anotarMedio(previa.data.id);
               if (medio && !abiertaVentana) return true; // ya tiene el aviso de esta consulta: la imagen queda guardada
               if (medio) { const e2 = await enviarMedioPorId({ para: String(admin.data.telefono), tipo: medio.tipo, id: medio.id, caption: avisoDeImagen(Number(previa.data.numero), true) }, meta(n)); return e2.estado === "aceptado"; }
-              await db.from("agent_consultas").update({ pregunta: `${previa.data.pregunta} / ${texto}`.slice(0, MAX_PREGUNTA), updated_at: new Date().toISOString() }).eq("id", previa.data.id);
+              // Lo urgente va primero (para que no se corte) y se vuelve a avisar por WhatsApp aunque la consulta ya exista.
+              await db.from("agent_consultas").update({ pregunta: (urgente ? `${texto} / ${previa.data.pregunta}` : `${previa.data.pregunta} / ${texto}`).slice(0, MAX_PREGUNTA), updated_at: new Date().toISOString() }).eq("id", previa.data.id);
+              if (urgente) await avisarDueno(abiertaVentana, { plantilla: () => plantilla(Number(previa.data!.numero)), normal: () => enviarTexto({ para: String(admin.data!.telefono), texto: avisoDeConsulta({ numero: Number(previa.data!.numero), pregunta: texto }) }, meta(n)) });
               return true;
             }
             const abiertas = await db.from("agent_consultas").select("id", { count: "exact", head: true }).eq("tenant_id", tenantId);

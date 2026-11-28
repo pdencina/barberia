@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { tipoDeAviso, responderAviso } from "../src/lib/agente/aviso-cliente";
 import { esCierreConversacion } from "../src/lib/agente/menu";
+import { interpretarFecha } from "../src/lib/agente/disponibilidad";
 
 async function main() {
   for (const [t, e] of [["ya re agende para más tarde", "agendo"], ["Ya reagendé", "agendo"], ["listo ya agendé para las 8", "agendo"], ["ya cancelé mi hora", "cancelo"], ["voy en camino", "camino"], ["cancelé mi hora", "cancelo"], ["reagendé para las 8", "agendo"], ["estoy afuera", "camino"]] as const) assert.equal(tipoDeAviso(t), e, t);
@@ -11,6 +12,12 @@ async function main() {
   assert.doesNotMatch(r!, /no tiene horas/);
   assert.match((await responderAviso("ya reagendé", "2026-11-27", "569", async () => null))!, /código de reserva/);
   assert.ok(esCierreConversacion("ok gracias"));
+  for (const t of ["Estoy afuera y no sale nadie", "No sale nadie", "no me abren", "estoy afuera, nadie me abre?"]) assert.equal(tipoDeAviso(t), "puerta", t);
+  assert.match((await responderAviso("No sale nadie", "2026-11-28", "569"))!, /avisando al equipo/);
+  // El 28 de noviembre de 2026 es sábado.
+  for (const [t, f] of [["tiene el sabado", "2026-11-28"], ["y el proximo sabado", "2026-12-05"], ["el sabado que viene", "2026-12-05"], ["el proximo sabado a que hora tiene disponible sabado 5 de dieciembre", "2026-12-05"], ["el 2 de diciembre", "2026-12-02"], ["el proximo lunes", "2026-11-30"], ["sabado 5 de diciembre en la mañana", "2026-12-05"]] as const) {
+    const r = interpretarFecha(t, "2026-11-28"); assert.ok(r !== "invalida" && r.fecha === f, `${t}: ${JSON.stringify(r)}`);
+  }
   console.log("avisos del cliente: OK");
 }
 main();
